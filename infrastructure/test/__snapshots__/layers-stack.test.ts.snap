@@ -1,0 +1,90 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`LayersStack Snapshot test 1`] = `
+{
+  "Outputs": {
+    "CommonLayerVersionArn": {
+      "Description": "ARN of the Common Layer",
+      "Export": {
+        "Name": "CommonLayerVersionArn",
+      },
+      "Value": {
+        "Ref": "CommonLayer306767A0",
+      },
+    },
+    "PowertoolsLayerVersionArn": {
+      "Description": "ARN of the Powertools Layer",
+      "Export": {
+        "Name": "PowertoolsLayerVersionArn",
+      },
+      "Value": {
+        "Ref": "PowertoolsLayer17979D4B",
+      },
+    },
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "CommonLayer306767A0": {
+      "Properties": {
+        "CompatibleRuntimes": [
+          "nodejs22.x",
+        ],
+        "Content": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "73702a16833e4abf1e6cefd0c3eb98132ee4f2db1c0a541f2fe575753d90dc30.zip",
+        },
+        "Description": "Common utilities - Markdown conversion, S3 presigned URLs, DynamoDB helpers",
+        "LayerName": "serverless-blog-common",
+      },
+      "Type": "AWS::Lambda::LayerVersion",
+    },
+    "PowertoolsLayer17979D4B": {
+      "Properties": {
+        "CompatibleRuntimes": [
+          "nodejs22.x",
+        ],
+        "Content": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "41eae44305cc9ae9d94b58c106ab9077776a4408f34013daef512fa90e9ed1e7.zip",
+        },
+        "Description": "AWS Lambda Powertools for TypeScript - Logger, Tracer, Metrics, Parameters",
+        "LayerName": "serverless-blog-powertools",
+      },
+      "Type": "AWS::Lambda::LayerVersion",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;
