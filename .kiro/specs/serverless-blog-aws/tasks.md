@@ -35,7 +35,7 @@
 
 - [ ] 2. データベースとストレージインフラの構築
 
-- [ ] 2.1 DynamoDBテーブルとGlobal Secondary Indexesの定義
+- [x] 2.1 DynamoDBテーブルとGlobal Secondary Indexesの定義
   - DynamoDBテーブルをCDKで定義する（パーティションキー: id、オンデマンドモード）
   - CategoryIndexを定義する（パーティションキー: category、ソートキー: createdAt）
   - PublishStatusIndexを定義する（パーティションキー: publishStatus、ソートキー: createdAt）
@@ -44,7 +44,7 @@
   - DynamoDBスタックのCDKスナップショットテストを作成する
   - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-- [ ] 2.2 S3バケットの構成（画像ストレージと静的サイトホスティング）
+- [x] 2.2 S3バケットの構成（画像ストレージと静的サイトホスティング）
   - 画像ストレージ用S3バケットをCDKで定義する（バージョニング有効、パブリックアクセスブロック）
   - 静的コンテンツ用S3バケットをCDKで定義する（公開ページ用、管理画面用）
   - 画像バケットのライフサイクルポリシーを設定する（30日間未アクセスで低頻度アクセス層へ移行）
@@ -53,9 +53,9 @@
   - S3スタックのCDKスナップショットテストを作成する
   - _Requirements: 4.5, 5.4_
 
-- [ ] 3. 認証システムの実装
+- [x] 3. 認証システムの実装
 
-- [ ] 3.1 Cognito User Poolとアプリクライアントの設定
+- [x] 3.1 Cognito User Poolとアプリクライアントの設定
   - Cognito User PoolをCDKで定義する（メールサインイン、パスワードポリシー設定）
   - MFA設定をOptionalに設定する（将来的にRequiredに変更可能）
   - User Pool Clientを定義する（管理画面用）
@@ -64,7 +64,7 @@
   - CognitoスタックのCDKスナップショットテストを作成する
   - _Requirements: 2.2, 2.3_
 
-- [ ] 3.2 API Gateway Cognito Authorizerの統合
+- [x] 3.2 API Gateway Cognito Authorizerの統合
   - API Gateway REST APIをCDKで定義する
   - Cognito User Pool AuthorizerをAPI Gatewayに統合する
   - 管理API用のリソースパス（/admin/*）にAuthorizerを適用する
