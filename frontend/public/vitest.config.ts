@@ -32,6 +32,9 @@ export default defineConfig({
         '**/*.stories.tsx',
         'vitest.setup.ts',
         'src/types/**',
+        // テストインフラ - MSW関連
+        'public/**',
+        'src/mocks/**',
       ],
       all: true,
       thresholds: {

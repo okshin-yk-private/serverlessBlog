@@ -7,6 +7,7 @@
 import axios from 'axios';
 import type { Post, PostListResponse, PostListFilters } from '../types/post';
 
+/* c8 ignore next */
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 /**

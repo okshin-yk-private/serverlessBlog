@@ -449,5 +449,23 @@ describe('PostDetailPage', () => {
       const jsonLdContent = JSON.parse(jsonLdScript?.textContent || '{}');
       expect(jsonLdContent.datePublished).toBe('2025-01-01T00:00:00Z');
     });
+
+    test('authorIdが空の場合、デフォルトで"Admin"が表示される', async () => {
+      const postWithoutAuthor = { ...mockPost, authorId: '' };
+      vi.mocked(api.fetchPost).mockResolvedValue(postWithoutAuthor);
+
+      render(
+        <MemoryRouter initialEntries={['/posts/post-123']}>
+          <Routes>
+            <Route path="/posts/:id" element={<PostDetailPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => {
+        const authorElement = screen.getByTestId('article-author');
+        expect(authorElement.textContent).toBe('Admin');
+      });
+    });
   });
 });
