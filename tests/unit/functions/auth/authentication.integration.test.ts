@@ -44,7 +44,7 @@ jest.mock('@aws-sdk/client-cognito-identity-provider', () => ({
 }));
 
 // markdownUtilsのモック（isomorphic-dompurifyの依存関係エラーを回避）
-jest.mock('/opt/nodejs/utils/markdownUtils', () => ({
+jest.mock('../../../../layers/common/nodejs/utils/markdownUtils', () => ({
   markdownToSafeHtml: jest.fn((markdown: string) => {
     return markdown
       .replace(/^# (.+)$/gm, '<h1>$1</h1>')
