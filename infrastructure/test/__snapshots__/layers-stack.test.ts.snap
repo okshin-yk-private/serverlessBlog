@@ -51,7 +51,7 @@ exports[`LayersStack Snapshot test 1`] = `
         ],
         "Content": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "237e906375546a3d61cabd056c493e1c7296fafbacdbd2df0dbcfe2d55e5879c.zip",
+          "S3Key": "fc21b648e28bde903ffe832b3b1301610492b23759351f2839934b5e66da021f.zip",
         },
         "Description": "AWS Lambda Powertools for TypeScript - Logger, Tracer, Metrics, Parameters",
         "LayerName": "serverless-blog-powertools",

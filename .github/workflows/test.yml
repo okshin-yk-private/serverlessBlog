@@ -83,9 +83,14 @@ jobs:
           cd infrastructure
           npm ci
 
-      - name: Install Lambda Layer dependencies
+      - name: Install Lambda Layer dependencies (Common)
         run: |
           cd layers/common/nodejs
+          npm ci
+
+      - name: Install Lambda Layer dependencies (Powertools)
+        run: |
+          cd layers/powertools/nodejs
           npm ci
 
       - name: Run infrastructure tests with coverage
