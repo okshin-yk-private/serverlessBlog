@@ -115,7 +115,7 @@ describe('PostDetailPage', () => {
       );
 
       await waitFor(() => {
-        const contentElement = screen.getByTestId('post-content');
+        const contentElement = screen.getByTestId('article-content');
         expect(contentElement.innerHTML).toContain('<h1>Hello World</h1>');
         expect(contentElement.innerHTML).toContain('<p>This is test content.</p>');
       });
@@ -138,7 +138,7 @@ describe('PostDetailPage', () => {
       );
 
       await waitFor(() => {
-        const contentElement = screen.getByTestId('post-content');
+        const contentElement = screen.getByTestId('article-content');
         expect(contentElement.innerHTML).toContain('<strong>Bold Text</strong>');
         expect(contentElement.innerHTML).toContain('<em>Italic Text</em>');
       });

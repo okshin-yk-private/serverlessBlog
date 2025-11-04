@@ -615,7 +615,7 @@ describe('PostListPage', () => {
 
       // Assert
       await waitFor(() => {
-        const container = screen.getByTestId('post-list-container');
+        const container = screen.getByTestId('article-list');
         expect(container).toBeInTheDocument();
         expect(container.className).toContain('post-list-container');
       });
