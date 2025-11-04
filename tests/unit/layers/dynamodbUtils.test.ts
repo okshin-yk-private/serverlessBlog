@@ -1,3 +1,8 @@
+// AWS SDKモックを有効化（__mocks__ディレクトリの手動モックを使用）
+jest.mock('@aws-sdk/client-dynamodb');
+jest.mock('@aws-sdk/lib-dynamodb');
+
+// ユーティリティをインポート
 import {
   getDynamoDBClient,
   putItem,
@@ -6,27 +11,20 @@ import {
   deleteItem,
 } from '../../../layers/common/nodejs/utils/dynamodbUtils';
 
-// Mock AWS SDK
-jest.mock('@aws-sdk/client-dynamodb');
-
-const mockSend = jest.fn();
-jest.mock('@aws-sdk/lib-dynamodb', () => {
-  const actualModule = jest.requireActual('@aws-sdk/lib-dynamodb');
-  return {
-    ...actualModule,
-    DynamoDBDocumentClient: {
-      from: jest.fn(() => ({
-        send: mockSend,
-      })),
-    },
-  };
-});
+// DynamoDBDocumentClientのsendメソッドのモックを取得
+const getMockSend = () => {
+  const client = getDynamoDBClient();
+  return client.send as jest.Mock;
+};
 
 describe('dynamodbUtils', () => {
   const tableName = 'test-table';
+  let mockSend: jest.Mock;
 
   beforeEach(() => {
+    mockSend = getMockSend();
     mockSend.mockClear();
+    mockSend.mockResolvedValue({});
   });
 
   describe('getDynamoDBClient', () => {
