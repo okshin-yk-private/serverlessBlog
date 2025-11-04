@@ -1,0 +1,232 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`CdnStack Snapshot Tests CloudFront Distribution snapshot 1`] = `
+{
+  "Outputs": {
+    "ImageDistributionDomainName": {
+      "Description": "CloudFront distribution domain name for images",
+      "Export": {
+        "Name": "ImageDistributionDomainName",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "ImageDistribution0E4DF19E",
+          "DomainName",
+        ],
+      },
+    },
+    "ImageDistributionId": {
+      "Description": "CloudFront distribution ID for images",
+      "Export": {
+        "Name": "ImageDistributionId",
+      },
+      "Value": {
+        "Ref": "ImageDistribution0E4DF19E",
+      },
+    },
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "ImageCachePolicy3A3980AA": {
+      "Properties": {
+        "CachePolicyConfig": {
+          "Comment": "Cache policy for blog images with 24 hour TTL",
+          "DefaultTTL": 86400,
+          "MaxTTL": 31536000,
+          "MinTTL": 3600,
+          "Name": "BlogImageCachePolicy",
+          "ParametersInCacheKeyAndForwardedToOrigin": {
+            "CookiesConfig": {
+              "CookieBehavior": "none",
+            },
+            "EnableAcceptEncodingBrotli": true,
+            "EnableAcceptEncodingGzip": true,
+            "HeadersConfig": {
+              "HeaderBehavior": "none",
+            },
+            "QueryStringsConfig": {
+              "QueryStringBehavior": "none",
+            },
+          },
+        },
+      },
+      "Type": "AWS::CloudFront::CachePolicy",
+    },
+    "ImageDistribution0E4DF19E": {
+      "Properties": {
+        "DistributionConfig": {
+          "Comment": "CDN for blog images",
+          "DefaultCacheBehavior": {
+            "AllowedMethods": [
+              "GET",
+              "HEAD",
+            ],
+            "CachePolicyId": {
+              "Ref": "ImageCachePolicy3A3980AA",
+            },
+            "CachedMethods": [
+              "GET",
+              "HEAD",
+            ],
+            "Compress": true,
+            "TargetOriginId": "TestCdnStackImageDistributionOrigin1EE231D47",
+            "ViewerProtocolPolicy": "redirect-to-https",
+          },
+          "Enabled": true,
+          "HttpVersion": "http2",
+          "IPV6Enabled": true,
+          "Origins": [
+            {
+              "DomainName": {
+                "Fn::GetAtt": [
+                  "TestImageBucket03D56590",
+                  "RegionalDomainName",
+                ],
+              },
+              "Id": "TestCdnStackImageDistributionOrigin1EE231D47",
+              "OriginAccessControlId": {
+                "Fn::GetAtt": [
+                  "ImageDistributionOrigin1S3OriginAccessControlCCAF31CF",
+                  "Id",
+                ],
+              },
+              "S3OriginConfig": {
+                "OriginAccessIdentity": "",
+              },
+            },
+          ],
+          "PriceClass": "PriceClass_100",
+        },
+      },
+      "Type": "AWS::CloudFront::Distribution",
+    },
+    "ImageDistributionOrigin1S3OriginAccessControlCCAF31CF": {
+      "Properties": {
+        "OriginAccessControlConfig": {
+          "Name": "TestCdnStackImageDistributioOrigin1S3OriginAccessControlF950C028",
+          "OriginAccessControlOriginType": "s3",
+          "SigningBehavior": "always",
+          "SigningProtocol": "sigv4",
+        },
+      },
+      "Type": "AWS::CloudFront::OriginAccessControl",
+    },
+    "TestImageBucket03D56590": {
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256",
+              },
+            },
+          ],
+        },
+        "BucketName": "test-image-bucket",
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true,
+        },
+        "VersioningConfiguration": {
+          "Status": "Enabled",
+        },
+      },
+      "Type": "AWS::S3::Bucket",
+      "UpdateReplacePolicy": "Retain",
+    },
+    "TestImageBucketPolicy5F8CE1CB": {
+      "Properties": {
+        "Bucket": {
+          "Ref": "TestImageBucket03D56590",
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:GetObject",
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceArn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition",
+                        },
+                        ":cloudfront::",
+                        {
+                          "Ref": "AWS::AccountId",
+                        },
+                        ":distribution/",
+                        {
+                          "Ref": "ImageDistribution0E4DF19E",
+                        },
+                      ],
+                    ],
+                  },
+                },
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudfront.amazonaws.com",
+              },
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::GetAtt": [
+                        "TestImageBucket03D56590",
+                        "Arn",
+                      ],
+                    },
+                    "/*",
+                  ],
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+      },
+      "Type": "AWS::S3::BucketPolicy",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;

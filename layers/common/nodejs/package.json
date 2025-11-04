@@ -1,0 +1,19 @@
+{
+  "name": "common-layer",
+  "version": "1.0.0",
+  "description": "Common utilities for serverless blog",
+  "main": "index.js",
+  "dependencies": {
+    "marked": "^11.1.1",
+    "isomorphic-dompurify": "^2.9.0",
+    "@aws-sdk/client-s3": "^3.490.0",
+    "@aws-sdk/s3-request-presigner": "^3.490.0",
+    "@aws-sdk/client-dynamodb": "^3.490.0",
+    "@aws-sdk/lib-dynamodb": "^3.490.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "@types/marked": "^6.0.0",
+    "typescript": "^5.3.3"
+  }
+}

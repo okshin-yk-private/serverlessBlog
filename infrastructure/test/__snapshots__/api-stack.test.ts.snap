@@ -1,0 +1,408 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`ApiStack Snapshot test 1`] = `
+{
+  "Outputs": {
+    "AdminResourceId": {
+      "Description": "Admin resource ID",
+      "Export": {
+        "Name": "BlogAdminResourceId",
+      },
+      "Value": {
+        "Ref": "BlogApiadmin6399BE5B",
+      },
+    },
+    "ApiEndpoint": {
+      "Description": "API Gateway endpoint URL",
+      "Export": {
+        "Name": "BlogApiEndpoint",
+      },
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "https://",
+            {
+              "Ref": "BlogApi17ECE3AB",
+            },
+            ".execute-api.ap-northeast-1.",
+            {
+              "Ref": "AWS::URLSuffix",
+            },
+            "/",
+            {
+              "Ref": "BlogApiDeploymentStageprodC8FF7BB4",
+            },
+            "/",
+          ],
+        ],
+      },
+    },
+    "AuthorizerId": {
+      "Description": "Cognito Authorizer ID",
+      "Export": {
+        "Name": "BlogAuthorizerId",
+      },
+      "Value": {
+        "Ref": "BlogCognitoAuthorizerEA0C424C",
+      },
+    },
+    "BlogApiEndpointAFF8BF23": {
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "https://",
+            {
+              "Ref": "BlogApi17ECE3AB",
+            },
+            ".execute-api.ap-northeast-1.",
+            {
+              "Ref": "AWS::URLSuffix",
+            },
+            "/",
+            {
+              "Ref": "BlogApiDeploymentStageprodC8FF7BB4",
+            },
+            "/",
+          ],
+        ],
+      },
+    },
+    "PostsResourceId": {
+      "Description": "Posts resource ID",
+      "Export": {
+        "Name": "BlogPostsResourceId",
+      },
+      "Value": {
+        "Ref": "BlogApipostsC4C4C4BC",
+      },
+    },
+    "RestApiId": {
+      "Description": "REST API ID",
+      "Export": {
+        "Name": "BlogRestApiId",
+      },
+      "Value": {
+        "Ref": "BlogApi17ECE3AB",
+      },
+    },
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "BlogApi17ECE3AB": {
+      "Properties": {
+        "Description": "Serverless Blog REST API",
+        "EndpointConfiguration": {
+          "Types": [
+            "REGIONAL",
+          ],
+        },
+        "Name": "serverless-blog-api",
+      },
+      "Type": "AWS::ApiGateway::RestApi",
+    },
+    "BlogApiAccountD776435D": {
+      "DeletionPolicy": "Retain",
+      "DependsOn": [
+        "BlogApi17ECE3AB",
+      ],
+      "Properties": {
+        "CloudWatchRoleArn": {
+          "Fn::GetAtt": [
+            "BlogApiCloudWatchRole66A88900",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "AWS::ApiGateway::Account",
+      "UpdateReplacePolicy": "Retain",
+    },
+    "BlogApiCloudWatchRole66A88900": {
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "apigateway.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+      "UpdateReplacePolicy": "Retain",
+    },
+    "BlogApiDeploymentB3254DE35595cd9def4b46d28027a8b3e6b22615": {
+      "DependsOn": [
+        "BlogApiadminOPTIONSDC8B627C",
+        "BlogApiadmin6399BE5B",
+        "BlogApiOPTIONSDA3C7AF0",
+        "BlogApipostsOPTIONSCF6C9BA3",
+        "BlogApipostsC4C4C4BC",
+      ],
+      "Metadata": {
+        "aws:cdk:do-not-refactor": true,
+      },
+      "Properties": {
+        "Description": "Serverless Blog REST API",
+        "RestApiId": {
+          "Ref": "BlogApi17ECE3AB",
+        },
+      },
+      "Type": "AWS::ApiGateway::Deployment",
+    },
+    "BlogApiDeploymentStageprodC8FF7BB4": {
+      "DependsOn": [
+        "BlogApiAccountD776435D",
+      ],
+      "Properties": {
+        "DeploymentId": {
+          "Ref": "BlogApiDeploymentB3254DE35595cd9def4b46d28027a8b3e6b22615",
+        },
+        "MethodSettings": [
+          {
+            "DataTraceEnabled": true,
+            "HttpMethod": "*",
+            "LoggingLevel": "INFO",
+            "MetricsEnabled": true,
+            "ResourcePath": "/*",
+          },
+        ],
+        "RestApiId": {
+          "Ref": "BlogApi17ECE3AB",
+        },
+        "StageName": "prod",
+        "TracingEnabled": true,
+      },
+      "Type": "AWS::ApiGateway::Stage",
+    },
+    "BlogApiOPTIONSDA3C7AF0": {
+      "Properties": {
+        "ApiKeyRequired": false,
+        "AuthorizationType": "NONE",
+        "HttpMethod": "OPTIONS",
+        "Integration": {
+          "IntegrationResponses": [
+            {
+              "ResponseParameters": {
+                "method.response.header.Access-Control-Allow-Credentials": "'true'",
+                "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,GET,PUT,POST,DELETE,PATCH,HEAD'",
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+              },
+              "StatusCode": "204",
+            },
+          ],
+          "RequestTemplates": {
+            "application/json": "{ statusCode: 200 }",
+          },
+          "Type": "MOCK",
+        },
+        "MethodResponses": [
+          {
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Credentials": true,
+              "method.response.header.Access-Control-Allow-Headers": true,
+              "method.response.header.Access-Control-Allow-Methods": true,
+              "method.response.header.Access-Control-Allow-Origin": true,
+            },
+            "StatusCode": "204",
+          },
+        ],
+        "ResourceId": {
+          "Fn::GetAtt": [
+            "BlogApi17ECE3AB",
+            "RootResourceId",
+          ],
+        },
+        "RestApiId": {
+          "Ref": "BlogApi17ECE3AB",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "BlogApiadmin6399BE5B": {
+      "Properties": {
+        "ParentId": {
+          "Fn::GetAtt": [
+            "BlogApi17ECE3AB",
+            "RootResourceId",
+          ],
+        },
+        "PathPart": "admin",
+        "RestApiId": {
+          "Ref": "BlogApi17ECE3AB",
+        },
+      },
+      "Type": "AWS::ApiGateway::Resource",
+    },
+    "BlogApiadminOPTIONSDC8B627C": {
+      "Properties": {
+        "ApiKeyRequired": false,
+        "AuthorizationType": "NONE",
+        "HttpMethod": "OPTIONS",
+        "Integration": {
+          "IntegrationResponses": [
+            {
+              "ResponseParameters": {
+                "method.response.header.Access-Control-Allow-Credentials": "'true'",
+                "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,GET,PUT,POST,DELETE,PATCH,HEAD'",
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+              },
+              "StatusCode": "204",
+            },
+          ],
+          "RequestTemplates": {
+            "application/json": "{ statusCode: 200 }",
+          },
+          "Type": "MOCK",
+        },
+        "MethodResponses": [
+          {
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Credentials": true,
+              "method.response.header.Access-Control-Allow-Headers": true,
+              "method.response.header.Access-Control-Allow-Methods": true,
+              "method.response.header.Access-Control-Allow-Origin": true,
+            },
+            "StatusCode": "204",
+          },
+        ],
+        "ResourceId": {
+          "Ref": "BlogApiadmin6399BE5B",
+        },
+        "RestApiId": {
+          "Ref": "BlogApi17ECE3AB",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "BlogApipostsC4C4C4BC": {
+      "Properties": {
+        "ParentId": {
+          "Fn::GetAtt": [
+            "BlogApi17ECE3AB",
+            "RootResourceId",
+          ],
+        },
+        "PathPart": "posts",
+        "RestApiId": {
+          "Ref": "BlogApi17ECE3AB",
+        },
+      },
+      "Type": "AWS::ApiGateway::Resource",
+    },
+    "BlogApipostsOPTIONSCF6C9BA3": {
+      "Properties": {
+        "ApiKeyRequired": false,
+        "AuthorizationType": "NONE",
+        "HttpMethod": "OPTIONS",
+        "Integration": {
+          "IntegrationResponses": [
+            {
+              "ResponseParameters": {
+                "method.response.header.Access-Control-Allow-Credentials": "'true'",
+                "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,GET,PUT,POST,DELETE,PATCH,HEAD'",
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+              },
+              "StatusCode": "204",
+            },
+          ],
+          "RequestTemplates": {
+            "application/json": "{ statusCode: 200 }",
+          },
+          "Type": "MOCK",
+        },
+        "MethodResponses": [
+          {
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Credentials": true,
+              "method.response.header.Access-Control-Allow-Headers": true,
+              "method.response.header.Access-Control-Allow-Methods": true,
+              "method.response.header.Access-Control-Allow-Origin": true,
+            },
+            "StatusCode": "204",
+          },
+        ],
+        "ResourceId": {
+          "Ref": "BlogApipostsC4C4C4BC",
+        },
+        "RestApiId": {
+          "Ref": "BlogApi17ECE3AB",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "BlogCognitoAuthorizerEA0C424C": {
+      "Properties": {
+        "IdentitySource": "method.request.header.Authorization",
+        "Name": "blog-cognito-authorizer",
+        "ProviderARNs": [
+          {
+            "Fn::ImportValue": "TestAuthStack:ExportsOutputFnGetAttBlogUserPoolBB1AE2CCArnFB36D88C",
+          },
+        ],
+        "RestApiId": {
+          "Ref": "BlogApi17ECE3AB",
+        },
+        "Type": "COGNITO_USER_POOLS",
+      },
+      "Type": "AWS::ApiGateway::Authorizer",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;
