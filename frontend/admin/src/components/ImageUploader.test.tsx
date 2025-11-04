@@ -7,7 +7,7 @@ describe('ImageUploader', () => {
   const mockOnUploadComplete = vi.fn();
 
   beforeEach(() => {
-    mockOnUploadComplete.mockClear();
+    mockOnUploadComplete.mockReset();
   });
 
   it('ファイル選択ボタンが表示される', () => {
@@ -113,11 +113,16 @@ describe('ImageUploader', () => {
     await waitFor(() => {
       expect(screen.getByRole('progressbar')).toBeInTheDocument();
     });
+
+    // アップロードの完了を待つ
+    await waitFor(() => {
+      expect(mockOnUploadComplete).toHaveBeenCalled();
+    });
   });
 
   it('アップロード失敗時はエラーメッセージが表示される', async () => {
     const user = userEvent.setup();
-    const mockUploadFn = vi.fn(() => Promise.reject(new Error('Upload failed')));
+    const mockUploadFn = vi.fn().mockRejectedValue(new Error('Upload failed'));
 
     render(<ImageUploader onUploadComplete={mockOnUploadComplete} uploadFunction={mockUploadFn} />);
 
