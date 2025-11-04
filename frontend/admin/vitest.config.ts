@@ -24,6 +24,8 @@ export default defineConfig({
         // 'src/pages/PostListPage.tsx', // Task 6.4で追加
         'src/config/**', // Amplify設定など
         'src/api/**', // API関数はMSWでモック
+        'src/mocks/**', // MSWのモック設定
+        'public/**', // MSWのmockServiceWorker.jsなど
       ],
       thresholds: {
         lines: 80,
