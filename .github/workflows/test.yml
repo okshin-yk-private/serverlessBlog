@@ -83,6 +83,11 @@ jobs:
           cd infrastructure
           npm ci
 
+      - name: Install Lambda Layer dependencies
+        run: |
+          cd layers/common/nodejs
+          npm ci
+
       - name: Run infrastructure tests with coverage
         run: |
           cd infrastructure
