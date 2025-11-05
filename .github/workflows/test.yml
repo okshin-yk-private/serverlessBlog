@@ -208,6 +208,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install frontend (public) dependencies
+        run: |
+          cd frontend/public
+          npm ci
+
+      - name: Install frontend (admin) dependencies
+        run: |
+          cd frontend/admin
+          npm ci
+
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
 
