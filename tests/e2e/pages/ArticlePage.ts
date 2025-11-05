@@ -28,6 +28,21 @@ export class ArticlePage extends BasePage {
   }
 
   /**
+   * ページロードを待つ（記事ページ用にオーバーライド）
+   * SEOメタタグが正しく設定されるまで待機
+   */
+  async waitForPageLoad(): Promise<void> {
+    await super.waitForPageLoad();
+    
+    // 記事ページでは og:type が 'article' になるまで待つ
+    // これにより、React の useEffect が完了するのを保証
+    await this.page.waitForFunction(() => {
+      const ogType = document.querySelector('meta[property="og:type"]');
+      return ogType && ogType.getAttribute('content') === 'article';
+    }, { timeout: 5000 });
+  }
+
+  /**
    * 記事詳細ページに移動
    */
   async navigate(articleId: string): Promise<void> {

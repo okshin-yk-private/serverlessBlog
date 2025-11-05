@@ -201,15 +201,19 @@ test.describe('SEO Meta Tags - Article Page', () => {
     // Arrange & Act: 記事ページに移動済み
 
     // Assert: OG画像タグが存在することを確認
-    const ogImage = await page.locator('meta[property="og:image"]').getAttribute('content');
+    const ogImageCount = await page.locator('meta[property="og:image"]').count();
+    const ogImage = ogImageCount > 0 ? await page.locator('meta[property="og:image"]').getAttribute('content') : null;
 
     // 画像は任意だが、存在する場合は有効なURLであること
     if (ogImage) {
       expect(ogImage).toContain('http');
 
       // 画像の幅と高さのメタタグも確認
-      const ogImageWidth = await page.locator('meta[property="og:image:width"]').getAttribute('content');
-      const ogImageHeight = await page.locator('meta[property="og:image:height"]').getAttribute('content');
+      const ogImageWidthCount = await page.locator('meta[property="og:image:width"]').count();
+      const ogImageWidth = ogImageWidthCount > 0 ? await page.locator('meta[property="og:image:width"]').getAttribute('content') : null;
+
+      const ogImageHeightCount = await page.locator('meta[property="og:image:height"]').count();
+      const ogImageHeight = ogImageHeightCount > 0 ? await page.locator('meta[property="og:image:height"]').getAttribute('content') : null;
 
       if (ogImageWidth && ogImageHeight) {
         expect(parseInt(ogImageWidth)).toBeGreaterThan(0);
@@ -311,7 +315,8 @@ test.describe('SEO Meta Tags - Robots and Indexing', () => {
     await homePage.navigate();
 
     // Assert: robotsメタタグが適切に設定されていることを確認
-    const robots = await page.locator('meta[name="robots"]').getAttribute('content');
+    const robotsCount = await page.locator('meta[name="robots"]').count();
+    const robots = robotsCount > 0 ? await page.locator('meta[name="robots"]').getAttribute('content') : null;
 
     // robotsタグは任意だが、存在する場合は適切な値であること
     if (robots) {
@@ -341,7 +346,8 @@ test.describe('SEO Meta Tags - Social Media Optimization', () => {
     await homePage.navigate();
 
     // Assert: Facebook検証タグ（任意）
-    const fbVerification = await page.locator('meta[name="facebook-domain-verification"]').getAttribute('content');
+    const fbVerificationCount = await page.locator('meta[name="facebook-domain-verification"]').count();
+    const fbVerification = fbVerificationCount > 0 ? await page.locator('meta[name="facebook-domain-verification"]').getAttribute('content') : null;
 
     // 任意なので存在しない場合もOK
     if (fbVerification) {
