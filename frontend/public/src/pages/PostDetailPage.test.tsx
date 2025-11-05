@@ -32,6 +32,14 @@ describe('PostDetailPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Clean up meta tags from previous tests
+    document.querySelectorAll('meta[name="description"]').forEach((el) => el.remove());
+    document.querySelectorAll('meta[name="keywords"]').forEach((el) => el.remove());
+    document.querySelectorAll('meta[property^="og:"]').forEach((el) => el.remove());
+    document.querySelectorAll('meta[name^="twitter:"]').forEach((el) => el.remove());
+    document.querySelectorAll('link[rel="canonical"]').forEach((el) => el.remove());
+    document.querySelectorAll('script[type="application/ld+json"]').forEach((el) => el.remove());
   });
 
   describe('記事詳細レンダリング', () => {
