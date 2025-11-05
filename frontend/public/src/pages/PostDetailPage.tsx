@@ -92,7 +92,9 @@ const PostDetailPage: React.FC = () => {
         url={`${window.location.origin}/posts/${post.id}`}
         imageUrl={post.imageUrls && post.imageUrls.length > 0 ? post.imageUrls[0] : undefined}
         type="article"
+        author={post.authorId || 'Admin'}
         publishedDate={post.publishedAt || post.createdAt}
+        modifiedDate={post.updatedAt}
       />
 
       <Link to="/" className="back-link" data-testid="back-button">

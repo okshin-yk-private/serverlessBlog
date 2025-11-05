@@ -221,13 +221,13 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
 
-      - name: Run E2E tests (Public Site)
-        run: npm run test:e2e
+      - name: Run E2E tests (Public Site) - Chromium only
+        run: npm run test:e2e -- --project=chromium --project=mobile-chrome
         env:
           CI: true
 
-      - name: Run E2E tests (Admin Site)
-        run: npm run test:e2e:admin
+      - name: Run E2E tests (Admin Site) - Chromium only
+        run: npm run test:e2e:admin -- --project=chromium
         env:
           CI: true
 

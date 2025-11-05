@@ -9,6 +9,7 @@ export interface SEOHeadProps {
   type?: 'article' | 'website';
   author?: string;
   publishedDate?: string;
+  modifiedDate?: string;
 }
 
 export const SEOHead: React.FC<SEOHeadProps> = ({
@@ -20,6 +21,7 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
   type = 'article',
   author,
   publishedDate,
+  modifiedDate,
 }) => {
   useEffect(() => {
     // Set document title
@@ -68,6 +70,19 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
       updateMetaTag('twitter:image', imageUrl);
     }
 
+    // Article-specific meta tags
+    if (type === 'article') {
+      if (publishedDate) {
+        updateMetaTag('article:published_time', publishedDate, 'property');
+      }
+      if (modifiedDate) {
+        updateMetaTag('article:modified_time', modifiedDate, 'property');
+      }
+      if (author) {
+        updateMetaTag('article:author', author, 'property');
+      }
+    }
+
     // Canonical URL
     if (url) {
       let canonicalLink = document.querySelector('link[rel="canonical"]');
@@ -114,12 +129,45 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
 
     jsonLdScript.textContent = JSON.stringify(structuredData);
 
+    // BreadcrumbList JSON-LD for article pages
+    if (type === 'article' && url) {
+      const breadcrumbData = {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'ホーム',
+            item: window.location.origin,
+          },
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: title,
+            item: url,
+          },
+        ],
+      };
+
+      let breadcrumbScript = document.querySelector('script[type="application/ld+json"][data-breadcrumb]');
+
+      if (!breadcrumbScript) {
+        breadcrumbScript = document.createElement('script');
+        breadcrumbScript.setAttribute('type', 'application/ld+json');
+        breadcrumbScript.setAttribute('data-breadcrumb', 'true');
+        document.head.appendChild(breadcrumbScript);
+      }
+
+      breadcrumbScript.textContent = JSON.stringify(breadcrumbData);
+    }
+
     // Cleanup function to remove added elements when component unmounts
     return () => {
       // Note: In a real application, you might want to keep some meta tags
       // This cleanup is mainly for testing purposes
     };
-  }, [title, description, keywords, url, imageUrl, type, author, publishedDate]);
+  }, [title, description, keywords, url, imageUrl, type, author, publishedDate, modifiedDate]);
 
   return null;
 };
