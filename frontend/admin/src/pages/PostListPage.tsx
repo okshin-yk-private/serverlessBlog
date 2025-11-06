@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getPosts, deletePost, type Post } from '../api/posts';
+import { getPosts, deletePost } from '../api/posts';
+import type { Post } from '../api/posts';
 
 type TabType = 'published' | 'draft';
 

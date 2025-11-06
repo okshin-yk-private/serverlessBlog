@@ -36,6 +36,11 @@ const checkAuth = (request: Request): boolean => {
  */
 let retryCounters: Record<string, number> = {};
 
+/**
+ * ログイン試行回数を追跡（レート制限用）
+ */
+let loginAttempts: Record<string, number> = {};
+
 export const handlers = [
   // 記事一覧取得（公開サイト）
   http.get(`${API_BASE_URL}/posts`, ({ request }) => {
@@ -138,24 +143,43 @@ export const handlers = [
   }),
 
   // 管理画面: ログイン
-  http.post(`${API_BASE_URL}/auth/login`, async ({ request }) => {
+  http.post('/auth/login', async ({ request }) => {
     const body = await request.json() as { email: string; password: string };
+
+    // レート制限チェック（5回以上の失敗で制限）
+    const attemptCount = loginAttempts[body.email] || 0;
+    console.log(`[MSW] ログイン試行: email=${body.email}, 現在の試行回数=${attemptCount}`);
+
+    if (attemptCount >= 5) {
+      console.log(`[MSW] レート制限発動: ${attemptCount}回の試行`);
+      return HttpResponse.json(
+        { message: 'ログイン試行回数が制限を超えました。しばらく待ってから再試行してください。' },
+        { status: 429 }
+      );
+    }
 
     // テスト用の認証情報をチェック
     if (
       body.email === 'admin@example.com' &&
       body.password === 'testpassword'
     ) {
+      // ログイン成功時は試行回数をリセット
+      console.log(`[MSW] ログイン成功、試行回数をリセット`);
+      loginAttempts[body.email] = 0;
       return HttpResponse.json({
-        accessToken: 'mock-access-token',
-        refreshToken: 'mock-refresh-token',
-        idToken: 'mock-id-token',
-        expiresIn: 3600,
+        token: 'mock-jwt-token',
+        user: {
+          id: 'user-123',
+          email: 'admin@example.com',
+        },
       });
     }
 
+    // ログイン失敗時は試行回数をインクリメント
+    loginAttempts[body.email] = attemptCount + 1;
+    console.log(`[MSW] ログイン失敗、試行回数を${loginAttempts[body.email]}に更新`);
     return HttpResponse.json(
-      { message: 'Invalid credentials' },
+      { message: 'ログインに失敗しました' },
       { status: 401 }
     );
   }),

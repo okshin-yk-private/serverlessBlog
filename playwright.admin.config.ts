@@ -106,6 +106,8 @@ export default defineConfig({
     timeout: 120000,
     env: {
       VITE_ENABLE_MSW_MOCK: 'true',
+      // MSWが同一オリジンのリクエストをインターセプトできるように空文字列に設定
+      VITE_API_URL: '',
     },
   },
 });

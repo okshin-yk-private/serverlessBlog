@@ -3,13 +3,15 @@ import { validateEmail, validatePassword } from '../utils/auth';
 import { Button } from './Button';
 
 interface LoginFormProps {
-  onLogin: (credentials: { email: string; password: string }) => Promise<void>;
+  onLogin: (credentials: { email: string; password: string; rememberMe?: boolean }) => Promise<void>;
   error?: string;
+  onForgotPassword?: () => void;
 }
 
-export const LoginForm: React.FC<LoginFormProps> = ({ onLogin, error }) => {
+export const LoginForm: React.FC<LoginFormProps> = ({ onLogin, error, onForgotPassword }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,18 +34,23 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin, error }) => {
     // ログイン処理
     setIsSubmitting(true);
     try {
-      await onLogin({ email, password });
+      await onLogin({ email, password, rememberMe });
+    } catch (err) {
+      // エラーはLoginPageで処理される
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // グローバルエラーメッセージを計算（propsのerrorまたはバリデーションエラー）
+  const globalError = error || emailError || passwordError;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto" noValidate>
       {/* グローバルエラーメッセージ */}
-      {error && (
+      {globalError && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded" data-testid="error-message">
-          {error}
+          {globalError}
         </div>
       )}
 
@@ -58,12 +65,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin, error }) => {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+            emailError ? 'border-red-500' : 'border-gray-300'
+          }`}
           disabled={isSubmitting}
         />
-        {emailError && (
-          <p className="mt-1 text-sm text-red-600" data-testid="validation-error">{emailError}</p>
-        )}
       </div>
 
       {/* パスワード */}
@@ -77,11 +83,35 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin, error }) => {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+            passwordError ? 'border-red-500' : 'border-gray-300'
+          }`}
           disabled={isSubmitting}
         />
-        {passwordError && (
-          <p className="mt-1 text-sm text-red-600" data-testid="validation-error">{passwordError}</p>
+      </div>
+
+      {/* ログイン状態を保持 */}
+      <div className="flex items-center justify-between">
+        <label className="flex items-center">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+            data-testid="remember-me"
+            className="mr-2"
+          />
+          <span className="text-sm text-gray-700">ログイン状態を保持</span>
+        </label>
+
+        {onForgotPassword && (
+          <button
+            type="button"
+            onClick={onForgotPassword}
+            data-testid="forgot-password"
+            className="text-sm text-blue-600 hover:text-blue-800"
+          >
+            パスワードを忘れた
+          </button>
         )}
       </div>
 

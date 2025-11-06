@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { getPosts, Post } from '../api/posts';
+import { getPosts } from '../api/posts';
+import type { Post } from '../api/posts';
 
 const DashboardPage = () => {
   const [publishedPosts, setPublishedPosts] = useState<Post[]>([]);
