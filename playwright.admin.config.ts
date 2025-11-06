@@ -26,8 +26,8 @@ export default defineConfig({
   // CI環境での失敗時リトライ
   retries: process.env.CI ? 2 : 0,
 
-  // 並列実行ワーカー数
-  workers: process.env.CI ? 1 : undefined,
+  // 並列実行ワーカー数（CI環境でも並列実行でテスト時間を短縮）
+  workers: process.env.CI ? 4 : undefined,
 
   // レポーター設定
   reporter: [

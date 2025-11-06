@@ -189,10 +189,10 @@ jobs:
           retention-days: 30
 
   # =======================================
-  # Job 5: E2E Tests (Playwright)
+  # Job 5: E2E Tests - Public Site
   # =======================================
-  e2e-tests:
-    name: E2E Tests (Playwright)
+  e2e-public-tests:
+    name: E2E Tests (Public Site)
     runs-on: ubuntu-latest
 
     steps:
@@ -213,21 +213,11 @@ jobs:
           cd frontend/public
           npm ci
 
-      - name: Install frontend (admin) dependencies
-        run: |
-          cd frontend/admin
-          npm ci
-
       - name: Install Playwright Browsers
-        run: npx playwright install --with-deps
+        run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests (Public Site) - Chromium only
-        run: npm run test:e2e -- --project=chromium --project=mobile-chrome
-        env:
-          CI: true
-
-      - name: Run E2E tests (Admin Site) - Chromium only
-        run: npm run test:e2e:admin -- --project=chromium
+        run: npm run test:e2e -- --project=chromium --workers=4
         env:
           CI: true
 
@@ -239,11 +229,85 @@ jobs:
           path: playwright-report/
           retention-days: 30
 
-      - name: Upload Playwright Report (Admin)
+  # =======================================
+  # Job 6: E2E Tests - Admin Site (Part 1)
+  # =======================================
+  e2e-admin-tests-1:
+    name: E2E Tests (Admin - Auth & Dashboard)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install frontend (admin) dependencies
+        run: |
+          cd frontend/admin
+          npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests (Admin - Auth & Dashboard) - Chromium only
+        run: npm run test:e2e:admin -- tests/e2e/specs/admin-auth.spec.ts tests/e2e/specs/admin-dashboard.spec.ts tests/e2e/specs/admin-unauthorized-access.spec.ts --project=chromium --workers=4
+        env:
+          CI: true
+
+      - name: Upload Playwright Report (Admin 1)
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report-admin
+          name: playwright-report-admin-1
+          path: playwright-report-admin/
+          retention-days: 30
+
+  # =======================================
+  # Job 7: E2E Tests - Admin Site (Part 2)
+  # =======================================
+  e2e-admin-tests-2:
+    name: E2E Tests (Admin - Article Management)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install frontend (admin) dependencies
+        run: |
+          cd frontend/admin
+          npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests (Admin - Article Management) - Chromium only
+        run: npm run test:e2e:admin -- tests/e2e/specs/admin-article-*.spec.ts tests/e2e/specs/admin-image-upload.spec.ts tests/e2e/specs/admin-form-validation.spec.ts --project=chromium --workers=4
+        env:
+          CI: true
+
+      - name: Upload Playwright Report (Admin 2)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-admin-2
           path: playwright-report-admin/
           retention-days: 30
 
@@ -332,7 +396,7 @@ jobs:
           echo "was achieved for that component."
 
   # =======================================
-  # Job 7: Final Status Check
+  # Job 8: Final Status Check
   # =======================================
   test-success:
     name: All Tests Passed
@@ -342,7 +406,9 @@ jobs:
       - infrastructure-tests
       - frontend-public-tests
       - frontend-admin-tests
-      - e2e-tests
+      - e2e-public-tests
+      - e2e-admin-tests-1
+      - e2e-admin-tests-2
       - coverage-check
 
     steps:
