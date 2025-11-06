@@ -37,7 +37,7 @@ samconfig.toml
 # AWS credentials (NEVER commit)
 .aws/
 **/credentials
-**/config
+**/.aws/config
 
 # ===================================
 # Environment Variables & Secrets
