@@ -217,7 +217,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests (Public Site) - Chromium only
-        run: npm run test:e2e -- --project=chromium --workers=4
+        run: npm run test:e2e -- --project=chromium --workers=1
         env:
           CI: true
 
@@ -258,7 +258,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests (Admin - Auth & Dashboard) - Chromium only
-        run: npm run test:e2e:admin -- tests/e2e/specs/admin-auth.spec.ts tests/e2e/specs/admin-dashboard.spec.ts tests/e2e/specs/admin-unauthorized-access.spec.ts --project=chromium --workers=4
+        run: npm run test:e2e:admin -- tests/e2e/specs/admin-auth.spec.ts tests/e2e/specs/admin-dashboard.spec.ts tests/e2e/specs/admin-unauthorized-access.spec.ts --project=chromium --workers=1
         env:
           CI: true
 
@@ -299,7 +299,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests (Admin - Article Management) - Chromium only
-        run: npm run test:e2e:admin -- tests/e2e/specs/admin-article-*.spec.ts tests/e2e/specs/admin-image-upload.spec.ts tests/e2e/specs/admin-form-validation.spec.ts --project=chromium --workers=4
+        run: npm run test:e2e:admin -- tests/e2e/specs/admin-article-*.spec.ts tests/e2e/specs/admin-image-upload.spec.ts tests/e2e/specs/admin-form-validation.spec.ts --project=chromium --workers=1
         env:
           CI: true
 
