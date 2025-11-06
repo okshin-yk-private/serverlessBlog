@@ -60,8 +60,8 @@ test.describe('Error Handling - Network Errors', () => {
       });
     });
 
-    // Act: 存在しない記事ページに移動
-    await articlePage.navigate(nonExistentId);
+    // Act: 存在しない記事ページに移動（エラーを期待）
+    await articlePage.navigate(nonExistentId, true);
 
     // Assert: エラーメッセージまたは404ページが表示されることを確認
     const pageContent = await page.textContent('body');

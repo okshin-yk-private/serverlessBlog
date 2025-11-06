@@ -44,10 +44,17 @@ export class ArticlePage extends BasePage {
 
   /**
    * 記事詳細ページに移動
+   * @param articleId 記事ID
+   * @param expectError エラーページが表示されることを期待する場合はtrue（デフォルト: false）
    */
-  async navigate(articleId: string): Promise<void> {
+  async navigate(articleId: string, expectError: boolean = false): Promise<void> {
     await this.goto(`/posts/${articleId}`);
-    await this.waitForPageLoad();
+    if (!expectError) {
+      await this.waitForPageLoad();
+    } else {
+      // エラーページの場合は、基本的なページロードのみ待つ
+      await super.waitForPageLoad();
+    }
   }
 
   /**

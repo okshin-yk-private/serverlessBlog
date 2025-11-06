@@ -201,8 +201,8 @@ test.describe('Article Detail Page - Error Handling', () => {
     // Arrange: 存在しない記事IDを使用
     const nonExistentId = 'non-existent-article-999';
 
-    // Act: 存在しない記事ページに移動
-    await articlePage.navigate(nonExistentId);
+    // Act: 存在しない記事ページに移動（エラーを期待）
+    await articlePage.navigate(nonExistentId, true);
 
     // Assert: 404エラーまたはエラーメッセージが表示されることを確認
     const pageContent = await page.textContent('body');
