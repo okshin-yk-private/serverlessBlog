@@ -17,8 +17,12 @@ const LoginPage = () => {
       navigate('/dashboard');
     } catch (err: any) {
       console.error('ログインエラー:', err);
-      // エラーメッセージを抽出（APIエラーまたはデフォルトメッセージ）
-      const errorMessage = err?.message || 'ログインに失敗しました。メールアドレスとパスワードを確認してください。';
+      // エラーメッセージを日本語化
+      const errorMessageMap: Record<string, string> = {
+        'Invalid credentials': 'ログインに失敗しました。メールアドレスとパスワードを確認してください。',
+        'Network error': 'ログインに失敗しました。メールアドレスとパスワードを確認してください。',
+      };
+      const errorMessage = errorMessageMap[err?.message] || err?.message || 'ログインに失敗しました。メールアドレスとパスワードを確認してください。';
       setError(errorMessage);
     }
   };

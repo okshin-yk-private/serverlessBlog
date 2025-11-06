@@ -43,14 +43,23 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin, error, onForgotPa
   };
 
   // グローバルエラーメッセージを計算（propsのerrorまたはバリデーションエラー）
-  const globalError = error || emailError || passwordError;
+  const validationErrors = [emailError, passwordError].filter(Boolean);
+  const hasErrors = error || validationErrors.length > 0;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto" noValidate>
       {/* グローバルエラーメッセージ */}
-      {globalError && (
+      {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded" data-testid="error-message">
-          {globalError}
+          {error}
+        </div>
+      )}
+      {/* バリデーションエラー */}
+      {validationErrors.length > 0 && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded" data-testid="error-message">
+          {validationErrors.map((err, idx) => (
+            <div key={idx}>{err}</div>
+          ))}
         </div>
       )}
 
