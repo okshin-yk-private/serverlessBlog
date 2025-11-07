@@ -93,28 +93,11 @@ export const test = base.extend<CustomFixtures>({
 /**
  * 認証済みテスト用フィクスチャ
  * 管理画面のテストで事前にログインした状態を提供
+ *
+ * Note: このフィクスチャは非推奨です。
+ * 代わりにbeforeEachでログイン処理を行うパターンを使用してください。
+ * 例: admin-auth.spec.ts参照
  */
-export const authenticatedTest = test.extend({
-  page: async ({ page }, use) => {
-    // テスト開始前にログイン処理
-    const loginPage = new AdminLoginPage(page);
-    await loginPage.navigate();
-
-    // 環境変数から認証情報を取得（実際の実装に応じて調整）
-    const email = process.env.TEST_ADMIN_EMAIL || 'admin@example.com';
-    const password = process.env.TEST_ADMIN_PASSWORD || 'testpassword';
-
-    await loginPage.login(email, password);
-
-    // ログイン成功を待機
-    await page.waitForURL('**/dashboard', { timeout: 10000 });
-
-    await use(page);
-
-    // テスト終了後にクリーンアップ
-    await clearAllStorage(page);
-  },
-});
 
 /**
  * ページクリーンアップ用フィクスチャ
