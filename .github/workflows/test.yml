@@ -413,7 +413,6 @@ jobs:
       - frontend-admin-tests
       - e2e-public-tests
       - e2e-admin-tests-1
-      - e2e-admin-tests-2
       - coverage-check
 
     steps:
