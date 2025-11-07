@@ -89,15 +89,9 @@ export default defineConfig({
   // Webサーバー設定（管理画面用）
   // E2Eテスト時にMSWモックを有効化
   webServer: {
-    command: '(cd frontend/admin && npm run dev)',
+    command: 'cd frontend/admin && VITE_ENABLE_MSW_MOCK=true VITE_API_URL= VITE_API_BASE_URL= npm run dev',
     url: 'http://localhost:3001',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
-    env: {
-      VITE_ENABLE_MSW_MOCK: 'true',
-      // MSWが同一オリジンのリクエストをインターセプトできるように空文字列に設定
-      VITE_API_URL: '',
-      VITE_API_BASE_URL: '',
-    },
   },
 });
