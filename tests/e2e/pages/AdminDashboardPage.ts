@@ -37,20 +37,47 @@ export class AdminDashboardPage extends BasePage {
    * Note: 記事管理機能は /posts にあります
    */
   async navigate(): Promise<void> {
+    console.log('[DEBUG] Navigating to /posts...');
     await this.goto('/posts');
 
     // URLが正しく /posts にあることを確認（認証リダイレクトされていないか確認）
+    console.log('[DEBUG] Waiting for URL to contain /posts...');
     await this.page.waitForURL('**/posts', { timeout: 30000 });
+    console.log('[DEBUG] Current URL:', this.page.url());
 
     // ページのロードを待機
+    console.log('[DEBUG] Waiting for page load...');
     await this.waitForPageLoad();
 
+    // コンソールエラーをチェック
+    const errors: string[] = [];
+    this.page.on('console', msg => {
+      if (msg.type() === 'error') {
+        errors.push(msg.text());
+      }
+    });
+
+    // ページのHTMLをログ出力（デバッグ用）
+    const htmlSnapshot = await this.page.content();
+    console.log('[DEBUG] Page HTML length:', htmlSnapshot.length);
+    console.log('[DEBUG] Has new-article-button?', htmlSnapshot.includes('data-testid="new-article-button"'));
+
     // 追加の待機時間を設けて、Reactのハイドレーションを確実に完了させる
+    console.log('[DEBUG] Waiting for React hydration (500ms)...');
     await this.page.waitForTimeout(500);
 
     // ページが完全にレンダリングされるまで待機
     // 新規作成ボタンが表示されるまで待つ（記事リストはなくても良い）
-    await this.waitForElement(this.selectors.newArticleButton, { timeout: 30000 });
+    console.log('[DEBUG] Waiting for new-article-button...');
+    try {
+      await this.waitForElement(this.selectors.newArticleButton, { timeout: 30000 });
+      console.log('[DEBUG] new-article-button found!');
+    } catch (error) {
+      console.error('[DEBUG] Failed to find new-article-button');
+      console.error('[DEBUG] Console errors:', errors);
+      console.error('[DEBUG] Final URL:', this.page.url());
+      throw error;
+    }
   }
 
   /**
