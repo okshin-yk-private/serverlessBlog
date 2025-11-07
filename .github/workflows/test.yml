@@ -204,6 +204,9 @@ jobs:
         with:
           node-version: '22.x'
           cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            frontend/public/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -213,8 +216,28 @@ jobs:
           cd frontend/public
           npm ci
 
-      - name: Install Playwright Browsers
+      - name: Get Playwright version
+        id: playwright-version
+        run: |
+          PLAYWRIGHT_VERSION=$(node -e "console.log(require('./package-lock.json').dependencies['@playwright/test'].version)")
+          echo "version=$PLAYWRIGHT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright browsers and dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system dependencies only
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       - name: Run E2E tests (Public Site) - Chromium only
         run: npm run test:e2e -- --project=chromium --workers=1
@@ -233,7 +256,7 @@ jobs:
   # Job 6: E2E Tests - Admin Site (Part 1)
   # =======================================
   e2e-admin-tests-1:
-    name: E2E Tests (Admin - Auth & Dashboard)
+    name: E2E Tests (Admin - Auth & Security)
     runs-on: ubuntu-latest
 
     steps:
@@ -245,6 +268,9 @@ jobs:
         with:
           node-version: '22.x'
           cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            frontend/admin/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -254,11 +280,31 @@ jobs:
           cd frontend/admin
           npm ci
 
-      - name: Install Playwright Browsers
+      - name: Get Playwright version
+        id: playwright-version
+        run: |
+          PLAYWRIGHT_VERSION=$(node -e "console.log(require('./package-lock.json').dependencies['@playwright/test'].version)")
+          echo "version=$PLAYWRIGHT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright browsers and dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
 
-      - name: Run E2E tests (Admin - Auth & Dashboard) - Chromium only
-        run: npm run test:e2e:admin -- tests/e2e/specs/admin-auth.spec.ts tests/e2e/specs/admin-dashboard.spec.ts tests/e2e/specs/admin-unauthorized-access.spec.ts --project=chromium --workers=1
+      - name: Install Playwright system dependencies only
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Run E2E tests (Admin - Auth & Security) - Chromium only
+        run: npm run test:e2e:admin -- tests/e2e/specs/admin-auth.spec.ts tests/e2e/specs/admin-unauthorized-access.spec.ts --project=chromium --workers=1
         env:
           CI: true
 
@@ -274,7 +320,7 @@ jobs:
   # Job 7: E2E Tests - Admin Site (Part 2)
   # =======================================
   e2e-admin-tests-2:
-    name: E2E Tests (Admin - Article Management)
+    name: E2E Tests (Admin - CRUD Operations)
     runs-on: ubuntu-latest
 
     steps:
@@ -286,6 +332,9 @@ jobs:
         with:
           node-version: '22.x'
           cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            frontend/admin/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -295,11 +344,31 @@ jobs:
           cd frontend/admin
           npm ci
 
-      - name: Install Playwright Browsers
+      - name: Get Playwright version
+        id: playwright-version
+        run: |
+          PLAYWRIGHT_VERSION=$(node -e "console.log(require('./package-lock.json').dependencies['@playwright/test'].version)")
+          echo "version=$PLAYWRIGHT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright browsers and dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
 
-      - name: Run E2E tests (Admin - Article Management) - Chromium only
-        run: npm run test:e2e:admin -- tests/e2e/specs/admin-article-*.spec.ts tests/e2e/specs/admin-image-upload.spec.ts tests/e2e/specs/admin-form-validation.spec.ts --project=chromium --workers=1
+      - name: Install Playwright system dependencies only
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Run E2E tests (Admin - CRUD Operations) - Chromium only
+        run: npm run test:e2e:admin -- tests/e2e/specs/admin-crud.spec.ts --project=chromium --workers=1
         env:
           CI: true
 
