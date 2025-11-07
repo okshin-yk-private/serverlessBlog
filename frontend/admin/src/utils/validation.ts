@@ -34,7 +34,7 @@ export const validatePostContent = (content: string): string | null => {
  * @returns エラーメッセージ（正常な場合はnull）
  */
 export const validateCategory = (category: string): string | null => {
-  const validCategories = ['tech', 'life', 'business', 'other'];
+  const validCategories = ['Technology', 'tech', 'life', 'business', 'other'];
   if (!category) {
     return 'カテゴリは必須です';
   }

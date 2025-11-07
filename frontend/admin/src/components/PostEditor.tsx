@@ -19,6 +19,7 @@ interface PostEditorProps {
 
 const CATEGORIES = [
   { value: '', label: '選択してください' },
+  { value: 'Technology', label: 'Technology' },
   { value: 'tech', label: 'テクノロジー' },
   { value: 'life', label: 'ライフスタイル' },
   { value: 'business', label: 'ビジネス' },
@@ -34,7 +35,7 @@ export const PostEditor: React.FC<PostEditorProps> = ({ onSave, onCancel, initia
   const [title, setTitle] = useState(initialData?.title || '');
   const [contentMarkdown, setContentMarkdown] = useState(initialData?.contentMarkdown || '');
   const [category, setCategory] = useState(initialData?.category || '');
-  const [publishStatus, setPublishStatus] = useState<'draft' | 'published'>(initialData?.publishStatus || 'draft');
+  const [publishStatus, setPublishStatus] = useState<'draft' | 'published'>(initialData?.publishStatus || 'published');
 
   const [titleError, setTitleError] = useState<string | null>(null);
   const [contentError, setContentError] = useState<string | null>(null);
@@ -85,7 +86,7 @@ export const PostEditor: React.FC<PostEditorProps> = ({ onSave, onCancel, initia
             </label>
             <input
               id="title"
-              data-testid="article-title-input"
+              data-testid="post-title-input"
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -104,7 +105,7 @@ export const PostEditor: React.FC<PostEditorProps> = ({ onSave, onCancel, initia
             </label>
             <textarea
               id="content"
-              data-testid="article-content-editor"
+              data-testid="post-content-editor"
               value={contentMarkdown}
               onChange={(e) => setContentMarkdown(e.target.value)}
               rows={15}
@@ -123,7 +124,7 @@ export const PostEditor: React.FC<PostEditorProps> = ({ onSave, onCancel, initia
             </label>
             <select
               id="category"
-              data-testid="article-category-select"
+              data-testid="post-category-select"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -166,7 +167,7 @@ export const PostEditor: React.FC<PostEditorProps> = ({ onSave, onCancel, initia
               type="submit"
               variant="primary"
               disabled={isSaving}
-              data-testid={publishStatus === 'published' ? 'publish-article-button' : 'save-as-draft-button'}
+              data-testid={publishStatus === 'published' ? 'publish-button' : 'save-draft-button'}
             >
               {isSaving ? '保存中...' : '保存'}
             </Button>

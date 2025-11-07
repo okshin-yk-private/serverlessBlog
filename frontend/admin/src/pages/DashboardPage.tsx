@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { getPosts, Post } from '../api/posts';
+import { getPosts } from '../api/posts';
+import type { Post } from '../api/posts';
 
 const DashboardPage = () => {
   const [publishedPosts, setPublishedPosts] = useState<Post[]>([]);
@@ -101,7 +102,7 @@ const DashboardPage = () => {
               記事一覧
             </Link>
             <Link
-              to="/posts/create"
+              to="/posts/new"
               className="inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
             >
               新規記事作成

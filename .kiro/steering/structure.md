@@ -661,41 +661,56 @@ Lambda関数間で共有するコード。
 - 認証フロー統合テスト
 
 #### e2e/
-E2Eテスト（Playwright + MSW）。
+UI E2Eテスト（最小限）（Playwright + MSW、重要なユーザーフローのみ検証）。
 
-**specs/**
-- **home.spec.ts**: 公開サイトのE2Eテスト（記事一覧、フィルタリング、ページネーション）
-- **article.spec.ts**: 記事詳細ページのE2Eテスト
-- **admin-auth.spec.ts**: 管理画面認証のE2Eテスト
+**💡 テスト方針変更（2025-11-07）**
+- **目的**: 重要なユーザーフローのみを検証（詳細はユニット/統合テストでカバー）
+- **実行時間**: ~3分（従来比80%削減）
+- **ブラウザ**: Chromiumのみ（クロスブラウザテスト削除）
+- **テスト数**: 5-8 specs（従来の13 specsから削減）
+
+**specs/（重要フローのみ）**
+- **home.spec.ts**: 記事一覧表示の基本動作
+- **article.spec.ts**: 記事詳細表示の基本動作
+- **admin-auth.spec.ts**: ログイン/ログアウト
+- **admin-crud.spec.ts**（新規統合）: 記事作成・編集・削除の統合フロー
+- **admin-dashboard.spec.ts**: ダッシュボード基本動作
+
+**削減されたspecs（他のテストレイヤーでカバー）**
+- ❌ `seo-meta-tags.spec.ts` → ユニットテストで実施
+- ❌ `error-handling.spec.ts` → ユニットテストで実施
+- ❌ `admin-form-validation.spec.ts` → コンポーネントテストで実施
+- ❌ `admin-image-upload.spec.ts` → 統合テストで実施
+- ❌ `unauthorized-access.spec.ts` × 2 → 認証テストに統合
 
 **pages/**
-ページオブジェクトパターン実装。
-- **HomePage.ts**: ホームページのページオブジェクト
-- **ArticlePage.ts**: 記事詳細ページのページオブジェクト
-- **AdminLoginPage.ts**: ログインページのページオブジェクト
-- **AdminDashboardPage.ts**: ダッシュボードのページオブジェクト
-- **ArticleEditorPage.ts**: 記事編集ページのページオブジェクト
+ページオブジェクトパターン実装（必要最小限）。
+- **HomePage.ts**: ホームページ
+- **ArticlePage.ts**: 記事詳細ページ
+- **AdminLoginPage.ts**: ログインページ
+- **AdminDashboardPage.ts**: ダッシュボード
+- **ArticleEditorPage.ts**: 記事編集ページ（CRUD統合用）
 
 **fixtures/**
 カスタムフィクスチャ定義。
 - **index.ts**: ページオブジェクトのフィクスチャ、認証済みテスト用フィクスチャ
 
 **mocks/**
-MSW (Mock Service Worker) モックハンドラー。
-- **handlers.ts**: 公開サイト・管理画面APIのモックハンドラー（認証、記事CRUD、画像アップロード）
-- **mockData.ts**: テストデータ生成関数とモックデータ管理
+MSW（簡略版）モックハンドラー。
+- **handlers.ts**: ハッピーパスのみのモックハンドラー（認証、記事CRUD基本動作のみ）
+- **mockData.ts**: 最小限のテストデータ生成関数
 
 **utils/**
-テストヘルパー関数。
+テストヘルパー関数（簡略版）。
 
 **global-setup.ts**
-Playwrightグローバルセットアップ（MSWワーカー初期化、モックデータリセット）。
+Playwrightグローバルセットアップ。
 
 **global-teardown.ts**
-Playwrightグローバルティアダウン（クリーンアップ）。
+Playwrightグローバルティアダウン。
 
 **README.md**
-E2Eテスト環境のドキュメント（セットアップ手順、実行方法、モックAPI、トラブルシューティング）。
+UI E2Eテスト環境のドキュメント（新テスト戦略、実行方法、テスト範囲）。
 
 ## コーディング規約
 

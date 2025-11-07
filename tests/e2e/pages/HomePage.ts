@@ -51,6 +51,14 @@ export class HomePage extends BasePage {
   }
 
   /**
+   * 記事カードを取得（エイリアス）
+   * @deprecated Use getArticleCards() instead
+   */
+  getArticles(): Locator {
+    return this.getArticleCards();
+  }
+
+  /**
    * 記事数を取得
    */
   async getArticleCount(): Promise<number> {

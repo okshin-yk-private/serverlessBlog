@@ -474,19 +474,40 @@
 7. IF CDKスタックに条件分岐が存在する THEN Blog Platform SHALL すべての分岐パターンをテストする
 8. WHERE リソース間の依存関係が存在する THE Blog Platform SHALL 依存関係の設定をテストする
 
-### Requirement 43: E2Eテスト機能
-**Objective:** As a QAエンジニア, I want E2Eテストを実装する, so that ユーザーシナリオ全体の動作を検証できる
+### Requirement 43: UI E2Eテスト（最小限）機能
+**Objective:** As a QAエンジニア, I want 最小限のUI E2Eテストを実装する, so that 重要なユーザーフローの動作を効率的に検証できる
+
+**変更履歴（2025-11-07）**: フルE2Eテストから最小限のUI E2Eテストへ方針変更
+- **目的**: テスト実行時間の短縮（80%削減）とメンテナンスコストの削減
+- **アプローチ**: 詳細なテストはユニット/統合テストレイヤーで実施し、UI E2Eテストは重要フローのみに集中
 
 #### Acceptance Criteria
 
-1. WHEN E2Eテストを実行する THEN Blog Platform SHALL Playwright または Cypressを使用する
-2. WHEN E2Eテストが実行される THEN Blog Platform SHALL ログイン→記事作成→公開のフローをテストする
-3. WHEN E2Eテストが実行される THEN Blog Platform SHALL 記事一覧表示→記事詳細閲覧のフローをテストする
-4. WHERE 画像アップロード機能が存在する THE Blog Platform SHALL 画像アップロード→表示のフローをテストする
-5. WHEN E2Eテストが実行される THEN Blog Platform SHALL カテゴリフィルタ→記事一覧表示のフローをテストする
-6. WHERE 認証が必要な操作が存在する THE Blog Platform SHALL 未認証時のアクセス拒否をテストする
-7. WHEN E2Eテストが実行される THEN Blog Platform SHALL レスポンシブデザインの動作をテストする
-8. WHERE エラー処理が存在する THE Blog Platform SHALL エラー表示とリカバリをテストする
+1. WHEN UI E2Eテストを実行する THEN Blog Platform SHALL Playwrightを使用する
+2. WHEN UI E2Eテストを実行する THEN Blog Platform SHALL Chromiumブラウザのみでテストする（クロスブラウザテスト削除）
+3. WHEN UI E2Eテストが実行される THEN Blog Platform SHALL 実行時間を3分以内に抑える
+4. WHEN UI E2Eテストが実行される THEN Blog Platform SHALL 以下の重要フローをテストする:
+   - 記事一覧表示の基本動作
+   - 記事詳細閲覧の基本動作
+   - ログイン/ログアウト
+   - 記事作成・編集・削除の統合フロー
+   - ダッシュボード基本動作
+5. WHERE MSWモックが使用される THE Blog Platform SHALL ハッピーパスのみをモックする
+6. IF 詳細なバリデーション、エラーハンドリング、フォーム検証が必要な場合 THEN Blog Platform SHALL ユニットテストまたはコンポーネントテストで実施する
+7. WHERE SEOメタタグ検証が必要な場合 THE Blog Platform SHALL ユニットテストで実施する
+8. WHERE 画像アップロード詳細フローが必要な場合 THE Blog Platform SHALL 統合テストで実施する
+9. WHERE 未認証アクセス詳細検証が必要な場合 THE Blog Platform SHALL 統合テストで実施する
+10. WHEN UI E2Eテストスイートを実行する THEN Blog Platform SHALL 5-8個のspecファイルのみを実行する（従来の13 specsから削減）
+
+#### 削減されたテスト項目（他レイヤーでカバー）
+以下のテストは他のテストレイヤーで実施:
+- クロスブラウザテスト（Firefox, WebKit, Mobile） → 削除（Chromiumのみ）
+- SEOメタタグ検証 → ユニットテストで実施
+- 詳細なエラーハンドリング → ユニット/統合テストで実施
+- フォームバリデーション詳細 → コンポーネントテストで実施
+- 画像アップロード詳細フロー → 統合テストで実施
+- 未認証アクセステスト詳細 → 統合テストで実施
+- レスポンシブデザイン詳細検証 → コンポーネントテストで実施
 
 ### Requirement 44: テストデータ管理機能
 **Objective:** As a テストエンジニア, I want テストデータを効率的に管理する, so that テストの保守性を向上できる

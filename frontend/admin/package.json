@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:e2e": "vite --mode test",
     "build": "tsc -b && vite build",
     "test": "vitest",
     "test:ui": "vitest --ui",

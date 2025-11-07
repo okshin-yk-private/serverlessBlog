@@ -1,11 +1,15 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Playwright E2E Test Configuration - Admin Panel
- * 管理画面のE2Eテスト設定
+ * Playwright UI E2E Test (Minimal) Configuration - Admin Panel
+ * 管理画面のUI E2Eテスト（最小限）設定
+ *
+ * 変更履歴 (2025-11-07):
+ * - クロスブラウザテスト削除（Mobile, Tablet削除）
+ * - Chromiumのみでテスト実行（実行時間80%削減）
  *
  * Requirements:
- * - R43: Playwright E2Eテスト環境（管理画面）
+ * - R43: UI E2Eテスト（最小限）環境（管理画面）
  * - R44: テストデータ管理
  */
 
@@ -26,8 +30,8 @@ export default defineConfig({
   // CI環境での失敗時リトライ
   retries: process.env.CI ? 2 : 0,
 
-  // 並列実行ワーカー数
-  workers: process.env.CI ? 1 : undefined,
+  // 並列実行ワーカー数（CI環境でも並列実行でテスト時間を短縮）
+  workers: process.env.CI ? 4 : undefined,
 
   // レポーター設定
   reporter: [
@@ -54,41 +58,26 @@ export default defineConfig({
     viewport: { width: 1280, height: 720 },
 
     // タイムアウト設定
-    actionTimeout: 10000,
+    // CI環境でのReactハイドレーション遅延に対応するため延長
+    actionTimeout: 30000,
     navigationTimeout: 30000,
   },
 
   // グローバルタイムアウト
-  timeout: 60000,
+  timeout: 90000,
   expect: {
-    timeout: 10000,
+    timeout: 30000,
   },
 
-  // プロジェクト設定（ブラウザ別）
+  // プロジェクト設定（Chromiumのみ - 2025-11-07変更）
+  // モバイル・タブレットテストは削除
+  // レスポンシブ対応検証はコンポーネントテストでカバー
   projects: [
     {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
         // ヘッドレスモード（環境変数で切り替え可能）
-        headless: process.env.HEADLESS !== 'false',
-      },
-    },
-
-    // モバイルデバイス設定（レスポンシブ対応検証用）
-    {
-      name: 'mobile-chrome',
-      use: {
-        ...devices['Pixel 5'],
-        headless: process.env.HEADLESS !== 'false',
-      },
-    },
-
-    // タブレット設定
-    {
-      name: 'tablet',
-      use: {
-        ...devices['iPad Pro'],
         headless: process.env.HEADLESS !== 'false',
       },
     },
@@ -99,13 +88,11 @@ export default defineConfig({
 
   // Webサーバー設定（管理画面用）
   // E2Eテスト時にMSWモックを有効化
+  // --mode testでviteを実行し、.env.testファイルから環境変数を読み込む
   webServer: {
-    command: '(cd frontend/admin && npm run dev)',
+    command: 'cd frontend/admin && npm run dev:e2e',
     url: 'http://localhost:3001',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
-    env: {
-      VITE_ENABLE_MSW_MOCK: 'true',
-    },
   },
 });

@@ -68,7 +68,16 @@ export class AdminLoginPage extends BasePage {
    * エラーメッセージが表示されているか確認
    */
   async isErrorMessageVisible(): Promise<boolean> {
-    return await this.isElementVisible(this.selectors.errorMessage);
+    try {
+      // エラーメッセージが表示されるまで最大5秒待機
+      await this.page.locator(this.selectors.errorMessage).waitFor({
+        state: 'visible',
+        timeout: 5000
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**

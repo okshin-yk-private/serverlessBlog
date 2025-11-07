@@ -1,4 +1,4 @@
-interface ButtonProps {
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
   onClick?: () => void;
   variant?: 'primary' | 'secondary' | 'danger';
@@ -12,6 +12,7 @@ export const Button: React.FC<ButtonProps> = ({
   variant = 'primary',
   disabled = false,
   type = 'button',
+  ...restProps
 }) => {
   const baseClass = 'px-4 py-2 rounded font-medium transition-colors';
 
@@ -27,6 +28,7 @@ export const Button: React.FC<ButtonProps> = ({
       className={`${baseClass} ${variantClasses[variant]}`}
       onClick={onClick}
       disabled={disabled}
+      {...restProps}
     >
       {children}
     </button>

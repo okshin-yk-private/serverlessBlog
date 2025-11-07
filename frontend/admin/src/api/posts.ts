@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { getAuthToken } from '../utils/auth';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// E2Eテスト時は空文字列を使用して相対パスにする（MSWは同一オリジンのリクエストをインターセプトできる）
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
 export interface Post {
   id: string;
@@ -140,8 +141,8 @@ export const getPosts = async (params?: GetPostsParams): Promise<GetPostsRespons
   });
 
   return {
-    posts: response.data.posts || [],
-    total: response.data.total || 0,
+    posts: response.data.items || response.data.posts || [],
+    total: response.data.count || response.data.total || 0,
     nextToken: response.data.nextToken,
   };
 };

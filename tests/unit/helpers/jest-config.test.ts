@@ -56,15 +56,15 @@ describe('Jest Configuration', () => {
 
     test('should collect coverage from Lambda functions', () => {
       expect(config.collectCoverageFrom).toBeDefined();
-      expect(config.collectCoverageFrom).toContain('../../functions/**/*.ts');
+      expect(config.collectCoverageFrom).toContain('functions/**/*.ts');
     });
 
     test('should collect coverage from Layer utilities', () => {
-      expect(config.collectCoverageFrom).toContain('../../layers/common/nodejs/**/*.ts');
+      expect(config.collectCoverageFrom).toContain('layers/common/nodejs/**/*.ts');
     });
 
     test('should exclude index.ts files from coverage', () => {
-      expect(config.collectCoverageFrom).toContain('!../../functions/**/index.ts');
+      expect(config.collectCoverageFrom).toContain('!functions/**/index.ts');
     });
 
     test('should exclude TypeScript declaration files from coverage', () => {

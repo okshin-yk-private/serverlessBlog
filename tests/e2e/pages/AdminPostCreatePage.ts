@@ -89,8 +89,7 @@ export class AdminPostCreatePage extends BasePage {
    * カテゴリを選択
    */
   async selectCategory(category: string): Promise<void> {
-    await this.click(this.selectors.categorySelect);
-    await this.page.locator(`text=${category}`).click();
+    await this.page.selectOption(this.selectors.categorySelect, category);
   }
 
   /**
@@ -266,5 +265,37 @@ export class AdminPostCreatePage extends BasePage {
    */
   async getContentValue(): Promise<string> {
     return await this.page.locator(this.selectors.contentEditor).inputValue();
+  }
+
+  // =====================================================
+  // admin-crud.spec.ts用のエイリアスメソッド
+  // =====================================================
+
+  /**
+   * 公開ステータスを設定（エイリアス）
+   * 実際にブラウザ内の公開ステータスselectを操作する
+   */
+  async setPublishStatus(status: 'draft' | 'published'): Promise<void> {
+    // publishStatus selectのid属性を使用（PostEditor.tsxのline 150参照）
+    await this.page.selectOption('#publishStatus', status);
+  }
+
+  /**
+   * 保存ボタンをクリック（エイリアス）
+   * 現在のUIの状態に応じて、表示されているボタンをクリックする
+   */
+  async clickSaveButton(): Promise<void> {
+    // 現在表示されているボタンをクリック
+    // UIの状態（publishStatus）に応じて、適切なdata-testidを持つボタンが表示されている
+    const publishButton = this.page.locator(this.selectors.publishButton);
+    const draftButton = this.page.locator(this.selectors.saveDraftButton);
+
+    // どちらのボタンが表示されているか確認してクリック
+    if (await publishButton.isVisible()) {
+      await publishButton.click();
+    } else if (await draftButton.isVisible()) {
+      await draftButton.click();
+    }
+    await this.waitForPageLoad();
   }
 }

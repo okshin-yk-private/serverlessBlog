@@ -33,17 +33,47 @@ export class AdminDashboardPage extends BasePage {
   }
 
   /**
-   * ダッシュボードページに移動
+   * 記事一覧ページ（管理画面）に移動
+   * Note: 記事管理機能は /posts にあります
    */
   async navigate(): Promise<void> {
-    await this.goto('/dashboard');
+    await this.goto('/posts');
+
+    // URLが正しく /posts にあることを確認（認証リダイレクトされていないか確認）
+    await this.page.waitForURL('**/posts', { timeout: 30000 });
+
+    // /loginにリダイレクトされていないことを確認
+    // waitForURL直後にリダイレクトが発生する可能性があるため、少し待機
+    await this.page.waitForTimeout(1000);
+    const currentUrl = this.page.url();
+
+    if (currentUrl.includes('/login')) {
+      throw new Error('Authentication failed: Redirected to /login. Please check VITE_ENABLE_MSW_MOCK environment variable.');
+    }
+
+    // ページのロードを待機
     await this.waitForPageLoad();
+
+    // 追加の待機時間を設けて、Reactのハイドレーションを確実に完了させる
+    await this.page.waitForTimeout(500);
+
+    // 再度リダイレクトチェック
+    const finalUrl = this.page.url();
+    if (finalUrl.includes('/login')) {
+      throw new Error('Authentication failed: Redirected to /login during page load.');
+    }
+
+    // ページが完全にレンダリングされるまで待機
+    // 新規作成ボタンが表示されるまで待つ（記事リストはなくても良い）
+    await this.waitForElement(this.selectors.newArticleButton, { timeout: 30000 });
   }
 
   /**
    * 新規記事作成ボタンをクリック
    */
   async clickNewArticle(): Promise<void> {
+    // ボタンが表示されて、クリック可能になるまで待機
+    await this.waitForElement(this.selectors.newArticleButton, { timeout: 30000 });
     await this.click(this.selectors.newArticleButton);
     await this.waitForPageLoad();
   }
@@ -104,14 +134,22 @@ export class AdminDashboardPage extends BasePage {
   }
 
   /**
-   * タイトルで記事を検索して編集
+   * タイトルで記事を検索して編集（完全一致）
    */
   async editArticleByTitle(title: string): Promise<void> {
-    const article = this.page.locator(this.selectors.articleItem, {
-      has: this.page.locator(this.selectors.articleTitle, { hasText: title })
-    });
-    await article.locator(this.selectors.editButton).click();
-    await this.waitForPageLoad();
+    const articles = this.page.locator(this.selectors.articleItem);
+    const count = await articles.count();
+
+    for (let i = 0; i < count; i++) {
+      const articleTitle = await articles.nth(i).locator(this.selectors.articleTitle).textContent();
+      if (articleTitle?.trim() === title.trim()) {
+        await articles.nth(i).locator(this.selectors.editButton).click();
+        await this.waitForPageLoad();
+        return;
+      }
+    }
+
+    throw new Error(`Article with title "${title}" not found`);
   }
 
   /**
@@ -169,19 +207,35 @@ export class AdminDashboardPage extends BasePage {
    * フィルターを選択（例：「公開済み」「下書き」）
    */
   async selectFilter(filterText: string): Promise<void> {
-    await this.click(this.selectors.filterDropdown);
-    await this.page.locator(`text=${filterText}`).click();
+    // フィルターはタブ形式なので、適切なtestidを使用
+    if (filterText === 'published' || filterText === '公開済み') {
+      await this.click('[data-testid="publish-filter-tab"]');
+    } else if (filterText === 'draft' || filterText === '下書き') {
+      await this.click('[data-testid="draft-filter-tab"]');
+    }
     await this.waitForPageLoad();
   }
 
   /**
    * 特定のタイトルの記事が存在するか確認
+   * 完全一致で検索（部分一致を避けるため）
    */
   async hasArticleWithTitle(title: string): Promise<boolean> {
-    const article = this.page.locator(this.selectors.articleItem, {
-      has: this.page.locator(this.selectors.articleTitle, { hasText: title })
-    });
-    return await article.isVisible();
+    try {
+      // 完全一致で検索するため、getByTextではなくfilterを使用
+      const articles = this.page.locator(this.selectors.articleItem);
+      const count = await articles.count();
+
+      for (let i = 0; i < count; i++) {
+        const articleTitle = await articles.nth(i).locator(this.selectors.articleTitle).textContent();
+        if (articleTitle?.trim() === title.trim()) {
+          return await articles.nth(i).isVisible();
+        }
+      }
+      return false;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -199,5 +253,93 @@ export class AdminDashboardPage extends BasePage {
     }
 
     return count > 0;
+  }
+
+  // =====================================================
+  // admin-crud.spec.ts用のエイリアスメソッド
+  // =====================================================
+
+  /**
+   * 新規記事作成ボタンをクリック（エイリアス）
+   */
+  async clickNewPostButton(): Promise<void> {
+    await this.clickNewArticle();
+  }
+
+  /**
+   * 特定のタイトルの記事が表示されているか確認（エイリアス）
+   */
+  async isArticleVisible(title: string): Promise<boolean> {
+    return await this.hasArticleWithTitle(title);
+  }
+
+  /**
+   * タイトルで記事を検索して編集ボタンをクリック（エイリアス）
+   */
+  async clickEditButtonForArticle(title: string): Promise<void> {
+    await this.editArticleByTitle(title);
+  }
+
+  /**
+   * タイトルで記事を検索して削除ボタンをクリック（完全一致）
+   */
+  async clickDeleteButtonForArticle(title: string): Promise<void> {
+    const articles = this.page.locator(this.selectors.articleItem);
+    const count = await articles.count();
+
+    for (let i = 0; i < count; i++) {
+      const articleTitle = await articles.nth(i).locator(this.selectors.articleTitle).textContent();
+      if (articleTitle?.trim() === title.trim()) {
+        await articles.nth(i).locator(this.selectors.deleteButton).click();
+        await this.waitForElement(this.selectors.confirmDialog);
+        return;
+      }
+    }
+
+    throw new Error(`Article with title "${title}" not found`);
+  }
+
+  /**
+   * 削除確認ダイアログが表示されているか確認
+   */
+  async isDeleteConfirmDialogVisible(): Promise<boolean> {
+    return await this.isElementVisible(this.selectors.confirmDialog);
+  }
+
+  /**
+   * ステータスでフィルタリング（エイリアス）
+   */
+  async filterByStatus(status: string): Promise<void> {
+    await this.selectFilter(status);
+  }
+
+  /**
+   * 記事リストが読み込まれるまで待機
+   * データの取得と描画が完了するまで待つ
+   */
+  async waitForArticleListLoaded(): Promise<void> {
+    // ネットワークリクエストが完了するまで待機
+    await this.page.waitForLoadState('networkidle');
+
+    // 記事リストまたは「記事がありません」メッセージが表示されるまで待機
+    await Promise.race([
+      this.waitForElement(this.selectors.articleList),
+      this.page.waitForSelector('text=記事がありません', { state: 'visible' })
+    ]);
+
+    // 追加の短い待機（Reactの状態更新を確実にするため）
+    // モックデータ削減により、100msで十分
+    await this.page.waitForTimeout(100);
+  }
+
+  /**
+   * 特定の記事が表示されるまで待機
+   */
+  async waitForArticleToAppear(title: string, options?: { timeout?: number }): Promise<void> {
+    const timeout = options?.timeout ?? 5000;
+    const article = this.page.locator(this.selectors.articleItem, {
+      has: this.page.locator(this.selectors.articleTitle, { hasText: title })
+    });
+    await article.waitFor({ state: 'visible', timeout });
   }
 }

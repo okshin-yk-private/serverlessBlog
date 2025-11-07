@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { signIn, signOut, getCurrentUser, fetchAuthSession } from 'aws-amplify/auth';
 import { getAuthToken, saveAuthToken, removeAuthToken, isTokenExpired } from '../utils/auth';
+import { loginAPI, type APIError } from '../api/auth';
 
 interface User {
   id: string;
@@ -32,6 +33,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const checkAuthStatus = async () => {
     try {
+      // E2Eテスト時はAmplifyを使用せず、トークンベースの認証のみ
+      if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
+        const token = getAuthToken();
+        if (token && !isTokenExpired(token)) {
+          // E2Eテスト時はモックユーザー情報を設定
+          setUser({
+            id: 'test-user-id',
+            email: 'admin@example.com',
+          });
+        } else {
+          removeAuthToken();
+          setUser(null);
+        }
+        setIsLoading(false);
+        return;
+      }
+
       const token = getAuthToken();
 
       // トークンが存在し、有効期限内であれば
@@ -58,6 +76,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string) => {
     try {
+      // E2Eテスト時はMSWモックを使用
+      if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
+        // APIを呼び出してMSWがレスポンスを返すようにする
+        const response = await loginAPI(email, password);
+        saveAuthToken(response.token);
+        setUser(response.user);
+        return;
+      }
+
       // Cognitoでサインイン
       const { isSignedIn } = await signIn({ username: email, password });
 
@@ -86,6 +113,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     try {
+      // E2Eテスト時はAmplifyを使用せず、ローカル状態のみクリア
+      if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
+        removeAuthToken();
+        setUser(null);
+        return;
+      }
+
       // Cognitoからサインアウト
       await signOut();
 

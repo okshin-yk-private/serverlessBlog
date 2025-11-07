@@ -50,7 +50,7 @@ describe('DashboardPage', () => {
       await waitFor(() => {
         const link = screen.getByRole('link', { name: /新規記事作成/i });
         expect(link).toBeInTheDocument();
-        expect(link).toHaveAttribute('href', '/posts/create');
+        expect(link).toHaveAttribute('href', '/posts/new');
       });
     });
   });

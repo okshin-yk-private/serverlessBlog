@@ -32,6 +32,14 @@ describe('PostDetailPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Clean up meta tags from previous tests
+    document.querySelectorAll('meta[name="description"]').forEach((el) => el.remove());
+    document.querySelectorAll('meta[name="keywords"]').forEach((el) => el.remove());
+    document.querySelectorAll('meta[property^="og:"]').forEach((el) => el.remove());
+    document.querySelectorAll('meta[name^="twitter:"]').forEach((el) => el.remove());
+    document.querySelectorAll('link[rel="canonical"]').forEach((el) => el.remove());
+    document.querySelectorAll('script[type="application/ld+json"]').forEach((el) => el.remove());
   });
 
   describe('記事詳細レンダリング', () => {
@@ -115,7 +123,7 @@ describe('PostDetailPage', () => {
       );
 
       await waitFor(() => {
-        const contentElement = screen.getByTestId('post-content');
+        const contentElement = screen.getByTestId('article-content');
         expect(contentElement.innerHTML).toContain('<h1>Hello World</h1>');
         expect(contentElement.innerHTML).toContain('<p>This is test content.</p>');
       });
@@ -138,7 +146,7 @@ describe('PostDetailPage', () => {
       );
 
       await waitFor(() => {
-        const contentElement = screen.getByTestId('post-content');
+        const contentElement = screen.getByTestId('article-content');
         expect(contentElement.innerHTML).toContain('<strong>Bold Text</strong>');
         expect(contentElement.innerHTML).toContain('<em>Italic Text</em>');
       });
@@ -448,6 +456,24 @@ describe('PostDetailPage', () => {
       expect(jsonLdScript).toBeTruthy();
       const jsonLdContent = JSON.parse(jsonLdScript?.textContent || '{}');
       expect(jsonLdContent.datePublished).toBe('2025-01-01T00:00:00Z');
+    });
+
+    test('authorIdが空の場合、デフォルトで"Admin"が表示される', async () => {
+      const postWithoutAuthor = { ...mockPost, authorId: '' };
+      vi.mocked(api.fetchPost).mockResolvedValue(postWithoutAuthor);
+
+      render(
+        <MemoryRouter initialEntries={['/posts/post-123']}>
+          <Routes>
+            <Route path="/posts/:id" element={<PostDetailPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => {
+        const authorElement = screen.getByTestId('article-author');
+        expect(authorElement.textContent).toBe('Admin');
+      });
     });
   });
 });

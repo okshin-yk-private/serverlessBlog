@@ -20,7 +20,7 @@ import { DynamoDBDocumentClient, GetCommand, PutCommand } from '@aws-sdk/lib-dyn
 import { Logger } from '@aws-lambda-powertools/logger';
 import { Tracer } from '@aws-lambda-powertools/tracer';
 import { Metrics, MetricUnit } from '@aws-lambda-powertools/metrics';
-import { markdownToSafeHtml } from '/opt/nodejs/utils/markdownUtils';
+import { markdownToSafeHtml } from '../../../layers/common/nodejs/utils/markdownUtils';
 
 const logger = new Logger();
 const tracer = new Tracer();

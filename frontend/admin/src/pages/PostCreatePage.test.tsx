@@ -366,7 +366,7 @@ describe('PostCreatePage', () => {
     );
 
     const statusSelect = screen.getByLabelText(/公開状態/i) as HTMLSelectElement;
-    expect(statusSelect.value).toBe('draft');
+    expect(statusSelect.value).toBe('published');
   });
 
   // レスポンシブデザイン

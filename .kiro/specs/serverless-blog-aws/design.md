@@ -991,38 +991,93 @@ module.exports = {
 
 ### テスト階層
 
-**ユニットテスト（Jest）**:
-- **目的**: 個別Lambda関数、Reactコンポーネント、ユーティリティ関数の動作検証
+**テストピラミッド戦略** (2025-11-07更新):
+
+本プロジェクトでは、テストピラミッドの原則に従い、以下の3層でテストを実施します：
+
+```
+       ▲
+      / \
+     /   \    UI E2Eテスト (5-8 specs)
+    /     \   - 重要フロー
+   /       \  - 3分
+  /_________\
+  |         | 統合テスト (46 tests)
+  |         | - API/DB連携
+  |_________| - 2分
+  |         |
+  |         | ユニットテスト (200+ tests)
+  |         | - 詳細動作
+  |_________| - 30秒
+```
+
+#### 1. ユニットテスト（主要レイヤー）
+
+**バックエンドユニットテスト（Jest）**:
+- **目的**: 個別Lambda関数、ユーティリティ関数の詳細な動作検証
 - **対象**: createPost、getPost、updatePost、deletePost、listPosts、login、logout、refresh、getUploadUrl Lambda関数
-- **モック戦略**: AWS SDK（DynamoDB、S3、Cognito）、Lambda Powertools、外部ライブラリ（marked、dompurify）をモック化
+- **カバレッジ目標**: 100%必須（行、分岐、関数、ステートメント）
+- **テスト項目**: 正常系、異常系、バリデーションエラー、認証エラー、エッジケース
+- **モック戦略**: AWS SDK（DynamoDB、S3、Cognito）、Lambda Powertools、外部ライブラリ（marked、dompurify）を完全にモック化
+- **実行時間**: ~30秒
 - **実行コマンド**: `npm test -- --coverage`
 
 詳細なテスト実装は `tests/unit/functions/` を参照
 
 **フロントエンドユニットテスト（Jest + React Testing Library）**:
-- **目的**: Reactコンポーネント、カスタムフック、ユーティリティ関数の動作検証
+- **目的**: Reactコンポーネント、カスタムフック、ユーティリティ関数の詳細な動作検証
 - **対象**: PostEditor、PostList、PostDetail、LoginForm、Dashboard、useAuth、usePosts、useImageUpload
+- **カバレッジ目標**: 100%必須
+- **テスト項目**: レンダリング、ユーザーインタラクション、フォームバリデーション詳細、エラー表示、条件分岐レンダリング
 - **テスト戦略**: ユーザー視点テスト、アクセシビリティ重視（getByRole、getByLabelText優先）、非同期処理（waitFor、findBy*）
 - **モック戦略**: MSW（Mock Service Worker）でAPI モック、Zustand ストアモック
+- **実行時間**: ~30秒
 - **実行コマンド**: `npm test -- --coverage`
 
 詳細なテスト実装は `frontend/*/src/` の各テストファイルを参照
 
-**統合テスト（Jest）**:
-- **目的**: 複数コンポーネント連携、API エンドポイント、DynamoDB統合の動作検証
-- **対象**: API エンドポイント（POST /posts、GET /posts/:id、PUT /posts/:id、DELETE /posts/:id）、認証フロー、画像アップロードワークフロー
+#### 2. 統合テスト（コンポーネント連携）
+
+**統合テスト（Jest + DynamoDB Local）**:
+- **目的**: 複数コンポーネント/サービスの連携動作検証
+- **対象**:
+  - API エンドポイント（全8エンドポイント）: POST /posts、GET /posts/:id、PUT /posts/:id、DELETE /posts/:id、GET /posts、POST /auth/login、POST /auth/refresh、POST /auth/logout
+  - DynamoDB CRUD操作とGSIクエリ（CategoryIndex、PublishStatusIndex）
+  - 認証フロー（Cognito統合）
+  - ページネーション処理
+  - 画像アップロードワークフロー（Pre-signed URL生成）
+- **カバレッジ目標**: 全APIエンドポイント100%、全DynamoDB操作100%
 - **テスト環境**: DynamoDB Local（Docker）、LocalStack（S3、Cognito）
+- **実行時間**: ~2分
 - **実行コマンド**: `npm run test:integration`
 
 詳細なテスト実装は `tests/integration/` を参照
 
-**E2Eテスト（Playwright）**:
-- **目的**: ユーザーシナリオ全体の動作検証（ブラウザ操作、画面遷移、認証フロー）
-- **対象**: ログイン → 記事作成 → 画像アップロード → 公開 → 記事詳細閲覧 → 記事編集 → 記事削除
-- **テスト環境**: Playwright（Chromium、Firefox、WebKit）、並列実行、スクリーンショット、ビデオ録画
+#### 3. UI E2Eテスト（最小限）
+
+**UI E2Eテスト（Playwright + MSW）** (2025-11-07更新):
+- **目的**: 重要なユーザーフローのみを検証（詳細はユニット/統合テストで実施済み）
+- **対象（5-8個のspecファイルのみ）**:
+  - `home.spec.ts`: 記事一覧表示の基本動作
+  - `article.spec.ts`: 記事詳細閲覧の基本動作
+  - `admin-auth.spec.ts`: ログイン/ログアウト
+  - `admin-crud.spec.ts`（新規統合）: 記事作成・編集・削除の統合フロー
+  - `admin-dashboard.spec.ts`: ダッシュボード基本動作
+- **ブラウザ**: Chromiumのみ（クロスブラウザテスト削除）
+- **MSWモック戦略**: ハッピーパスのみをモック（複雑なエラーハンドリングは除外）
+- **実行時間目標**: ~3分（従来比80%削減）
+- **テスト項目**: 最小限の重要フローのみ
 - **実行コマンド**: `npx playwright test`
 
-詳細なテスト実装は `tests/e2e/` を参照
+**削減されたテスト項目**（他レイヤーでカバー）:
+- ❌ クロスブラウザテスト（Firefox, WebKit, Mobile） → 削除（Chromiumのみ）
+- ❌ SEOメタタグ検証（`seo-meta-tags.spec.ts`） → ユニットテストで実施
+- ❌ 詳細なエラーハンドリング（`error-handling.spec.ts`） → ユニットテストで実施
+- ❌ フォームバリデーション詳細（`admin-form-validation.spec.ts`） → コンポーネントテストで実施
+- ❌ 画像アップロード詳細フロー（`admin-image-upload.spec.ts`） → 統合テストで実施
+- ❌ 未認証アクセステスト詳細（`unauthorized-access.spec.ts` × 2） → 統合テストで実施
+
+詳細なテスト実装は `tests/e2e/` を参照、詳細な戦略は `docs/testing-strategy.md` を参照
 
 **CDKスタックテスト（aws-cdk-lib/assertions）**:
 - **目的**: CDKスタック定義、CloudFormationテンプレート、リソースプロパティの検証

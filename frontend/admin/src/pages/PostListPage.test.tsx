@@ -34,7 +34,7 @@ describe('PostListPage', () => {
 
       const createButton = screen.getByRole('link', { name: /新規作成/i });
       expect(createButton).toBeInTheDocument();
-      expect(createButton).toHaveAttribute('href', '/posts/create');
+      expect(createButton).toHaveAttribute('href', '/posts/new');
     });
 
     it('公開記事と下書き記事のタブを表示する', async () => {
@@ -42,7 +42,7 @@ describe('PostListPage', () => {
       renderPostListPage();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /公開記事/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /公開済み/i })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /下書き/i })).toBeInTheDocument();
       });
     });
@@ -129,10 +129,10 @@ describe('PostListPage', () => {
       renderPostListPage();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /公開記事/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /公開済み/i })).toBeInTheDocument();
       });
 
-      const publishedTab = screen.getByRole('button', { name: /公開記事/i });
+      const publishedTab = screen.getByRole('button', { name: /公開済み/i });
       fireEvent.click(publishedTab);
 
       await waitFor(() => {
@@ -239,9 +239,6 @@ describe('PostListPage', () => {
 
       mockGetPosts.mockResolvedValue({ posts, total: 1 });
 
-      // window.confirmをモック
-      vi.spyOn(window, 'confirm').mockReturnValue(false);
-
       renderPostListPage();
 
       await waitFor(() => {
@@ -252,7 +249,10 @@ describe('PostListPage', () => {
       const deleteButton = screen.getByRole('button', { name: /削除/i });
       fireEvent.click(deleteButton);
 
-      expect(window.confirm).toHaveBeenCalledWith('本当に削除しますか？');
+      // ConfirmDialogが表示されることを確認
+      await waitFor(() => {
+        expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+      });
     });
 
     it('削除を確認すると記事を削除してリストを更新する', async () => {
@@ -273,9 +273,6 @@ describe('PostListPage', () => {
       mockGetPosts.mockResolvedValueOnce({ posts: [], total: 0 });
       mockDeletePost.mockResolvedValue(undefined);
 
-      // window.confirmをモック
-      vi.spyOn(window, 'confirm').mockReturnValue(true);
-
       renderPostListPage();
 
       await waitFor(() => {
@@ -285,6 +282,14 @@ describe('PostListPage', () => {
 
       const deleteButton = screen.getByRole('button', { name: /削除/i });
       fireEvent.click(deleteButton);
+
+      // ConfirmDialogが表示されたら「はい」をクリック
+      await waitFor(() => {
+        expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+      });
+
+      const confirmButton = screen.getByTestId('confirm-yes');
+      fireEvent.click(confirmButton);
 
       await waitFor(() => {
         expect(mockDeletePost).toHaveBeenCalledWith('1');
@@ -308,9 +313,6 @@ describe('PostListPage', () => {
 
       mockGetPosts.mockResolvedValue({ posts, total: 1 });
 
-      // window.confirmをモック（キャンセル）
-      vi.spyOn(window, 'confirm').mockReturnValue(false);
-
       renderPostListPage();
 
       await waitFor(() => {
@@ -321,7 +323,18 @@ describe('PostListPage', () => {
       const deleteButton = screen.getByRole('button', { name: /削除/i });
       fireEvent.click(deleteButton);
 
-      expect(mockDeletePost).not.toHaveBeenCalled();
+      // ConfirmDialogが表示されたら「いいえ」をクリック
+      await waitFor(() => {
+        expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+      });
+
+      const cancelButton = screen.getByTestId('confirm-no');
+      fireEvent.click(cancelButton);
+
+      // 削除が実行されないことを確認
+      await waitFor(() => {
+        expect(mockDeletePost).not.toHaveBeenCalled();
+      });
       expect(screen.getByText('Test Post')).toBeInTheDocument();
     });
   });
@@ -354,9 +367,6 @@ describe('PostListPage', () => {
       mockGetPosts.mockResolvedValue({ posts, total: 1 });
       mockDeletePost.mockRejectedValue(new Error('Delete failed'));
 
-      // window.confirmをモック
-      vi.spyOn(window, 'confirm').mockReturnValue(true);
-
       renderPostListPage();
 
       await waitFor(() => {
@@ -366,6 +376,14 @@ describe('PostListPage', () => {
 
       const deleteButton = screen.getByRole('button', { name: /削除/i });
       fireEvent.click(deleteButton);
+
+      // ConfirmDialogが表示されたら「はい」をクリック
+      await waitFor(() => {
+        expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+      });
+
+      const confirmButton = screen.getByTestId('confirm-yes');
+      fireEvent.click(confirmButton);
 
       await waitFor(() => {
         expect(screen.getByText(/記事の削除に失敗しました/i)).toBeInTheDocument();
@@ -390,9 +408,6 @@ describe('PostListPage', () => {
       mockGetPosts.mockResolvedValueOnce({ posts: [], total: 0 });
       mockDeletePost.mockResolvedValue(undefined);
 
-      // window.confirmをモック
-      vi.spyOn(window, 'confirm').mockReturnValue(true);
-
       renderPostListPage();
 
       await waitFor(() => {
@@ -402,6 +417,14 @@ describe('PostListPage', () => {
 
       const deleteButton = screen.getByRole('button', { name: /削除/i });
       fireEvent.click(deleteButton);
+
+      // ConfirmDialogが表示されたら「はい」をクリック
+      await waitFor(() => {
+        expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+      });
+
+      const confirmButton = screen.getByTestId('confirm-yes');
+      fireEvent.click(confirmButton);
 
       await waitFor(() => {
         expect(screen.getByText(/記事を削除しました/i)).toBeInTheDocument();

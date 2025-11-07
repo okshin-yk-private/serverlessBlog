@@ -80,6 +80,7 @@ describe('LoginForm', () => {
       expect(mockOnLogin).toHaveBeenCalledWith({
         email: 'test@example.com',
         password: 'password123',
+        rememberMe: false,
       });
     });
   });

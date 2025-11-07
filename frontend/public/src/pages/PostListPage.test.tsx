@@ -17,6 +17,7 @@ import { BrowserRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import PostListPage from './PostListPage';
 import type { Post, PostListResponse } from '../types/post';
+import * as api from '../services/api';
 
 // モックデータ
 const mockPosts: Post[] = [
@@ -615,7 +616,7 @@ describe('PostListPage', () => {
 
       // Assert
       await waitFor(() => {
-        const container = screen.getByTestId('post-list-container');
+        const container = screen.getByTestId('article-list');
         expect(container).toBeInTheDocument();
         expect(container.className).toContain('post-list-container');
       });
@@ -643,6 +644,35 @@ describe('PostListPage', () => {
         articles.forEach((article) => {
           expect(article.className).toContain('post-card');
         });
+      });
+    });
+
+    it('contentHtmlが空の記事でも正しく表示される', async () => {
+      // Arrange
+      const postsWithEmptyContent = [
+        {
+          ...mockPosts[0],
+          contentHtml: '',
+        },
+      ];
+      const axios = await import('axios');
+      vi.mocked(axios.default.get).mockResolvedValueOnce({
+        data: {
+          items: postsWithEmptyContent,
+          count: postsWithEmptyContent.length,
+        } as PostListResponse,
+      });
+
+      // Act
+      renderWithRouter(<PostListPage />);
+
+      // Assert
+      await waitFor(() => {
+        const articles = screen.getAllByRole('article');
+        expect(articles).toHaveLength(1);
+        // excerptが空文字列になることを確認
+        const excerpt = screen.getByTestId('article-excerpt');
+        expect(excerpt.textContent).toBe('');
       });
     });
   });

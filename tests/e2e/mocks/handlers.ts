@@ -1,11 +1,17 @@
 /**
- * MSW API Handlers
+ * MSW API Handlers - Happy Path Only (Simplified)
  *
- * PlaywrightE2Eテスト用のモックAPIハンドラー
- * バックエンドAPIをモックして、フロントエンドのE2Eテストを実行可能にする
+ * PlaywrightUI E2Eテスト用のモックAPIハンドラー（ハッピーパスのみ）
+ * バックエンドAPIをモックして、フロントエンドのUI E2Eテストを実行可能にする
+ *
+ * 変更履歴 (2025-11-07):
+ * - 複雑なエラーシミュレーション機能を削除（simulateError, simulateRetryパラメータ削除）
+ * - リトライカウンターとレート制限ロジックを削除
+ * - ハッピーパスのみに簡略化
+ * - エラーハンドリング詳細はユニットテスト・統合テストでカバー
  *
  * Requirements:
- * - R43: Playwright E2Eテスト
+ * - R43: UI E2Eテスト（最小限）
  * - R44: テストデータ管理
  */
 
@@ -13,9 +19,26 @@ import { http, HttpResponse } from 'msw';
 import { mockPosts, mockPost, createMockPost } from './mockData';
 
 // ブラウザ環境では import.meta.env を使用
-const API_BASE_URL = typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL
+// nullish coalescing演算子(??)を使用して、undefinedとnullのみデフォルト値を使用
+// 空文字列('')は有効な値として扱う
+const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL !== undefined)
   ? import.meta.env.VITE_API_BASE_URL
   : '/api';
+
+/**
+ * モックJWTトークンを生成（有効期限付き）
+ */
+const createMockJWT = (): string => {
+  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const exp = Math.floor(Date.now() / 1000) + 3600; // 1時間後に有効期限
+  const payload = btoa(JSON.stringify({
+    sub: 'user-123',
+    email: 'admin@example.com',
+    exp
+  }));
+  const signature = 'mock-signature';
+  return `${header}.${payload}.${signature}`;
+};
 
 /**
  * 認証トークンを検証するヘルパー関数
@@ -26,61 +49,20 @@ const checkAuth = (request: Request): boolean => {
     return false;
   }
 
-  // Bearer トークンをチェック
+  // Bearer トークンをチェック（モックJWT形式も受け入れる）
   const token = authHeader.replace('Bearer ', '');
-  return token === 'mock-access-token' || token === 'mock-new-access-token';
+  // JWTトークンの形式をチェック（header.payload.signature）
+  return token.split('.').length === 3;
 };
 
-/**
- * リトライカウンター（テスト用）
- */
-let retryCounters: Record<string, number> = {};
-
 export const handlers = [
-  // 記事一覧取得（公開サイト）
+  // 記事一覧取得（公開サイト）- Happy Path Only
   http.get(`${API_BASE_URL}/posts`, ({ request }) => {
     const url = new URL(request.url);
     const category = url.searchParams.get('category');
     const tags = url.searchParams.get('tags');
     const limit = Number(url.searchParams.get('limit')) || 10;
     const nextToken = url.searchParams.get('nextToken');
-
-    // エラーシミュレーション用パラメータ
-    const simulateError = url.searchParams.get('simulateError');
-    const simulateRetry = url.searchParams.get('simulateRetry');
-
-    // リトライシミュレーション
-    if (simulateRetry === 'true') {
-      const retryKey = 'posts-retry';
-      if (!retryCounters[retryKey]) {
-        retryCounters[retryKey] = 0;
-      }
-      retryCounters[retryKey]++;
-
-      // 最初のリクエストは失敗
-      if (retryCounters[retryKey] === 1) {
-        return new HttpResponse(null, { status: 500 });
-      }
-      // 2回目以降は成功（カウンターをリセット）
-      retryCounters[retryKey] = 0;
-    }
-
-    // 500エラーシミュレーション
-    if (simulateError === '500') {
-      return HttpResponse.json(
-        { error: 'Internal Server Error' },
-        { status: 500 }
-      );
-    }
-
-    // 空レスポンスシミュレーション
-    if (simulateError === 'empty') {
-      return HttpResponse.json({
-        items: [],
-        count: 0,
-        nextToken: undefined,
-      });
-    }
 
     let filteredPosts = [...mockPosts];
 
@@ -137,25 +119,27 @@ export const handlers = [
     return HttpResponse.json(post);
   }),
 
-  // 管理画面: ログイン
-  http.post(`${API_BASE_URL}/auth/login`, async ({ request }) => {
+  // 管理画面: ログイン - Happy Path Only
+  http.post('/auth/login', async ({ request }) => {
     const body = await request.json() as { email: string; password: string };
 
-    // テスト用の認証情報をチェック
+    // テスト用の認証情報をチェック（レート制限削除）
     if (
       body.email === 'admin@example.com' &&
       body.password === 'testpassword'
     ) {
       return HttpResponse.json({
-        accessToken: 'mock-access-token',
-        refreshToken: 'mock-refresh-token',
-        idToken: 'mock-id-token',
-        expiresIn: 3600,
+        token: createMockJWT(), // 有効なJWT形式のトークンを返す
+        user: {
+          id: 'user-123',
+          email: 'admin@example.com',
+        },
       });
     }
 
+    // ログイン失敗（シンプルなエラーレスポンス）
     return HttpResponse.json(
-      { message: 'Invalid credentials' },
+      { message: 'ログインに失敗しました' },
       { status: 401 }
     );
   }),
@@ -171,8 +155,8 @@ export const handlers = [
 
     if (body.refreshToken === 'mock-refresh-token') {
       return HttpResponse.json({
-        accessToken: 'mock-new-access-token',
-        idToken: 'mock-new-id-token',
+        accessToken: createMockJWT(), // 有効なJWT形式のトークンを返す
+        idToken: createMockJWT(), // 有効なJWT形式のトークンを返す
         expiresIn: 3600,
       });
     }

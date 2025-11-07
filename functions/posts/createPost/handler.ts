@@ -5,7 +5,7 @@ import { Logger } from '@aws-lambda-powertools/logger';
 import { Tracer } from '@aws-lambda-powertools/tracer';
 import { Metrics, MetricUnit } from '@aws-lambda-powertools/metrics';
 import { v4 as uuidv4 } from 'uuid';
-import { markdownToSafeHtml } from '/opt/nodejs/utils/markdownUtils';
+import { markdownToSafeHtml } from '../../../layers/common/nodejs/utils/markdownUtils';
 import { BlogPost, CreatePostRequest, ErrorResponse } from '../../shared/types';
 import { HTTP_STATUS, CORS_HEADERS, PUBLISH_STATUS } from '../../shared/constants';
 

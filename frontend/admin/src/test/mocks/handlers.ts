@@ -1,6 +1,10 @@
-import { http, HttpResponse } from 'msw';
+import { http, HttpResponse, delay } from 'msw';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// E2Eテスト時は相対パスでマッチさせる（MSWは同一オリジンのリクエストをインターセプトできる）
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+
+// レート制限のための状態管理
+const loginAttempts: Record<string, { count: number; resetTime: number }> = {};
 
 /**
  * Authorizationヘッダーをチェックするヘルパー関数
@@ -42,12 +46,56 @@ function unauthorizedResponse() {
 
 export const handlers = [
   // 認証モック
-  http.post(`${API_URL}/auth/login`, () => {
+  http.post(`${API_URL}/auth/login`, async ({ request }) => {
+    // ネットワークエラーシミュレーション（テスト用ヘッダー）
+    const simulateNetworkError = request.headers.get('x-mock-network-error');
+    if (simulateNetworkError === 'true') {
+      // ネットワークエラーをシミュレート
+      return HttpResponse.error();
+    }
+
+    const body = await request.json() as { email: string; password: string };
+
+    // レート制限チェック
+    const now = Date.now();
+    const attempts = loginAttempts[body.email];
+
+    if (attempts) {
+      if (now < attempts.resetTime) {
+        if (attempts.count >= 5) {
+          return HttpResponse.json(
+            { message: 'ログイン試行回数が上限に達しました。しばらくしてからお試しください。' },
+            { status: 429 }
+          );
+        }
+        attempts.count++;
+      } else {
+        // リセット時間を過ぎたのでカウンターをリセット
+        loginAttempts[body.email] = { count: 1, resetTime: now + 60000 }; // 1分間
+      }
+    } else {
+      loginAttempts[body.email] = { count: 1, resetTime: now + 60000 };
+    }
+
+    // 有効な認証情報のチェック
+    const validEmail = 'admin@example.com';
+    const validPassword = 'testpassword';
+
+    if (body.email !== validEmail || body.password !== validPassword) {
+      return HttpResponse.json(
+        { message: '認証に失敗しました' },
+        { status: 401 }
+      );
+    }
+
+    // 成功時はカウンターをリセット
+    delete loginAttempts[body.email];
+
     return HttpResponse.json({
       token: 'mock-jwt-token',
       user: {
         id: 'user-123',
-        email: 'test@example.com',
+        email: 'admin@example.com',
       },
     });
   }),

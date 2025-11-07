@@ -7,9 +7,13 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
+    env: {
+      // 単体テスト環境では VITE_ENABLE_MSW_MOCK を未設定にして、Amplifyモックを使用
+      VITE_ENABLE_MSW_MOCK: undefined as any,
+    },
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'html', 'lcov'],
       exclude: [
         'node_modules/',
         'src/test/',
@@ -24,6 +28,8 @@ export default defineConfig({
         // 'src/pages/PostListPage.tsx', // Task 6.4で追加
         'src/config/**', // Amplify設定など
         'src/api/**', // API関数はMSWでモック
+        'src/mocks/**', // MSWのモック設定
+        'public/**', // MSWのmockServiceWorker.jsなど
       ],
       thresholds: {
         lines: 80,

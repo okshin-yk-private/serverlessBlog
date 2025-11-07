@@ -32,7 +32,7 @@ setupMetricsMock();
 
 // markdownUtilsのモック（プロジェクト固有）
 // 実際のmarkdownUtilsと同じ動作をシミュレート
-jest.mock('/opt/nodejs/utils/markdownUtils', () => ({
+jest.mock('../../../layers/common/nodejs/utils/markdownUtils', () => ({
   markdownToSafeHtml: jest.fn((markdown: string) => {
     return markdown
       .replace(/^# (.+)$/gm, '<h1>$1</h1>')
