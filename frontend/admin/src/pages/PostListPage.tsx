@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { getPosts, deletePost } from '../api/posts';
+import { useState, useEffect, useMemo } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { getPosts, deletePost, updatePost } from '../api/posts';
 import type { Post } from '../api/posts';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 type TabType = 'published' | 'draft';
 
 const PostListPage = () => {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<TabType>('published');
   const [posts, setPosts] = useState<Post[]>([]);
   const [total, setTotal] = useState<number>(0);
@@ -13,12 +15,17 @@ const PostListPage = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // 削除確認ダイアログ用のstate
+  const [showConfirmDialog, setShowConfirmDialog] = useState<boolean>(false);
+  const [postToDelete, setPostToDelete] = useState<string | null>(null);
 
   const loadPosts = async (publishStatus: TabType, token?: string) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await getPosts({ publishStatus, nextToken: token, limit: 10 });
+      const response = await getPosts({ publishStatus, nextToken: token, limit: 100 });
       setPosts(response.posts);
       setTotal(response.total);
       setNextToken(response.nextToken);
@@ -32,11 +39,12 @@ const PostListPage = () => {
 
   useEffect(() => {
     loadPosts(activeTab);
-  }, [activeTab]);
+  }, [activeTab, location.key]); // location.keyを追加してナビゲーション時に再読み込み
 
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
     setNextToken(undefined);
+    setSearchQuery(''); // タブ切り替え時に検索クエリをリセット
   };
 
   const handleNextPage = () => {
@@ -45,27 +53,69 @@ const PostListPage = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    const confirmed = window.confirm('本当に削除しますか？');
-    if (!confirmed) {
-      return;
-    }
+  const handleDeleteClick = (id: string) => {
+    setPostToDelete(id);
+    setShowConfirmDialog(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!postToDelete) return;
 
     try {
       setError(null);
       setSuccessMessage(null);
-      await deletePost(id);
+      await deletePost(postToDelete);
       setSuccessMessage('記事を削除しました');
+      setShowConfirmDialog(false);
+      setPostToDelete(null);
       await loadPosts(activeTab);
     } catch (err) {
       console.error('削除エラー:', err);
       setError('記事の削除に失敗しました');
+      setShowConfirmDialog(false);
+      setPostToDelete(null);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowConfirmDialog(false);
+    setPostToDelete(null);
+  };
+
+  const handlePublishToggle = async (post: Post) => {
+    try {
+      setError(null);
+      setSuccessMessage(null);
+      const newStatus: 'draft' | 'published' = post.publishStatus === 'published' ? 'draft' : 'published';
+
+      await updatePost(post.id, {
+        title: post.title,
+        contentMarkdown: post.contentMarkdown,
+        category: post.category,
+        publishStatus: newStatus,
+      });
+
+      setSuccessMessage(`記事を${newStatus === 'published' ? '公開' : '下書きに変更'}しました`);
+      await loadPosts(activeTab);
+    } catch (err) {
+      console.error('ステータス更新エラー:', err);
+      setError('記事のステータス更新に失敗しました');
     }
   };
 
   const formatDate = (dateString: string): string => {
     return new Date(dateString).toISOString().split('T')[0];
   };
+
+  // 検索フィルター
+  const filteredPosts = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return posts;
+    }
+    return posts.filter(post =>
+      post.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [posts, searchQuery]);
 
   if (loading) {
     return (
@@ -81,7 +131,7 @@ const PostListPage = () => {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-gray-900">記事一覧</h1>
           <Link
-            to="/posts/create"
+            to="/posts/new"
             data-testid="new-article-button"
             className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
           >
@@ -101,6 +151,18 @@ const PostListPage = () => {
           </div>
         )}
 
+        {/* 検索バー */}
+        <div className="mb-4">
+          <input
+            type="text"
+            data-testid="admin-search-input"
+            placeholder="タイトルで検索..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
         <div className="bg-white shadow overflow-hidden sm:rounded-lg">
           <div className="border-b border-gray-200">
             <nav className="flex -mb-px" data-testid="admin-filter-dropdown">
@@ -113,7 +175,7 @@ const PostListPage = () => {
                 onClick={() => handleTabChange('published')}
                 data-testid="publish-filter-tab"
               >
-                公開記事
+                公開済み
               </button>
               <button
                 className={`py-4 px-6 font-medium text-sm ${
@@ -130,11 +192,13 @@ const PostListPage = () => {
           </div>
 
           <div className="p-6">
-            {posts.length === 0 ? (
-              <p className="text-gray-600 text-center py-8">記事がありません</p>
+            {filteredPosts.length === 0 ? (
+              <p className="text-gray-600 text-center py-8">
+                {searchQuery ? '検索結果が見つかりません' : '記事がありません'}
+              </p>
             ) : (
               <div className="space-y-4" data-testid="admin-article-list">
-                {posts.map((post) => (
+                {filteredPosts.map((post) => (
                   <div
                     key={post.id}
                     data-testid="admin-article-item"
@@ -147,7 +211,7 @@ const PostListPage = () => {
                         </h3>
                         <div className="flex items-center space-x-4 text-sm text-gray-500">
                           <span data-testid="admin-article-status">
-                            ステータス: {activeTab === 'published' ? '公開' : '下書き'}
+                            ステータス: {activeTab === 'published' ? '公開済み' : '下書き'}
                           </span>
                           <span>
                             カテゴリ: {post.category || '未分類'}
@@ -158,6 +222,24 @@ const PostListPage = () => {
                         </div>
                       </div>
                       <div className="flex space-x-2 ml-4">
+                        {/* 公開/下書き切り替えボタン */}
+                        {post.publishStatus === 'draft' ? (
+                          <button
+                            onClick={() => handlePublishToggle(post)}
+                            data-testid="publish-article-button"
+                            className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-sm"
+                          >
+                            公開
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handlePublishToggle(post)}
+                            data-testid="draft-article-button"
+                            className="bg-yellow-600 text-white px-3 py-1 rounded hover:bg-yellow-700 text-sm"
+                          >
+                            下書きに戻す
+                          </button>
+                        )}
                         <Link
                           to={`/posts/edit/${post.id}`}
                           data-testid="edit-article-button"
@@ -166,7 +248,7 @@ const PostListPage = () => {
                           編集
                         </Link>
                         <button
-                          onClick={() => handleDelete(post.id)}
+                          onClick={() => handleDeleteClick(post.id)}
                           data-testid="delete-article-button"
                           className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"
                         >
@@ -192,6 +274,14 @@ const PostListPage = () => {
           </div>
         </div>
       </div>
+
+      {/* 削除確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={showConfirmDialog}
+        message="本当にこの記事を削除しますか？"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
     </div>
   );
 };

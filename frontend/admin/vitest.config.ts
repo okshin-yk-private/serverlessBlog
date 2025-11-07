@@ -7,6 +7,10 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
+    env: {
+      // 単体テスト環境では VITE_ENABLE_MSW_MOCK を未設定にして、Amplifyモックを使用
+      VITE_ENABLE_MSW_MOCK: undefined as any,
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],

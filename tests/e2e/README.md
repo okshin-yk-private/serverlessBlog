@@ -1,29 +1,66 @@
-# E2E Test Environment Setup
+# E2E Test Environment Setup (Minimal UI E2E Tests)
 
-Playwrightを使用したE2Eテスト統合実行環境のドキュメント
+Playwrightを使用したUI E2Eテスト（最小限）統合実行環境のドキュメント
 
 ## 概要
 
-このE2Eテスト環境は、フロントエンド（公開サイト・管理画面）のUIワークフローとユーザーシナリオを検証します。バックエンドAPIはMSW (Mock Service Worker)を使用してモックされており、実際のAWSリソースを必要とせずにE2Eテストを実行できます。
+このE2Eテスト環境は、**重要なユーザーフローのみ**を検証する最小限のUI E2Eテストです。フロントエンド（公開サイト・管理画面）の主要なワークフローとユーザーシナリオをカバーします。
+
+### テスト戦略（2025-11-07更新）
+
+**目的**: テスト実行時間を80%削減し、保守性を向上させる
+
+- **UI E2Eテスト**: 重要なユーザーフローのみ検証（~3分）
+- **統合テスト**: API/DB連携、詳細なエラーハンドリング（~2分）
+- **ユニットテスト**: 詳細な動作検証、バリデーション、エッジケース（~30秒）
+
+バックエンドAPIはMSW (Mock Service Worker)を使用してハッピーパスのみモックされており、実際のAWSリソースを必要とせずにE2Eテストを実行できます。
+
+## テスト範囲
+
+### 現在のテスト構成（5 spec files, 9 tests）
+
+| Specファイル | テスト数 | カバー範囲 |
+|------------|---------|----------|
+| home.spec.ts | 2 | 記事一覧表示、ナビゲーション |
+| article.spec.ts | 1 | 記事詳細表示 |
+| admin-auth.spec.ts | 2 | ログイン成功/失敗 |
+| admin-crud.spec.ts | 3 | 記事CRUD統合フロー |
+| admin-unauthorized-access.spec.ts | 1 | 未認証アクセスリダイレクト |
+
+### 削減されたテスト項目（他レイヤーでカバー）
+
+以下のテストは削除または他のテストレイヤーに移行されました：
+
+- ❌ **クロスブラウザテスト**（Firefox, WebKit, Mobile） → **Chromiumのみ**
+- ❌ **SEOメタタグ検証** → **ユニットテスト**で実施
+- ❌ **詳細なエラーハンドリング** → **ユニット/統合テスト**で実施
+- ❌ **フォームバリデーション詳細** → **コンポーネントテスト**で実施
+- ❌ **画像アップロード詳細フロー** → **統合テスト**で実施
+- ❌ **未認証アクセステスト詳細** → **統合テスト**で実施
+- ❌ **レスポンシブデザイン詳細検証** → **コンポーネントテスト**で実施
 
 ## アーキテクチャ
 
 ```
-E2E Test Environment
+E2E Test Environment (Minimal)
 ├── tests/e2e/
-│   ├── specs/              # テストスペック
-│   │   ├── home.spec.ts    # 公開サイトのテスト
-│   │   ├── article.spec.ts # 記事詳細のテスト
-│   │   └── admin-auth.spec.ts # 管理画面認証のテスト
+│   ├── specs/              # テストスペック（5ファイル、9テスト）
+│   │   ├── home.spec.ts    # 公開サイト: 記事一覧、ナビゲーション
+│   │   ├── article.spec.ts # 公開サイト: 記事詳細表示
+│   │   ├── admin-auth.spec.ts # 管理画面: ログイン/ログアウト
+│   │   ├── admin-crud.spec.ts # 管理画面: CRUD統合フロー
+│   │   └── admin-unauthorized-access.spec.ts # セキュリティ: 未認証リダイレクト
 │   ├── pages/              # ページオブジェクト
 │   ├── fixtures/           # カスタムフィクスチャ
-│   ├── mocks/              # MSWモックハンドラー
-│   │   ├── handlers.ts     # APIモックハンドラー
+│   ├── mocks/              # MSWモックハンドラー（ハッピーパスのみ）
+│   │   ├── handlers.ts     # APIモックハンドラー（簡略化）
 │   │   └── mockData.ts     # テストデータ
 │   ├── utils/              # テストヘルパー
 │   ├── global-setup.ts     # グローバルセットアップ
 │   └── global-teardown.ts  # グローバルティアダウン
-└── playwright.config.ts    # Playwright設定
+├── playwright.config.ts    # Playwright設定（Chromiumのみ）
+└── playwright.admin.config.ts # 管理画面設定（Chromiumのみ）
 ```
 
 ## 必要な環境
@@ -84,17 +121,16 @@ npm run test:e2e:report
 npx playwright test tests/e2e/specs/home.spec.ts
 ```
 
-### 特定のプロジェクト（ブラウザ）で実行
+### ブラウザ設定（Chromiumのみ）
+
+**注意**: 2025-11-07の更新により、クロスブラウザテスト（Firefox, WebKit, Mobile, Tablet）は削除されました。すべてのテストはChromiumブラウザのみで実行されます。
 
 ```bash
-# Chromiumのみ
+# Chromiumで実行（デフォルト）
+npx playwright test
+
+# または明示的に指定
 npx playwright test --project=chromium
-
-# モバイルChromeのみ
-npx playwright test --project=mobile-chrome
-
-# タブレット
-npx playwright test --project=tablet
 ```
 
 ## 環境変数
@@ -120,9 +156,11 @@ HEADLESS=false npm run test:e2e
 START_LOCAL_SERVER=true npm run test:e2e
 ```
 
-## モックAPI
+## モックAPI（ハッピーパスのみ）
 
 E2Eテストでは、MSW (Mock Service Worker)を使用してバックエンドAPIをモックしています。
+
+**重要**: 2025-11-07の更新により、モックハンドラーはハッピーパス（成功シナリオ）のみをカバーします。複雑なエラーシミュレーション機能は削除され、詳細なエラーハンドリングテストはユニットテスト・統合テストレイヤーで実施されます。
 
 ### モックされているエンドポイント
 
@@ -267,8 +305,26 @@ jobs:
           path: playwright-report/
 ```
 
+## パフォーマンス目標
+
+### テスト実行時間
+
+- **目標**: 3分以内（従来の~15分から80%削減）
+- **現在**: 5 spec files, 9 tests（Chromiumのみ）
+- **並列実行**: ワーカー数4（CI環境）
+
+### 削減効果
+
+| 項目 | 従来 | 現在 | 削減率 |
+|------|------|------|--------|
+| ブラウザ数 | 5（Chromium, Firefox, WebKit, Mobile, Tablet） | 1（Chromiumのみ） | 80% |
+| Specファイル数 | 13+ | 5 | ~62% |
+| テストケース数 | 50+ | 9 | ~82% |
+| 実行時間 | ~15分 | ~3分 | 80% |
+
 ## 参考リンク
 
 - [Playwright Documentation](https://playwright.dev/)
 - [MSW Documentation](https://mswjs.io/)
 - [Test-Driven Development](https://martinfowler.com/bliki/TestDrivenDevelopment.html)
+- [Testing Strategy Document](../../docs/testing-strategy.md)（新テスト戦略詳細）

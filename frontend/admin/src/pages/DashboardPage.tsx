@@ -102,7 +102,7 @@ const DashboardPage = () => {
               記事一覧
             </Link>
             <Link
-              to="/posts/create"
+              to="/posts/new"
               className="inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
             >
               新規記事作成

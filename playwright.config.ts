@@ -1,11 +1,15 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Playwright E2E Test Configuration
- * サーバーレスブログシステムのE2Eテスト設定
+ * Playwright UI E2E Test (Minimal) Configuration
+ * サーバーレスブログシステムのUI E2Eテスト（最小限）設定
+ *
+ * 変更履歴 (2025-11-07):
+ * - クロスブラウザテスト削除（Firefox, WebKit, Mobile削除）
+ * - Chromiumのみでテスト実行（実行時間80%削減）
  *
  * Requirements:
- * - R43: Playwright E2Eテスト環境
+ * - R43: UI E2Eテスト（最小限）環境
  * - R44: テストデータ管理
  */
 
@@ -64,49 +68,15 @@ export default defineConfig({
     timeout: 10000,
   },
 
-  // プロジェクト設定（ブラウザ別）
+  // プロジェクト設定（Chromiumのみ - 2025-11-07変更）
+  // クロスブラウザテスト（Firefox, WebKit, Mobile）は削除
+  // 詳細な動作検証はユニットテスト・統合テストでカバー
   projects: [
     {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
         // ヘッドレスモード（環境変数で切り替え可能）
-        headless: process.env.HEADLESS !== 'false',
-      },
-    },
-
-    // Firefox設定（クロスブラウザ対応）
-    {
-      name: 'firefox',
-      use: {
-        ...devices['Desktop Firefox'],
-        headless: process.env.HEADLESS !== 'false',
-      },
-    },
-
-    // WebKit/Safari設定（クロスブラウザ対応）
-    {
-      name: 'webkit',
-      use: {
-        ...devices['Desktop Safari'],
-        headless: process.env.HEADLESS !== 'false',
-      },
-    },
-
-    // モバイルデバイス設定（レスポンシブ対応検証用）
-    {
-      name: 'mobile-chrome',
-      use: {
-        ...devices['Pixel 5'],
-        headless: process.env.HEADLESS !== 'false',
-      },
-    },
-
-    // タブレット設定
-    {
-      name: 'tablet',
-      use: {
-        ...devices['iPad Pro'],
         headless: process.env.HEADLESS !== 'false',
       },
     },

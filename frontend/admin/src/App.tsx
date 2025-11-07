@@ -32,7 +32,7 @@ function App() {
             }
           />
           <Route
-            path="/posts/create"
+            path="/posts/new"
             element={
               <AuthGuard>
                 <PostCreatePage />
