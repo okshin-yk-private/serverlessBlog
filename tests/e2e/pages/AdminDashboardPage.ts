@@ -39,12 +39,17 @@ export class AdminDashboardPage extends BasePage {
   async navigate(): Promise<void> {
     await this.goto('/posts');
     await this.waitForPageLoad();
+    // ページが完全にレンダリングされるまで待機
+    // 新規作成ボタンが表示されるまで待つ（記事リストはなくても良い）
+    await this.waitForElement(this.selectors.newArticleButton, { timeout: 15000 });
   }
 
   /**
    * 新規記事作成ボタンをクリック
    */
   async clickNewArticle(): Promise<void> {
+    // ボタンが表示されて、クリック可能になるまで待機
+    await this.waitForElement(this.selectors.newArticleButton, { timeout: 15000 });
     await this.click(this.selectors.newArticleButton);
     await this.waitForPageLoad();
   }
@@ -299,7 +304,8 @@ export class AdminDashboardPage extends BasePage {
     ]);
 
     // 追加の短い待機（Reactの状態更新を確実にするため）
-    await this.page.waitForTimeout(200);
+    // モックデータ削減により、100msで十分
+    await this.page.waitForTimeout(100);
   }
 
   /**
