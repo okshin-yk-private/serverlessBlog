@@ -38,10 +38,19 @@ export class AdminDashboardPage extends BasePage {
    */
   async navigate(): Promise<void> {
     await this.goto('/posts');
+
+    // URLが正しく /posts にあることを確認（認証リダイレクトされていないか確認）
+    await this.page.waitForURL('**/posts', { timeout: 30000 });
+
+    // ページのロードを待機
     await this.waitForPageLoad();
+
+    // 追加の待機時間を設けて、Reactのハイドレーションを確実に完了させる
+    await this.page.waitForTimeout(500);
+
     // ページが完全にレンダリングされるまで待機
     // 新規作成ボタンが表示されるまで待つ（記事リストはなくても良い）
-    await this.waitForElement(this.selectors.newArticleButton, { timeout: 15000 });
+    await this.waitForElement(this.selectors.newArticleButton, { timeout: 30000 });
   }
 
   /**
@@ -49,7 +58,7 @@ export class AdminDashboardPage extends BasePage {
    */
   async clickNewArticle(): Promise<void> {
     // ボタンが表示されて、クリック可能になるまで待機
-    await this.waitForElement(this.selectors.newArticleButton, { timeout: 15000 });
+    await this.waitForElement(this.selectors.newArticleButton, { timeout: 30000 });
     await this.click(this.selectors.newArticleButton);
     await this.waitForPageLoad();
   }

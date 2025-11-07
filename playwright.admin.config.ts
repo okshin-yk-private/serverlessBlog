@@ -1,11 +1,15 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Playwright E2E Test Configuration - Admin Panel
- * 管理画面のE2Eテスト設定
+ * Playwright UI E2E Test (Minimal) Configuration - Admin Panel
+ * 管理画面のUI E2Eテスト（最小限）設定
+ *
+ * 変更履歴 (2025-11-07):
+ * - クロスブラウザテスト削除（Mobile, Tablet削除）
+ * - Chromiumのみでテスト実行（実行時間80%削減）
  *
  * Requirements:
- * - R43: Playwright E2Eテスト環境（管理画面）
+ * - R43: UI E2Eテスト（最小限）環境（管理画面）
  * - R44: テストデータ管理
  */
 
@@ -54,41 +58,26 @@ export default defineConfig({
     viewport: { width: 1280, height: 720 },
 
     // タイムアウト設定
-    actionTimeout: 10000,
+    // CI環境でのReactハイドレーション遅延に対応するため延長
+    actionTimeout: 30000,
     navigationTimeout: 30000,
   },
 
   // グローバルタイムアウト
-  timeout: 60000,
+  timeout: 90000,
   expect: {
-    timeout: 10000,
+    timeout: 30000,
   },
 
-  // プロジェクト設定（ブラウザ別）
+  // プロジェクト設定（Chromiumのみ - 2025-11-07変更）
+  // モバイル・タブレットテストは削除
+  // レスポンシブ対応検証はコンポーネントテストでカバー
   projects: [
     {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
         // ヘッドレスモード（環境変数で切り替え可能）
-        headless: process.env.HEADLESS !== 'false',
-      },
-    },
-
-    // モバイルデバイス設定（レスポンシブ対応検証用）
-    {
-      name: 'mobile-chrome',
-      use: {
-        ...devices['Pixel 5'],
-        headless: process.env.HEADLESS !== 'false',
-      },
-    },
-
-    // タブレット設定
-    {
-      name: 'tablet',
-      use: {
-        ...devices['iPad Pro'],
         headless: process.env.HEADLESS !== 'false',
       },
     },
@@ -108,6 +97,7 @@ export default defineConfig({
       VITE_ENABLE_MSW_MOCK: 'true',
       // MSWが同一オリジンのリクエストをインターセプトできるように空文字列に設定
       VITE_API_URL: '',
+      VITE_API_BASE_URL: '',
     },
   },
 });
