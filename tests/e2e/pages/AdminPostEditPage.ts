@@ -277,8 +277,10 @@ export class AdminPostEditPage extends BasePage {
    * 特定のフィールドのエラーメッセージを取得
    */
   async getFieldError(fieldName: string): Promise<string> {
-    const errorElement = this.page.locator(`${this.selectors.fieldError}[data-field="${fieldName}"]`);
-    return await errorElement.textContent() || '';
+    const errorElement = this.page.locator(
+      `${this.selectors.fieldError}[data-field="${fieldName}"]`
+    );
+    return (await errorElement.textContent()) || '';
   }
 
   /**
@@ -300,7 +302,7 @@ export class AdminPostEditPage extends BasePage {
    */
   async getSuccessMessage(): Promise<string> {
     const element = await this.waitForElement(this.selectors.successMessage);
-    return await element.textContent() || '';
+    return (await element.textContent()) || '';
   }
 
   /**
@@ -308,7 +310,7 @@ export class AdminPostEditPage extends BasePage {
    */
   async getErrorMessage(): Promise<string> {
     const element = await this.waitForElement(this.selectors.errorMessage);
-    return await element.textContent() || '';
+    return (await element.textContent()) || '';
   }
 
   /**
@@ -343,14 +345,18 @@ export class AdminPostEditPage extends BasePage {
    * 記事のステータスを取得
    */
   async getPostStatus(): Promise<string> {
-    return await this.page.locator(this.selectors.postStatus).textContent() || '';
+    return (
+      (await this.page.locator(this.selectors.postStatus).textContent()) || ''
+    );
   }
 
   /**
    * 最終更新日時を取得
    */
   async getLastModified(): Promise<string> {
-    return await this.page.locator(this.selectors.lastModified).textContent() || '';
+    return (
+      (await this.page.locator(this.selectors.lastModified).textContent()) || ''
+    );
   }
 
   // =====================================================

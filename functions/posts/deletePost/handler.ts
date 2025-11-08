@@ -8,9 +8,17 @@
  * - 記事に画像が関連付けられている場合、S3から関連画像を削除する
  */
 
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import {
+  APIGatewayProxyEvent,
+  APIGatewayProxyResult,
+  Context,
+} from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  DynamoDBDocumentClient,
+  GetCommand,
+  DeleteCommand,
+} from '@aws-sdk/lib-dynamodb';
 import { S3Client, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { Logger } from '@aws-lambda-powertools/logger';
 import { Tracer } from '@aws-lambda-powertools/tracer';
@@ -72,7 +80,10 @@ export function resetS3Client(): void {
   s3Client = null;
 }
 
-function createErrorResponse(statusCode: number, message: string): APIGatewayProxyResult {
+function createErrorResponse(
+  statusCode: number,
+  message: string
+): APIGatewayProxyResult {
   return {
     statusCode,
     headers: {
@@ -139,9 +150,7 @@ export const handler = async (
     }
 
     // 認証チェック
-    const isAuthenticated = !!(
-      event.requestContext?.authorizer?.claims?.sub
-    );
+    const isAuthenticated = !!event.requestContext?.authorizer?.claims?.sub;
     if (!isAuthenticated) {
       logger.warn('未認証のリクエストです');
       metrics.addMetric('DeletePostUnauthorized', MetricUnit.Count, 1);
@@ -152,10 +161,12 @@ export const handler = async (
     const docClient = getDynamoDBClient();
     logger.info('削除対象の記事を取得中', { postId });
 
-    const getResult = await docClient.send(new GetCommand({
-      TableName: TABLE_NAME,
-      Key: { id: postId },
-    }));
+    const getResult = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { id: postId },
+      })
+    );
 
     if (!getResult.Item) {
       logger.warn('記事が見つかりません', { postId });
@@ -166,30 +177,44 @@ export const handler = async (
     const post = getResult.Item;
 
     // 画像が関連付けられている場合、S3から削除
-    if (post.imageUrls && Array.isArray(post.imageUrls) && post.imageUrls.length > 0) {
-      logger.info('関連画像をS3から削除中', { postId, imageCount: post.imageUrls.length });
+    if (
+      post.imageUrls &&
+      Array.isArray(post.imageUrls) &&
+      post.imageUrls.length > 0
+    ) {
+      logger.info('関連画像をS3から削除中', {
+        postId,
+        imageCount: post.imageUrls.length,
+      });
 
       const s3 = getS3Client();
       const objectsToDelete = post.imageUrls.map((url: string) => ({
         Key: extractS3KeyFromUrl(url),
       }));
 
-      await s3.send(new DeleteObjectsCommand({
-        Bucket: BUCKET_NAME,
-        Delete: {
-          Objects: objectsToDelete,
-          Quiet: true,
-        },
-      }));
+      await s3.send(
+        new DeleteObjectsCommand({
+          Bucket: BUCKET_NAME,
+          Delete: {
+            Objects: objectsToDelete,
+            Quiet: true,
+          },
+        })
+      );
 
-      logger.info('関連画像の削除が完了しました', { postId, imageCount: post.imageUrls.length });
+      logger.info('関連画像の削除が完了しました', {
+        postId,
+        imageCount: post.imageUrls.length,
+      });
     }
 
     // DynamoDBから記事を削除
-    await docClient.send(new DeleteCommand({
-      TableName: TABLE_NAME,
-      Key: { id: postId },
-    }));
+    await docClient.send(
+      new DeleteCommand({
+        TableName: TABLE_NAME,
+        Key: { id: postId },
+      })
+    );
 
     logger.info('記事の削除が完了しました', { postId });
     metrics.addMetric('DeletePostSuccess', MetricUnit.Count, 1);

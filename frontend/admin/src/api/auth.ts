@@ -22,7 +22,10 @@ export interface APIError {
 /**
  * ログインAPIを呼び出す
  */
-export async function loginAPI(email: string, password: string): Promise<LoginResponse> {
+export async function loginAPI(
+  email: string,
+  password: string
+): Promise<LoginResponse> {
   try {
     const response = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
@@ -33,7 +36,9 @@ export async function loginAPI(email: string, password: string): Promise<LoginRe
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'ログインに失敗しました' }));
+      const errorData = await response
+        .json()
+        .catch(() => ({ message: 'ログインに失敗しました' }));
       const error: APIError = {
         message: errorData.message || 'ログインに失敗しました',
         statusCode: response.status,
@@ -44,7 +49,11 @@ export async function loginAPI(email: string, password: string): Promise<LoginRe
     return response.json();
   } catch (error) {
     // ネットワークエラーまたはその他のエラーをハンドル
-    if (error instanceof Error && 'message' in error && !('statusCode' in error)) {
+    if (
+      error instanceof Error &&
+      'message' in error &&
+      !('statusCode' in error)
+    ) {
       // ネットワークエラーの場合
       const apiError: APIError = {
         message: 'ネットワークエラーが発生しました。接続を確認してください。',

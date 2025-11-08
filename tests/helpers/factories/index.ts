@@ -11,7 +11,4 @@ export {
 } from './postFactory';
 
 // API Gateway イベントファクトリ
-export {
-  createMockAPIGatewayEvent,
-  createMockContext,
-} from './eventFactory';
+export { createMockAPIGatewayEvent, createMockContext } from './eventFactory';

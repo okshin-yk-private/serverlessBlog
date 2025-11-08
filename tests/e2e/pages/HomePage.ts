@@ -70,7 +70,9 @@ export class HomePage extends BasePage {
    */
   async getArticleTitle(index: number): Promise<string> {
     const article = this.getArticleCards().nth(index);
-    return await article.locator(this.selectors.articleTitle).textContent() || '';
+    return (
+      (await article.locator(this.selectors.articleTitle).textContent()) || ''
+    );
   }
 
   /**
@@ -87,7 +89,7 @@ export class HomePage extends BasePage {
    */
   async clickArticleByTitle(title: string): Promise<void> {
     const article = this.page.locator(this.selectors.articleCard, {
-      has: this.page.locator(this.selectors.articleTitle, { hasText: title })
+      has: this.page.locator(this.selectors.articleTitle, { hasText: title }),
     });
     await article.click();
     await this.waitForPageLoad();
@@ -97,7 +99,9 @@ export class HomePage extends BasePage {
    * カテゴリフィルターを選択
    */
   async selectCategory(category: string): Promise<void> {
-    await this.page.selectOption(this.selectors.categoryFilter, { label: category });
+    await this.page.selectOption(this.selectors.categoryFilter, {
+      label: category,
+    });
     await this.waitForPageLoad();
   }
 

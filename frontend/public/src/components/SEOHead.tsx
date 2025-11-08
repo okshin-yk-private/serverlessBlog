@@ -28,7 +28,11 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
     document.title = title;
 
     // Create or update meta tags
-    const updateMetaTag = (name: string, content: string, attribute: 'name' | 'property' = 'name') => {
+    const updateMetaTag = (
+      name: string,
+      content: string,
+      attribute: 'name' | 'property' = 'name'
+    ) => {
       const selector = `meta[${attribute}="${name}"]`;
       let metaTag = document.querySelector(selector);
 
@@ -119,7 +123,9 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
       structuredData.datePublished = publishedDate;
     }
 
-    let jsonLdScript = document.querySelector('script[type="application/ld+json"]');
+    let jsonLdScript = document.querySelector(
+      'script[type="application/ld+json"]'
+    );
 
     if (!jsonLdScript) {
       jsonLdScript = document.createElement('script');
@@ -150,7 +156,9 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
         ],
       };
 
-      let breadcrumbScript = document.querySelector('script[type="application/ld+json"][data-breadcrumb]');
+      let breadcrumbScript = document.querySelector(
+        'script[type="application/ld+json"][data-breadcrumb]'
+      );
 
       if (!breadcrumbScript) {
         breadcrumbScript = document.createElement('script');
@@ -167,7 +175,17 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
       // Note: In a real application, you might want to keep some meta tags
       // This cleanup is mainly for testing purposes
     };
-  }, [title, description, keywords, url, imageUrl, type, author, publishedDate, modifiedDate]);
+  }, [
+    title,
+    description,
+    keywords,
+    url,
+    imageUrl,
+    type,
+    author,
+    publishedDate,
+    modifiedDate,
+  ]);
 
   return null;
 };

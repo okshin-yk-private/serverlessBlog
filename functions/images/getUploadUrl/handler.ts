@@ -1,4 +1,8 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import {
+  APIGatewayProxyEvent,
+  APIGatewayProxyResult,
+  Context,
+} from 'aws-lambda';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Logger } from '@aws-lambda-powertools/logger';
@@ -49,7 +53,10 @@ export function resetS3Client(): void {
   s3Client = null;
 }
 
-function createErrorResponse(statusCode: number, message: string): APIGatewayProxyResult {
+function createErrorResponse(
+  statusCode: number,
+  message: string
+): APIGatewayProxyResult {
   return {
     statusCode,
     headers: {
@@ -166,7 +173,9 @@ export const handler = async (
     });
 
     // CloudFront URL（アップロード後にアクセスするURL）
-    const imageUrl = cloudFrontDomain ? `${cloudFrontDomain}/${key}` : `https://${bucketName}.s3.amazonaws.com/${key}`;
+    const imageUrl = cloudFrontDomain
+      ? `${cloudFrontDomain}/${key}`
+      : `https://${bucketName}.s3.amazonaws.com/${key}`;
 
     logger.info('Pre-signed URL生成が完了しました', { key, imageUrl });
     metrics.addMetric('GetUploadUrlSuccess', MetricUnit.Count, 1);

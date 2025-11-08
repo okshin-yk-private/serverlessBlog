@@ -40,7 +40,10 @@ jest.mock('../../../layers/common/nodejs/utils/markdownUtils', () => ({
 }));
 
 // ハンドラーをインポート（モックの後）
-import { handler, resetDynamoDBClient } from '../../../functions/posts/getPost/handler';
+import {
+  handler,
+  resetDynamoDBClient,
+} from '../../../functions/posts/getPost/handler';
 
 describe('getPost Lambda Handler', () => {
   const mockContext = createMockContext();
@@ -74,7 +77,8 @@ describe('getPost Lambda Handler', () => {
         id: postId,
         title: 'Test Published Post',
         contentMarkdown: '# Hello World\n\nThis is **published** content.',
-        contentHtml: '<h1>Hello World</h1>\n\n<p>This is <strong>published</strong> content.</p>',
+        contentHtml:
+          '<h1>Hello World</h1>\n\n<p>This is <strong>published</strong> content.</p>',
         category: 'Technology',
         tags: ['aws', 'serverless'],
         publishStatus: 'published',
@@ -97,7 +101,9 @@ describe('getPost Lambda Handler', () => {
       const body = JSON.parse(result.body);
       expect(body.id).toBe(postId);
       expect(body.title).toBe('Test Published Post');
-      expect(body.contentMarkdown).toBe('# Hello World\n\nThis is **published** content.');
+      expect(body.contentMarkdown).toBe(
+        '# Hello World\n\nThis is **published** content.'
+      );
       expect(body.contentHtml).toBeDefined();
       expect(body.publishStatus).toBe('published');
       expect(body.publishedAt).toBeDefined();
@@ -164,7 +170,8 @@ describe('getPost Lambda Handler', () => {
         id: postId,
         title: 'Markdown Test',
         contentMarkdown: '# Heading\n\n**Bold** and *italic*',
-        contentHtml: '<h1>Heading</h1>\n\n<p><strong>Bold</strong> and <em>italic</em></p>',
+        contentHtml:
+          '<h1>Heading</h1>\n\n<p><strong>Bold</strong> and <em>italic</em></p>',
         category: 'Test',
         tags: [],
         publishStatus: 'published',
@@ -211,7 +218,10 @@ describe('getPost Lambda Handler', () => {
         createdAt: '2025-01-04T00:00:00.000Z',
         updatedAt: '2025-01-04T00:00:00.000Z',
         publishedAt: '2025-01-04T00:00:00.000Z',
-        imageUrls: ['https://example.com/image1.jpg', 'https://example.com/image2.jpg'],
+        imageUrls: [
+          'https://example.com/image1.jpg',
+          'https://example.com/image2.jpg',
+        ],
       };
 
       mockDynamoDBSend.mockResolvedValueOnce({
@@ -344,7 +354,9 @@ describe('getPost Lambda Handler', () => {
       });
 
       // DynamoDBエラーをシミュレート
-      mockDynamoDBSend.mockRejectedValueOnce(new Error('DynamoDB GetItem Error'));
+      mockDynamoDBSend.mockRejectedValueOnce(
+        new Error('DynamoDB GetItem Error')
+      );
 
       // Act
       const result = await handler(event, mockContext);

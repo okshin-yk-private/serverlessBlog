@@ -38,9 +38,13 @@ describe('SEOHead', () => {
         />
       );
 
-      const descriptionMeta = document.querySelector('meta[name="description"]');
+      const descriptionMeta = document.querySelector(
+        'meta[name="description"]'
+      );
       expect(descriptionMeta).toBeTruthy();
-      expect(descriptionMeta?.getAttribute('content')).toBe('This is a test blog post');
+      expect(descriptionMeta?.getAttribute('content')).toBe(
+        'This is a test blog post'
+      );
     });
 
     it('should render keywords meta tag', () => {
@@ -69,7 +73,9 @@ describe('SEOHead', () => {
 
       const canonicalLink = document.querySelector('link[rel="canonical"]');
       expect(canonicalLink).toBeTruthy();
-      expect(canonicalLink?.getAttribute('href')).toBe('https://example.com/posts/123');
+      expect(canonicalLink?.getAttribute('href')).toBe(
+        'https://example.com/posts/123'
+      );
     });
   });
 
@@ -97,9 +103,13 @@ describe('SEOHead', () => {
         />
       );
 
-      const ogDescription = document.querySelector('meta[property="og:description"]');
+      const ogDescription = document.querySelector(
+        'meta[property="og:description"]'
+      );
       expect(ogDescription).toBeTruthy();
-      expect(ogDescription?.getAttribute('content')).toBe('This is a test blog post');
+      expect(ogDescription?.getAttribute('content')).toBe(
+        'This is a test blog post'
+      );
     });
 
     it('should render og:image tag when imageUrl is provided', () => {
@@ -114,7 +124,9 @@ describe('SEOHead', () => {
 
       const ogImage = document.querySelector('meta[property="og:image"]');
       expect(ogImage).toBeTruthy();
-      expect(ogImage?.getAttribute('content')).toBe('https://example.com/image.jpg');
+      expect(ogImage?.getAttribute('content')).toBe(
+        'https://example.com/image.jpg'
+      );
     });
 
     it('should render og:url tag when url is provided', () => {
@@ -129,7 +141,9 @@ describe('SEOHead', () => {
 
       const ogUrl = document.querySelector('meta[property="og:url"]');
       expect(ogUrl).toBeTruthy();
-      expect(ogUrl?.getAttribute('content')).toBe('https://example.com/posts/123');
+      expect(ogUrl?.getAttribute('content')).toBe(
+        'https://example.com/posts/123'
+      );
     });
 
     it('should render og:type tag with default value "article"', () => {
@@ -200,9 +214,13 @@ describe('SEOHead', () => {
         />
       );
 
-      const twitterDescription = document.querySelector('meta[name="twitter:description"]');
+      const twitterDescription = document.querySelector(
+        'meta[name="twitter:description"]'
+      );
       expect(twitterDescription).toBeTruthy();
-      expect(twitterDescription?.getAttribute('content')).toBe('This is a test blog post');
+      expect(twitterDescription?.getAttribute('content')).toBe(
+        'This is a test blog post'
+      );
     });
 
     it('should render twitter:image tag when imageUrl is provided', () => {
@@ -217,7 +235,9 @@ describe('SEOHead', () => {
 
       const twitterImage = document.querySelector('meta[name="twitter:image"]');
       expect(twitterImage).toBeTruthy();
-      expect(twitterImage?.getAttribute('content')).toBe('https://example.com/image.jpg');
+      expect(twitterImage?.getAttribute('content')).toBe(
+        'https://example.com/image.jpg'
+      );
     });
   });
 
@@ -235,7 +255,9 @@ describe('SEOHead', () => {
         />
       );
 
-      const jsonLdScript = document.querySelector('script[type="application/ld+json"]');
+      const jsonLdScript = document.querySelector(
+        'script[type="application/ld+json"]'
+      );
       expect(jsonLdScript).toBeTruthy();
 
       const jsonLdContent = JSON.parse(jsonLdScript?.textContent || '{}');
@@ -260,7 +282,9 @@ describe('SEOHead', () => {
         />
       );
 
-      const jsonLdScript = document.querySelector('script[type="application/ld+json"]');
+      const jsonLdScript = document.querySelector(
+        'script[type="application/ld+json"]'
+      );
       expect(jsonLdScript).toBeTruthy();
 
       const jsonLdContent = JSON.parse(jsonLdScript?.textContent || '{}');

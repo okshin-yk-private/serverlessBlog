@@ -21,9 +21,11 @@ import { mockPosts, mockPost, createMockPost } from './mockData';
 // ブラウザ環境では import.meta.env を使用
 // nullish coalescing演算子(??)を使用して、undefinedとnullのみデフォルト値を使用
 // 空文字列('')は有効な値として扱う
-const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL !== undefined)
-  ? import.meta.env.VITE_API_BASE_URL
-  : '/api';
+const API_BASE_URL =
+  typeof import.meta !== 'undefined' &&
+  import.meta.env?.VITE_API_BASE_URL !== undefined
+    ? import.meta.env.VITE_API_BASE_URL
+    : '/api';
 
 /**
  * モックJWTトークンを生成（有効期限付き）
@@ -31,11 +33,13 @@ const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VIT
 const createMockJWT = (): string => {
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const exp = Math.floor(Date.now() / 1000) + 3600; // 1時間後に有効期限
-  const payload = btoa(JSON.stringify({
-    sub: 'user-123',
-    email: 'admin@example.com',
-    exp
-  }));
+  const payload = btoa(
+    JSON.stringify({
+      sub: 'user-123',
+      email: 'admin@example.com',
+      exp,
+    })
+  );
   const signature = 'mock-signature';
   return `${header}.${payload}.${signature}`;
 };
@@ -68,7 +72,9 @@ export const handlers = [
 
     // カテゴリフィルタリング
     if (category) {
-      filteredPosts = filteredPosts.filter((post) => post.category === category);
+      filteredPosts = filteredPosts.filter(
+        (post) => post.category === category
+      );
     }
 
     // タグフィルタリング
@@ -79,7 +85,9 @@ export const handlers = [
     }
 
     // 公開記事のみ
-    filteredPosts = filteredPosts.filter((post) => post.publishStatus === 'published');
+    filteredPosts = filteredPosts.filter(
+      (post) => post.publishStatus === 'published'
+    );
 
     // ページネーション
     let startIndex = 0;
@@ -91,7 +99,7 @@ export const handlers = [
     const hasMore = startIndex + limit < filteredPosts.length;
 
     return HttpResponse.json({
-      items: paginatedPosts,  // Backend APIは "items" キーを返す
+      items: paginatedPosts, // Backend APIは "items" キーを返す
       count: paginatedPosts.length,
       nextToken: hasMore ? 'mock-next-token' : undefined,
     });
@@ -103,17 +111,11 @@ export const handlers = [
     const post = mockPosts.find((p) => p.id === id);
 
     if (!post) {
-      return HttpResponse.json(
-        { message: 'Post not found' },
-        { status: 404 }
-      );
+      return HttpResponse.json({ message: 'Post not found' }, { status: 404 });
     }
 
     if (post.publishStatus !== 'published') {
-      return HttpResponse.json(
-        { message: 'Post not found' },
-        { status: 404 }
-      );
+      return HttpResponse.json({ message: 'Post not found' }, { status: 404 });
     }
 
     return HttpResponse.json(post);
@@ -121,7 +123,7 @@ export const handlers = [
 
   // 管理画面: ログイン - Happy Path Only
   http.post('/auth/login', async ({ request }) => {
-    const body = await request.json() as { email: string; password: string };
+    const body = (await request.json()) as { email: string; password: string };
 
     // テスト用の認証情報をチェック（レート制限削除）
     if (
@@ -151,7 +153,7 @@ export const handlers = [
 
   // 管理画面: トークン更新
   http.post(`${API_BASE_URL}/auth/refresh`, async ({ request }) => {
-    const body = await request.json() as { refreshToken: string };
+    const body = (await request.json()) as { refreshToken: string };
 
     if (body.refreshToken === 'mock-refresh-token') {
       return HttpResponse.json({
@@ -171,10 +173,7 @@ export const handlers = [
   http.get(`${API_BASE_URL}/admin/posts`, ({ request }) => {
     // 認証チェック
     if (!checkAuth(request)) {
-      return HttpResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const url = new URL(request.url);
@@ -193,7 +192,7 @@ export const handlers = [
     const paginatedPosts = filteredPosts.slice(0, limit);
 
     return HttpResponse.json({
-      items: paginatedPosts,  // Backend APIは "items" キーを返す
+      items: paginatedPosts, // Backend APIは "items" キーを返す
       count: paginatedPosts.length,
       nextToken: filteredPosts.length > limit ? 'mock-next-token' : undefined,
     });
@@ -203,13 +202,10 @@ export const handlers = [
   http.post(`${API_BASE_URL}/admin/posts`, async ({ request }) => {
     // 認証チェック
     if (!checkAuth(request)) {
-      return HttpResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json() as {
+    const body = (await request.json()) as {
       title: string;
       contentMarkdown: string;
       category: string;
@@ -226,20 +222,14 @@ export const handlers = [
   http.get(`${API_BASE_URL}/admin/posts/:id`, ({ request, params }) => {
     // 認証チェック
     if (!checkAuth(request)) {
-      return HttpResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = params;
     const post = mockPosts.find((p) => p.id === id);
 
     if (!post) {
-      return HttpResponse.json(
-        { message: 'Post not found' },
-        { status: 404 }
-      );
+      return HttpResponse.json({ message: 'Post not found' }, { status: 404 });
     }
 
     return HttpResponse.json(post);
@@ -249,14 +239,11 @@ export const handlers = [
   http.put(`${API_BASE_URL}/admin/posts/:id`, async ({ request, params }) => {
     // 認証チェック
     if (!checkAuth(request)) {
-      return HttpResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = params;
-    const body = await request.json() as {
+    const body = (await request.json()) as {
       title: string;
       contentMarkdown: string;
       category: string;
@@ -266,10 +253,7 @@ export const handlers = [
     const postIndex = mockPosts.findIndex((p) => p.id === id);
 
     if (postIndex === -1) {
-      return HttpResponse.json(
-        { message: 'Post not found' },
-        { status: 404 }
-      );
+      return HttpResponse.json({ message: 'Post not found' }, { status: 404 });
     }
 
     const updatedPost = {
@@ -295,20 +279,14 @@ export const handlers = [
   http.delete(`${API_BASE_URL}/admin/posts/:id`, ({ request, params }) => {
     // 認証チェック
     if (!checkAuth(request)) {
-      return HttpResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = params;
     const postIndex = mockPosts.findIndex((p) => p.id === id);
 
     if (postIndex === -1) {
-      return HttpResponse.json(
-        { message: 'Post not found' },
-        { status: 404 }
-      );
+      return HttpResponse.json({ message: 'Post not found' }, { status: 404 });
     }
 
     mockPosts.splice(postIndex, 1);
@@ -320,13 +298,10 @@ export const handlers = [
   http.post(`${API_BASE_URL}/images/upload-url`, async ({ request }) => {
     // 認証チェック
     if (!checkAuth(request)) {
-      return HttpResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json() as {
+    const body = (await request.json()) as {
       fileName: string;
       contentType: string;
       fileSize?: number;
@@ -343,13 +318,10 @@ export const handlers = [
   http.post(`${API_BASE_URL}/posts`, async ({ request }) => {
     // 認証チェック
     if (!checkAuth(request)) {
-      return HttpResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json() as {
+    const body = (await request.json()) as {
       title: string;
       content: string;
     };
@@ -367,23 +339,17 @@ export const handlers = [
   http.put(`${API_BASE_URL}/posts/:id`, async ({ request, params }) => {
     // 認証チェック
     if (!checkAuth(request)) {
-      return HttpResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = params;
     const postIndex = mockPosts.findIndex((p) => p.id === id);
 
     if (postIndex === -1) {
-      return HttpResponse.json(
-        { message: 'Post not found' },
-        { status: 404 }
-      );
+      return HttpResponse.json({ message: 'Post not found' }, { status: 404 });
     }
 
-    const body = await request.json() as {
+    const body = (await request.json()) as {
       title: string;
       content: string;
     };
@@ -404,20 +370,14 @@ export const handlers = [
   http.delete(`${API_BASE_URL}/posts/:id`, ({ request, params }) => {
     // 認証チェック
     if (!checkAuth(request)) {
-      return HttpResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = params;
     const postIndex = mockPosts.findIndex((p) => p.id === id);
 
     if (postIndex === -1) {
-      return HttpResponse.json(
-        { message: 'Post not found' },
-        { status: 404 }
-      );
+      return HttpResponse.json({ message: 'Post not found' }, { status: 404 });
     }
 
     mockPosts.splice(postIndex, 1);

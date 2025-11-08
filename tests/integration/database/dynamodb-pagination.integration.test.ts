@@ -1,5 +1,15 @@
-import { DynamoDBClient, CreateTableCommand, DeleteTableCommand, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  DynamoDBClient,
+  CreateTableCommand,
+  DeleteTableCommand,
+  DescribeTableCommand,
+} from '@aws-sdk/client-dynamodb';
+import {
+  DynamoDBDocumentClient,
+  PutCommand,
+  QueryCommand,
+  ScanCommand,
+} from '@aws-sdk/lib-dynamodb';
 
 /**
  * DynamoDB Pagination and LastEvaluatedKey Integration Tests
@@ -29,54 +39,61 @@ const docClient = DynamoDBDocumentClient.from(dynamoDBClient);
 const TABLE_NAME = 'test-pagination-table';
 
 describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
-
   // GSI付きテーブルの作成
   beforeAll(async () => {
     try {
-      await dynamoDBClient.send(new CreateTableCommand({
-        TableName: TABLE_NAME,
-        KeySchema: [
-          { AttributeName: 'id', KeyType: 'HASH' },
-        ],
-        AttributeDefinitions: [
-          { AttributeName: 'id', AttributeType: 'S' },
-          { AttributeName: 'publishStatus', AttributeType: 'S' },
-          { AttributeName: 'createdAt', AttributeType: 'S' },
-        ],
-        GlobalSecondaryIndexes: [
-          {
-            IndexName: 'PublishStatusIndex',
-            KeySchema: [
-              { AttributeName: 'publishStatus', KeyType: 'HASH' },
-              { AttributeName: 'createdAt', KeyType: 'RANGE' },
-            ],
-            Projection: {
-              ProjectionType: 'ALL',
+      await dynamoDBClient.send(
+        new CreateTableCommand({
+          TableName: TABLE_NAME,
+          KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+          AttributeDefinitions: [
+            { AttributeName: 'id', AttributeType: 'S' },
+            { AttributeName: 'publishStatus', AttributeType: 'S' },
+            { AttributeName: 'createdAt', AttributeType: 'S' },
+          ],
+          GlobalSecondaryIndexes: [
+            {
+              IndexName: 'PublishStatusIndex',
+              KeySchema: [
+                { AttributeName: 'publishStatus', KeyType: 'HASH' },
+                { AttributeName: 'createdAt', KeyType: 'RANGE' },
+              ],
+              Projection: {
+                ProjectionType: 'ALL',
+              },
             },
-          },
-        ],
-        BillingMode: 'PAY_PER_REQUEST',
-      }));
+          ],
+          BillingMode: 'PAY_PER_REQUEST',
+        })
+      );
 
       // テーブルとGSIがアクティブになるまで待機
       let tableReady = false;
       for (let i = 0; i < 30; i++) {
         try {
-          const result = await dynamoDBClient.send(new DescribeTableCommand({
-            TableName: TABLE_NAME,
-          }));
+          const result = await dynamoDBClient.send(
+            new DescribeTableCommand({
+              TableName: TABLE_NAME,
+            })
+          );
 
           const tableStatus = result.Table?.TableStatus;
-          const gsiStatuses = result.Table?.GlobalSecondaryIndexes?.map(gsi => gsi.IndexStatus) || [];
+          const gsiStatuses =
+            result.Table?.GlobalSecondaryIndexes?.map(
+              (gsi) => gsi.IndexStatus
+            ) || [];
 
-          if (tableStatus === 'ACTIVE' && gsiStatuses.every(status => status === 'ACTIVE')) {
+          if (
+            tableStatus === 'ACTIVE' &&
+            gsiStatuses.every((status) => status === 'ACTIVE')
+          ) {
             tableReady = true;
             break;
           }
         } catch (error) {
           // テーブルがまだ作成中
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
       if (!tableReady) {
@@ -95,9 +112,11 @@ describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
   // テーブルの削除
   afterAll(async () => {
     try {
-      await dynamoDBClient.send(new DeleteTableCommand({
-        TableName: TABLE_NAME,
-      }));
+      await dynamoDBClient.send(
+        new DeleteTableCommand({
+          TableName: TABLE_NAME,
+        })
+      );
     } catch (error: any) {
       // テーブルが既に削除されている場合は無視
     }
@@ -124,25 +143,29 @@ describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
     }
 
     for (const post of posts) {
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: post,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: post,
+        })
+      );
     }
   }
 
   describe('Limit Parameter - 取得件数制限', () => {
     it('should return exactly 10 items when limit is 10', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 10,
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 10,
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(10);
@@ -151,15 +174,17 @@ describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
 
     it('should return exactly 5 items when limit is 5', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 5,
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 5,
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(5);
@@ -168,15 +193,17 @@ describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
 
     it('should return all items when limit is greater than total items', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 100, // 総数25件より大きい
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 100, // 総数25件より大きい
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(25);
@@ -185,14 +212,16 @@ describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
 
     it('should return all items when no limit is specified', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(25);
@@ -203,15 +232,17 @@ describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
   describe('LastEvaluatedKey - 次ページトークン', () => {
     it('should return LastEvaluatedKey when there are more items', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 10,
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 10,
+        })
+      );
 
       // Assert
       expect(result.LastEvaluatedKey).toBeDefined();
@@ -222,14 +253,16 @@ describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
 
     it('should return undefined LastEvaluatedKey when reaching the last page', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+        })
+      );
 
       // Assert - Limit指定なしでも全件取得時は LastEvaluatedKey が返る場合がある
       // DynamoDB Localの動作により、LastEvaluatedKeyの有無が異なる場合がある
@@ -238,15 +271,17 @@ describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
 
     it('should have LastEvaluatedKey matching the last item in results', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 10,
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 10,
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(10);
@@ -259,36 +294,42 @@ describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
   describe('ExclusiveStartKey - 次ページ取得', () => {
     it('should retrieve the next page using ExclusiveStartKey', async () => {
       // Arrange - 1ページ目を取得
-      const firstPageResult = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 10,
-      }));
+      const firstPageResult = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 10,
+        })
+      );
 
       // Act - 2ページ目を取得
-      const secondPageResult = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 10,
-        ExclusiveStartKey: firstPageResult.LastEvaluatedKey,
-      }));
+      const secondPageResult = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 10,
+          ExclusiveStartKey: firstPageResult.LastEvaluatedKey,
+        })
+      );
 
       // Assert
       expect(firstPageResult.Items).toHaveLength(10);
       expect(secondPageResult.Items).toHaveLength(10);
 
       // 1ページ目と2ページ目のアイテムが重複していないことを確認
-      const firstPageIds = firstPageResult.Items!.map(item => item.id);
-      const secondPageIds = secondPageResult.Items!.map(item => item.id);
-      const intersection = firstPageIds.filter(id => secondPageIds.includes(id));
+      const firstPageIds = firstPageResult.Items!.map((item) => item.id);
+      const secondPageIds = secondPageResult.Items!.map((item) => item.id);
+      const intersection = firstPageIds.filter((id) =>
+        secondPageIds.includes(id)
+      );
       expect(intersection).toHaveLength(0);
     });
 
@@ -299,16 +340,18 @@ describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
       let pageCount = 0;
 
       do {
-        const result = await docClient.send(new QueryCommand({
-          TableName: TABLE_NAME,
-          IndexName: 'PublishStatusIndex',
-          KeyConditionExpression: 'publishStatus = :publishStatus',
-          ExpressionAttributeValues: {
-            ':publishStatus': 'published',
-          },
-          Limit: 10,
-          ExclusiveStartKey: lastEvaluatedKey,
-        }));
+        const result = await docClient.send(
+          new QueryCommand({
+            TableName: TABLE_NAME,
+            IndexName: 'PublishStatusIndex',
+            KeyConditionExpression: 'publishStatus = :publishStatus',
+            ExpressionAttributeValues: {
+              ':publishStatus': 'published',
+            },
+            Limit: 10,
+            ExclusiveStartKey: lastEvaluatedKey,
+          })
+        );
 
         allItems.push(...(result.Items || []));
         lastEvaluatedKey = result.LastEvaluatedKey;
@@ -320,7 +363,7 @@ describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
       expect(pageCount).toBe(3); // 10 + 10 + 5 = 3ページ
 
       // すべてのアイテムのIDがユニークであることを確認
-      const uniqueIds = new Set(allItems.map(item => item.id));
+      const uniqueIds = new Set(allItems.map((item) => item.id));
       expect(uniqueIds.size).toBe(25);
     });
 
@@ -329,41 +372,47 @@ describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
       let lastEvaluatedKey: any = undefined;
 
       // 1ページ目
-      const page1 = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 10,
-      }));
+      const page1 = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 10,
+        })
+      );
       lastEvaluatedKey = page1.LastEvaluatedKey;
 
       // 2ページ目
-      const page2 = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 10,
-        ExclusiveStartKey: lastEvaluatedKey,
-      }));
+      const page2 = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 10,
+          ExclusiveStartKey: lastEvaluatedKey,
+        })
+      );
       lastEvaluatedKey = page2.LastEvaluatedKey;
 
       // Act - 3ページ目（最終ページ）
-      const page3 = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 10,
-        ExclusiveStartKey: lastEvaluatedKey,
-      }));
+      const page3 = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 10,
+          ExclusiveStartKey: lastEvaluatedKey,
+        })
+      );
 
       // Assert
       expect(page3.Items).toHaveLength(5); // 残り5件
@@ -374,96 +423,116 @@ describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
   describe('Pagination with ScanIndexForward - ソート順序とページネーション', () => {
     it('should paginate with descending order (ScanIndexForward: false)', async () => {
       // Act - 1ページ目（降順）
-      const page1 = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 10,
-        ScanIndexForward: false, // 降順
-      }));
+      const page1 = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 10,
+          ScanIndexForward: false, // 降順
+        })
+      );
 
       // Act - 2ページ目（降順）
-      const page2 = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 10,
-        ScanIndexForward: false,
-        ExclusiveStartKey: page1.LastEvaluatedKey,
-      }));
+      const page2 = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 10,
+          ScanIndexForward: false,
+          ExclusiveStartKey: page1.LastEvaluatedKey,
+        })
+      );
 
       // Assert
       // 1ページ目は最新の10件（createdAtが大きい順）
-      expect(page1.Items?.[0].createdAt > page1.Items?.[9].createdAt).toBe(true);
+      expect(page1.Items?.[0].createdAt > page1.Items?.[9].createdAt).toBe(
+        true
+      );
 
       // 2ページ目の最初の記事は1ページ目の最後の記事より古い
-      expect(page2.Items?.[0].createdAt < page1.Items?.[9].createdAt).toBe(true);
+      expect(page2.Items?.[0].createdAt < page1.Items?.[9].createdAt).toBe(
+        true
+      );
     });
 
     it('should paginate with ascending order (ScanIndexForward: true)', async () => {
       // Act - 1ページ目（昇順）
-      const page1 = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 10,
-        ScanIndexForward: true, // 昇順（デフォルト）
-      }));
+      const page1 = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 10,
+          ScanIndexForward: true, // 昇順（デフォルト）
+        })
+      );
 
       // Act - 2ページ目（昇順）
-      const page2 = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 10,
-        ScanIndexForward: true,
-        ExclusiveStartKey: page1.LastEvaluatedKey,
-      }));
+      const page2 = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 10,
+          ScanIndexForward: true,
+          ExclusiveStartKey: page1.LastEvaluatedKey,
+        })
+      );
 
       // Assert
       // 1ページ目は最古の10件（createdAtが小さい順）
-      expect(page1.Items?.[0].createdAt < page1.Items?.[9].createdAt).toBe(true);
+      expect(page1.Items?.[0].createdAt < page1.Items?.[9].createdAt).toBe(
+        true
+      );
 
       // 2ページ目の最初の記事は1ページ目の最後の記事より新しい
-      expect(page2.Items?.[0].createdAt > page1.Items?.[9].createdAt).toBe(true);
+      expect(page2.Items?.[0].createdAt > page1.Items?.[9].createdAt).toBe(
+        true
+      );
     });
   });
 
   describe('Edge Cases - エッジケース', () => {
     it('should handle pagination with limit of 1', async () => {
       // Act
-      const page1 = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 1,
-      }));
+      const page1 = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 1,
+        })
+      );
 
-      const page2 = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 1,
-        ExclusiveStartKey: page1.LastEvaluatedKey,
-      }));
+      const page2 = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 1,
+          ExclusiveStartKey: page1.LastEvaluatedKey,
+        })
+      );
 
       // Assert
       expect(page1.Items).toHaveLength(1);
@@ -473,15 +542,17 @@ describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
 
     it('should handle empty result set with pagination', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'non-existent-status',
-        },
-        Limit: 10,
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'non-existent-status',
+          },
+          Limit: 10,
+        })
+      );
 
       // Assert
       expect(result.Items).toEqual([]);
@@ -490,28 +561,34 @@ describe('DynamoDB Pagination and LastEvaluatedKey - Integration Tests', () => {
 
     it('should handle pagination consistency across multiple requests', async () => {
       // Act - 同じクエリを2回実行
-      const result1 = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 10,
-      }));
+      const result1 = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 10,
+        })
+      );
 
-      const result2 = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        Limit: 10,
-      }));
+      const result2 = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          Limit: 10,
+        })
+      );
 
       // Assert - 同じ結果が返ることを確認
-      expect(result1.Items?.map(item => item.id)).toEqual(result2.Items?.map(item => item.id));
+      expect(result1.Items?.map((item) => item.id)).toEqual(
+        result2.Items?.map((item) => item.id)
+      );
       expect(result1.LastEvaluatedKey).toEqual(result2.LastEvaluatedKey);
     });
   });

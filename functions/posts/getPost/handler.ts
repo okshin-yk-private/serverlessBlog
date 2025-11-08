@@ -9,7 +9,11 @@
  * - MarkdownコンテンツをHTML形式で返す
  */
 
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import {
+  APIGatewayProxyEvent,
+  APIGatewayProxyResult,
+  Context,
+} from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { Logger } from '@aws-lambda-powertools/logger';
@@ -47,7 +51,10 @@ export function resetDynamoDBClient(): void {
   dynamoDBClient = null;
 }
 
-function createErrorResponse(statusCode: number, message: string): APIGatewayProxyResult {
+function createErrorResponse(
+  statusCode: number,
+  message: string
+): APIGatewayProxyResult {
   return {
     statusCode,
     headers: {
@@ -97,18 +104,18 @@ export const handler = async (
     }
 
     // 認証情報の取得
-    const isAuthenticated = !!(
-      event.requestContext?.authorizer?.claims?.sub
-    );
+    const isAuthenticated = !!event.requestContext?.authorizer?.claims?.sub;
 
     // 記事を取得
     const docClient = getDynamoDBClient();
     logger.info('記事を取得中', { postId, isAuthenticated });
 
-    const getResult = await docClient.send(new GetCommand({
-      TableName: TABLE_NAME,
-      Key: { id: postId },
-    }));
+    const getResult = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { id: postId },
+      })
+    );
 
     if (!getResult.Item) {
       logger.warn('記事が見つかりません', { postId });
@@ -121,12 +128,17 @@ export const handler = async (
     // アクセス制御: 下書き記事は認証済みユーザーのみアクセス可能
     // Requirement R7.2: 下書き記事 + 未認証 → 404エラー
     if (post.publishStatus === 'draft' && !isAuthenticated) {
-      logger.warn('未認証ユーザーが下書き記事にアクセスしようとしました', { postId });
+      logger.warn('未認証ユーザーが下書き記事にアクセスしようとしました', {
+        postId,
+      });
       metrics.addMetric('GetPostUnauthorizedDraftAccess', MetricUnit.Count, 1);
       return createErrorResponse(404, '記事が見つかりません');
     }
 
-    logger.info('記事の取得が完了しました', { postId, publishStatus: post.publishStatus });
+    logger.info('記事の取得が完了しました', {
+      postId,
+      publishStatus: post.publishStatus,
+    });
     metrics.addMetric('GetPostSuccess', MetricUnit.Count, 1);
 
     // すべてのデータを返す（contentMarkdownを含む）

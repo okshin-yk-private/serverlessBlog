@@ -3,12 +3,20 @@ import { validateEmail, validatePassword } from '../utils/auth';
 import { Button } from './Button';
 
 interface LoginFormProps {
-  onLogin: (credentials: { email: string; password: string; rememberMe?: boolean }) => Promise<void>;
+  onLogin: (credentials: {
+    email: string;
+    password: string;
+    rememberMe?: boolean;
+  }) => Promise<void>;
   error?: string;
   onForgotPassword?: () => void;
 }
 
-export const LoginForm: React.FC<LoginFormProps> = ({ onLogin, error, onForgotPassword }) => {
+export const LoginForm: React.FC<LoginFormProps> = ({
+  onLogin,
+  error,
+  onForgotPassword,
+}) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -35,7 +43,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin, error, onForgotPa
     setIsSubmitting(true);
     try {
       await onLogin({ email, password, rememberMe });
-    } catch (err) {
+    } catch (_err) {
       // エラーはLoginPageで処理される
     } finally {
       setIsSubmitting(false);
@@ -44,19 +52,29 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin, error, onForgotPa
 
   // グローバルエラーメッセージを計算（propsのerrorまたはバリデーションエラー）
   const validationErrors = [emailError, passwordError].filter(Boolean);
-  const hasErrors = error || validationErrors.length > 0;
+  const _hasErrors = error || validationErrors.length > 0;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto" noValidate>
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4 max-w-md mx-auto"
+      noValidate
+    >
       {/* グローバルエラーメッセージ */}
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded" data-testid="error-message">
+        <div
+          className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded"
+          data-testid="error-message"
+        >
           {error}
         </div>
       )}
       {/* バリデーションエラー */}
       {validationErrors.length > 0 && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded" data-testid="error-message">
+        <div
+          className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded"
+          data-testid="error-message"
+        >
           {validationErrors.map((err, idx) => (
             <div key={idx}>{err}</div>
           ))}
@@ -65,7 +83,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin, error, onForgotPa
 
       {/* メールアドレス */}
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="email"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           メールアドレス
         </label>
         <input
@@ -83,7 +104,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin, error, onForgotPa
 
       {/* パスワード */}
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="password"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           パスワード
         </label>
         <input

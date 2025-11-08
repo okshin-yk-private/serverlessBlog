@@ -63,7 +63,7 @@ export class AuthStack extends cdk.Stack {
         supportedIdentityProviders: [
           cognito.UserPoolClientIdentityProvider.COGNITO,
         ],
-      },
+      }
     );
 
     // Export User Pool ID for frontend configuration

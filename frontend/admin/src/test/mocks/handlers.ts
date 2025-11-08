@@ -54,7 +54,7 @@ export const handlers = [
       return HttpResponse.error();
     }
 
-    const body = await request.json() as { email: string; password: string };
+    const body = (await request.json()) as { email: string; password: string };
 
     // レート制限チェック
     const now = Date.now();
@@ -64,7 +64,10 @@ export const handlers = [
       if (now < attempts.resetTime) {
         if (attempts.count >= 5) {
           return HttpResponse.json(
-            { message: 'ログイン試行回数が上限に達しました。しばらくしてからお試しください。' },
+            {
+              message:
+                'ログイン試行回数が上限に達しました。しばらくしてからお試しください。',
+            },
             { status: 429 }
           );
         }
@@ -160,17 +163,20 @@ export const handlers = [
       return unauthorizedResponse();
     }
 
-    const body = await request.json() as any;
-    return HttpResponse.json({
-      id: 'new-post-id',
-      title: body.title,
-      contentMarkdown: body.contentMarkdown,
-      contentHtml: `<p>${body.contentMarkdown}</p>`,
-      category: body.category,
-      publishStatus: body.publishStatus,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }, { status: 201 });
+    const body = (await request.json()) as any;
+    return HttpResponse.json(
+      {
+        id: 'new-post-id',
+        title: body.title,
+        contentMarkdown: body.contentMarkdown,
+        contentHtml: `<p>${body.contentMarkdown}</p>`,
+        category: body.category,
+        publishStatus: body.publishStatus,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      { status: 201 }
+    );
   }),
 
   // 記事更新モック（認証必要）
@@ -179,7 +185,7 @@ export const handlers = [
       return unauthorizedResponse();
     }
 
-    const body = await request.json() as any;
+    const body = (await request.json()) as any;
     return HttpResponse.json({
       id: params.id,
       title: body.title,

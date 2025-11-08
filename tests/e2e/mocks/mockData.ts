@@ -27,16 +27,16 @@ export interface MockPost {
 /**
  * モック記事データの生成
  */
-export const createMockPost = (
-  overrides: Partial<MockPost> = {}
-): MockPost => {
+export const createMockPost = (overrides: Partial<MockPost> = {}): MockPost => {
   const now = new Date().toISOString();
 
   return {
     id: uuidv4(),
     title: 'Test Article Title',
-    contentMarkdown: '# Test Content\n\nThis is test content in markdown format.',
-    contentHtml: '<h1>Test Content</h1><p>This is test content in markdown format.</p>',
+    contentMarkdown:
+      '# Test Content\n\nThis is test content in markdown format.',
+    contentHtml:
+      '<h1>Test Content</h1><p>This is test content in markdown format.</p>',
     category: 'technology',
     tags: ['test', 'sample'],
     publishStatus: 'published',
@@ -127,7 +127,8 @@ export let mockPosts: MockPost[] = [
     id: 'post-6',
     title: 'Draft: Testing Strategies',
     contentMarkdown: '# Testing Strategies\n\nThis is a draft about testing...',
-    contentHtml: '<h1>Testing Strategies</h1><p>This is a draft about testing...</p>',
+    contentHtml:
+      '<h1>Testing Strategies</h1><p>This is a draft about testing...</p>',
     category: 'technology',
     tags: ['testing', 'tdd', 'draft'],
     publishStatus: 'draft',
@@ -216,8 +217,10 @@ export const resetMockPosts = () => {
     createMockPost({
       id: 'post-6',
       title: 'Draft: Testing Strategies',
-      contentMarkdown: '# Testing Strategies\n\nThis is a draft about testing...',
-      contentHtml: '<h1>Testing Strategies</h1><p>This is a draft about testing...</p>',
+      contentMarkdown:
+        '# Testing Strategies\n\nThis is a draft about testing...',
+      contentHtml:
+        '<h1>Testing Strategies</h1><p>This is a draft about testing...</p>',
       category: 'technology',
       tags: ['testing', 'tdd', 'draft'],
       publishStatus: 'draft',

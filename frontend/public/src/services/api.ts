@@ -14,7 +14,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
  * 公開記事一覧を取得
  */
 export const fetchPosts = async (
-  filters: PostListFilters = {},
+  filters: PostListFilters = {}
 ): Promise<PostListResponse> => {
   const params: Record<string, string | number> = {};
 

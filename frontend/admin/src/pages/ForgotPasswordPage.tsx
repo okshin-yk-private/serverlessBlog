@@ -25,9 +25,11 @@ const ForgotPasswordPage = () => {
     setIsSubmitting(true);
     try {
       // TODO: API実装時にパスワードリセットAPIを呼び出す
-      await new Promise(resolve => setTimeout(resolve, 1000)); // 仮の遅延
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // 仮の遅延
 
-      setSuccessMessage('パスワードリセットのリンクをメールアドレスに送信しました。');
+      setSuccessMessage(
+        'パスワードリセットのリンクをメールアドレスに送信しました。'
+      );
       setEmail('');
     } catch (err) {
       console.error('パスワードリセットエラー:', err);
@@ -44,7 +46,9 @@ const ForgotPasswordPage = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold mb-6 text-center">パスワードリセット</h1>
+        <h1 className="text-2xl font-bold mb-6 text-center">
+          パスワードリセット
+        </h1>
 
         {successMessage ? (
           <div>
@@ -73,7 +77,10 @@ const ForgotPasswordPage = () => {
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 メールアドレス
               </label>
               <input

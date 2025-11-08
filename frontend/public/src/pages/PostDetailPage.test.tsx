@@ -27,19 +27,34 @@ describe('PostDetailPage', () => {
     createdAt: '2025-01-01T00:00:00Z',
     updatedAt: '2025-01-02T00:00:00Z',
     publishedAt: '2025-01-01T10:00:00Z',
-    imageUrls: ['https://example.com/image1.jpg', 'https://example.com/image2.jpg'],
+    imageUrls: [
+      'https://example.com/image1.jpg',
+      'https://example.com/image2.jpg',
+    ],
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Clean up meta tags from previous tests
-    document.querySelectorAll('meta[name="description"]').forEach((el) => el.remove());
-    document.querySelectorAll('meta[name="keywords"]').forEach((el) => el.remove());
-    document.querySelectorAll('meta[property^="og:"]').forEach((el) => el.remove());
-    document.querySelectorAll('meta[name^="twitter:"]').forEach((el) => el.remove());
-    document.querySelectorAll('link[rel="canonical"]').forEach((el) => el.remove());
-    document.querySelectorAll('script[type="application/ld+json"]').forEach((el) => el.remove());
+    document
+      .querySelectorAll('meta[name="description"]')
+      .forEach((el) => el.remove());
+    document
+      .querySelectorAll('meta[name="keywords"]')
+      .forEach((el) => el.remove());
+    document
+      .querySelectorAll('meta[property^="og:"]')
+      .forEach((el) => el.remove());
+    document
+      .querySelectorAll('meta[name^="twitter:"]')
+      .forEach((el) => el.remove());
+    document
+      .querySelectorAll('link[rel="canonical"]')
+      .forEach((el) => el.remove());
+    document
+      .querySelectorAll('script[type="application/ld+json"]')
+      .forEach((el) => el.remove());
   });
 
   describe('記事詳細レンダリング', () => {
@@ -51,7 +66,7 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
@@ -67,7 +82,7 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
@@ -83,11 +98,13 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
-        const formattedDate = new Date('2025-01-01T00:00:00Z').toLocaleDateString('ja-JP');
+        const formattedDate = new Date(
+          '2025-01-01T00:00:00Z'
+        ).toLocaleDateString('ja-JP');
         expect(screen.getByText(formattedDate)).toBeInTheDocument();
       });
     });
@@ -100,7 +117,7 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
@@ -119,13 +136,15 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
         const contentElement = screen.getByTestId('article-content');
         expect(contentElement.innerHTML).toContain('<h1>Hello World</h1>');
-        expect(contentElement.innerHTML).toContain('<p>This is test content.</p>');
+        expect(contentElement.innerHTML).toContain(
+          '<p>This is test content.</p>'
+        );
       });
     });
 
@@ -142,12 +161,14 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
         const contentElement = screen.getByTestId('article-content');
-        expect(contentElement.innerHTML).toContain('<strong>Bold Text</strong>');
+        expect(contentElement.innerHTML).toContain(
+          '<strong>Bold Text</strong>'
+        );
         expect(contentElement.innerHTML).toContain('<em>Italic Text</em>');
       });
     });
@@ -162,14 +183,20 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
         const images = screen.getAllByRole('img');
         expect(images).toHaveLength(2);
-        expect(images[0]).toHaveAttribute('src', 'https://example.com/image1.jpg');
-        expect(images[1]).toHaveAttribute('src', 'https://example.com/image2.jpg');
+        expect(images[0]).toHaveAttribute(
+          'src',
+          'https://example.com/image1.jpg'
+        );
+        expect(images[1]).toHaveAttribute(
+          'src',
+          'https://example.com/image2.jpg'
+        );
       });
     });
 
@@ -186,7 +213,7 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
@@ -210,7 +237,7 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
@@ -231,7 +258,7 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
@@ -249,7 +276,7 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
@@ -269,7 +296,7 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       expect(screen.getByText('読み込み中...')).toBeInTheDocument();
@@ -285,11 +312,13 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
-        expect(screen.getByText('記事の読み込みに失敗しました')).toBeInTheDocument();
+        expect(
+          screen.getByText('記事の読み込みに失敗しました')
+        ).toBeInTheDocument();
       });
     });
 
@@ -301,11 +330,13 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
-        expect(screen.getByText('記事の読み込みに失敗しました')).toBeInTheDocument();
+        expect(
+          screen.getByText('記事の読み込みに失敗しました')
+        ).toBeInTheDocument();
       });
     });
   });
@@ -322,11 +353,13 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
-        expect(screen.getByText('記事が見つかりませんでした')).toBeInTheDocument();
+        expect(
+          screen.getByText('記事が見つかりませんでした')
+        ).toBeInTheDocument();
       });
     });
   });
@@ -340,7 +373,7 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
@@ -357,11 +390,13 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id?" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
-        expect(screen.getByText('記事IDが指定されていません')).toBeInTheDocument();
+        expect(
+          screen.getByText('記事IDが指定されていません')
+        ).toBeInTheDocument();
       });
     });
 
@@ -373,11 +408,13 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
-        expect(screen.getByText('記事が見つかりませんでした')).toBeInTheDocument();
+        expect(
+          screen.getByText('記事が見つかりませんでした')
+        ).toBeInTheDocument();
       });
     });
 
@@ -393,7 +430,7 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
@@ -401,7 +438,9 @@ describe('PostDetailPage', () => {
       });
 
       // Check meta description doesn't have ellipsis
-      const descriptionMeta = document.querySelector('meta[name="description"]');
+      const descriptionMeta = document.querySelector(
+        'meta[name="description"]'
+      );
       expect(descriptionMeta?.getAttribute('content')).toBe('Short content');
     });
 
@@ -418,7 +457,7 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
@@ -426,7 +465,9 @@ describe('PostDetailPage', () => {
       });
 
       // Check meta description has ellipsis
-      const descriptionMeta = document.querySelector('meta[name="description"]');
+      const descriptionMeta = document.querySelector(
+        'meta[name="description"]'
+      );
       const description = descriptionMeta?.getAttribute('content') || '';
       expect(description).toHaveLength(153); // 150 chars + '...'
       expect(description.endsWith('...')).toBe(true);
@@ -444,7 +485,7 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {
@@ -452,7 +493,9 @@ describe('PostDetailPage', () => {
       });
 
       // Check JSON-LD uses createdAt
-      const jsonLdScript = document.querySelector('script[type="application/ld+json"]');
+      const jsonLdScript = document.querySelector(
+        'script[type="application/ld+json"]'
+      );
       expect(jsonLdScript).toBeTruthy();
       const jsonLdContent = JSON.parse(jsonLdScript?.textContent || '{}');
       expect(jsonLdContent.datePublished).toBe('2025-01-01T00:00:00Z');
@@ -467,7 +510,7 @@ describe('PostDetailPage', () => {
           <Routes>
             <Route path="/posts/:id" element={<PostDetailPage />} />
           </Routes>
-        </MemoryRouter>,
+        </MemoryRouter>
       );
 
       await waitFor(() => {

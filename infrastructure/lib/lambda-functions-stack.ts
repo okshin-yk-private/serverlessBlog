@@ -2,7 +2,6 @@ import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import * as iam from 'aws-cdk-lib/aws-iam';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
 import * as path from 'path';
@@ -56,7 +55,9 @@ export class LambdaFunctionsStack extends cdk.Stack {
     this.createPostFunction = new lambda.Function(this, 'CreatePostFunction', {
       ...commonFunctionProps,
       functionName: 'blog-create-post',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../functions/posts/createPost')),
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, '../../functions/posts/createPost')
+      ),
       handler: 'index.handler',
       description: 'Create new blog post with Markdown to HTML conversion',
     });
@@ -68,7 +69,9 @@ export class LambdaFunctionsStack extends cdk.Stack {
     this.getPostFunction = new lambda.Function(this, 'GetPostFunction', {
       ...commonFunctionProps,
       functionName: 'blog-get-post',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../functions/posts/getPost')),
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, '../../functions/posts/getPost')
+      ),
       handler: 'index.handler',
       description: 'Get blog post by ID (admin, includes markdown)',
     });
@@ -80,7 +83,9 @@ export class LambdaFunctionsStack extends cdk.Stack {
     this.updatePostFunction = new lambda.Function(this, 'UpdatePostFunction', {
       ...commonFunctionProps,
       functionName: 'blog-update-post',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../functions/posts/updatePost')),
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, '../../functions/posts/updatePost')
+      ),
       handler: 'index.handler',
       description: 'Update existing blog post',
     });
@@ -92,7 +97,9 @@ export class LambdaFunctionsStack extends cdk.Stack {
     this.deletePostFunction = new lambda.Function(this, 'DeletePostFunction', {
       ...commonFunctionProps,
       functionName: 'blog-delete-post',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../functions/posts/deletePost')),
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, '../../functions/posts/deletePost')
+      ),
       handler: 'index.handler',
       description: 'Delete blog post',
     });
@@ -104,7 +111,9 @@ export class LambdaFunctionsStack extends cdk.Stack {
     this.listPostsFunction = new lambda.Function(this, 'ListPostsFunction', {
       ...commonFunctionProps,
       functionName: 'blog-list-posts',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../functions/posts/listPosts')),
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, '../../functions/posts/listPosts')
+      ),
       handler: 'index.handler',
       description: 'List published blog posts',
     });
@@ -113,13 +122,19 @@ export class LambdaFunctionsStack extends cdk.Stack {
     blogPostsTable.grantReadData(this.listPostsFunction);
 
     // GET /posts/{id} - 記事詳細取得（公開用）
-    this.getPublicPostFunction = new lambda.Function(this, 'GetPublicPostFunction', {
-      ...commonFunctionProps,
-      functionName: 'blog-get-public-post',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../functions/posts/getPublicPost')),
-      handler: 'index.handler',
-      description: 'Get published blog post by ID (public, HTML only)',
-    });
+    this.getPublicPostFunction = new lambda.Function(
+      this,
+      'GetPublicPostFunction',
+      {
+        ...commonFunctionProps,
+        functionName: 'blog-get-public-post',
+        code: lambda.Code.fromAsset(
+          path.join(__dirname, '../../functions/posts/getPublicPost')
+        ),
+        handler: 'index.handler',
+        description: 'Get published blog post by ID (public, HTML only)',
+      }
+    );
 
     // DynamoDBからの読み取り権限を付与
     blogPostsTable.grantReadData(this.getPublicPostFunction);
@@ -128,7 +143,9 @@ export class LambdaFunctionsStack extends cdk.Stack {
     this.uploadUrlFunction = new lambda.Function(this, 'UploadUrlFunction', {
       ...commonFunctionProps,
       functionName: 'blog-upload-url',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../functions/images/uploadUrl')),
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, '../../functions/images/uploadUrl')
+      ),
       handler: 'index.handler',
       description: 'Generate pre-signed URL for image upload',
     });
@@ -152,7 +169,7 @@ export class LambdaFunctionsStack extends cdk.Stack {
       {
         authorizer,
         authorizationType: apigateway.AuthorizationType.COGNITO,
-      },
+      }
     );
 
     // /admin/posts/{id}
@@ -165,7 +182,7 @@ export class LambdaFunctionsStack extends cdk.Stack {
       {
         authorizer,
         authorizationType: apigateway.AuthorizationType.COGNITO,
-      },
+      }
     );
 
     // PUT /admin/posts/{id} - 記事更新
@@ -175,7 +192,7 @@ export class LambdaFunctionsStack extends cdk.Stack {
       {
         authorizer,
         authorizationType: apigateway.AuthorizationType.COGNITO,
-      },
+      }
     );
 
     // DELETE /admin/posts/{id} - 記事削除
@@ -185,7 +202,7 @@ export class LambdaFunctionsStack extends cdk.Stack {
       {
         authorizer,
         authorizationType: apigateway.AuthorizationType.COGNITO,
-      },
+      }
     );
 
     // /admin/images
@@ -199,7 +216,7 @@ export class LambdaFunctionsStack extends cdk.Stack {
       {
         authorizer,
         authorizationType: apigateway.AuthorizationType.COGNITO,
-      },
+      }
     );
 
     // 公開API: /posts リソース取得
@@ -214,7 +231,7 @@ export class LambdaFunctionsStack extends cdk.Stack {
       new apigateway.LambdaIntegration(this.listPostsFunction),
       {
         authorizationType: apigateway.AuthorizationType.NONE,
-      },
+      }
     );
 
     // GET /posts/{id} - 記事詳細取得（認証不要）
@@ -224,7 +241,7 @@ export class LambdaFunctionsStack extends cdk.Stack {
       new apigateway.LambdaIntegration(this.getPublicPostFunction),
       {
         authorizationType: apigateway.AuthorizationType.NONE,
-      },
+      }
     );
 
     // Outputs

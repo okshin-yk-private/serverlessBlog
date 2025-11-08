@@ -32,7 +32,9 @@ const PostCreatePage = () => {
   const handleImageUpload = (imageUrl: string) => {
     // 画像URLをクリップボードにコピー（オプション）
     navigator.clipboard.writeText(`![image](${imageUrl})`);
-    alert(`画像がアップロードされました。Markdown形式でクリップボードにコピーされました:\n![image](${imageUrl})`);
+    alert(
+      `画像がアップロードされました。Markdown形式でクリップボードにコピーされました:\n![image](${imageUrl})`
+    );
   };
 
   return (
@@ -41,13 +43,18 @@ const PostCreatePage = () => {
         <h1 className="text-3xl font-bold text-gray-900 mb-6">新規記事作成</h1>
 
         {error && (
-          <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded" data-testid="error-message">
+          <div
+            className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded"
+            data-testid="error-message"
+          >
             {error}
           </div>
         )}
 
         <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">画像アップロード</h2>
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">
+            画像アップロード
+          </h2>
           <ImageUploader
             onUploadComplete={handleImageUpload}
             uploadFunction={uploadImage}

@@ -57,7 +57,10 @@ jest.mock('@aws-lambda-powertools/metrics', () => ({
 }));
 
 // ハンドラーをインポート（モックの後）
-import { handler, resetDynamoDBClient } from '../../../functions/posts/listPosts/handler';
+import {
+  handler,
+  resetDynamoDBClient,
+} from '../../../functions/posts/listPosts/handler';
 
 describe('listPosts Lambda Handler - Integration Tests', () => {
   const mockContext = {} as Context;
@@ -233,7 +236,9 @@ describe('listPosts Lambda Handler - Integration Tests', () => {
       expect(body.items[2].postId).toBe('post-3');
 
       // 下書き記事は含まれない
-      expect(body.items.find((item: any) => item.postId === 'post-4')).toBeUndefined();
+      expect(
+        body.items.find((item: any) => item.postId === 'post-4')
+      ).toBeUndefined();
 
       // nextTokenは存在しない（全件取得済み）
       expect(body.nextToken).toBeUndefined();
@@ -410,7 +415,9 @@ describe('listPosts Lambda Handler - Integration Tests', () => {
       expect(body.items[1].postId).toBe('post-3');
 
       // 下書き記事（post-4）は含まれない
-      expect(body.items.find((item: any) => item.postId === 'post-4')).toBeUndefined();
+      expect(
+        body.items.find((item: any) => item.postId === 'post-4')
+      ).toBeUndefined();
     });
 
     it('categoryパラメータで別のカテゴリの記事を取得できる', async () => {

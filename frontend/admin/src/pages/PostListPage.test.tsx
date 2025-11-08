@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  within,
+} from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import PostListPage from './PostListPage';
 import * as postsApi from '../api/posts';
@@ -29,7 +35,9 @@ describe('PostListPage', () => {
       renderPostListPage();
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /記事一覧/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole('heading', { name: /記事一覧/i })
+        ).toBeInTheDocument();
       });
 
       const createButton = screen.getByRole('link', { name: /新規作成/i });
@@ -42,8 +50,12 @@ describe('PostListPage', () => {
       renderPostListPage();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /公開済み/i })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /下書き/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole('button', { name: /公開済み/i })
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole('button', { name: /下書き/i })
+        ).toBeInTheDocument();
       });
     });
 
@@ -111,7 +123,9 @@ describe('PostListPage', () => {
       renderPostListPage();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /下書き/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole('button', { name: /下書き/i })
+        ).toBeInTheDocument();
       });
 
       const draftTab = screen.getByRole('button', { name: /下書き/i });
@@ -129,7 +143,9 @@ describe('PostListPage', () => {
       renderPostListPage();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /公開済み/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole('button', { name: /公開済み/i })
+        ).toBeInTheDocument();
       });
 
       const publishedTab = screen.getByRole('button', { name: /公開済み/i });
@@ -149,7 +165,9 @@ describe('PostListPage', () => {
       renderPostListPage();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /下書き/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole('button', { name: /下書き/i })
+        ).toBeInTheDocument();
       });
 
       const draftTab = screen.getByRole('button', { name: /下書き/i });
@@ -346,7 +364,9 @@ describe('PostListPage', () => {
       renderPostListPage();
 
       await waitFor(() => {
-        expect(screen.getByText(/記事の取得に失敗しました/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/記事の取得に失敗しました/i)
+        ).toBeInTheDocument();
       });
     });
 
@@ -386,7 +406,9 @@ describe('PostListPage', () => {
       fireEvent.click(confirmButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/記事の削除に失敗しました/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/記事の削除に失敗しました/i)
+        ).toBeInTheDocument();
       });
     });
 
@@ -455,12 +477,18 @@ describe('PostListPage', () => {
         },
       ];
 
-      mockGetPosts.mockResolvedValue({ posts, total: 100, nextToken: 'token123' });
+      mockGetPosts.mockResolvedValue({
+        posts,
+        total: 100,
+        nextToken: 'token123',
+      });
 
       renderPostListPage();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /次へ/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole('button', { name: /次へ/i })
+        ).toBeInTheDocument();
       });
     });
 
@@ -491,7 +519,11 @@ describe('PostListPage', () => {
         },
       ];
 
-      mockGetPosts.mockResolvedValueOnce({ posts: page1Posts, total: 2, nextToken: 'token123' });
+      mockGetPosts.mockResolvedValueOnce({
+        posts: page1Posts,
+        total: 2,
+        nextToken: 'token123',
+      });
       mockGetPosts.mockResolvedValueOnce({ posts: page2Posts, total: 2 });
 
       renderPostListPage();
@@ -530,7 +562,8 @@ describe('PostListPage', () => {
       const posts = [
         {
           id: '1',
-          title: 'This is a very long title that should be truncated properly in the UI to avoid layout issues and maintain readability',
+          title:
+            'This is a very long title that should be truncated properly in the UI to avoid layout issues and maintain readability',
           contentMarkdown: 'Content',
           contentHtml: '<p>Content</p>',
           category: 'tech',
@@ -545,7 +578,9 @@ describe('PostListPage', () => {
       renderPostListPage();
 
       await waitFor(() => {
-        expect(screen.getByText(/This is a very long title/)).toBeInTheDocument();
+        expect(
+          screen.getByText(/This is a very long title/)
+        ).toBeInTheDocument();
       });
     });
 

@@ -17,17 +17,19 @@ const PostListPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [nextToken, setNextToken] = useState<string | undefined>(undefined);
   const [currentNextToken, setCurrentNextToken] = useState<string | undefined>(
-    undefined,
+    undefined
   );
   const [category, setCategory] = useState<string>('');
   const [tags, setTags] = useState<string>('');
   const [hasPrevious, setHasPrevious] = useState(false);
 
-  const loadPosts = async (filters: {
-    category?: string;
-    tags?: string;
-    nextToken?: string;
-  } = {}) => {
+  const loadPosts = async (
+    filters: {
+      category?: string;
+      tags?: string;
+      nextToken?: string;
+    } = {}
+  ) => {
     try {
       setLoading(true);
       setError(null);
@@ -161,9 +163,15 @@ const PostListPage: React.FC = () => {
           onChange={handleCategoryChange}
           aria-label="カテゴリ"
         >
-          <option value="" data-testid="category-option">すべて</option>
-          <option value="technology" data-testid="category-option">Technology</option>
-          <option value="life" data-testid="category-option">Life</option>
+          <option value="" data-testid="category-option">
+            すべて
+          </option>
+          <option value="technology" data-testid="category-option">
+            Technology
+          </option>
+          <option value="life" data-testid="category-option">
+            Life
+          </option>
         </select>
       </div>
 
@@ -179,7 +187,11 @@ const PostListPage: React.FC = () => {
           placeholder="タグを入力"
           aria-label="タグ"
         />
-        <button onClick={handleTagSearch} data-testid="search-button" aria-label="検索">
+        <button
+          onClick={handleTagSearch}
+          data-testid="search-button"
+          aria-label="検索"
+        >
           検索
         </button>
       </div>
@@ -197,18 +209,28 @@ const PostListPage: React.FC = () => {
       ) : (
         <div className="post-list-container" data-testid="article-list">
           {posts.map((post) => (
-            <article key={post.id} className="post-card" data-testid="article-card">
+            <article
+              key={post.id}
+              className="post-card"
+              data-testid="article-card"
+            >
               <Link to={`/posts/${post.id}`} className="post-link">
                 <h2 data-testid="article-title">{post.title}</h2>
                 <div className="post-meta">
-                  <span className="category" data-testid="article-category">{post.category}</span>
+                  <span className="category" data-testid="article-category">
+                    {post.category}
+                  </span>
                   <span className="date">
                     {new Date(post.createdAt).toLocaleDateString('ja-JP')}
                   </span>
                 </div>
                 <div className="excerpt" data-testid="article-excerpt">
                   {/* 記事の要約（最初の100文字） */}
-                  {post.contentHtml ? post.contentHtml.substring(0, 100).replace(/<[^>]*>/g, '') + '...' : ''}
+                  {post.contentHtml
+                    ? post.contentHtml
+                        .substring(0, 100)
+                        .replace(/<[^>]*>/g, '') + '...'
+                    : ''}
                 </div>
               </Link>
             </article>
@@ -221,7 +243,11 @@ const PostListPage: React.FC = () => {
         <button onClick={handlePrevPage} disabled={!hasPrevious}>
           前へ
         </button>
-        <button onClick={handleNextPage} disabled={!nextToken} data-testid="load-more">
+        <button
+          onClick={handleNextPage}
+          disabled={!nextToken}
+          data-testid="load-more"
+        >
           次へ（もっと読み込む）
         </button>
       </div>

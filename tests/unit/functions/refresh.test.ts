@@ -38,7 +38,10 @@ process.env.USER_POOL_CLIENT_ID = 'test-client-id';
 process.env.AWS_REGION = 'ap-northeast-1';
 
 // ハンドラーをインポート（モックと環境変数の設定後）
-import { handler, resetCognitoClient } from '../../../functions/auth/refresh/handler';
+import {
+  handler,
+  resetCognitoClient,
+} from '../../../functions/auth/refresh/handler';
 
 describe('refresh Lambda Handler', () => {
   const mockContext = createMockContext();
@@ -183,7 +186,9 @@ describe('refresh Lambda Handler', () => {
       // Assert
       expect(result.statusCode).toBe(401);
       const body = JSON.parse(result.body);
-      expect(body.message).toContain('リフレッシュトークンが無効または期限切れです');
+      expect(body.message).toContain(
+        'リフレッシュトークンが無効または期限切れです'
+      );
     });
 
     it('リフレッシュトークンの有効期限が切れている場合は401エラーを返す', async () => {
@@ -205,7 +210,9 @@ describe('refresh Lambda Handler', () => {
       // Assert
       expect(result.statusCode).toBe(401);
       const body = JSON.parse(result.body);
-      expect(body.message).toContain('リフレッシュトークンが無効または期限切れです');
+      expect(body.message).toContain(
+        'リフレッシュトークンが無効または期限切れです'
+      );
     });
   });
 
@@ -354,7 +361,8 @@ describe('refresh Lambda Handler', () => {
       delete process.env.COGNITO_ENDPOINT;
       if (originalRegion) process.env.AWS_REGION = originalRegion;
       if (originalAccessKey) process.env.AWS_ACCESS_KEY_ID = originalAccessKey;
-      if (originalSecretKey) process.env.AWS_SECRET_ACCESS_KEY = originalSecretKey;
+      if (originalSecretKey)
+        process.env.AWS_SECRET_ACCESS_KEY = originalSecretKey;
       resetCognitoClient();
     });
 

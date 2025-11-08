@@ -3,11 +3,16 @@ jest.mock('@aws-sdk/client-s3');
 jest.mock('@aws-sdk/s3-request-presigner');
 
 // ユーティリティをインポート
-import { generatePresignedUrl, getS3Client } from '../../../layers/common/nodejs/utils/s3Utils';
+import {
+  generatePresignedUrl,
+  getS3Client,
+} from '../../../layers/common/nodejs/utils/s3Utils';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 // getSignedUrlをモック関数としてキャスト
-const mockGetSignedUrl = getSignedUrl as jest.MockedFunction<typeof getSignedUrl>;
+const mockGetSignedUrl = getSignedUrl as jest.MockedFunction<
+  typeof getSignedUrl
+>;
 
 describe('s3Utils', () => {
   beforeEach(() => {
@@ -24,7 +29,9 @@ describe('s3Utils', () => {
 
   describe('generatePresignedUrl', () => {
     test('should generate presigned URL for GetObject', async () => {
-      mockGetSignedUrl.mockResolvedValueOnce('https://example.com/presigned-url-custom');
+      mockGetSignedUrl.mockResolvedValueOnce(
+        'https://example.com/presigned-url-custom'
+      );
       const bucket = 'test-bucket';
       const key = 'test-key.jpg';
       const expiresIn = 3600;

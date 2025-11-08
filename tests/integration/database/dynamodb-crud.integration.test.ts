@@ -1,5 +1,17 @@
-import { DynamoDBClient, CreateTableCommand, DeleteTableCommand, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, DeleteCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  DynamoDBClient,
+  CreateTableCommand,
+  DeleteTableCommand,
+  DescribeTableCommand,
+} from '@aws-sdk/client-dynamodb';
+import {
+  DynamoDBDocumentClient,
+  PutCommand,
+  GetCommand,
+  UpdateCommand,
+  DeleteCommand,
+  ScanCommand,
+} from '@aws-sdk/lib-dynamodb';
 
 /**
  * DynamoDB CRUD Operations Integration Tests
@@ -30,28 +42,27 @@ const docClient = DynamoDBDocumentClient.from(dynamoDBClient);
 const TABLE_NAME = 'test-crud-integration-table';
 
 describe('DynamoDB CRUD Operations - Integration Tests', () => {
-
   // テーブルの作成
   beforeAll(async () => {
     try {
-      await dynamoDBClient.send(new CreateTableCommand({
-        TableName: TABLE_NAME,
-        KeySchema: [
-          { AttributeName: 'id', KeyType: 'HASH' },
-        ],
-        AttributeDefinitions: [
-          { AttributeName: 'id', AttributeType: 'S' },
-        ],
-        BillingMode: 'PAY_PER_REQUEST',
-      }));
+      await dynamoDBClient.send(
+        new CreateTableCommand({
+          TableName: TABLE_NAME,
+          KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+          AttributeDefinitions: [{ AttributeName: 'id', AttributeType: 'S' }],
+          BillingMode: 'PAY_PER_REQUEST',
+        })
+      );
 
       // テーブルがアクティブになるまで待機
       let tableReady = false;
       for (let i = 0; i < 10; i++) {
         try {
-          const result = await dynamoDBClient.send(new DescribeTableCommand({
-            TableName: TABLE_NAME,
-          }));
+          const result = await dynamoDBClient.send(
+            new DescribeTableCommand({
+              TableName: TABLE_NAME,
+            })
+          );
           if (result.Table?.TableStatus === 'ACTIVE') {
             tableReady = true;
             break;
@@ -59,7 +70,7 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
         } catch (error) {
           // テーブルがまだ作成中
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
       if (!tableReady) {
@@ -75,9 +86,11 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
   // テーブルの削除
   afterAll(async () => {
     try {
-      await dynamoDBClient.send(new DeleteTableCommand({
-        TableName: TABLE_NAME,
-      }));
+      await dynamoDBClient.send(
+        new DeleteTableCommand({
+          TableName: TABLE_NAME,
+        })
+      );
     } catch (error: any) {
       // テーブルが既に削除されている場合は無視
     }
@@ -86,16 +99,20 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
   // 各テスト後にテーブルをクリーンアップ
   afterEach(async () => {
     try {
-      const scanResult = await docClient.send(new ScanCommand({
-        TableName: TABLE_NAME,
-      }));
+      const scanResult = await docClient.send(
+        new ScanCommand({
+          TableName: TABLE_NAME,
+        })
+      );
 
       if (scanResult.Items && scanResult.Items.length > 0) {
         for (const item of scanResult.Items) {
-          await docClient.send(new DeleteCommand({
-            TableName: TABLE_NAME,
-            Key: { id: item.id },
-          }));
+          await docClient.send(
+            new DeleteCommand({
+              TableName: TABLE_NAME,
+              Key: { id: item.id },
+            })
+          );
         }
       }
     } catch (error) {
@@ -122,16 +139,20 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
       };
 
       // Act
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: postItem,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: postItem,
+        })
+      );
 
       // Assert
-      const result = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'test-post-id-1' },
-      }));
+      const result = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'test-post-id-1' },
+        })
+      );
 
       expect(result.Item).toBeDefined();
       expect(result.Item?.id).toBe('test-post-id-1');
@@ -157,16 +178,20 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
       };
 
       // Act
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: draftItem,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: draftItem,
+        })
+      );
 
       // Assert
-      const result = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'test-draft-id-1' },
-      }));
+      const result = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'test-draft-id-1' },
+        })
+      );
 
       expect(result.Item).toBeDefined();
       expect(result.Item?.publishStatus).toBe('draft');
@@ -189,10 +214,12 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
         imageUrls: [],
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: originalItem,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: originalItem,
+        })
+      );
 
       // Act
       const updatedItem = {
@@ -202,16 +229,20 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
         contentHTML: '<h1>Updated</h1>',
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: updatedItem,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: updatedItem,
+        })
+      );
 
       // Assert
-      const result = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'test-post-id-2' },
-      }));
+      const result = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'test-post-id-2' },
+        })
+      );
 
       expect(result.Item?.title).toBe('Updated Title');
       expect(result.Item?.contentMarkdown).toBe('# Updated');
@@ -236,16 +267,20 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
         imageUrls: [],
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: postItem,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: postItem,
+        })
+      );
 
       // Act
-      const result = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'test-get-id-1' },
-      }));
+      const result = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'test-get-id-1' },
+        })
+      );
 
       // Assert
       expect(result.Item).toBeDefined();
@@ -255,10 +290,12 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
 
     it('should return undefined for non-existent id', async () => {
       // Act
-      const result = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'non-existent-id' },
-      }));
+      const result = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'non-existent-id' },
+        })
+      );
 
       // Assert
       expect(result.Item).toBeUndefined();
@@ -278,19 +315,26 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
         createdAt: '2025-01-01T00:00:00.000Z',
         updatedAt: '2025-01-02T00:00:00.000Z',
         publishedAt: '2025-01-02T00:00:00.000Z',
-        imageUrls: ['https://example.com/img1.jpg', 'https://example.com/img2.jpg'],
+        imageUrls: [
+          'https://example.com/img1.jpg',
+          'https://example.com/img2.jpg',
+        ],
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: postItem,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: postItem,
+        })
+      );
 
       // Act
-      const result = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'test-get-id-2' },
-      }));
+      const result = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'test-get-id-2' },
+        })
+      );
 
       // Assert
       expect(result.Item).toEqual(postItem);
@@ -314,28 +358,34 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
         imageUrls: [],
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: originalItem,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: originalItem,
+        })
+      );
 
       // Act
       const newUpdatedAt = new Date().toISOString();
-      await docClient.send(new UpdateCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'test-update-id-1' },
-        UpdateExpression: 'SET title = :title, updatedAt = :updatedAt',
-        ExpressionAttributeValues: {
-          ':title': 'New Title',
-          ':updatedAt': newUpdatedAt,
-        },
-      }));
+      await docClient.send(
+        new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'test-update-id-1' },
+          UpdateExpression: 'SET title = :title, updatedAt = :updatedAt',
+          ExpressionAttributeValues: {
+            ':title': 'New Title',
+            ':updatedAt': newUpdatedAt,
+          },
+        })
+      );
 
       // Assert
-      const result = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'test-update-id-1' },
-      }));
+      const result = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'test-update-id-1' },
+        })
+      );
 
       expect(result.Item?.title).toBe('New Title');
       expect(result.Item?.updatedAt).toBe(newUpdatedAt);
@@ -358,29 +408,36 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
         imageUrls: [],
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: draftItem,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: draftItem,
+        })
+      );
 
       // Act
       const publishedAt = new Date().toISOString();
-      await docClient.send(new UpdateCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'test-update-id-2' },
-        UpdateExpression: 'SET publishStatus = :publishStatus, publishedAt = :publishedAt, updatedAt = :updatedAt',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-          ':publishedAt': publishedAt,
-          ':updatedAt': publishedAt,
-        },
-      }));
+      await docClient.send(
+        new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'test-update-id-2' },
+          UpdateExpression:
+            'SET publishStatus = :publishStatus, publishedAt = :publishedAt, updatedAt = :updatedAt',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+            ':publishedAt': publishedAt,
+            ':updatedAt': publishedAt,
+          },
+        })
+      );
 
       // Assert
-      const result = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'test-update-id-2' },
-      }));
+      const result = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'test-update-id-2' },
+        })
+      );
 
       expect(result.Item?.publishStatus).toBe('published');
       expect(result.Item?.publishedAt).toBe(publishedAt);
@@ -402,32 +459,39 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
         imageUrls: [],
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: originalItem,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: originalItem,
+        })
+      );
 
       // Act
       const newUpdatedAt = new Date().toISOString();
-      await docClient.send(new UpdateCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'test-update-id-3' },
-        UpdateExpression: 'SET title = :title, contentMarkdown = :markdown, contentHTML = :html, category = :category, tags = :tags, updatedAt = :updatedAt',
-        ExpressionAttributeValues: {
-          ':title': 'Updated Title',
-          ':markdown': '# Updated',
-          ':html': '<h1>Updated</h1>',
-          ':category': 'life',
-          ':tags': ['new', 'updated'],
-          ':updatedAt': newUpdatedAt,
-        },
-      }));
+      await docClient.send(
+        new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'test-update-id-3' },
+          UpdateExpression:
+            'SET title = :title, contentMarkdown = :markdown, contentHTML = :html, category = :category, tags = :tags, updatedAt = :updatedAt',
+          ExpressionAttributeValues: {
+            ':title': 'Updated Title',
+            ':markdown': '# Updated',
+            ':html': '<h1>Updated</h1>',
+            ':category': 'life',
+            ':tags': ['new', 'updated'],
+            ':updatedAt': newUpdatedAt,
+          },
+        })
+      );
 
       // Assert
-      const result = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'test-update-id-3' },
-      }));
+      const result = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'test-update-id-3' },
+        })
+      );
 
       expect(result.Item?.title).toBe('Updated Title');
       expect(result.Item?.contentMarkdown).toBe('# Updated');
@@ -437,20 +501,24 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
 
     it('should handle update on non-existent item (creates new item)', async () => {
       // Act
-      await docClient.send(new UpdateCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'non-existent-update-id' },
-        UpdateExpression: 'SET title = :title',
-        ExpressionAttributeValues: {
-          ':title': 'Created by Update',
-        },
-      }));
+      await docClient.send(
+        new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'non-existent-update-id' },
+          UpdateExpression: 'SET title = :title',
+          ExpressionAttributeValues: {
+            ':title': 'Created by Update',
+          },
+        })
+      );
 
       // Assert
-      const result = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'non-existent-update-id' },
-      }));
+      const result = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'non-existent-update-id' },
+        })
+      );
 
       expect(result.Item).toBeDefined();
       expect(result.Item?.title).toBe('Created by Update');
@@ -474,80 +542,98 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
         imageUrls: [],
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: postItem,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: postItem,
+        })
+      );
 
       // Act
-      await docClient.send(new DeleteCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'test-delete-id-1' },
-      }));
+      await docClient.send(
+        new DeleteCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'test-delete-id-1' },
+        })
+      );
 
       // Assert
-      const result = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'test-delete-id-1' },
-      }));
+      const result = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'test-delete-id-1' },
+        })
+      );
 
       expect(result.Item).toBeUndefined();
     });
 
     it('should handle delete on non-existent item (no error)', async () => {
       // Act & Assert - DynamoDBは存在しないアイテムの削除時にエラーを投げない
-      await expect(docClient.send(new DeleteCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'non-existent-delete-id' },
-      }))).resolves.not.toThrow();
+      await expect(
+        docClient.send(
+          new DeleteCommand({
+            TableName: TABLE_NAME,
+            Key: { id: 'non-existent-delete-id' },
+          })
+        )
+      ).resolves.not.toThrow();
     });
 
     it('should delete item and verify with scan', async () => {
       // Arrange
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: {
-          id: 'test-delete-id-2',
-          title: 'Post 1',
-          contentMarkdown: '#',
-          contentHTML: '<h1></h1>',
-          category: 'technology',
-          tags: [],
-          publishStatus: 'published',
-          authorId: 'test-author-id',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          imageUrls: [],
-        },
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: {
+            id: 'test-delete-id-2',
+            title: 'Post 1',
+            contentMarkdown: '#',
+            contentHTML: '<h1></h1>',
+            category: 'technology',
+            tags: [],
+            publishStatus: 'published',
+            authorId: 'test-author-id',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            imageUrls: [],
+          },
+        })
+      );
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: {
-          id: 'test-delete-id-3',
-          title: 'Post 2',
-          contentMarkdown: '#',
-          contentHTML: '<h1></h1>',
-          category: 'technology',
-          tags: [],
-          publishStatus: 'published',
-          authorId: 'test-author-id',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          imageUrls: [],
-        },
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: {
+            id: 'test-delete-id-3',
+            title: 'Post 2',
+            contentMarkdown: '#',
+            contentHTML: '<h1></h1>',
+            category: 'technology',
+            tags: [],
+            publishStatus: 'published',
+            authorId: 'test-author-id',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            imageUrls: [],
+          },
+        })
+      );
 
       // Act
-      await docClient.send(new DeleteCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'test-delete-id-2' },
-      }));
+      await docClient.send(
+        new DeleteCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'test-delete-id-2' },
+        })
+      );
 
       // Assert
-      const scanResult = await docClient.send(new ScanCommand({
-        TableName: TABLE_NAME,
-      }));
+      const scanResult = await docClient.send(
+        new ScanCommand({
+          TableName: TABLE_NAME,
+        })
+      );
 
       expect(scanResult.Items).toHaveLength(1);
       expect(scanResult.Items?.[0].id).toBe('test-delete-id-3');
@@ -600,29 +686,35 @@ describe('DynamoDB CRUD Operations - Integration Tests', () => {
       ];
 
       for (const item of items) {
-        await docClient.send(new PutCommand({
-          TableName: TABLE_NAME,
-          Item: item,
-        }));
+        await docClient.send(
+          new PutCommand({
+            TableName: TABLE_NAME,
+            Item: item,
+          })
+        );
       }
 
       // Act
-      const result = await docClient.send(new ScanCommand({
-        TableName: TABLE_NAME,
-      }));
+      const result = await docClient.send(
+        new ScanCommand({
+          TableName: TABLE_NAME,
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(3);
-      expect(result.Items?.map(item => item.id)).toContain('scan-id-1');
-      expect(result.Items?.map(item => item.id)).toContain('scan-id-2');
-      expect(result.Items?.map(item => item.id)).toContain('scan-id-3');
+      expect(result.Items?.map((item) => item.id)).toContain('scan-id-1');
+      expect(result.Items?.map((item) => item.id)).toContain('scan-id-2');
+      expect(result.Items?.map((item) => item.id)).toContain('scan-id-3');
     });
 
     it('should return empty array for empty table', async () => {
       // Act
-      const result = await docClient.send(new ScanCommand({
-        TableName: TABLE_NAME,
-      }));
+      const result = await docClient.send(
+        new ScanCommand({
+          TableName: TABLE_NAME,
+        })
+      );
 
       // Assert
       expect(result.Items).toEqual([]);

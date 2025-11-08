@@ -48,7 +48,10 @@ jest.mock('uuid', () => ({
 }));
 
 // ハンドラーのインポート（全モックの後）
-import { handler, resetDynamoDBClient } from '../../../functions/posts/createPost/handler';
+import {
+  handler,
+  resetDynamoDBClient,
+} from '../../../functions/posts/createPost/handler';
 
 describe('createPost Lambda Handler', () => {
   const mockContext = createMockContext();
@@ -99,7 +102,9 @@ describe('createPost Lambda Handler', () => {
       const body = JSON.parse(result.body);
       expect(body.id).toBeDefined();
       expect(body.title).toBe('Test Post Title');
-      expect(body.contentMarkdown).toBe('# Hello World\n\nThis is **bold** text.');
+      expect(body.contentMarkdown).toBe(
+        '# Hello World\n\nThis is **bold** text.'
+      );
       expect(body.contentHtml).toBeDefined();
       expect(body.category).toBe('Technology');
       expect(body.tags).toEqual(['aws', 'serverless']);

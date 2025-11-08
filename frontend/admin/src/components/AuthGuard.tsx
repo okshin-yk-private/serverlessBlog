@@ -9,7 +9,7 @@ interface AuthGuardProps {
 
 export const AuthGuard: React.FC<AuthGuardProps> = ({
   children,
-  loadingMessage = '読み込み中...'
+  loadingMessage = '読み込み中...',
 }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
 

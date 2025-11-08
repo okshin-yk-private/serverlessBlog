@@ -38,7 +38,11 @@ setupTracerMock();
 setupMetricsMock();
 
 // ハンドラーをインポート（モックの後）
-import { handler, resetDynamoDBClient, resetS3Client } from '../../../functions/posts/deletePost/handler';
+import {
+  handler,
+  resetDynamoDBClient,
+  resetS3Client,
+} from '../../../functions/posts/deletePost/handler';
 
 describe('deletePost Lambda Handler', () => {
   const mockContext = createMockContext();
@@ -338,7 +342,9 @@ describe('deletePost Lambda Handler', () => {
   describe('異常系 - DynamoDBエラー', () => {
     it('DynamoDB GetItemエラーの場合は500エラーを返す', async () => {
       // Arrange
-      mockDynamoDBSend.mockRejectedValueOnce(new Error('DynamoDB GetItem Error'));
+      mockDynamoDBSend.mockRejectedValueOnce(
+        new Error('DynamoDB GetItem Error')
+      );
 
       const event = createMockAPIGatewayEvent({
         pathParameters: {
@@ -378,7 +384,9 @@ describe('deletePost Lambda Handler', () => {
       };
 
       mockDynamoDBSend.mockResolvedValueOnce({ Item: existingPost }); // GetCommand
-      mockDynamoDBSend.mockRejectedValueOnce(new Error('DynamoDB DeleteItem Error')); // DeleteCommand
+      mockDynamoDBSend.mockRejectedValueOnce(
+        new Error('DynamoDB DeleteItem Error')
+      ); // DeleteCommand
 
       const event = createMockAPIGatewayEvent({
         pathParameters: {

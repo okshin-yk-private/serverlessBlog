@@ -60,7 +60,9 @@ describe('Jest Configuration', () => {
     });
 
     test('should collect coverage from Layer utilities', () => {
-      expect(config.collectCoverageFrom).toContain('layers/common/nodejs/**/*.ts');
+      expect(config.collectCoverageFrom).toContain(
+        'layers/common/nodejs/**/*.ts'
+      );
     });
 
     test('should exclude index.ts files from coverage', () => {
@@ -85,7 +87,10 @@ describe('Jest Configuration', () => {
     let config: any;
 
     beforeAll(() => {
-      const configPath = path.join(__dirname, '../../../infrastructure/jest.config.js');
+      const configPath = path.join(
+        __dirname,
+        '../../../infrastructure/jest.config.js'
+      );
       delete require.cache[require.resolve(configPath)];
       config = require(configPath);
     });
@@ -151,7 +156,10 @@ describe('Jest Configuration', () => {
     });
 
     test('infrastructure package.json should have coverage script', () => {
-      const pkgPath = path.join(__dirname, '../../../infrastructure/package.json');
+      const pkgPath = path.join(
+        __dirname,
+        '../../../infrastructure/package.json'
+      );
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
 
       expect(pkg.scripts).toBeDefined();
@@ -173,7 +181,10 @@ describe('Jest Configuration', () => {
     });
 
     test('infrastructure tests should use Istanbul for detailed metrics', () => {
-      const configPath = path.join(__dirname, '../../../infrastructure/jest.config.js');
+      const configPath = path.join(
+        __dirname,
+        '../../../infrastructure/jest.config.js'
+      );
       delete require.cache[require.resolve(configPath)];
       const config = require(configPath);
 

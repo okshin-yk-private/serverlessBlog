@@ -1,7 +1,23 @@
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { signIn, signOut, getCurrentUser, fetchAuthSession } from 'aws-amplify/auth';
-import { getAuthToken, saveAuthToken, removeAuthToken, isTokenExpired } from '../utils/auth';
-import { loginAPI, type APIError } from '../api/auth';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  type ReactNode,
+} from 'react';
+import {
+  signIn,
+  signOut,
+  getCurrentUser,
+  fetchAuthSession,
+} from 'aws-amplify/auth';
+import {
+  getAuthToken,
+  saveAuthToken,
+  removeAuthToken,
+  isTokenExpired,
+} from '../utils/auth';
+import { loginAPI } from '../api/auth';
 
 interface User {
   id: string;

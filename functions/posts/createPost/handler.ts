@@ -1,4 +1,8 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import {
+  APIGatewayProxyEvent,
+  APIGatewayProxyResult,
+  Context,
+} from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { Logger } from '@aws-lambda-powertools/logger';
@@ -7,18 +11,26 @@ import { Metrics, MetricUnit } from '@aws-lambda-powertools/metrics';
 import { v4 as uuidv4 } from 'uuid';
 import { markdownToSafeHtml } from '../../../layers/common/nodejs/utils/markdownUtils';
 import { BlogPost, CreatePostRequest, ErrorResponse } from '../../shared/types';
-import { HTTP_STATUS, CORS_HEADERS, PUBLISH_STATUS } from '../../shared/constants';
+import {
+  HTTP_STATUS,
+  CORS_HEADERS,
+  PUBLISH_STATUS,
+} from '../../shared/constants';
 
 // Lambda Powertools初期化
 const logger = new Logger({ serviceName: 'createPost' });
 const tracer = new Tracer({ serviceName: 'createPost' });
-const metrics = new Metrics({ serviceName: 'createPost', namespace: 'BlogPlatform' });
+const metrics = new Metrics({
+  serviceName: 'createPost',
+  namespace: 'BlogPlatform',
+});
 
 // 環境変数
 const TABLE_NAME = process.env.TABLE_NAME!;
 
 // DynamoDB クライアント（遅延初期化）
-let dynamoDBClient: ReturnType<typeof DynamoDBDocumentClient.from> | null = null;
+let dynamoDBClient: ReturnType<typeof DynamoDBDocumentClient.from> | null =
+  null;
 
 export function getDynamoDBClient() {
   if (!dynamoDBClient) {
@@ -36,9 +48,10 @@ export function getDynamoDBClient() {
 
     const client = new DynamoDBClient(clientConfig);
     // テスト環境以外でTracerを適用
-    const tracedClient = process.env.NODE_ENV === 'test'
-      ? client
-      : tracer.captureAWSv3Client(client);
+    const tracedClient =
+      process.env.NODE_ENV === 'test'
+        ? client
+        : tracer.captureAWSv3Client(client);
     dynamoDBClient = DynamoDBDocumentClient.from(tracedClient);
   }
   return dynamoDBClient;
@@ -71,7 +84,10 @@ function validateRequest(request: CreatePostRequest): string | null {
 /**
  * エラーレスポンスを生成
  */
-function createErrorResponse(statusCode: number, message: string): APIGatewayProxyResult {
+function createErrorResponse(
+  statusCode: number,
+  message: string
+): APIGatewayProxyResult {
   const response: ErrorResponse = { message };
   return {
     statusCode,
@@ -95,7 +111,10 @@ export async function handler(
     // リクエストボディのパース
     if (!event.body) {
       logger.error('Request body is null or undefined');
-      return createErrorResponse(HTTP_STATUS.BAD_REQUEST, 'Request body is required');
+      return createErrorResponse(
+        HTTP_STATUS.BAD_REQUEST,
+        'Request body is required'
+      );
     }
 
     const request: CreatePostRequest = JSON.parse(event.body);
@@ -166,6 +185,9 @@ export async function handler(
     logger.error('Error creating post', { error });
     metrics.addMetric('PostCreationError', MetricUnit.Count, 1);
 
-    return createErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Internal Server Error');
+    return createErrorResponse(
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      'Internal Server Error'
+    );
   }
 }

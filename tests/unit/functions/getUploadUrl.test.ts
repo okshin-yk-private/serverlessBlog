@@ -33,7 +33,9 @@ describe('getUploadUrl Lambda Handler - Unit Tests', () => {
   describe('正常系 - Pre-signed URL生成成功シナリオ', () => {
     it('有効なファイル拡張子（jpg）でPre-signed URLを生成できる', async () => {
       // Arrange
-      mockGetSignedUrl.mockResolvedValueOnce('https://test-bucket.s3.amazonaws.com/images/user-123/123_test.jpg?X-Amz-Signature=xxx');
+      mockGetSignedUrl.mockResolvedValueOnce(
+        'https://test-bucket.s3.amazonaws.com/images/user-123/123_test.jpg?X-Amz-Signature=xxx'
+      );
 
       const event = createMockAPIGatewayEvent({
         body: JSON.stringify({
@@ -72,7 +74,9 @@ describe('getUploadUrl Lambda Handler - Unit Tests', () => {
       ];
 
       for (const testCase of testCases) {
-        mockGetSignedUrl.mockResolvedValueOnce(`https://test-bucket.s3.amazonaws.com/images/user-123/${testCase.fileName}?X-Amz-Signature=xxx`);
+        mockGetSignedUrl.mockResolvedValueOnce(
+          `https://test-bucket.s3.amazonaws.com/images/user-123/${testCase.fileName}?X-Amz-Signature=xxx`
+        );
 
         const event = createMockAPIGatewayEvent({
           body: JSON.stringify(testCase),
@@ -97,7 +101,9 @@ describe('getUploadUrl Lambda Handler - Unit Tests', () => {
 
     it('生成されたURLに正しいパラメータが含まれる（15分有効期限、Content-Type）', async () => {
       // Arrange
-      mockGetSignedUrl.mockResolvedValueOnce('https://test-bucket.s3.amazonaws.com/images/user-123/123_test.jpg?X-Amz-Signature=xxx');
+      mockGetSignedUrl.mockResolvedValueOnce(
+        'https://test-bucket.s3.amazonaws.com/images/user-123/123_test.jpg?X-Amz-Signature=xxx'
+      );
 
       const event = createMockAPIGatewayEvent({
         body: JSON.stringify({
@@ -459,10 +465,14 @@ describe('getUploadUrl Lambda Handler - Unit Tests', () => {
       process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
 
       // クライアントをリセットして再作成させる（handler.tsからインポートが必要）
-      const { resetS3Client } = await import('../../../functions/images/getUploadUrl/handler');
+      const { resetS3Client } = await import(
+        '../../../functions/images/getUploadUrl/handler'
+      );
       resetS3Client();
 
-      mockGetSignedUrl.mockResolvedValueOnce('https://localhost:4566/test-bucket/image.jpg?X-Amz-Signature=xxx');
+      mockGetSignedUrl.mockResolvedValueOnce(
+        'https://localhost:4566/test-bucket/image.jpg?X-Amz-Signature=xxx'
+      );
 
       const event = createMockAPIGatewayEvent({
         body: JSON.stringify({
@@ -514,10 +524,14 @@ describe('getUploadUrl Lambda Handler - Unit Tests', () => {
       delete process.env.AWS_SECRET_ACCESS_KEY;
       process.env.S3_ENDPOINT = 'http://localhost:4566'; // カスタムエンドポイント有効化
 
-      const { resetS3Client } = await import('../../../functions/images/getUploadUrl/handler');
+      const { resetS3Client } = await import(
+        '../../../functions/images/getUploadUrl/handler'
+      );
       resetS3Client();
 
-      mockGetSignedUrl.mockResolvedValueOnce('https://localhost:4566/test-bucket/image.jpg?X-Amz-Signature=xxx');
+      mockGetSignedUrl.mockResolvedValueOnce(
+        'https://localhost:4566/test-bucket/image.jpg?X-Amz-Signature=xxx'
+      );
 
       const event = createMockAPIGatewayEvent({
         body: JSON.stringify({
@@ -563,7 +577,9 @@ describe('getUploadUrl Lambda Handler - Unit Tests', () => {
       const originalCloudFront = process.env.CLOUDFRONT_DOMAIN;
       delete process.env.CLOUDFRONT_DOMAIN; // CloudFrontドメインを削除
 
-      mockGetSignedUrl.mockResolvedValueOnce('https://test-bucket.s3.amazonaws.com/images/user-123/123_test.jpg?X-Amz-Signature=xxx');
+      mockGetSignedUrl.mockResolvedValueOnce(
+        'https://test-bucket.s3.amazonaws.com/images/user-123/123_test.jpg?X-Amz-Signature=xxx'
+      );
 
       const event = createMockAPIGatewayEvent({
         body: JSON.stringify({
@@ -587,7 +603,9 @@ describe('getUploadUrl Lambda Handler - Unit Tests', () => {
       const body = JSON.parse(result.body);
 
       // S3の直接URLが使用されることを確認
-      expect(body.imageUrl).toMatch(/^https:\/\/test-bucket\.s3\.amazonaws\.com\/images\//);
+      expect(body.imageUrl).toMatch(
+        /^https:\/\/test-bucket\.s3\.amazonaws\.com\/images\//
+      );
       expect(body.imageUrl).not.toContain('cloudfront.net');
 
       // クリーンアップ

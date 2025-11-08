@@ -205,8 +205,10 @@ export class AdminPostCreatePage extends BasePage {
    * 特定のフィールドのエラーメッセージを取得
    */
   async getFieldError(fieldName: string): Promise<string> {
-    const errorElement = this.page.locator(`${this.selectors.fieldError}[data-field="${fieldName}"]`);
-    return await errorElement.textContent() || '';
+    const errorElement = this.page.locator(
+      `${this.selectors.fieldError}[data-field="${fieldName}"]`
+    );
+    return (await errorElement.textContent()) || '';
   }
 
   /**
@@ -228,7 +230,7 @@ export class AdminPostCreatePage extends BasePage {
    */
   async getSuccessMessage(): Promise<string> {
     const element = await this.waitForElement(this.selectors.successMessage);
-    return await element.textContent() || '';
+    return (await element.textContent()) || '';
   }
 
   /**
@@ -236,7 +238,7 @@ export class AdminPostCreatePage extends BasePage {
    */
   async getErrorMessage(): Promise<string> {
     const element = await this.waitForElement(this.selectors.errorMessage);
-    return await element.textContent() || '';
+    return (await element.textContent()) || '';
   }
 
   /**

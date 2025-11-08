@@ -1,5 +1,10 @@
 import { APIGatewayProxyEvent, Context } from 'aws-lambda';
-import { DynamoDBClient, CreateTableCommand, DeleteTableCommand, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
+import {
+  DynamoDBClient,
+  CreateTableCommand,
+  DeleteTableCommand,
+  DescribeTableCommand,
+} from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 
 // テスト用のDynamoDBクライアント
@@ -64,7 +69,10 @@ jest.mock('uuid', () => ({
 }));
 
 // ハンドラーをインポート（モックの後）
-import { handler, resetDynamoDBClient } from '../../../functions/posts/createPost/handler';
+import {
+  handler,
+  resetDynamoDBClient,
+} from '../../../functions/posts/createPost/handler';
 
 describe('createPost Lambda Handler - Integration Tests', () => {
   const mockContext = {} as Context;
@@ -72,24 +80,24 @@ describe('createPost Lambda Handler - Integration Tests', () => {
   // テーブル作成
   beforeAll(async () => {
     try {
-      await dynamoDBClient.send(new CreateTableCommand({
-        TableName: TABLE_NAME,
-        KeySchema: [
-          { AttributeName: 'id', KeyType: 'HASH' },
-        ],
-        AttributeDefinitions: [
-          { AttributeName: 'id', AttributeType: 'S' },
-        ],
-        BillingMode: 'PAY_PER_REQUEST',
-      }));
+      await dynamoDBClient.send(
+        new CreateTableCommand({
+          TableName: TABLE_NAME,
+          KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+          AttributeDefinitions: [{ AttributeName: 'id', AttributeType: 'S' }],
+          BillingMode: 'PAY_PER_REQUEST',
+        })
+      );
 
       // テーブルが作成されるまで待機
       let tableReady = false;
       for (let i = 0; i < 10; i++) {
         try {
-          const result = await dynamoDBClient.send(new DescribeTableCommand({
-            TableName: TABLE_NAME,
-          }));
+          const result = await dynamoDBClient.send(
+            new DescribeTableCommand({
+              TableName: TABLE_NAME,
+            })
+          );
           if (result.Table?.TableStatus === 'ACTIVE') {
             tableReady = true;
             break;
@@ -97,7 +105,7 @@ describe('createPost Lambda Handler - Integration Tests', () => {
         } catch (error) {
           // テーブルがまだ作成中
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
       if (!tableReady) {
@@ -114,9 +122,11 @@ describe('createPost Lambda Handler - Integration Tests', () => {
   // テーブル削除
   afterAll(async () => {
     try {
-      await dynamoDBClient.send(new DeleteTableCommand({
-        TableName: TABLE_NAME,
-      }));
+      await dynamoDBClient.send(
+        new DeleteTableCommand({
+          TableName: TABLE_NAME,
+        })
+      );
     } catch (error) {
       // テーブルが存在しない場合は無視
     }
@@ -165,10 +175,12 @@ describe('createPost Lambda Handler - Integration Tests', () => {
       expect(body.updatedAt).toBeDefined();
 
       // DynamoDBに実際に保存されていることを確認
-      const getResult = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: body.id },
-      }));
+      const getResult = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: body.id },
+        })
+      );
 
       expect(getResult.Item).toBeDefined();
       expect(getResult.Item?.title).toBe('テスト記事');
@@ -200,10 +212,12 @@ describe('createPost Lambda Handler - Integration Tests', () => {
       expect(body.tags).toEqual([]);
 
       // DynamoDBに実際に保存されていることを確認
-      const getResult = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: body.id },
-      }));
+      const getResult = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: body.id },
+        })
+      );
 
       expect(getResult.Item).toBeDefined();
       expect(getResult.Item?.tags).toEqual([]);
@@ -235,10 +249,12 @@ describe('createPost Lambda Handler - Integration Tests', () => {
       expect(body.publishStatus).toBe('draft');
 
       // DynamoDBに実際に保存されていることを確認
-      const getResult = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: body.id },
-      }));
+      const getResult = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: body.id },
+        })
+      );
 
       expect(getResult.Item).toBeDefined();
       expect(getResult.Item?.publishStatus).toBe('draft');
@@ -249,7 +265,8 @@ describe('createPost Lambda Handler - Integration Tests', () => {
       const event: Partial<APIGatewayProxyEvent> = {
         body: JSON.stringify({
           title: 'Markdownテスト',
-          contentMarkdown: '# Heading 1\n\n## Heading 2\n\n**Bold** and *italic*',
+          contentMarkdown:
+            '# Heading 1\n\n## Heading 2\n\n**Bold** and *italic*',
           category: 'test',
         }),
         requestContext: {
@@ -273,10 +290,12 @@ describe('createPost Lambda Handler - Integration Tests', () => {
       expect(body.contentHtml).toContain('<em>');
 
       // DynamoDBに実際に保存されていることを確認
-      const getResult = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: body.id },
-      }));
+      const getResult = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: body.id },
+        })
+      );
 
       expect(getResult.Item).toBeDefined();
       expect(getResult.Item?.contentHtml).toContain('<h1');

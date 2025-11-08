@@ -1,6 +1,15 @@
 import { APIGatewayProxyEvent, Context } from 'aws-lambda';
-import { DynamoDBClient, CreateTableCommand, DeleteTableCommand, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  DynamoDBClient,
+  CreateTableCommand,
+  DeleteTableCommand,
+  DescribeTableCommand,
+} from '@aws-sdk/client-dynamodb';
+import {
+  DynamoDBDocumentClient,
+  GetCommand,
+  PutCommand,
+} from '@aws-sdk/lib-dynamodb';
 
 // テスト用のDynamoDBクライアント
 const dynamoDBClient = new DynamoDBClient({
@@ -56,7 +65,10 @@ jest.mock('@aws-lambda-powertools/metrics', () => ({
 }));
 
 // ハンドラーをインポート（モックの後）
-import { handler, resetDynamoDBClient } from '../../../functions/posts/updatePost/handler';
+import {
+  handler,
+  resetDynamoDBClient,
+} from '../../../functions/posts/updatePost/handler';
 
 describe('updatePost Lambda Handler - Integration Tests', () => {
   const mockContext = {} as Context;
@@ -68,9 +80,11 @@ describe('updatePost Lambda Handler - Integration Tests', () => {
       let connectionReady = false;
       for (let i = 0; i < 15; i++) {
         try {
-          await dynamoDBClient.send(new DescribeTableCommand({
-            TableName: 'connection-check',
-          }));
+          await dynamoDBClient.send(
+            new DescribeTableCommand({
+              TableName: 'connection-check',
+            })
+          );
           connectionReady = true;
           break;
         } catch (error: any) {
@@ -81,7 +95,7 @@ describe('updatePost Lambda Handler - Integration Tests', () => {
           }
           // その他のエラーの場合はリトライ
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
       if (!connectionReady) {
@@ -89,33 +103,35 @@ describe('updatePost Lambda Handler - Integration Tests', () => {
       }
 
       // テーブル作成
-      await dynamoDBClient.send(new CreateTableCommand({
-        TableName: TABLE_NAME,
-        KeySchema: [
-          { AttributeName: 'id', KeyType: 'HASH' },
-        ],
-        AttributeDefinitions: [
-          { AttributeName: 'id', AttributeType: 'S' },
-        ],
-        BillingMode: 'PAY_PER_REQUEST',
-      }));
+      await dynamoDBClient.send(
+        new CreateTableCommand({
+          TableName: TABLE_NAME,
+          KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+          AttributeDefinitions: [{ AttributeName: 'id', AttributeType: 'S' }],
+          BillingMode: 'PAY_PER_REQUEST',
+        })
+      );
 
       // テーブルが作成されるまで待機
       let tableReady = false;
       for (let i = 0; i < 30; i++) {
         try {
-          const result = await dynamoDBClient.send(new DescribeTableCommand({
-            TableName: TABLE_NAME,
-          }));
+          const result = await dynamoDBClient.send(
+            new DescribeTableCommand({
+              TableName: TABLE_NAME,
+            })
+          );
           if (result.Table?.TableStatus === 'ACTIVE') {
             tableReady = true;
             break;
           }
         } catch (error: any) {
           // エラーメッセージのみをログ出力（循環参照を避ける）
-          console.warn(`Table not ready yet: ${error?.message || 'Unknown error'}`);
+          console.warn(
+            `Table not ready yet: ${error?.message || 'Unknown error'}`
+          );
         }
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
       if (!tableReady) {
@@ -123,7 +139,9 @@ describe('updatePost Lambda Handler - Integration Tests', () => {
       }
     } catch (error: any) {
       if (error.name !== 'ResourceInUseException') {
-        console.error(`Table creation error: ${error?.message || 'Unknown error'}`);
+        console.error(
+          `Table creation error: ${error?.message || 'Unknown error'}`
+        );
         throw error;
       }
       // テーブルが既に存在する場合は続行
@@ -133,9 +151,11 @@ describe('updatePost Lambda Handler - Integration Tests', () => {
   // テーブル削除
   afterAll(async () => {
     try {
-      await dynamoDBClient.send(new DeleteTableCommand({
-        TableName: TABLE_NAME,
-      }));
+      await dynamoDBClient.send(
+        new DeleteTableCommand({
+          TableName: TABLE_NAME,
+        })
+      );
     } catch (error) {
       // テーブルが存在しない場合は無視
     }
@@ -162,10 +182,12 @@ describe('updatePost Lambda Handler - Integration Tests', () => {
         updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: existingPost,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: existingPost,
+        })
+      );
 
       const event: Partial<APIGatewayProxyEvent> = {
         pathParameters: {
@@ -205,10 +227,12 @@ describe('updatePost Lambda Handler - Integration Tests', () => {
       expect(body.publishedAt).toBeDefined();
 
       // DynamoDBに実際に保存されていることを確認
-      const getResult = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'update-test-1' },
-      }));
+      const getResult = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'update-test-1' },
+        })
+      );
 
       expect(getResult.Item).toBeDefined();
       expect(getResult.Item?.title).toBe('更新された記事');
@@ -230,10 +254,12 @@ describe('updatePost Lambda Handler - Integration Tests', () => {
         updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: existingPost,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: existingPost,
+        })
+      );
 
       const event: Partial<APIGatewayProxyEvent> = {
         pathParameters: {
@@ -262,10 +288,12 @@ describe('updatePost Lambda Handler - Integration Tests', () => {
       expect(body.category).toBe('tech'); // 既存のまま
 
       // DynamoDBに実際に保存されていることを確認
-      const getResult = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'update-test-2' },
-      }));
+      const getResult = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'update-test-2' },
+        })
+      );
 
       expect(getResult.Item).toBeDefined();
       expect(getResult.Item?.title).toBe('新しいタイトルのみ更新');
@@ -287,17 +315,20 @@ describe('updatePost Lambda Handler - Integration Tests', () => {
         updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: existingPost,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: existingPost,
+        })
+      );
 
       const event: Partial<APIGatewayProxyEvent> = {
         pathParameters: {
           id: 'update-test-3',
         },
         body: JSON.stringify({
-          contentMarkdown: '# New Heading\n\n## Subheading\n\n**Bold** and *italic*',
+          contentMarkdown:
+            '# New Heading\n\n## Subheading\n\n**Bold** and *italic*',
         }),
         requestContext: {
           authorizer: {
@@ -337,10 +368,12 @@ describe('updatePost Lambda Handler - Integration Tests', () => {
         updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: existingPost,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: existingPost,
+        })
+      );
 
       const event: Partial<APIGatewayProxyEvent> = {
         pathParameters: {
@@ -382,10 +415,12 @@ describe('updatePost Lambda Handler - Integration Tests', () => {
         updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: existingPost,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: existingPost,
+        })
+      );
 
       const event: Partial<APIGatewayProxyEvent> = {
         pathParameters: {
@@ -427,10 +462,12 @@ describe('updatePost Lambda Handler - Integration Tests', () => {
         updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: existingPost,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: existingPost,
+        })
+      );
 
       const event: Partial<APIGatewayProxyEvent> = {
         pathParameters: {

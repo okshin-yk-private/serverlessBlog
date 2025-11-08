@@ -102,7 +102,10 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
 
       {/* エラーメッセージ */}
       {error && (
-        <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded" data-testid="error-message">
+        <div
+          className="p-3 bg-red-100 border border-red-400 text-red-700 rounded"
+          data-testid="error-message"
+        >
           {error}
         </div>
       )}
@@ -110,7 +113,10 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
       {/* プレビューとアップロードボタン */}
       {previewUrl && (
         <div className="space-y-3">
-          <div className="border border-gray-300 rounded p-2 bg-gray-50" data-testid="image-preview">
+          <div
+            className="border border-gray-300 rounded p-2 bg-gray-50"
+            data-testid="image-preview"
+          >
             <img
               src={previewUrl}
               alt="プレビュー"

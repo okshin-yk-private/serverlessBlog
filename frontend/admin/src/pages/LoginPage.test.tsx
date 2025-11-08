@@ -54,7 +54,9 @@ describe('LoginPage', () => {
     // console.errorをモック（エラーログの抑制）
     vi.spyOn(console, 'error').mockImplementation(() => {});
     // getCurrentUserのデフォルトモック（未認証状態）
-    vi.mocked(amplifyAuth.getCurrentUser).mockRejectedValue(new Error('Not authenticated'));
+    vi.mocked(amplifyAuth.getCurrentUser).mockRejectedValue(
+      new Error('Not authenticated')
+    );
   });
 
   // レンダリングテスト
@@ -62,13 +64,17 @@ describe('LoginPage', () => {
     renderLoginPage();
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /管理画面ログイン/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: /管理画面ログイン/i })
+      ).toBeInTheDocument();
     });
 
     // LoginFormコンポーネントが表示される
     expect(screen.getByLabelText(/メールアドレス/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/パスワード/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /ログイン/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /ログイン/i })
+    ).toBeInTheDocument();
   });
 
   it('ページタイトルが表示される', async () => {
@@ -85,7 +91,9 @@ describe('LoginPage', () => {
     renderLoginPage();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /ログイン/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /ログイン/i })
+      ).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('button', { name: /ログイン/i }));
@@ -101,7 +109,9 @@ describe('LoginPage', () => {
     renderLoginPage();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /ログイン/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /ログイン/i })
+      ).toBeInTheDocument();
     });
 
     await user.type(screen.getByLabelText(/メールアドレス/i), 'invalid-email');
@@ -109,7 +119,9 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: /ログイン/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('有効なメールアドレスを入力してください')).toBeInTheDocument();
+      expect(
+        screen.getByText('有効なメールアドレスを入力してください')
+      ).toBeInTheDocument();
     });
   });
 
@@ -149,10 +161,15 @@ describe('LoginPage', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /ログイン/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /ログイン/i })
+      ).toBeInTheDocument();
     });
 
-    await user.type(screen.getByLabelText(/メールアドレス/i), 'test@example.com');
+    await user.type(
+      screen.getByLabelText(/メールアドレス/i),
+      'test@example.com'
+    );
     await user.type(screen.getByLabelText(/パスワード/i), 'password123');
     await user.click(screen.getByRole('button', { name: /ログイン/i }));
 
@@ -167,21 +184,32 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
 
     // Amplifyのモック設定（認証失敗）
-    vi.mocked(amplifyAuth.signIn).mockRejectedValue(new Error('Invalid credentials'));
+    vi.mocked(amplifyAuth.signIn).mockRejectedValue(
+      new Error('Invalid credentials')
+    );
 
     renderLoginPage();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /ログイン/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /ログイン/i })
+      ).toBeInTheDocument();
     });
 
-    await user.type(screen.getByLabelText(/メールアドレス/i), 'test@example.com');
+    await user.type(
+      screen.getByLabelText(/メールアドレス/i),
+      'test@example.com'
+    );
     await user.type(screen.getByLabelText(/パスワード/i), 'wrong-password');
     await user.click(screen.getByRole('button', { name: /ログイン/i }));
 
     // エラーメッセージが表示される
     await waitFor(() => {
-      expect(screen.getByText('ログインに失敗しました。メールアドレスとパスワードを確認してください。')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'ログインに失敗しました。メールアドレスとパスワードを確認してください。'
+        )
+      ).toBeInTheDocument();
     });
   });
 
@@ -194,16 +222,25 @@ describe('LoginPage', () => {
     renderLoginPage();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /ログイン/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /ログイン/i })
+      ).toBeInTheDocument();
     });
 
-    await user.type(screen.getByLabelText(/メールアドレス/i), 'test@example.com');
+    await user.type(
+      screen.getByLabelText(/メールアドレス/i),
+      'test@example.com'
+    );
     await user.type(screen.getByLabelText(/パスワード/i), 'password123');
     await user.click(screen.getByRole('button', { name: /ログイン/i }));
 
     // エラーメッセージが表示される
     await waitFor(() => {
-      expect(screen.getByText('ログインに失敗しました。メールアドレスとパスワードを確認してください。')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'ログインに失敗しました。メールアドレスとパスワードを確認してください。'
+        )
+      ).toBeInTheDocument();
     });
   });
 
@@ -236,13 +273,18 @@ describe('LoginPage', () => {
     renderLoginPage();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /ログイン/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /ログイン/i })
+      ).toBeInTheDocument();
     });
 
     // 初期状態ではトークンが存在しない
     expect(localStorage.getItem('auth_token')).toBeNull();
 
-    await user.type(screen.getByLabelText(/メールアドレス/i), 'admin@example.com');
+    await user.type(
+      screen.getByLabelText(/メールアドレス/i),
+      'admin@example.com'
+    );
     await user.type(screen.getByLabelText(/パスワード/i), 'securePassword123');
     await user.click(screen.getByRole('button', { name: /ログイン/i }));
 
@@ -257,21 +299,32 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
 
     // 最初は失敗
-    vi.mocked(amplifyAuth.signIn).mockRejectedValueOnce(new Error('Invalid credentials'));
+    vi.mocked(amplifyAuth.signIn).mockRejectedValueOnce(
+      new Error('Invalid credentials')
+    );
 
     renderLoginPage();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /ログイン/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /ログイン/i })
+      ).toBeInTheDocument();
     });
 
     // 1回目のログイン試行（失敗）
-    await user.type(screen.getByLabelText(/メールアドレス/i), 'test@example.com');
+    await user.type(
+      screen.getByLabelText(/メールアドレス/i),
+      'test@example.com'
+    );
     await user.type(screen.getByLabelText(/パスワード/i), 'wrong-password');
     await user.click(screen.getByRole('button', { name: /ログイン/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('ログインに失敗しました。メールアドレスとパスワードを確認してください。')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'ログインに失敗しました。メールアドレスとパスワードを確認してください。'
+        )
+      ).toBeInTheDocument();
     });
 
     // 2回目のログイン試行（成功）
@@ -312,7 +365,11 @@ describe('LoginPage', () => {
 
     // エラーメッセージが消える
     await waitFor(() => {
-      expect(screen.queryByText('ログインに失敗しました。メールアドレスとパスワードを確認してください。')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          'ログインに失敗しました。メールアドレスとパスワードを確認してください。'
+        )
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -321,17 +378,30 @@ describe('LoginPage', () => {
     const { container } = renderLoginPage();
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /管理画面ログイン/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: /管理画面ログイン/i })
+      ).toBeInTheDocument();
     });
 
     // 背景とレイアウトのクラスが適用されている
     const wrapper = container.querySelector('.min-h-screen');
     expect(wrapper).toBeInTheDocument();
-    expect(wrapper).toHaveClass('flex', 'items-center', 'justify-center', 'bg-gray-100');
+    expect(wrapper).toHaveClass(
+      'flex',
+      'items-center',
+      'justify-center',
+      'bg-gray-100'
+    );
 
     const formContainer = container.querySelector('.bg-white');
     expect(formContainer).toBeInTheDocument();
-    expect(formContainer).toHaveClass('p-8', 'rounded-lg', 'shadow-md', 'w-full', 'max-w-md');
+    expect(formContainer).toHaveClass(
+      'p-8',
+      'rounded-lg',
+      'shadow-md',
+      'w-full',
+      'max-w-md'
+    );
   });
 
   // エッジケーステスト
@@ -372,10 +442,15 @@ describe('LoginPage', () => {
     renderLoginPage();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /ログイン/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /ログイン/i })
+      ).toBeInTheDocument();
     });
 
-    await user.type(screen.getByLabelText(/メールアドレス/i), 'test@example.com');
+    await user.type(
+      screen.getByLabelText(/メールアドレス/i),
+      'test@example.com'
+    );
     await user.type(screen.getByLabelText(/パスワード/i), 'password123');
 
     const submitButton = screen.getByRole('button', { name: /ログイン/i });
@@ -408,7 +483,9 @@ describe('LoginPage', () => {
     renderLoginPage();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /ログイン/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /ログイン/i })
+      ).toBeInTheDocument();
     });
 
     await user.type(screen.getByLabelText(/メールアドレス/i), '   ');
@@ -448,10 +525,15 @@ describe('LoginPage', () => {
     renderLoginPage();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /ログイン/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /ログイン/i })
+      ).toBeInTheDocument();
     });
 
-    await user.type(screen.getByLabelText(/メールアドレス/i), 'enter@example.com');
+    await user.type(
+      screen.getByLabelText(/メールアドレス/i),
+      'enter@example.com'
+    );
     await user.type(screen.getByLabelText(/パスワード/i), 'password123{Enter}');
 
     // Enterキーでログインが実行される

@@ -37,7 +37,10 @@ setupMetricsMock();
 process.env.AWS_REGION = 'ap-northeast-1';
 
 // ハンドラーをインポート（モックと環境変数の設定後）
-import { handler, resetCognitoClient } from '../../../functions/auth/logout/handler';
+import {
+  handler,
+  resetCognitoClient,
+} from '../../../functions/auth/logout/handler';
 
 describe('logout Lambda Handler', () => {
   const mockContext = createMockContext();
@@ -160,7 +163,9 @@ describe('logout Lambda Handler', () => {
       // Assert
       expect(result.statusCode).toBe(401);
       const body = JSON.parse(result.body);
-      expect(body.message).toContain('アクセストークンが無効または期限切れです');
+      expect(body.message).toContain(
+        'アクセストークンが無効または期限切れです'
+      );
     });
 
     it('アクセストークンの有効期限が切れている場合は401エラーを返す', async () => {
@@ -182,7 +187,9 @@ describe('logout Lambda Handler', () => {
       // Assert
       expect(result.statusCode).toBe(401);
       const body = JSON.parse(result.body);
-      expect(body.message).toContain('アクセストークンが無効または期限切れです');
+      expect(body.message).toContain(
+        'アクセストークンが無効または期限切れです'
+      );
     });
   });
 
@@ -294,7 +301,8 @@ describe('logout Lambda Handler', () => {
       delete process.env.COGNITO_ENDPOINT;
       if (originalRegion) process.env.AWS_REGION = originalRegion;
       if (originalAccessKey) process.env.AWS_ACCESS_KEY_ID = originalAccessKey;
-      if (originalSecretKey) process.env.AWS_SECRET_ACCESS_KEY = originalSecretKey;
+      if (originalSecretKey)
+        process.env.AWS_SECRET_ACCESS_KEY = originalSecretKey;
       resetCognitoClient();
     });
   });

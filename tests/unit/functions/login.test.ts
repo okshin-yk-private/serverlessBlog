@@ -46,7 +46,10 @@ process.env.USER_POOL_CLIENT_ID = 'test-client-id';
 process.env.AWS_REGION = 'ap-northeast-1';
 
 // ハンドラーをインポート（モックと環境変数の設定後）
-import { handler, resetCognitoClient } from '../../../functions/auth/login/handler';
+import {
+  handler,
+  resetCognitoClient,
+} from '../../../functions/auth/login/handler';
 
 describe('login Lambda Handler', () => {
   const mockContext = createMockContext();
@@ -244,7 +247,9 @@ describe('login Lambda Handler', () => {
       // Assert
       expect(result.statusCode).toBe(401);
       const body = JSON.parse(result.body);
-      expect(body.message).toContain('メールアドレスまたはパスワードが正しくありません');
+      expect(body.message).toContain(
+        'メールアドレスまたはパスワードが正しくありません'
+      );
     });
 
     it('ユーザーが存在しない場合は401エラーを返す（UserNotFoundException）', async () => {
@@ -267,7 +272,9 @@ describe('login Lambda Handler', () => {
       // Assert
       expect(result.statusCode).toBe(401);
       const body = JSON.parse(result.body);
-      expect(body.message).toContain('メールアドレスまたはパスワードが正しくありません');
+      expect(body.message).toContain(
+        'メールアドレスまたはパスワードが正しくありません'
+      );
     });
 
     it('ユーザーが確認されていない場合は401エラーを返す（UserNotConfirmedException）', async () => {
@@ -446,7 +453,8 @@ describe('login Lambda Handler', () => {
       delete process.env.COGNITO_ENDPOINT;
       if (originalRegion) process.env.AWS_REGION = originalRegion;
       if (originalAccessKey) process.env.AWS_ACCESS_KEY_ID = originalAccessKey;
-      if (originalSecretKey) process.env.AWS_SECRET_ACCESS_KEY = originalSecretKey;
+      if (originalSecretKey)
+        process.env.AWS_SECRET_ACCESS_KEY = originalSecretKey;
       resetCognitoClient();
     });
 

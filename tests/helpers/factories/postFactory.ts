@@ -58,7 +58,8 @@ export function createMockPost(overrides: Partial<MockPost> = {}): MockPost {
     id: generateDefaultId(),
     title: 'Test Blog Post',
     contentMarkdown: '# Test Heading\n\nThis is a **test** blog post content.',
-    contentHtml: '<h1>Test Heading</h1>\n<p>This is a <strong>test</strong> blog post content.</p>',
+    contentHtml:
+      '<h1>Test Heading</h1>\n<p>This is a <strong>test</strong> blog post content.</p>',
     category: 'Technology',
     tags: ['test', 'blog'],
     publishStatus,
@@ -73,9 +74,10 @@ export function createMockPost(overrides: Partial<MockPost> = {}): MockPost {
     ...defaultPost,
     ...overrides,
     // publishStatusが変更された場合、publishedAtを適切に設定
-    publishedAt: overrides.publishStatus === 'published' && !overrides.publishedAt
-      ? now
-      : overrides.publishedAt || defaultPost.publishedAt,
+    publishedAt:
+      overrides.publishStatus === 'published' && !overrides.publishedAt
+        ? now
+        : overrides.publishedAt || defaultPost.publishedAt,
   };
 }
 
@@ -90,7 +92,9 @@ export function createMockPost(overrides: Partial<MockPost> = {}): MockPost {
  * const postData = createMockPostData();
  * const postData = createMockPostData({ title: 'My Post' });
  */
-export function createMockPostData(overrides: Partial<MockPostData> = {}): MockPostData {
+export function createMockPostData(
+  overrides: Partial<MockPostData> = {}
+): MockPostData {
   const defaultData: MockPostData = {
     title: 'Test Blog Post',
     contentMarkdown: '# Test Heading\n\nThis is a **test** blog post content.',

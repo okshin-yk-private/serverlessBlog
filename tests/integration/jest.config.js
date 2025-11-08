@@ -14,13 +14,16 @@ module.exports = {
     '^/opt/nodejs/(.*)$': '<rootDir>/../../layers/common/nodejs/$1',
   },
   transform: {
-    '^.+\\.ts$': ['ts-jest', {
-      isolatedModules: false,
-      tsconfig: {
-        esModuleInterop: true,
-        allowSyntheticDefaultImports: true,
+    '^.+\\.ts$': [
+      'ts-jest',
+      {
+        isolatedModules: false,
+        tsconfig: {
+          esModuleInterop: true,
+          allowSyntheticDefaultImports: true,
+        },
       },
-    }],
+    ],
   },
   transformIgnorePatterns: [
     'node_modules/(?!(isomorphic-dompurify|dompurify)/)',

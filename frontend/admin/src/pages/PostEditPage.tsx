@@ -63,7 +63,9 @@ const PostEditPage = () => {
 
   const handleImageUpload = (imageUrl: string) => {
     navigator.clipboard.writeText(`![image](${imageUrl})`);
-    alert(`画像がアップロードされました。Markdown形式でクリップボードにコピーされました:\n![image](${imageUrl})`);
+    alert(
+      `画像がアップロードされました。Markdown形式でクリップボードにコピーされました:\n![image](${imageUrl})`
+    );
   };
 
   if (loading) {
@@ -98,7 +100,9 @@ const PostEditPage = () => {
         )}
 
         <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">画像アップロード</h2>
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">
+            画像アップロード
+          </h2>
           <ImageUploader
             onUploadComplete={handleImageUpload}
             uploadFunction={uploadImage}

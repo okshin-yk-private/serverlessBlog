@@ -116,7 +116,7 @@ describe('PostListPage', () => {
       // Arrange
       const axios = await import('axios');
       vi.mocked(axios.default.get).mockImplementation(
-        () => new Promise(() => {}), // 永遠に解決しないPromise
+        () => new Promise(() => {}) // 永遠に解決しないPromise
       );
 
       // Act
@@ -130,7 +130,7 @@ describe('PostListPage', () => {
       // Arrange
       const axios = await import('axios');
       vi.mocked(axios.default.get).mockRejectedValueOnce(
-        new Error('Network Error'),
+        new Error('Network Error')
       );
 
       // Act
@@ -162,7 +162,7 @@ describe('PostListPage', () => {
         // カテゴリは記事カード内のspan要素で確認
         const categorySpans = screen.getAllByText(/technology/i);
         const categoryInCard = categorySpans.find(
-          (el) => el.className === 'category',
+          (el) => el.className === 'category'
         );
         expect(categoryInCard).toBeInTheDocument();
 
@@ -258,7 +258,7 @@ describe('PostListPage', () => {
           params: expect.objectContaining({
             nextToken: 'token-123',
           }),
-        }),
+        })
       );
     });
 
@@ -402,7 +402,7 @@ describe('PostListPage', () => {
           params: expect.objectContaining({
             category: 'technology',
           }),
-        }),
+        })
       );
     });
 
@@ -436,7 +436,7 @@ describe('PostListPage', () => {
             params: expect.not.objectContaining({
               category: expect.anything(),
             }),
-          }),
+          })
         );
       });
     });
@@ -510,7 +510,7 @@ describe('PostListPage', () => {
           params: expect.objectContaining({
             tags: 'react',
           }),
-        }),
+        })
       );
     });
 
@@ -569,7 +569,7 @@ describe('PostListPage', () => {
       vi.mocked(axios.default.get).mockResolvedValueOnce({
         data: {
           items: mockPosts.filter(
-            (p) => p.category === 'technology' && p.tags.includes('react'),
+            (p) => p.category === 'technology' && p.tags.includes('react')
           ),
           count: 1,
         } as PostListResponse,
@@ -594,7 +594,7 @@ describe('PostListPage', () => {
               category: 'technology',
               tags: 'react',
             }),
-          }),
+          })
         );
       });
     });

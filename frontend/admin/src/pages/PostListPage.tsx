@@ -25,7 +25,11 @@ const PostListPage = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await getPosts({ publishStatus, nextToken: token, limit: 100 });
+      const response = await getPosts({
+        publishStatus,
+        nextToken: token,
+        limit: 100,
+      });
       setPosts(response.posts);
       setTotal(response.total);
       setNextToken(response.nextToken);
@@ -86,7 +90,8 @@ const PostListPage = () => {
     try {
       setError(null);
       setSuccessMessage(null);
-      const newStatus: 'draft' | 'published' = post.publishStatus === 'published' ? 'draft' : 'published';
+      const newStatus: 'draft' | 'published' =
+        post.publishStatus === 'published' ? 'draft' : 'published';
 
       await updatePost(post.id, {
         title: post.title,
@@ -95,7 +100,9 @@ const PostListPage = () => {
         publishStatus: newStatus,
       });
 
-      setSuccessMessage(`記事を${newStatus === 'published' ? '公開' : '下書きに変更'}しました`);
+      setSuccessMessage(
+        `記事を${newStatus === 'published' ? '公開' : '下書きに変更'}しました`
+      );
       await loadPosts(activeTab);
     } catch (err) {
       console.error('ステータス更新エラー:', err);
@@ -112,7 +119,7 @@ const PostListPage = () => {
     if (!searchQuery.trim()) {
       return posts;
     }
-    return posts.filter(post =>
+    return posts.filter((post) =>
       post.title.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [posts, searchQuery]);
@@ -140,13 +147,19 @@ const PostListPage = () => {
         </div>
 
         {error && (
-          <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded" data-testid="error-message">
+          <div
+            className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded"
+            data-testid="error-message"
+          >
             {error}
           </div>
         )}
 
         {successMessage && (
-          <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded" data-testid="success-message">
+          <div
+            className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded"
+            data-testid="success-message"
+          >
             {successMessage}
           </div>
         )}
@@ -206,19 +219,19 @@ const PostListPage = () => {
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <h3 className="text-xl font-semibold text-gray-900 mb-2" data-testid="admin-article-title">
+                        <h3
+                          className="text-xl font-semibold text-gray-900 mb-2"
+                          data-testid="admin-article-title"
+                        >
                           {post.title}
                         </h3>
                         <div className="flex items-center space-x-4 text-sm text-gray-500">
                           <span data-testid="admin-article-status">
-                            ステータス: {activeTab === 'published' ? '公開済み' : '下書き'}
+                            ステータス:{' '}
+                            {activeTab === 'published' ? '公開済み' : '下書き'}
                           </span>
-                          <span>
-                            カテゴリ: {post.category || '未分類'}
-                          </span>
-                          <span>
-                            作成日: {formatDate(post.createdAt)}
-                          </span>
+                          <span>カテゴリ: {post.category || '未分類'}</span>
+                          <span>作成日: {formatDate(post.createdAt)}</span>
                         </div>
                       </div>
                       <div className="flex space-x-2 ml-4">

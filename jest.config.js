@@ -24,9 +24,12 @@ module.exports = {
   ],
 
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
-      isolatedModules: true,
-    }],
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      {
+        isolatedModules: true,
+      },
+    ],
   },
 
   // カバレッジ収集対象ファイル
@@ -40,10 +43,10 @@ module.exports = {
 
   // カバレッジレポート形式 (HTML, JSON, LCOV, Text)
   coverageReporters: [
-    'html',      // HTMLレポート - ブラウザで詳細確認用
-    'json',      // JSONレポート - CI/CD統合用
-    'lcov',      // LCOVレポート - カバレッジバッジ・外部ツール統合用
-    'text',      // テキストレポート - コンソール出力用
+    'html', // HTMLレポート - ブラウザで詳細確認用
+    'json', // JSONレポート - CI/CD統合用
+    'lcov', // LCOVレポート - カバレッジバッジ・外部ツール統合用
+    'text', // テキストレポート - コンソール出力用
   ],
 
   // カバレッジディレクトリ

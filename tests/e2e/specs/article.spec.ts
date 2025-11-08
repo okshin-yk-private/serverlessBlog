@@ -16,7 +16,9 @@ test.describe('Article Detail Page - Minimal E2E', () => {
   // テスト用の記事ID（モックデータのID）
   const testArticleId = 'post-1';
 
-  test('should display article detail with title and content', async ({ articlePage }) => {
+  test('should display article detail with title and content', async ({
+    articlePage,
+  }) => {
     // Act: 記事詳細ページに移動
     await articlePage.navigate(testArticleId);
 

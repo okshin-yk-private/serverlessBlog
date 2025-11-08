@@ -9,7 +9,9 @@ import { APIGatewayProxyEvent } from 'aws-lambda';
  * @param event - API Gateway プロキシイベント
  * @returns ユーザーID（Cognito sub）、取得できない場合はundefined
  */
-export function getUserIdFromEvent(event: APIGatewayProxyEvent): string | undefined {
+export function getUserIdFromEvent(
+  event: APIGatewayProxyEvent
+): string | undefined {
   // requestContextが存在しない場合
   if (!event.requestContext) {
     return undefined;

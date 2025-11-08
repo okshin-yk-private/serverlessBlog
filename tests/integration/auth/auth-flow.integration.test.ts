@@ -175,7 +175,9 @@ describe('End-to-End Authentication Flow Integration Tests', () => {
       // Assert
       expect(loginResult.statusCode).toBe(401);
       const loginBody = JSON.parse(loginResult.body);
-      expect(loginBody.message).toBe('メールアドレスまたはパスワードが正しくありません');
+      expect(loginBody.message).toBe(
+        'メールアドレスまたはパスワードが正しくありません'
+      );
     });
 
     test('存在しないユーザーでのログインは失敗する', async () => {
@@ -208,7 +210,9 @@ describe('End-to-End Authentication Flow Integration Tests', () => {
       // Assert
       expect(loginResult.statusCode).toBe(401);
       const loginBody = JSON.parse(loginResult.body);
-      expect(loginBody.message).toBe('メールアドレスまたはパスワードが正しくありません');
+      expect(loginBody.message).toBe(
+        'メールアドレスまたはパスワードが正しくありません'
+      );
     });
   });
 
@@ -317,7 +321,9 @@ describe('End-to-End Authentication Flow Integration Tests', () => {
       // Assert
       expect(refreshResult.statusCode).toBe(401);
       const refreshBody = JSON.parse(refreshResult.body);
-      expect(refreshBody.message).toBe('リフレッシュトークンが無効または期限切れです');
+      expect(refreshBody.message).toBe(
+        'リフレッシュトークンが無効または期限切れです'
+      );
     });
 
     test('リフレッシュトークンが空の場合は400エラーを返す', async () => {
@@ -440,7 +446,9 @@ describe('End-to-End Authentication Flow Integration Tests', () => {
       // Assert
       expect(logoutResult.statusCode).toBe(401);
       const logoutBody = JSON.parse(logoutResult.body);
-      expect(logoutBody.message).toBe('アクセストークンが無効または期限切れです');
+      expect(logoutBody.message).toBe(
+        'アクセストークンが無効または期限切れです'
+      );
     });
 
     test('アクセストークンが空の場合は400エラーを返す', async () => {

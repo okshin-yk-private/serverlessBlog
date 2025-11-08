@@ -1,4 +1,8 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import {
+  APIGatewayProxyEvent,
+  APIGatewayProxyResult,
+  Context,
+} from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { Logger } from '@aws-lambda-powertools/logger';
@@ -36,7 +40,10 @@ export function resetDynamoDBClient(): void {
   dynamoDBClient = null;
 }
 
-function createErrorResponse(statusCode: number, message: string): APIGatewayProxyResult {
+function createErrorResponse(
+  statusCode: number,
+  message: string
+): APIGatewayProxyResult {
   return {
     statusCode,
     headers: {
@@ -66,10 +73,12 @@ export const handler = async (
     const docClient = getDynamoDBClient();
     logger.info('公開記事を取得中', { postId });
 
-    const getResult = await docClient.send(new GetCommand({
-      TableName: TABLE_NAME,
-      Key: { id: postId },
-    }));
+    const getResult = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { id: postId },
+      })
+    );
 
     if (!getResult.Item) {
       logger.warn('記事が見つかりません', { postId });
@@ -85,7 +94,8 @@ export const handler = async (
     }
 
     // contentMarkdownを除外したレスポンスを作成
-    const { contentMarkdown, ...publicPostData } = getResult.Item;
+    const { contentMarkdown: _contentMarkdown, ...publicPostData } =
+      getResult.Item;
 
     logger.info('公開記事の取得が完了しました', { postId });
     metrics.addMetric('GetPublicPostSuccess', MetricUnit.Count, 1);

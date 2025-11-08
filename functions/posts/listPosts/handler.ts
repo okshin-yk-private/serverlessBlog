@@ -15,7 +15,11 @@
  * - GSI（PublishStatusIndex、CategoryIndex）を活用
  */
 
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import {
+  APIGatewayProxyEvent,
+  APIGatewayProxyResult,
+  Context,
+} from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { Logger } from '@aws-lambda-powertools/logger';
@@ -56,7 +60,10 @@ export function resetDynamoDBClient(): void {
   dynamoDBClient = null;
 }
 
-function createErrorResponse(statusCode: number, message: string): APIGatewayProxyResult {
+function createErrorResponse(
+  statusCode: number,
+  message: string
+): APIGatewayProxyResult {
   return {
     statusCode,
     headers: {
@@ -119,7 +126,11 @@ export const handler = async (
       }
     }
 
-    logger.info('公開記事一覧を取得中', { limit, hasNextToken: !!nextToken, category });
+    logger.info('公開記事一覧を取得中', {
+      limit,
+      hasNextToken: !!nextToken,
+      category,
+    });
 
     // DynamoDB Queryパラメータ
     const queryCommandInput: any = {
@@ -137,11 +148,13 @@ export const handler = async (
       };
       // 公開記事のみを取得するためのFilterExpression
       queryCommandInput.FilterExpression = 'publishStatus = :publishStatus';
-      queryCommandInput.ExpressionAttributeValues[':publishStatus'] = 'published';
+      queryCommandInput.ExpressionAttributeValues[':publishStatus'] =
+        'published';
     } else {
       // カテゴリフィルタがない場合はPublishStatusIndexを使用
       queryCommandInput.IndexName = 'PublishStatusIndex';
-      queryCommandInput.KeyConditionExpression = 'publishStatus = :publishStatus';
+      queryCommandInput.KeyConditionExpression =
+        'publishStatus = :publishStatus';
       queryCommandInput.ExpressionAttributeValues = {
         ':publishStatus': 'published',
       };
@@ -166,7 +179,7 @@ export const handler = async (
     // レスポンスの作成
     const items = (result.Items || []).map((item) => {
       // contentMarkdownを除外
-      const { contentMarkdown, ...publicItem } = item;
+      const { contentMarkdown: _contentMarkdown, ...publicItem } = item;
       return publicItem;
     });
 

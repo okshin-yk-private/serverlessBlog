@@ -13,7 +13,9 @@ import { test, expect } from '../fixtures';
  */
 
 test.describe('Admin Unauthorized Access - Minimal E2E', () => {
-  test('should redirect to login when accessing admin pages without auth', async ({ page }) => {
+  test('should redirect to login when accessing admin pages without auth', async ({
+    page,
+  }) => {
     // Arrange: ストレージをクリアして未認証状態にする
     // まずホームページに移動してからストレージをクリア
     await page.goto('/');

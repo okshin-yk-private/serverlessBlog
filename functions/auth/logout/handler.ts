@@ -2,7 +2,11 @@
  * logout Lambda Handler
  * Requirement R14: セッション管理機能 - ログアウトとセッション無効化
  */
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import {
+  APIGatewayProxyEvent,
+  APIGatewayProxyResult,
+  Context,
+} from 'aws-lambda';
 import {
   CognitoIdentityProviderClient,
   GlobalSignOutCommand,
@@ -30,7 +34,9 @@ export function getCognitoClient(): CognitoIdentityProviderClient {
       };
     }
 
-    cognitoClient = tracer.captureAWSv3Client(new CognitoIdentityProviderClient(clientConfig));
+    cognitoClient = tracer.captureAWSv3Client(
+      new CognitoIdentityProviderClient(clientConfig)
+    );
   }
   return cognitoClient;
 }
@@ -39,7 +45,10 @@ export function resetCognitoClient(): void {
   cognitoClient = null;
 }
 
-function createErrorResponse(statusCode: number, message: string): APIGatewayProxyResult {
+function createErrorResponse(
+  statusCode: number,
+  message: string
+): APIGatewayProxyResult {
   return {
     statusCode,
     headers: {
@@ -85,9 +94,11 @@ export const handler = async (
     const client = getCognitoClient();
     logger.info('グローバルサインアウトを開始');
 
-    await client.send(new GlobalSignOutCommand({
-      AccessToken: accessToken,
-    }));
+    await client.send(
+      new GlobalSignOutCommand({
+        AccessToken: accessToken,
+      })
+    );
 
     logger.info('ログアウトに成功しました');
     metrics.addMetric('LogoutSuccess', MetricUnit.Count, 1);
@@ -108,7 +119,10 @@ export const handler = async (
     // Cognito-specific error handling
     if (error.name === 'NotAuthorizedException') {
       metrics.addMetric('LogoutUnauthorized', MetricUnit.Count, 1);
-      return createErrorResponse(401, 'アクセストークンが無効または期限切れです');
+      return createErrorResponse(
+        401,
+        'アクセストークンが無効または期限切れです'
+      );
     }
 
     metrics.addMetric('LogoutError', MetricUnit.Count, 1);

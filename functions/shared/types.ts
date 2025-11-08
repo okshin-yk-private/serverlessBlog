@@ -47,7 +47,7 @@ export interface UpdatePostRequest {
 /**
  * APIレスポンス
  */
-export interface ApiResponse<T = unknown> {
+export interface ApiResponse<_T = unknown> {
   statusCode: number;
   body: string;
   headers?: Record<string, string>;

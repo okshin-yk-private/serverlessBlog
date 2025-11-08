@@ -31,7 +31,10 @@ jest.mock('@aws-lambda-powertools/metrics', () => ({
 }));
 
 // ハンドラーをインポート（モックの後）
-import { handler, resetS3Client } from '../../../functions/images/getUploadUrl/handler';
+import {
+  handler,
+  resetS3Client,
+} from '../../../functions/images/getUploadUrl/handler';
 
 describe('getUploadUrl Lambda Handler - Integration Tests', () => {
   const mockContext = {} as Context;
