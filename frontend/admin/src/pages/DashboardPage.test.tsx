@@ -28,7 +28,9 @@ describe('DashboardPage', () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /ダッシュボード/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole('heading', { name: /ダッシュボード/i })
+        ).toBeInTheDocument();
       });
     });
 
@@ -279,14 +281,20 @@ describe('DashboardPage', () => {
 
       // DashboardPageは認証が必要なページなので、App.tsxでAuthGuardでラップされる
       // ここではページがレンダリングされることを確認
-      expect(container.querySelector('[data-testid="dashboard"]') || container.firstChild).toBeTruthy();
+      expect(
+        container.querySelector('[data-testid="dashboard"]') ||
+          container.firstChild
+      ).toBeTruthy();
     });
   });
 
   describe('ローディング状態', () => {
     it('データ読み込み中にローディング表示をする', () => {
       mockGetPosts.mockImplementation(
-        () => new Promise((resolve) => setTimeout(() => resolve({ posts: [], total: 0 }), 1000))
+        () =>
+          new Promise((resolve) =>
+            setTimeout(() => resolve({ posts: [], total: 0 }), 1000)
+          )
       );
 
       renderDashboard();
@@ -312,7 +320,9 @@ describe('DashboardPage', () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /再試行/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole('button', { name: /再試行/i })
+        ).toBeInTheDocument();
       });
     });
   });
@@ -324,9 +334,10 @@ describe('DashboardPage', () => {
 
       await waitFor(() => {
         // Tailwind CSSのレスポンシブクラス（sm:, md:, lg:など）が使用されていることを確認
-        const hasResponsiveClasses = container.innerHTML.includes('sm:') ||
-                                     container.innerHTML.includes('md:') ||
-                                     container.innerHTML.includes('lg:');
+        const hasResponsiveClasses =
+          container.innerHTML.includes('sm:') ||
+          container.innerHTML.includes('md:') ||
+          container.innerHTML.includes('lg:');
         expect(hasResponsiveClasses).toBe(true);
       });
     });
@@ -341,8 +352,8 @@ describe('DashboardPage', () => {
         contentHtml: '<p>Content</p>',
         category: 'tech',
         publishStatus: 'published' as const,
-        createdAt: `2024-01-${String(i % 28 + 1).padStart(2, '0')}T00:00:00Z`,
-        updatedAt: `2024-01-${String(i % 28 + 1).padStart(2, '0')}T00:00:00Z`,
+        createdAt: `2024-01-${String((i % 28) + 1).padStart(2, '0')}T00:00:00Z`,
+        updatedAt: `2024-01-${String((i % 28) + 1).padStart(2, '0')}T00:00:00Z`,
       }));
 
       mockGetPosts.mockResolvedValueOnce({ posts: manyPosts, total: 100 });

@@ -65,7 +65,9 @@ export class ArticleEditorPage extends BasePage {
    * カテゴリを選択
    */
   async selectCategory(category: string): Promise<void> {
-    await this.page.locator(this.selectors.categorySelect).selectOption(category);
+    await this.page
+      .locator(this.selectors.categorySelect)
+      .selectOption(category);
   }
 
   /**
@@ -136,7 +138,11 @@ export class ArticleEditorPage extends BasePage {
   /**
    * 記事を作成（タイトル、内容、カテゴリを入力して公開）
    */
-  async createArticle(title: string, content: string, category: string): Promise<void> {
+  async createArticle(
+    title: string,
+    content: string,
+    category: string
+  ): Promise<void> {
     await this.enterTitle(title);
     await this.enterContent(content);
     await this.selectCategory(category);
@@ -162,7 +168,11 @@ export class ArticleEditorPage extends BasePage {
   /**
    * 下書きとして保存
    */
-  async saveDraft(title: string, content: string, category: string): Promise<void> {
+  async saveDraft(
+    title: string,
+    content: string,
+    category: string
+  ): Promise<void> {
     await this.enterTitle(title);
     await this.enterContent(content);
     await this.selectCategory(category);
@@ -180,7 +190,10 @@ export class ArticleEditorPage extends BasePage {
    * 成功メッセージを取得
    */
   async getSuccessMessage(): Promise<string> {
-    return await this.page.locator(this.selectors.successMessage).textContent() || '';
+    return (
+      (await this.page.locator(this.selectors.successMessage).textContent()) ||
+      ''
+    );
   }
 
   /**
@@ -194,7 +207,9 @@ export class ArticleEditorPage extends BasePage {
    * エラーメッセージを取得
    */
   async getErrorMessage(): Promise<string> {
-    return await this.page.locator(this.selectors.errorMessage).textContent() || '';
+    return (
+      (await this.page.locator(this.selectors.errorMessage).textContent()) || ''
+    );
   }
 
   /**

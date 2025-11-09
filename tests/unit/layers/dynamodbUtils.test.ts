@@ -52,7 +52,9 @@ describe('dynamodbUtils', () => {
 
   describe('getItem', () => {
     test('should get item from DynamoDB', async () => {
-      mockSend.mockResolvedValueOnce({ Item: { id: '123', title: 'Test Post' } });
+      mockSend.mockResolvedValueOnce({
+        Item: { id: '123', title: 'Test Post' },
+      });
       const key = { id: '123' };
 
       const result = await getItem(tableName, key);
@@ -73,7 +75,9 @@ describe('dynamodbUtils', () => {
 
   describe('queryItems', () => {
     test('should query items with partition key', async () => {
-      mockSend.mockResolvedValueOnce({ Items: [{ id: '123', category: 'tech' }] });
+      mockSend.mockResolvedValueOnce({
+        Items: [{ id: '123', category: 'tech' }],
+      });
       const keyConditionExpression = 'category = :category';
       const expressionAttributeValues = { ':category': 'tech' };
 

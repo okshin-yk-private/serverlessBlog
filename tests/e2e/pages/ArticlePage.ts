@@ -33,13 +33,16 @@ export class ArticlePage extends BasePage {
    */
   async waitForPageLoad(): Promise<void> {
     await super.waitForPageLoad();
-    
+
     // 記事ページでは og:type が 'article' になるまで待つ
     // これにより、React の useEffect が完了するのを保証
-    await this.page.waitForFunction(() => {
-      const ogType = document.querySelector('meta[property="og:type"]');
-      return ogType && ogType.getAttribute('content') === 'article';
-    }, { timeout: 5000 });
+    await this.page.waitForFunction(
+      () => {
+        const ogType = document.querySelector('meta[property="og:type"]');
+        return ogType && ogType.getAttribute('content') === 'article';
+      },
+      { timeout: 5000 }
+    );
   }
 
   /**
@@ -47,7 +50,10 @@ export class ArticlePage extends BasePage {
    * @param articleId 記事ID
    * @param expectError エラーページが表示されることを期待する場合はtrue（デフォルト: false）
    */
-  async navigate(articleId: string, expectError: boolean = false): Promise<void> {
+  async navigate(
+    articleId: string,
+    expectError: boolean = false
+  ): Promise<void> {
     await this.goto(`/posts/${articleId}`);
     if (!expectError) {
       await this.waitForPageLoad();
@@ -61,35 +67,48 @@ export class ArticlePage extends BasePage {
    * 記事タイトルを取得
    */
   async getTitle(): Promise<string> {
-    return await this.page.locator(this.selectors.articleTitle).textContent() || '';
+    return (
+      (await this.page.locator(this.selectors.articleTitle).textContent()) || ''
+    );
   }
 
   /**
    * 記事内容を取得
    */
   async getContent(): Promise<string> {
-    return await this.page.locator(this.selectors.articleContent).textContent() || '';
+    return (
+      (await this.page.locator(this.selectors.articleContent).textContent()) ||
+      ''
+    );
   }
 
   /**
    * 記事著者を取得
    */
   async getAuthor(): Promise<string> {
-    return await this.page.locator(this.selectors.articleAuthor).textContent() || '';
+    return (
+      (await this.page.locator(this.selectors.articleAuthor).textContent()) ||
+      ''
+    );
   }
 
   /**
    * 記事公開日を取得
    */
   async getDate(): Promise<string> {
-    return await this.page.locator(this.selectors.articleDate).textContent() || '';
+    return (
+      (await this.page.locator(this.selectors.articleDate).textContent()) || ''
+    );
   }
 
   /**
    * 記事カテゴリを取得
    */
   async getCategory(): Promise<string> {
-    return await this.page.locator(this.selectors.articleCategory).textContent() || '';
+    return (
+      (await this.page.locator(this.selectors.articleCategory).textContent()) ||
+      ''
+    );
   }
 
   /**
@@ -104,7 +123,7 @@ export class ArticlePage extends BasePage {
    */
   async getImageUrl(): Promise<string> {
     const image = this.page.locator(this.selectors.articleImage);
-    return await image.getAttribute('src') || '';
+    return (await image.getAttribute('src')) || '';
   }
 
   /**
@@ -133,7 +152,9 @@ export class ArticlePage extends BasePage {
    * 指定されたインデックスの関連記事をクリック
    */
   async clickRelatedArticle(index: number): Promise<void> {
-    const article = this.page.locator(this.selectors.relatedArticleCard).nth(index);
+    const article = this.page
+      .locator(this.selectors.relatedArticleCard)
+      .nth(index);
     await article.click();
     await this.waitForPageLoad();
   }

@@ -1,5 +1,14 @@
-import { DynamoDBClient, CreateTableCommand, DeleteTableCommand, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  DynamoDBClient,
+  CreateTableCommand,
+  DeleteTableCommand,
+  DescribeTableCommand,
+} from '@aws-sdk/client-dynamodb';
+import {
+  DynamoDBDocumentClient,
+  PutCommand,
+  QueryCommand,
+} from '@aws-sdk/lib-dynamodb';
 
 /**
  * DynamoDB GSI Query Patterns Integration Tests
@@ -28,65 +37,72 @@ const docClient = DynamoDBDocumentClient.from(dynamoDBClient);
 const TABLE_NAME = 'test-gsi-queries-table';
 
 describe('DynamoDB GSI Query Patterns - Integration Tests', () => {
-
   // GSI付きテーブルの作成
   beforeAll(async () => {
     try {
-      await dynamoDBClient.send(new CreateTableCommand({
-        TableName: TABLE_NAME,
-        KeySchema: [
-          { AttributeName: 'id', KeyType: 'HASH' },
-        ],
-        AttributeDefinitions: [
-          { AttributeName: 'id', AttributeType: 'S' },
-          { AttributeName: 'category', AttributeType: 'S' },
-          { AttributeName: 'createdAt', AttributeType: 'S' },
-          { AttributeName: 'publishStatus', AttributeType: 'S' },
-        ],
-        GlobalSecondaryIndexes: [
-          {
-            IndexName: 'CategoryIndex',
-            KeySchema: [
-              { AttributeName: 'category', KeyType: 'HASH' },
-              { AttributeName: 'createdAt', KeyType: 'RANGE' },
-            ],
-            Projection: {
-              ProjectionType: 'ALL',
+      await dynamoDBClient.send(
+        new CreateTableCommand({
+          TableName: TABLE_NAME,
+          KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+          AttributeDefinitions: [
+            { AttributeName: 'id', AttributeType: 'S' },
+            { AttributeName: 'category', AttributeType: 'S' },
+            { AttributeName: 'createdAt', AttributeType: 'S' },
+            { AttributeName: 'publishStatus', AttributeType: 'S' },
+          ],
+          GlobalSecondaryIndexes: [
+            {
+              IndexName: 'CategoryIndex',
+              KeySchema: [
+                { AttributeName: 'category', KeyType: 'HASH' },
+                { AttributeName: 'createdAt', KeyType: 'RANGE' },
+              ],
+              Projection: {
+                ProjectionType: 'ALL',
+              },
             },
-          },
-          {
-            IndexName: 'PublishStatusIndex',
-            KeySchema: [
-              { AttributeName: 'publishStatus', KeyType: 'HASH' },
-              { AttributeName: 'createdAt', KeyType: 'RANGE' },
-            ],
-            Projection: {
-              ProjectionType: 'ALL',
+            {
+              IndexName: 'PublishStatusIndex',
+              KeySchema: [
+                { AttributeName: 'publishStatus', KeyType: 'HASH' },
+                { AttributeName: 'createdAt', KeyType: 'RANGE' },
+              ],
+              Projection: {
+                ProjectionType: 'ALL',
+              },
             },
-          },
-        ],
-        BillingMode: 'PAY_PER_REQUEST',
-      }));
+          ],
+          BillingMode: 'PAY_PER_REQUEST',
+        })
+      );
 
       // テーブルとGSIがアクティブになるまで待機
       let tableReady = false;
       for (let i = 0; i < 30; i++) {
         try {
-          const result = await dynamoDBClient.send(new DescribeTableCommand({
-            TableName: TABLE_NAME,
-          }));
+          const result = await dynamoDBClient.send(
+            new DescribeTableCommand({
+              TableName: TABLE_NAME,
+            })
+          );
 
           const tableStatus = result.Table?.TableStatus;
-          const gsiStatuses = result.Table?.GlobalSecondaryIndexes?.map(gsi => gsi.IndexStatus) || [];
+          const gsiStatuses =
+            result.Table?.GlobalSecondaryIndexes?.map(
+              (gsi) => gsi.IndexStatus
+            ) || [];
 
-          if (tableStatus === 'ACTIVE' && gsiStatuses.every(status => status === 'ACTIVE')) {
+          if (
+            tableStatus === 'ACTIVE' &&
+            gsiStatuses.every((status) => status === 'ACTIVE')
+          ) {
             tableReady = true;
             break;
           }
         } catch (error) {
           // テーブルがまだ作成中
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
       if (!tableReady) {
@@ -105,9 +121,11 @@ describe('DynamoDB GSI Query Patterns - Integration Tests', () => {
   // テーブルの削除
   afterAll(async () => {
     try {
-      await dynamoDBClient.send(new DeleteTableCommand({
-        TableName: TABLE_NAME,
-      }));
+      await dynamoDBClient.send(
+        new DeleteTableCommand({
+          TableName: TABLE_NAME,
+        })
+      );
     } catch (error: any) {
       // テーブルが既に削除されている場合は無視
     }
@@ -201,56 +219,68 @@ describe('DynamoDB GSI Query Patterns - Integration Tests', () => {
     ];
 
     for (const post of posts) {
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: post,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: post,
+        })
+      );
     }
   }
 
   describe('CategoryIndex - カテゴリ別記事一覧', () => {
     it('should query posts by technology category', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'CategoryIndex',
-        KeyConditionExpression: 'category = :category',
-        ExpressionAttributeValues: {
-          ':category': 'technology',
-        },
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'CategoryIndex',
+          KeyConditionExpression: 'category = :category',
+          ExpressionAttributeValues: {
+            ':category': 'technology',
+          },
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(3);
-      expect(result.Items?.every(item => item.category === 'technology')).toBe(true);
+      expect(
+        result.Items?.every((item) => item.category === 'technology')
+      ).toBe(true);
     });
 
     it('should query posts by life category', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'CategoryIndex',
-        KeyConditionExpression: 'category = :category',
-        ExpressionAttributeValues: {
-          ':category': 'life',
-        },
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'CategoryIndex',
+          KeyConditionExpression: 'category = :category',
+          ExpressionAttributeValues: {
+            ':category': 'life',
+          },
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(3);
-      expect(result.Items?.every(item => item.category === 'life')).toBe(true);
+      expect(result.Items?.every((item) => item.category === 'life')).toBe(
+        true
+      );
     });
 
     it('should return posts sorted by createdAt ascending (default)', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'CategoryIndex',
-        KeyConditionExpression: 'category = :category',
-        ExpressionAttributeValues: {
-          ':category': 'technology',
-        },
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'CategoryIndex',
+          KeyConditionExpression: 'category = :category',
+          ExpressionAttributeValues: {
+            ':category': 'technology',
+          },
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(3);
@@ -261,15 +291,17 @@ describe('DynamoDB GSI Query Patterns - Integration Tests', () => {
 
     it('should return posts sorted by createdAt descending (ScanIndexForward: false)', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'CategoryIndex',
-        KeyConditionExpression: 'category = :category',
-        ExpressionAttributeValues: {
-          ':category': 'technology',
-        },
-        ScanIndexForward: false, // 降順ソート
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'CategoryIndex',
+          KeyConditionExpression: 'category = :category',
+          ExpressionAttributeValues: {
+            ':category': 'technology',
+          },
+          ScanIndexForward: false, // 降順ソート
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(3);
@@ -280,50 +312,62 @@ describe('DynamoDB GSI Query Patterns - Integration Tests', () => {
 
     it('should filter posts by createdAt range (after specific date)', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'CategoryIndex',
-        KeyConditionExpression: 'category = :category AND createdAt > :createdAt',
-        ExpressionAttributeValues: {
-          ':category': 'technology',
-          ':createdAt': '2025-01-01T10:00:00.000Z',
-        },
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'CategoryIndex',
+          KeyConditionExpression:
+            'category = :category AND createdAt > :createdAt',
+          ExpressionAttributeValues: {
+            ':category': 'technology',
+            ':createdAt': '2025-01-01T10:00:00.000Z',
+          },
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(2);
-      expect(result.Items?.every(item => item.createdAt > '2025-01-01T10:00:00.000Z')).toBe(true);
+      expect(
+        result.Items?.every(
+          (item) => item.createdAt > '2025-01-01T10:00:00.000Z'
+        )
+      ).toBe(true);
     });
 
     it('should filter posts by createdAt range (between dates)', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'CategoryIndex',
-        KeyConditionExpression: 'category = :category AND createdAt BETWEEN :startDate AND :endDate',
-        ExpressionAttributeValues: {
-          ':category': 'technology',
-          ':startDate': '2025-01-01T00:00:00.000Z',
-          ':endDate': '2025-01-02T23:59:59.999Z',
-        },
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'CategoryIndex',
+          KeyConditionExpression:
+            'category = :category AND createdAt BETWEEN :startDate AND :endDate',
+          ExpressionAttributeValues: {
+            ':category': 'technology',
+            ':startDate': '2025-01-01T00:00:00.000Z',
+            ':endDate': '2025-01-02T23:59:59.999Z',
+          },
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(2);
-      expect(result.Items?.map(item => item.id)).toContain('post-1');
-      expect(result.Items?.map(item => item.id)).toContain('post-2');
+      expect(result.Items?.map((item) => item.id)).toContain('post-1');
+      expect(result.Items?.map((item) => item.id)).toContain('post-2');
     });
 
     it('should return empty array for non-existent category', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'CategoryIndex',
-        KeyConditionExpression: 'category = :category',
-        ExpressionAttributeValues: {
-          ':category': 'non-existent-category',
-        },
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'CategoryIndex',
+          KeyConditionExpression: 'category = :category',
+          ExpressionAttributeValues: {
+            ':category': 'non-existent-category',
+          },
+        })
+      );
 
       // Assert
       expect(result.Items).toEqual([]);
@@ -333,47 +377,57 @@ describe('DynamoDB GSI Query Patterns - Integration Tests', () => {
   describe('PublishStatusIndex - 公開/下書き記事一覧', () => {
     it('should query published posts', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(4);
-      expect(result.Items?.every(item => item.publishStatus === 'published')).toBe(true);
+      expect(
+        result.Items?.every((item) => item.publishStatus === 'published')
+      ).toBe(true);
     });
 
     it('should query draft posts', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'draft',
-        },
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'draft',
+          },
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(2);
-      expect(result.Items?.every(item => item.publishStatus === 'draft')).toBe(true);
+      expect(
+        result.Items?.every((item) => item.publishStatus === 'draft')
+      ).toBe(true);
     });
 
     it('should return published posts sorted by createdAt descending', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-        },
-        ScanIndexForward: false, // 降順ソート
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+          },
+          ScanIndexForward: false, // 降順ソート
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(4);
@@ -385,72 +439,91 @@ describe('DynamoDB GSI Query Patterns - Integration Tests', () => {
 
     it('should filter published posts by createdAt range', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus AND createdAt >= :createdAt',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-          ':createdAt': '2025-01-04T00:00:00.000Z',
-        },
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression:
+            'publishStatus = :publishStatus AND createdAt >= :createdAt',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+            ':createdAt': '2025-01-04T00:00:00.000Z',
+          },
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(2);
-      expect(result.Items?.map(item => item.id)).toContain('post-4');
-      expect(result.Items?.map(item => item.id)).toContain('post-5');
+      expect(result.Items?.map((item) => item.id)).toContain('post-4');
+      expect(result.Items?.map((item) => item.id)).toContain('post-5');
     });
   });
 
   describe('Combined Queries - GSI + FilterExpression', () => {
     it('should query technology category with published status filter', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'CategoryIndex',
-        KeyConditionExpression: 'category = :category',
-        FilterExpression: 'publishStatus = :publishStatus',
-        ExpressionAttributeValues: {
-          ':category': 'technology',
-          ':publishStatus': 'published',
-        },
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'CategoryIndex',
+          KeyConditionExpression: 'category = :category',
+          FilterExpression: 'publishStatus = :publishStatus',
+          ExpressionAttributeValues: {
+            ':category': 'technology',
+            ':publishStatus': 'published',
+          },
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(2);
-      expect(result.Items?.every(item => item.category === 'technology' && item.publishStatus === 'published')).toBe(true);
+      expect(
+        result.Items?.every(
+          (item) =>
+            item.category === 'technology' && item.publishStatus === 'published'
+        )
+      ).toBe(true);
     });
 
     it('should query published posts with life category filter', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        FilterExpression: 'category = :category',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-          ':category': 'life',
-        },
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          FilterExpression: 'category = :category',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+            ':category': 'life',
+          },
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(2);
-      expect(result.Items?.every(item => item.publishStatus === 'published' && item.category === 'life')).toBe(true);
+      expect(
+        result.Items?.every(
+          (item) =>
+            item.publishStatus === 'published' && item.category === 'life'
+        )
+      ).toBe(true);
     });
 
     it('should query with tag filter using contains', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'CategoryIndex',
-        KeyConditionExpression: 'category = :category',
-        FilterExpression: 'contains(tags, :tag)',
-        ExpressionAttributeValues: {
-          ':category': 'technology',
-          ':tag': 'draft',
-        },
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'CategoryIndex',
+          KeyConditionExpression: 'category = :category',
+          FilterExpression: 'contains(tags, :tag)',
+          ExpressionAttributeValues: {
+            ':category': 'technology',
+            ':tag': 'draft',
+          },
+        })
+      );
 
       // Assert
       expect(result.Items).toHaveLength(1);
@@ -461,14 +534,16 @@ describe('DynamoDB GSI Query Patterns - Integration Tests', () => {
   describe('Query Optimization - Avoiding Scan', () => {
     it('should use Query instead of Scan for better performance', async () => {
       // Act
-      const queryResult = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'CategoryIndex',
-        KeyConditionExpression: 'category = :category',
-        ExpressionAttributeValues: {
-          ':category': 'technology',
-        },
-      }));
+      const queryResult = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'CategoryIndex',
+          KeyConditionExpression: 'category = :category',
+          ExpressionAttributeValues: {
+            ':category': 'technology',
+          },
+        })
+      );
 
       // Assert
       // QueryはScanよりも効率的であり、パーティションキーで直接検索する
@@ -480,16 +555,18 @@ describe('DynamoDB GSI Query Patterns - Integration Tests', () => {
 
     it('should measure query efficiency with ScannedCount vs Count', async () => {
       // Act
-      const result = await docClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'PublishStatusIndex',
-        KeyConditionExpression: 'publishStatus = :publishStatus',
-        FilterExpression: 'category = :category',
-        ExpressionAttributeValues: {
-          ':publishStatus': 'published',
-          ':category': 'technology',
-        },
-      }));
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: 'PublishStatusIndex',
+          KeyConditionExpression: 'publishStatus = :publishStatus',
+          FilterExpression: 'category = :category',
+          ExpressionAttributeValues: {
+            ':publishStatus': 'published',
+            ':category': 'technology',
+          },
+        })
+      );
 
       // Assert
       // ScannedCountはFilterExpression適用前の件数

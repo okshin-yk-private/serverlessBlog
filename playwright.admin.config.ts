@@ -37,7 +37,7 @@ export default defineConfig({
   reporter: [
     ['html', { outputFolder: 'playwright-report-admin' }],
     ['json', { outputFile: 'test-results/results-admin.json' }],
-    ['list']
+    ['list'],
   ],
 
   // 共通設定

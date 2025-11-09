@@ -90,7 +90,11 @@ const PostDetailPage: React.FC = () => {
         description={generateDescription(post.contentHtml)}
         keywords={post.tags}
         url={`${window.location.origin}/posts/${post.id}`}
-        imageUrl={post.imageUrls && post.imageUrls.length > 0 ? post.imageUrls[0] : undefined}
+        imageUrl={
+          post.imageUrls && post.imageUrls.length > 0
+            ? post.imageUrls[0]
+            : undefined
+        }
         type="article"
         author={post.authorId || 'Admin'}
         publishedDate={post.publishedAt || post.createdAt}
@@ -105,7 +109,9 @@ const PostDetailPage: React.FC = () => {
         <header className="post-header">
           <h1 data-testid="article-title">{post.title}</h1>
           <div className="post-meta" data-testid="article-meta">
-            <span className="category" data-testid="article-category">{post.category}</span>
+            <span className="category" data-testid="article-category">
+              {post.category}
+            </span>
             <span className="date" data-testid="article-date">
               {new Date(post.createdAt).toLocaleDateString('ja-JP')}
             </span>
@@ -128,7 +134,12 @@ const PostDetailPage: React.FC = () => {
         {post.imageUrls && post.imageUrls.length > 0 && (
           <div className="images">
             {post.imageUrls.map((url, index) => (
-              <img key={index} src={url} alt={`Image ${index + 1}`} data-testid="article-image" />
+              <img
+                key={index}
+                src={url}
+                alt={`Image ${index + 1}`}
+                data-testid="article-image"
+              />
             ))}
           </div>
         )}

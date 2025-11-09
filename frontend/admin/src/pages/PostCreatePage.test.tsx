@@ -72,7 +72,10 @@ describe('PostCreatePage', () => {
     );
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テスト記事タイトル');
-    await user.type(screen.getByLabelText(/本文/i), '# テスト本文\n\nこれはテストです。');
+    await user.type(
+      screen.getByLabelText(/本文/i),
+      '# テスト本文\n\nこれはテストです。'
+    );
     await user.selectOptions(screen.getByLabelText(/カテゴリ/i), 'tech');
     await user.selectOptions(screen.getByLabelText(/公開状態/i), 'draft');
 
@@ -161,7 +164,9 @@ describe('PostCreatePage', () => {
       writable: true,
     });
 
-    vi.mocked(postsApi.uploadImage).mockResolvedValue('https://example.com/image.png');
+    vi.mocked(postsApi.uploadImage).mockResolvedValue(
+      'https://example.com/image.png'
+    );
 
     render(
       <BrowserRouter>
@@ -169,7 +174,9 @@ describe('PostCreatePage', () => {
       </BrowserRouter>
     );
 
-    const file = new File(['dummy content'], 'test-image.png', { type: 'image/png' });
+    const file = new File(['dummy content'], 'test-image.png', {
+      type: 'image/png',
+    });
     const input = screen.getByLabelText(/画像を選択/i) as HTMLInputElement;
 
     Object.defineProperty(input, 'files', {
@@ -179,7 +186,9 @@ describe('PostCreatePage', () => {
     input.dispatchEvent(new Event('change', { bubbles: true }));
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /アップロード/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /アップロード/i })
+      ).toBeInTheDocument();
     });
 
     const uploadButton = screen.getByRole('button', { name: /アップロード/i });
@@ -187,7 +196,9 @@ describe('PostCreatePage', () => {
 
     await waitFor(() => {
       expect(postsApi.uploadImage).toHaveBeenCalledWith(file);
-      expect(mockClipboard.writeText).toHaveBeenCalledWith('![image](https://example.com/image.png)');
+      expect(mockClipboard.writeText).toHaveBeenCalledWith(
+        '![image](https://example.com/image.png)'
+      );
       expect(mockAlert).toHaveBeenCalledWith(
         expect.stringContaining('画像がアップロードされました')
       );
@@ -204,7 +215,9 @@ describe('PostCreatePage', () => {
       writable: true,
     });
 
-    vi.mocked(postsApi.uploadImage).mockResolvedValue('https://example.com/image.png');
+    vi.mocked(postsApi.uploadImage).mockResolvedValue(
+      'https://example.com/image.png'
+    );
 
     render(
       <BrowserRouter>
@@ -212,7 +225,9 @@ describe('PostCreatePage', () => {
       </BrowserRouter>
     );
 
-    const file = new File(['dummy content'], 'test-image.png', { type: 'image/png' });
+    const file = new File(['dummy content'], 'test-image.png', {
+      type: 'image/png',
+    });
     const input = screen.getByLabelText(/画像を選択/i) as HTMLInputElement;
 
     Object.defineProperty(input, 'files', {
@@ -222,7 +237,9 @@ describe('PostCreatePage', () => {
     input.dispatchEvent(new Event('change', { bubbles: true }));
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /アップロード/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /アップロード/i })
+      ).toBeInTheDocument();
     });
 
     const uploadButton = screen.getByRole('button', { name: /アップロード/i });
@@ -234,7 +251,9 @@ describe('PostCreatePage', () => {
 
     // エディタに記事内容を入力可能
     await user.type(screen.getByLabelText(/タイトル/i), 'タイトル');
-    expect(screen.getByLabelText<HTMLInputElement>(/タイトル/i).value).toBe('タイトル');
+    expect(screen.getByLabelText<HTMLInputElement>(/タイトル/i).value).toBe(
+      'タイトル'
+    );
   });
 
   // バリデーション
@@ -365,7 +384,9 @@ describe('PostCreatePage', () => {
       </BrowserRouter>
     );
 
-    const statusSelect = screen.getByLabelText(/公開状態/i) as HTMLSelectElement;
+    const statusSelect = screen.getByLabelText(
+      /公開状態/i
+    ) as HTMLSelectElement;
     expect(statusSelect.value).toBe('published');
   });
 

@@ -25,10 +25,18 @@ describe('validateEmail', () => {
   });
 
   it('無効なメールアドレス形式の場合はエラーメッセージを返す', () => {
-    expect(validateEmail('invalid-email')).toBe('有効なメールアドレスを入力してください');
-    expect(validateEmail('test@')).toBe('有効なメールアドレスを入力してください');
-    expect(validateEmail('@example.com')).toBe('有効なメールアドレスを入力してください');
-    expect(validateEmail('test @example.com')).toBe('有効なメールアドレスを入力してください');
+    expect(validateEmail('invalid-email')).toBe(
+      '有効なメールアドレスを入力してください'
+    );
+    expect(validateEmail('test@')).toBe(
+      '有効なメールアドレスを入力してください'
+    );
+    expect(validateEmail('@example.com')).toBe(
+      '有効なメールアドレスを入力してください'
+    );
+    expect(validateEmail('test @example.com')).toBe(
+      '有効なメールアドレスを入力してください'
+    );
   });
 });
 
@@ -48,8 +56,12 @@ describe('validatePassword', () => {
   });
 
   it('8文字未満の場合はエラーメッセージを返す', () => {
-    expect(validatePassword('short')).toBe('パスワードは8文字以上で入力してください');
-    expect(validatePassword('1234567')).toBe('パスワードは8文字以上で入力してください');
+    expect(validatePassword('short')).toBe(
+      'パスワードは8文字以上で入力してください'
+    );
+    expect(validatePassword('1234567')).toBe(
+      'パスワードは8文字以上で入力してください'
+    );
   });
 
   it('8文字ちょうどの場合はnullを返す', () => {
@@ -110,7 +122,11 @@ describe('JWT関連ユーティリティ', () => {
     it('有効なJWTトークンをデコードできる', () => {
       // Base64エンコードされたJWTペイロード（exp: 未来の日時）
       const futureTimestamp = Math.floor(Date.now() / 1000) + 3600; // 1時間後
-      const payload = { sub: 'user-123', email: 'test@example.com', exp: futureTimestamp };
+      const payload = {
+        sub: 'user-123',
+        email: 'test@example.com',
+        exp: futureTimestamp,
+      };
       const encodedPayload = btoa(JSON.stringify(payload));
       const token = `header.${encodedPayload}.signature`;
 

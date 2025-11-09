@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+cdk.out/
+coverage/
+.next/
+playwright-report/
+playwright-report-admin/
+test-results/
+test-results-admin/
+.serena/
+package-lock.json
+*.min.js
+*.md

@@ -49,7 +49,10 @@ test.describe('Admin Authentication - Minimal E2E', () => {
     };
 
     // Act: 無効な認証情報でログイン
-    await adminLoginPage.login(invalidCredentials.email, invalidCredentials.password);
+    await adminLoginPage.login(
+      invalidCredentials.email,
+      invalidCredentials.password
+    );
 
     // Assert: エラーメッセージが表示されることを確認
     const isErrorVisible = await adminLoginPage.isErrorMessageVisible();

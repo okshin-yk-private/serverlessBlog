@@ -96,7 +96,8 @@ export function createMockContext(overrides: Partial<Context> = {}): Context {
     callbackWaitsForEmptyEventLoop: false,
     functionName: 'test-function',
     functionVersion: '$LATEST',
-    invokedFunctionArn: 'arn:aws:lambda:us-east-1:123456789012:function:test-function',
+    invokedFunctionArn:
+      'arn:aws:lambda:us-east-1:123456789012:function:test-function',
     memoryLimitInMB: '256',
     awsRequestId: `test-aws-request-${Date.now()}`,
     logGroupName: '/aws/lambda/test-function',

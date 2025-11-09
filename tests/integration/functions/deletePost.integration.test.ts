@@ -1,6 +1,15 @@
 import { APIGatewayProxyEvent, Context } from 'aws-lambda';
-import { DynamoDBClient, CreateTableCommand, DeleteTableCommand, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  DynamoDBClient,
+  CreateTableCommand,
+  DeleteTableCommand,
+  DescribeTableCommand,
+} from '@aws-sdk/client-dynamodb';
+import {
+  DynamoDBDocumentClient,
+  GetCommand,
+  PutCommand,
+} from '@aws-sdk/lib-dynamodb';
 
 // テスト用のDynamoDBクライアント
 const dynamoDBClient = new DynamoDBClient({
@@ -48,7 +57,10 @@ jest.mock('@aws-lambda-powertools/metrics', () => ({
 }));
 
 // ハンドラーをインポート（モックの後）
-import { handler, resetDynamoDBClient } from '../../../functions/posts/deletePost/handler';
+import {
+  handler,
+  resetDynamoDBClient,
+} from '../../../functions/posts/deletePost/handler';
 
 describe('deletePost Lambda Handler - Integration Tests', () => {
   const mockContext = {} as Context;
@@ -56,24 +68,24 @@ describe('deletePost Lambda Handler - Integration Tests', () => {
   // テーブル作成
   beforeAll(async () => {
     try {
-      await dynamoDBClient.send(new CreateTableCommand({
-        TableName: TABLE_NAME,
-        KeySchema: [
-          { AttributeName: 'id', KeyType: 'HASH' },
-        ],
-        AttributeDefinitions: [
-          { AttributeName: 'id', AttributeType: 'S' },
-        ],
-        BillingMode: 'PAY_PER_REQUEST',
-      }));
+      await dynamoDBClient.send(
+        new CreateTableCommand({
+          TableName: TABLE_NAME,
+          KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+          AttributeDefinitions: [{ AttributeName: 'id', AttributeType: 'S' }],
+          BillingMode: 'PAY_PER_REQUEST',
+        })
+      );
 
       // テーブルが作成されるまで待機
       let tableReady = false;
       for (let i = 0; i < 10; i++) {
         try {
-          const result = await dynamoDBClient.send(new DescribeTableCommand({
-            TableName: TABLE_NAME,
-          }));
+          const result = await dynamoDBClient.send(
+            new DescribeTableCommand({
+              TableName: TABLE_NAME,
+            })
+          );
           if (result.Table?.TableStatus === 'ACTIVE') {
             tableReady = true;
             break;
@@ -81,7 +93,7 @@ describe('deletePost Lambda Handler - Integration Tests', () => {
         } catch (error) {
           // テーブルがまだ作成中
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
       if (!tableReady) {
@@ -98,9 +110,11 @@ describe('deletePost Lambda Handler - Integration Tests', () => {
   // テーブル削除
   afterAll(async () => {
     try {
-      await dynamoDBClient.send(new DeleteTableCommand({
-        TableName: TABLE_NAME,
-      }));
+      await dynamoDBClient.send(
+        new DeleteTableCommand({
+          TableName: TABLE_NAME,
+        })
+      );
     } catch (error) {
       // テーブルが存在しない場合は無視
     }
@@ -127,10 +141,12 @@ describe('deletePost Lambda Handler - Integration Tests', () => {
         updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: existingPost,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: existingPost,
+        })
+      );
 
       const event: Partial<APIGatewayProxyEvent> = {
         pathParameters: {
@@ -153,10 +169,12 @@ describe('deletePost Lambda Handler - Integration Tests', () => {
       expect(result.body).toBe('');
 
       // DynamoDBから実際に削除されていることを確認
-      const getResult = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { id: 'delete-test-1' },
-      }));
+      const getResult = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { id: 'delete-test-1' },
+        })
+      );
 
       expect(getResult.Item).toBeUndefined();
     });
@@ -176,10 +194,12 @@ describe('deletePost Lambda Handler - Integration Tests', () => {
         updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: existingPost,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: existingPost,
+        })
+      );
 
       // 削除
       const deleteEvent: Partial<APIGatewayProxyEvent> = {
@@ -195,7 +215,10 @@ describe('deletePost Lambda Handler - Integration Tests', () => {
         } as any,
       };
 
-      const deleteResult = await handler(deleteEvent as APIGatewayProxyEvent, mockContext);
+      const deleteResult = await handler(
+        deleteEvent as APIGatewayProxyEvent,
+        mockContext
+      );
       expect(deleteResult.statusCode).toBe(204);
 
       // 削除後に再度削除を試みる
@@ -213,7 +236,10 @@ describe('deletePost Lambda Handler - Integration Tests', () => {
       };
 
       // Act
-      const result = await handler(retryEvent as APIGatewayProxyEvent, mockContext);
+      const result = await handler(
+        retryEvent as APIGatewayProxyEvent,
+        mockContext
+      );
 
       // Assert
       expect(result.statusCode).toBe(404);

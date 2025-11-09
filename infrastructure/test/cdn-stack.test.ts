@@ -29,31 +29,45 @@ describe('CdnStack', () => {
     });
 
     // Create CloudFront Distribution
-    const distribution = new cdk.aws_cloudfront.Distribution(cdnStack, 'ImageDistribution', {
-      comment: 'CDN for blog images',
-      defaultBehavior: {
-        origin: cdk.aws_cloudfront_origins.S3BucketOrigin.withOriginAccessControl(testBucket),
-        viewerProtocolPolicy: cdk.aws_cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        allowedMethods: cdk.aws_cloudfront.AllowedMethods.ALLOW_GET_HEAD,
-        cachedMethods: cdk.aws_cloudfront.CachedMethods.CACHE_GET_HEAD,
-        compress: true,
-        cachePolicy: new cdk.aws_cloudfront.CachePolicy(cdnStack, 'ImageCachePolicy', {
-          cachePolicyName: 'BlogImageCachePolicy',
-          comment: 'Cache policy for blog images with 24 hour TTL',
-          defaultTtl: cdk.Duration.hours(24),
-          minTtl: cdk.Duration.hours(1),
-          maxTtl: cdk.Duration.days(365),
-          enableAcceptEncodingGzip: true,
-          enableAcceptEncodingBrotli: true,
-          headerBehavior: cdk.aws_cloudfront.CacheHeaderBehavior.none(),
-          queryStringBehavior: cdk.aws_cloudfront.CacheQueryStringBehavior.none(),
-          cookieBehavior: cdk.aws_cloudfront.CacheCookieBehavior.none(),
-        }),
-      },
-      priceClass: cdk.aws_cloudfront.PriceClass.PRICE_CLASS_100,
-      enableLogging: false,
-      minimumProtocolVersion: cdk.aws_cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
-    });
+    const distribution = new cdk.aws_cloudfront.Distribution(
+      cdnStack,
+      'ImageDistribution',
+      {
+        comment: 'CDN for blog images',
+        defaultBehavior: {
+          origin:
+            cdk.aws_cloudfront_origins.S3BucketOrigin.withOriginAccessControl(
+              testBucket
+            ),
+          viewerProtocolPolicy:
+            cdk.aws_cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cdk.aws_cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+          cachedMethods: cdk.aws_cloudfront.CachedMethods.CACHE_GET_HEAD,
+          compress: true,
+          cachePolicy: new cdk.aws_cloudfront.CachePolicy(
+            cdnStack,
+            'ImageCachePolicy',
+            {
+              cachePolicyName: 'BlogImageCachePolicy',
+              comment: 'Cache policy for blog images with 24 hour TTL',
+              defaultTtl: cdk.Duration.hours(24),
+              minTtl: cdk.Duration.hours(1),
+              maxTtl: cdk.Duration.days(365),
+              enableAcceptEncodingGzip: true,
+              enableAcceptEncodingBrotli: true,
+              headerBehavior: cdk.aws_cloudfront.CacheHeaderBehavior.none(),
+              queryStringBehavior:
+                cdk.aws_cloudfront.CacheQueryStringBehavior.none(),
+              cookieBehavior: cdk.aws_cloudfront.CacheCookieBehavior.none(),
+            }
+          ),
+        },
+        priceClass: cdk.aws_cloudfront.PriceClass.PRICE_CLASS_100,
+        enableLogging: false,
+        minimumProtocolVersion:
+          cdk.aws_cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
+      }
+    );
 
     new cdk.CfnOutput(cdnStack, 'ImageDistributionDomainName', {
       value: distribution.distributionDomainName,

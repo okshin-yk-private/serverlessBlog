@@ -95,10 +95,7 @@ export async function queryItems(
  * @param key - Item key
  * @returns Delete command output
  */
-export async function deleteItem(
-  tableName: string,
-  key: Record<string, any>
-) {
+export async function deleteItem(tableName: string, key: Record<string, any>) {
   if (!tableName || !key) {
     throw new Error('Table name and key are required');
   }

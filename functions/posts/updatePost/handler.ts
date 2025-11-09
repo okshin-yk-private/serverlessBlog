@@ -14,9 +14,17 @@
  * - 指定されたフィールドのみ更新
  */
 
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import {
+  APIGatewayProxyEvent,
+  APIGatewayProxyResult,
+  Context,
+} from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  DynamoDBDocumentClient,
+  GetCommand,
+  PutCommand,
+} from '@aws-sdk/lib-dynamodb';
 import { Logger } from '@aws-lambda-powertools/logger';
 import { Tracer } from '@aws-lambda-powertools/tracer';
 import { Metrics, MetricUnit } from '@aws-lambda-powertools/metrics';
@@ -53,7 +61,10 @@ export function resetDynamoDBClient(): void {
   dynamoDBClient = null;
 }
 
-function createErrorResponse(statusCode: number, message: string): APIGatewayProxyResult {
+function createErrorResponse(
+  statusCode: number,
+  message: string
+): APIGatewayProxyResult {
   return {
     statusCode,
     headers: {
@@ -125,9 +136,7 @@ export const handler = async (
     }
 
     // 認証チェック
-    const isAuthenticated = !!(
-      event.requestContext?.authorizer?.claims?.sub
-    );
+    const isAuthenticated = !!event.requestContext?.authorizer?.claims?.sub;
     if (!isAuthenticated) {
       logger.warn('未認証のリクエストです');
       metrics.addMetric('UpdatePostUnauthorized', MetricUnit.Count, 1);
@@ -138,10 +147,12 @@ export const handler = async (
     const docClient = getDynamoDBClient();
     logger.info('既存の記事を取得中', { postId });
 
-    const getResult = await docClient.send(new GetCommand({
-      TableName: TABLE_NAME,
-      Key: { id: postId },
-    }));
+    const getResult = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { id: postId },
+      })
+    );
 
     if (!getResult.Item) {
       logger.warn('記事が見つかりません', { postId });
@@ -153,7 +164,10 @@ export const handler = async (
 
     // 更新データのバリデーション
     if (updateData.title !== undefined) {
-      if (typeof updateData.title !== 'string' || updateData.title.trim() === '') {
+      if (
+        typeof updateData.title !== 'string' ||
+        updateData.title.trim() === ''
+      ) {
         logger.warn('タイトルが空です');
         metrics.addMetric('UpdatePostValidationError', MetricUnit.Count, 1);
         return createErrorResponse(400, 'タイトルは必須です');
@@ -161,7 +175,10 @@ export const handler = async (
     }
 
     if (updateData.contentMarkdown !== undefined) {
-      if (typeof updateData.contentMarkdown !== 'string' || updateData.contentMarkdown.trim() === '') {
+      if (
+        typeof updateData.contentMarkdown !== 'string' ||
+        updateData.contentMarkdown.trim() === ''
+      ) {
         logger.warn('本文が空です');
         metrics.addMetric('UpdatePostValidationError', MetricUnit.Count, 1);
         return createErrorResponse(400, '本文は必須です');
@@ -170,9 +187,14 @@ export const handler = async (
 
     if (updateData.publishStatus !== undefined) {
       if (!['draft', 'published'].includes(updateData.publishStatus)) {
-        logger.warn('不正なpublishStatusです', { publishStatus: updateData.publishStatus });
+        logger.warn('不正なpublishStatusです', {
+          publishStatus: updateData.publishStatus,
+        });
         metrics.addMetric('UpdatePostValidationError', MetricUnit.Count, 1);
-        return createErrorResponse(400, 'publishStatusは"draft"または"published"である必要があります');
+        return createErrorResponse(
+          400,
+          'publishStatusは"draft"または"published"である必要があります'
+        );
       }
     }
 
@@ -201,10 +223,12 @@ export const handler = async (
     }
 
     // DynamoDBに保存
-    await docClient.send(new PutCommand({
-      TableName: TABLE_NAME,
-      Item: updatedPost,
-    }));
+    await docClient.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: updatedPost,
+      })
+    );
 
     logger.info('記事の更新が完了しました', { postId });
     metrics.addMetric('UpdatePostSuccess', MetricUnit.Count, 1);

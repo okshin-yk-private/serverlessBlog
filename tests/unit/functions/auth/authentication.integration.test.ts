@@ -64,15 +64,22 @@ jest.mock('@aws-lambda-powertools/logger');
 jest.mock('@aws-lambda-powertools/tracer');
 jest.mock('@aws-lambda-powertools/metrics');
 
-import { handler as createPostHandler, resetDynamoDBClient } from '../../../../functions/posts/createPost/handler';
-import { handler as loginHandler, resetCognitoClient } from '../../../../functions/auth/login/handler';
+import {
+  handler as createPostHandler,
+  resetDynamoDBClient,
+} from '../../../../functions/posts/createPost/handler';
+import {
+  handler as loginHandler,
+  resetCognitoClient,
+} from '../../../../functions/auth/login/handler';
 
 // Context オブジェクトのモック
 const mockContext: Context = {
   callbackWaitsForEmptyEventLoop: false,
   functionName: 'test-function',
   functionVersion: '$LATEST',
-  invokedFunctionArn: 'arn:aws:lambda:us-east-1:123456789012:function:test-function',
+  invokedFunctionArn:
+    'arn:aws:lambda:us-east-1:123456789012:function:test-function',
   memoryLimitInMB: '128',
   awsRequestId: 'test-request-id',
   logGroupName: '/aws/lambda/test-function',
@@ -110,14 +117,14 @@ function createPostEvent(options: {
     multiValueQueryStringParameters: null,
     stageVariables: null,
     requestContext: withAuthorizer
-      ? {
+      ? ({
           authorizer: {
             claims: {
               sub: 'test-user-id',
               email: 'test@example.com',
             },
           },
-        } as any
+        } as any)
       : ({} as any),
     resource: '',
   };

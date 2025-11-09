@@ -4,10 +4,7 @@
  * テスト実行後のモックリセットとデータクリーンアップを管理します。
  */
 
-import {
-  resetDynamoDBMocks,
-  resetS3Mocks,
-} from '../mocks/aws-sdk.mock';
+import { resetDynamoDBMocks, resetS3Mocks } from '../mocks/aws-sdk.mock';
 import {
   resetLoggerMock,
   resetTracerMock,

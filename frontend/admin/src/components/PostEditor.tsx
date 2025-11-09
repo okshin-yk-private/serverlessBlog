@@ -1,7 +1,11 @@
 import React, { useState, type FormEvent } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { validatePostTitle, validatePostContent, validateCategory } from '../utils/validation';
+import {
+  validatePostTitle,
+  validatePostContent,
+  validateCategory,
+} from '../utils/validation';
 import { Button } from './Button';
 
 interface PostData {
@@ -31,11 +35,19 @@ const PUBLISH_STATUS = [
   { value: 'published', label: '公開' },
 ];
 
-export const PostEditor: React.FC<PostEditorProps> = ({ onSave, onCancel, initialData }) => {
+export const PostEditor: React.FC<PostEditorProps> = ({
+  onSave,
+  onCancel,
+  initialData,
+}) => {
   const [title, setTitle] = useState(initialData?.title || '');
-  const [contentMarkdown, setContentMarkdown] = useState(initialData?.contentMarkdown || '');
+  const [contentMarkdown, setContentMarkdown] = useState(
+    initialData?.contentMarkdown || ''
+  );
   const [category, setCategory] = useState(initialData?.category || '');
-  const [publishStatus, setPublishStatus] = useState<'draft' | 'published'>(initialData?.publishStatus || 'published');
+  const [publishStatus, setPublishStatus] = useState<'draft' | 'published'>(
+    initialData?.publishStatus || 'published'
+  );
 
   const [titleError, setTitleError] = useState<string | null>(null);
   const [contentError, setContentError] = useState<string | null>(null);
@@ -81,7 +93,10 @@ export const PostEditor: React.FC<PostEditorProps> = ({ onSave, onCancel, initia
         <div className="space-y-4">
           {/* タイトル */}
           <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="title"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               タイトル
             </label>
             <input
@@ -94,13 +109,21 @@ export const PostEditor: React.FC<PostEditorProps> = ({ onSave, onCancel, initia
               disabled={isSaving}
             />
             {titleError && (
-              <p className="mt-1 text-sm text-red-600" data-testid="validation-error">{titleError}</p>
+              <p
+                className="mt-1 text-sm text-red-600"
+                data-testid="validation-error"
+              >
+                {titleError}
+              </p>
             )}
           </div>
 
           {/* 本文 */}
           <div>
-            <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="content"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               本文（Markdown）
             </label>
             <textarea
@@ -113,13 +136,21 @@ export const PostEditor: React.FC<PostEditorProps> = ({ onSave, onCancel, initia
               disabled={isSaving}
             />
             {contentError && (
-              <p className="mt-1 text-sm text-red-600" data-testid="validation-error">{contentError}</p>
+              <p
+                className="mt-1 text-sm text-red-600"
+                data-testid="validation-error"
+              >
+                {contentError}
+              </p>
             )}
           </div>
 
           {/* カテゴリ */}
           <div>
-            <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="category"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               カテゴリ
             </label>
             <select
@@ -137,19 +168,29 @@ export const PostEditor: React.FC<PostEditorProps> = ({ onSave, onCancel, initia
               ))}
             </select>
             {categoryError && (
-              <p className="mt-1 text-sm text-red-600" data-testid="validation-error">{categoryError}</p>
+              <p
+                className="mt-1 text-sm text-red-600"
+                data-testid="validation-error"
+              >
+                {categoryError}
+              </p>
             )}
           </div>
 
           {/* 公開状態 */}
           <div>
-            <label htmlFor="publishStatus" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="publishStatus"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               公開状態
             </label>
             <select
               id="publishStatus"
               value={publishStatus}
-              onChange={(e) => setPublishStatus(e.target.value as 'draft' | 'published')}
+              onChange={(e) =>
+                setPublishStatus(e.target.value as 'draft' | 'published')
+              }
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isSaving}
             >
@@ -167,7 +208,11 @@ export const PostEditor: React.FC<PostEditorProps> = ({ onSave, onCancel, initia
               type="submit"
               variant="primary"
               disabled={isSaving}
-              data-testid={publishStatus === 'published' ? 'publish-button' : 'save-draft-button'}
+              data-testid={
+                publishStatus === 'published'
+                  ? 'publish-button'
+                  : 'save-draft-button'
+              }
             >
               {isSaving ? '保存中...' : '保存'}
             </Button>

@@ -2,7 +2,11 @@
  * refresh Lambda Handler
  * Requirement R14: セッション管理機能 - リフレッシュトークンによるアクセストークン更新
  */
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import {
+  APIGatewayProxyEvent,
+  APIGatewayProxyResult,
+  Context,
+} from 'aws-lambda';
 import {
   CognitoIdentityProviderClient,
   InitiateAuthCommand,
@@ -31,7 +35,9 @@ export function getCognitoClient(): CognitoIdentityProviderClient {
       };
     }
 
-    cognitoClient = tracer.captureAWSv3Client(new CognitoIdentityProviderClient(clientConfig));
+    cognitoClient = tracer.captureAWSv3Client(
+      new CognitoIdentityProviderClient(clientConfig)
+    );
   }
   return cognitoClient;
 }
@@ -40,7 +46,10 @@ export function resetCognitoClient(): void {
   cognitoClient = null;
 }
 
-function createErrorResponse(statusCode: number, message: string): APIGatewayProxyResult {
+function createErrorResponse(
+  statusCode: number,
+  message: string
+): APIGatewayProxyResult {
   return {
     statusCode,
     headers: {
@@ -123,7 +132,10 @@ export const handler = async (
     // Cognito-specific error handling
     if (error.name === 'NotAuthorizedException') {
       metrics.addMetric('RefreshUnauthorized', MetricUnit.Count, 1);
-      return createErrorResponse(401, 'リフレッシュトークンが無効または期限切れです');
+      return createErrorResponse(
+        401,
+        'リフレッシュトークンが無効または期限切れです'
+      );
     }
 
     metrics.addMetric('RefreshError', MetricUnit.Count, 1);

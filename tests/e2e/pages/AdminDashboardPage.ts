@@ -48,7 +48,9 @@ export class AdminDashboardPage extends BasePage {
     const currentUrl = this.page.url();
 
     if (currentUrl.includes('/login')) {
-      throw new Error('Authentication failed: Redirected to /login. Please check VITE_ENABLE_MSW_MOCK environment variable.');
+      throw new Error(
+        'Authentication failed: Redirected to /login. Please check VITE_ENABLE_MSW_MOCK environment variable.'
+      );
     }
 
     // ページのロードを待機
@@ -60,12 +62,16 @@ export class AdminDashboardPage extends BasePage {
     // 再度リダイレクトチェック
     const finalUrl = this.page.url();
     if (finalUrl.includes('/login')) {
-      throw new Error('Authentication failed: Redirected to /login during page load.');
+      throw new Error(
+        'Authentication failed: Redirected to /login during page load.'
+      );
     }
 
     // ページが完全にレンダリングされるまで待機
     // 新規作成ボタンが表示されるまで待つ（記事リストはなくても良い）
-    await this.waitForElement(this.selectors.newArticleButton, { timeout: 30000 });
+    await this.waitForElement(this.selectors.newArticleButton, {
+      timeout: 30000,
+    });
   }
 
   /**
@@ -73,7 +79,9 @@ export class AdminDashboardPage extends BasePage {
    */
   async clickNewArticle(): Promise<void> {
     // ボタンが表示されて、クリック可能になるまで待機
-    await this.waitForElement(this.selectors.newArticleButton, { timeout: 30000 });
+    await this.waitForElement(this.selectors.newArticleButton, {
+      timeout: 30000,
+    });
     await this.click(this.selectors.newArticleButton);
     await this.waitForPageLoad();
   }
@@ -104,7 +112,9 @@ export class AdminDashboardPage extends BasePage {
    */
   async getArticleTitle(index: number): Promise<string> {
     const article = this.getArticleItems().nth(index);
-    return await article.locator(this.selectors.articleTitle).textContent() || '';
+    return (
+      (await article.locator(this.selectors.articleTitle).textContent()) || ''
+    );
   }
 
   /**
@@ -112,7 +122,9 @@ export class AdminDashboardPage extends BasePage {
    */
   async getArticleStatus(index: number): Promise<string> {
     const article = this.getArticleItems().nth(index);
-    return await article.locator(this.selectors.articleStatus).textContent() || '';
+    return (
+      (await article.locator(this.selectors.articleStatus).textContent()) || ''
+    );
   }
 
   /**
@@ -141,7 +153,10 @@ export class AdminDashboardPage extends BasePage {
     const count = await articles.count();
 
     for (let i = 0; i < count; i++) {
-      const articleTitle = await articles.nth(i).locator(this.selectors.articleTitle).textContent();
+      const articleTitle = await articles
+        .nth(i)
+        .locator(this.selectors.articleTitle)
+        .textContent();
       if (articleTitle?.trim() === title.trim()) {
         await articles.nth(i).locator(this.selectors.editButton).click();
         await this.waitForPageLoad();
@@ -227,7 +242,10 @@ export class AdminDashboardPage extends BasePage {
       const count = await articles.count();
 
       for (let i = 0; i < count; i++) {
-        const articleTitle = await articles.nth(i).locator(this.selectors.articleTitle).textContent();
+        const articleTitle = await articles
+          .nth(i)
+          .locator(this.selectors.articleTitle)
+          .textContent();
         if (articleTitle?.trim() === title.trim()) {
           return await articles.nth(i).isVisible();
         }
@@ -288,7 +306,10 @@ export class AdminDashboardPage extends BasePage {
     const count = await articles.count();
 
     for (let i = 0; i < count; i++) {
-      const articleTitle = await articles.nth(i).locator(this.selectors.articleTitle).textContent();
+      const articleTitle = await articles
+        .nth(i)
+        .locator(this.selectors.articleTitle)
+        .textContent();
       if (articleTitle?.trim() === title.trim()) {
         await articles.nth(i).locator(this.selectors.deleteButton).click();
         await this.waitForElement(this.selectors.confirmDialog);
@@ -324,7 +345,7 @@ export class AdminDashboardPage extends BasePage {
     // 記事リストまたは「記事がありません」メッセージが表示されるまで待機
     await Promise.race([
       this.waitForElement(this.selectors.articleList),
-      this.page.waitForSelector('text=記事がありません', { state: 'visible' })
+      this.page.waitForSelector('text=記事がありません', { state: 'visible' }),
     ]);
 
     // 追加の短い待機（Reactの状態更新を確実にするため）
@@ -335,10 +356,13 @@ export class AdminDashboardPage extends BasePage {
   /**
    * 特定の記事が表示されるまで待機
    */
-  async waitForArticleToAppear(title: string, options?: { timeout?: number }): Promise<void> {
+  async waitForArticleToAppear(
+    title: string,
+    options?: { timeout?: number }
+  ): Promise<void> {
     const timeout = options?.timeout ?? 5000;
     const article = this.page.locator(this.selectors.articleItem, {
-      has: this.page.locator(this.selectors.articleTitle, { hasText: title })
+      has: this.page.locator(this.selectors.articleTitle, { hasText: title }),
     });
     await article.waitFor({ state: 'visible', timeout });
   }

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { validatePostTitle, validatePostContent, validateCategory } from './validation';
+import {
+  validatePostTitle,
+  validatePostContent,
+  validateCategory,
+} from './validation';
 
 describe('validatePostTitle', () => {
   it('空文字列の場合はエラーメッセージを返す', () => {
@@ -12,7 +16,9 @@ describe('validatePostTitle', () => {
 
   it('200文字を超える場合はエラーメッセージを返す', () => {
     const longTitle = 'a'.repeat(201);
-    expect(validatePostTitle(longTitle)).toBe('タイトルは200文字以内で入力してください');
+    expect(validatePostTitle(longTitle)).toBe(
+      'タイトルは200文字以内で入力してください'
+    );
   });
 
   it('200文字ちょうどの場合はnullを返す', () => {
@@ -36,7 +42,9 @@ describe('validatePostContent', () => {
 
   it('50000文字を超える場合はエラーメッセージを返す', () => {
     const longContent = 'a'.repeat(50001);
-    expect(validatePostContent(longContent)).toBe('本文は50000文字以内で入力してください');
+    expect(validatePostContent(longContent)).toBe(
+      '本文は50000文字以内で入力してください'
+    );
   });
 
   it('正常な本文の場合はnullを返す', () => {
@@ -50,7 +58,9 @@ describe('validateCategory', () => {
   });
 
   it('無効なカテゴリの場合はエラーメッセージを返す', () => {
-    expect(validateCategory('invalid')).toContain('tech, life, business, other');
+    expect(validateCategory('invalid')).toContain(
+      'tech, life, business, other'
+    );
   });
 
   it('techカテゴリの場合はnullを返す', () => {

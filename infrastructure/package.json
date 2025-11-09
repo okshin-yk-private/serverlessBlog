@@ -8,7 +8,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "cdk": "cdk"
+    "cdk": "cdk",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix"
   },
   "devDependencies": {
     "@types/jest": "^29.5.11",

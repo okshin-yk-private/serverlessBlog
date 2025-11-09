@@ -8,7 +8,11 @@
  * - トークン有効期限を1時間に設定
  */
 
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import {
+  APIGatewayProxyEvent,
+  APIGatewayProxyResult,
+  Context,
+} from 'aws-lambda';
 import {
   CognitoIdentityProviderClient,
   InitiateAuthCommand,
@@ -37,7 +41,9 @@ export function getCognitoClient(): CognitoIdentityProviderClient {
       };
     }
 
-    cognitoClient = tracer.captureAWSv3Client(new CognitoIdentityProviderClient(clientConfig));
+    cognitoClient = tracer.captureAWSv3Client(
+      new CognitoIdentityProviderClient(clientConfig)
+    );
   }
   return cognitoClient;
 }
@@ -46,7 +52,10 @@ export function resetCognitoClient(): void {
   cognitoClient = null;
 }
 
-function createErrorResponse(statusCode: number, message: string): APIGatewayProxyResult {
+function createErrorResponse(
+  statusCode: number,
+  message: string
+): APIGatewayProxyResult {
   return {
     statusCode,
     headers: {
@@ -168,9 +177,15 @@ export const handler = async (
     logger.error('ログイン処理中にエラーが発生しました', { error });
 
     // Cognito特有のエラーハンドリング
-    if (error.name === 'NotAuthorizedException' || error.name === 'UserNotFoundException') {
+    if (
+      error.name === 'NotAuthorizedException' ||
+      error.name === 'UserNotFoundException'
+    ) {
       metrics.addMetric('LoginUnauthorized', MetricUnit.Count, 1);
-      return createErrorResponse(401, 'メールアドレスまたはパスワードが正しくありません');
+      return createErrorResponse(
+        401,
+        'メールアドレスまたはパスワードが正しくありません'
+      );
     }
 
     if (error.name === 'UserNotConfirmedException') {

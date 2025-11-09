@@ -13,7 +13,16 @@ vi.mock('../components/PostEditor', () => ({
       <div>Initial Content: {initialData?.contentMarkdown}</div>
       <div>Initial Category: {initialData?.category}</div>
       <div>Initial Status: {initialData?.publishStatus}</div>
-      <button onClick={() => onSave({ title: 'Updated Title', contentMarkdown: 'Updated content', category: 'tech', publishStatus: 'published' })}>
+      <button
+        onClick={() =>
+          onSave({
+            title: 'Updated Title',
+            contentMarkdown: 'Updated content',
+            category: 'tech',
+            publishStatus: 'published',
+          })
+        }
+      >
         Save
       </button>
       <button onClick={onCancel}>Cancel</button>
@@ -41,13 +50,15 @@ const renderPostEditPage = (postId: string = '1') => {
         <Route path="/posts/edit/:id" element={<PostEditPage />} />
       </Routes>
     </BrowserRouter>,
-    { wrapper: ({ children }) => (
-      <BrowserRouter>
-        <Routes>
-          <Route path="/posts/edit/:id" element={<PostEditPage />} />
-        </Routes>
-      </BrowserRouter>
-    ) }
+    {
+      wrapper: ({ children }) => (
+        <BrowserRouter>
+          <Routes>
+            <Route path="/posts/edit/:id" element={<PostEditPage />} />
+          </Routes>
+        </BrowserRouter>
+      ),
+    }
   );
 };
 
@@ -107,8 +118,12 @@ describe('PostEditPage', () => {
       renderWithRouter('1');
 
       await waitFor(() => {
-        expect(screen.getByText('Initial Title: Test Post')).toBeInTheDocument();
-        expect(screen.getByText('Initial Content: Test content')).toBeInTheDocument();
+        expect(
+          screen.getByText('Initial Title: Test Post')
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText('Initial Content: Test content')
+        ).toBeInTheDocument();
         expect(screen.getByText('Initial Category: tech')).toBeInTheDocument();
         expect(screen.getByText('Initial Status: draft')).toBeInTheDocument();
       });
@@ -131,7 +146,9 @@ describe('PostEditPage', () => {
       renderWithRouter('1');
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /記事編集/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole('heading', { name: /記事編集/i })
+        ).toBeInTheDocument();
       });
     });
 
@@ -152,7 +169,9 @@ describe('PostEditPage', () => {
       renderWithRouter('1');
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /画像アップロード/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole('heading', { name: /画像アップロード/i })
+        ).toBeInTheDocument();
         expect(screen.getByTestId('image-uploader')).toBeInTheDocument();
       });
     });
@@ -287,10 +306,14 @@ describe('PostEditPage', () => {
         expect(screen.getByTestId('image-uploader')).toBeInTheDocument();
       });
 
-      const uploadButton = screen.getByRole('button', { name: /Upload Image/i });
+      const uploadButton = screen.getByRole('button', {
+        name: /Upload Image/i,
+      });
       fireEvent.click(uploadButton);
 
-      expect(mockWriteText).toHaveBeenCalledWith('![image](https://example.com/image.jpg)');
+      expect(mockWriteText).toHaveBeenCalledWith(
+        '![image](https://example.com/image.jpg)'
+      );
       expect(window.alert).toHaveBeenCalledWith(
         expect.stringContaining('画像がアップロードされました')
       );
@@ -331,7 +354,9 @@ describe('PostEditPage', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText(/記事IDが指定されていません/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/記事IDが指定されていません/i)
+        ).toBeInTheDocument();
       });
     });
 
@@ -341,7 +366,9 @@ describe('PostEditPage', () => {
       renderWithRouter('1');
 
       await waitFor(() => {
-        expect(screen.getByText(/記事の取得に失敗しました/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/記事の取得に失敗しました/i)
+        ).toBeInTheDocument();
       });
     });
 
@@ -370,7 +397,9 @@ describe('PostEditPage', () => {
       fireEvent.click(saveButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/記事の更新に失敗しました/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/記事の更新に失敗しました/i)
+        ).toBeInTheDocument();
       });
     });
 
@@ -399,7 +428,9 @@ describe('PostEditPage', () => {
       fireEvent.click(saveButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/記事の更新に失敗しました/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/記事の更新に失敗しました/i)
+        ).toBeInTheDocument();
         expect(screen.getByTestId('post-editor')).toBeInTheDocument();
       });
     });
@@ -537,13 +568,14 @@ describe('PostEditPage', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText(/記事IDが指定されていません/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/記事IDが指定されていません/i)
+        ).toBeInTheDocument();
       });
 
       // 保存処理が呼ばれないことを確認
       expect(mockUpdatePost).not.toHaveBeenCalled();
     });
-
 
     it('存在しない記事IDでエラーを表示する', async () => {
       mockGetPost.mockRejectedValue(new Error('Post not found'));
@@ -551,7 +583,9 @@ describe('PostEditPage', () => {
       renderWithRouter('999');
 
       await waitFor(() => {
-        expect(screen.getByText(/記事の取得に失敗しました/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/記事の取得に失敗しました/i)
+        ).toBeInTheDocument();
       });
     });
 
@@ -602,12 +636,15 @@ describe('PostEditPage', () => {
       fireEvent.click(saveButton);
 
       await waitFor(() => {
-        expect(mockUpdatePost).toHaveBeenCalledWith('1', expect.objectContaining({
-          title: expect.any(String),
-          contentMarkdown: expect.any(String),
-          category: expect.any(String),
-          publishStatus: expect.stringMatching(/^(draft|published)$/),
-        }));
+        expect(mockUpdatePost).toHaveBeenCalledWith(
+          '1',
+          expect.objectContaining({
+            title: expect.any(String),
+            contentMarkdown: expect.any(String),
+            category: expect.any(String),
+            publishStatus: expect.stringMatching(/^(draft|published)$/),
+          })
+        );
       });
     });
 

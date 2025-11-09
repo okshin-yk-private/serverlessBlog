@@ -20,13 +20,6 @@
       "/opt/nodejs/*": ["../../layers/common/nodejs/*"]
     }
   },
-  "include": [
-    "**/*.ts",
-    "../../functions/**/*.ts",
-    "../../layers/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "include": ["**/*.ts", "../../functions/**/*.ts", "../../layers/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

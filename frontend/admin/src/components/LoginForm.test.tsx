@@ -20,7 +20,9 @@ describe('LoginForm', () => {
   it('ログインボタンが表示される', () => {
     render(<LoginForm onLogin={mockOnLogin} />);
 
-    expect(screen.getByRole('button', { name: /ログイン/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /ログイン/i })
+    ).toBeInTheDocument();
   });
 
   it('空のフォームを送信するとバリデーションエラーが表示される', async () => {
@@ -46,7 +48,9 @@ describe('LoginForm', () => {
     await user.click(screen.getByRole('button', { name: /ログイン/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('有効なメールアドレスを入力してください')).toBeInTheDocument();
+      expect(
+        screen.getByText('有効なメールアドレスを入力してください')
+      ).toBeInTheDocument();
     });
 
     expect(mockOnLogin).not.toHaveBeenCalled();
@@ -56,12 +60,17 @@ describe('LoginForm', () => {
     const user = userEvent.setup();
     render(<LoginForm onLogin={mockOnLogin} />);
 
-    await user.type(screen.getByLabelText(/メールアドレス/i), 'test@example.com');
+    await user.type(
+      screen.getByLabelText(/メールアドレス/i),
+      'test@example.com'
+    );
     await user.type(screen.getByLabelText(/パスワード/i), 'short');
     await user.click(screen.getByRole('button', { name: /ログイン/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('パスワードは8文字以上で入力してください')).toBeInTheDocument();
+      expect(
+        screen.getByText('パスワードは8文字以上で入力してください')
+      ).toBeInTheDocument();
     });
 
     expect(mockOnLogin).not.toHaveBeenCalled();
@@ -71,7 +80,10 @@ describe('LoginForm', () => {
     const user = userEvent.setup();
     render(<LoginForm onLogin={mockOnLogin} />);
 
-    await user.type(screen.getByLabelText(/メールアドレス/i), 'test@example.com');
+    await user.type(
+      screen.getByLabelText(/メールアドレス/i),
+      'test@example.com'
+    );
     await user.type(screen.getByLabelText(/パスワード/i), 'password123');
     await user.click(screen.getByRole('button', { name: /ログイン/i }));
 
@@ -87,10 +99,15 @@ describe('LoginForm', () => {
 
   it('送信中はボタンが無効化される', async () => {
     const user = userEvent.setup();
-    const slowLogin = vi.fn(() => new Promise<void>(resolve => setTimeout(resolve, 100)));
+    const slowLogin = vi.fn(
+      () => new Promise<void>((resolve) => setTimeout(resolve, 100))
+    );
     render(<LoginForm onLogin={slowLogin} />);
 
-    await user.type(screen.getByLabelText(/メールアドレス/i), 'test@example.com');
+    await user.type(
+      screen.getByLabelText(/メールアドレス/i),
+      'test@example.com'
+    );
     await user.type(screen.getByLabelText(/パスワード/i), 'password123');
 
     const button = screen.getByRole('button', { name: /ログイン/i });
@@ -110,7 +127,9 @@ describe('LoginForm', () => {
   });
 
   it('エラーメッセージがクリアされる', () => {
-    const { rerender } = render(<LoginForm onLogin={mockOnLogin} error="認証に失敗しました" />);
+    const { rerender } = render(
+      <LoginForm onLogin={mockOnLogin} error="認証に失敗しました" />
+    );
 
     expect(screen.getByText('認証に失敗しました')).toBeInTheDocument();
 
@@ -130,7 +149,10 @@ describe('LoginForm', () => {
     const user = userEvent.setup();
     render(<LoginForm onLogin={mockOnLogin} />);
 
-    await user.type(screen.getByLabelText(/メールアドレス/i), 'test@example.com');
+    await user.type(
+      screen.getByLabelText(/メールアドレス/i),
+      'test@example.com'
+    );
     await user.type(screen.getByLabelText(/パスワード/i), 'password123{Enter}');
 
     await waitFor(() => {

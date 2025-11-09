@@ -12,7 +12,8 @@ import { Page } from '@playwright/test';
  * ランダムな文字列を生成
  */
 export function generateRandomString(length: number = 10): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const chars =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
   for (let i = 0; i < length; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -44,7 +45,9 @@ export interface TestArticle {
   status: 'published' | 'draft';
 }
 
-export function generateTestArticle(status: 'published' | 'draft' = 'published'): TestArticle {
+export function generateTestArticle(
+  status: 'published' | 'draft' = 'published'
+): TestArticle {
   return {
     title: generateUniqueString('Test Article'),
     content: `This is test content generated at ${new Date().toISOString()}. ${generateRandomString(100)}`,
@@ -57,7 +60,7 @@ export function generateTestArticle(status: 'published' | 'draft' = 'published')
  * 指定された時間待機
  */
 export async function wait(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -71,7 +74,9 @@ export async function waitForElementWithRetry(
 ): Promise<boolean> {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      await page.locator(selector).waitFor({ state: 'visible', timeout: delayMs });
+      await page
+        .locator(selector)
+        .waitFor({ state: 'visible', timeout: delayMs });
       return true;
     } catch {
       if (i === maxRetries - 1) return false;
@@ -84,7 +89,10 @@ export async function waitForElementWithRetry(
 /**
  * ページロード時間を測定
  */
-export async function measureLoadTime(page: Page, url: string): Promise<number> {
+export async function measureLoadTime(
+  page: Page,
+  url: string
+): Promise<number> {
   const startTime = Date.now();
   await page.goto(url);
   await page.waitForLoadState('networkidle');
@@ -101,7 +109,10 @@ export async function takeDebugScreenshot(
 ): Promise<void> {
   const timestamp = Date.now();
   const filename = `${testName}-${stepName}-${timestamp}.png`;
-  await page.screenshot({ path: `test-results/screenshots/${filename}`, fullPage: true });
+  await page.screenshot({
+    path: `test-results/screenshots/${filename}`,
+    fullPage: true,
+  });
 }
 
 /**
@@ -112,20 +123,20 @@ export async function setLocalStorage(
   key: string,
   value: string
 ): Promise<void> {
-  await page.evaluate(
-    ({ key, value }) => localStorage.setItem(key, value),
-    { key, value }
-  );
+  await page.evaluate(({ key, value }) => localStorage.setItem(key, value), {
+    key,
+    value,
+  });
 }
 
 /**
  * ローカルストレージから値を取得
  */
-export async function getLocalStorage(page: Page, key: string): Promise<string | null> {
-  return await page.evaluate(
-    (key) => localStorage.getItem(key),
-    key
-  );
+export async function getLocalStorage(
+  page: Page,
+  key: string
+): Promise<string | null> {
+  return await page.evaluate((key) => localStorage.getItem(key), key);
 }
 
 /**
@@ -136,10 +147,10 @@ export async function setSessionStorage(
   key: string,
   value: string
 ): Promise<void> {
-  await page.evaluate(
-    ({ key, value }) => sessionStorage.setItem(key, value),
-    { key, value }
-  );
+  await page.evaluate(({ key, value }) => sessionStorage.setItem(key, value), {
+    key,
+    value,
+  });
 }
 
 /**

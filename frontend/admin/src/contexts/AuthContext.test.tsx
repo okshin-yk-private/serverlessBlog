@@ -47,7 +47,9 @@ describe('AuthContext', () => {
   });
 
   it('初期状態では未認証', async () => {
-    vi.mocked(amplifyAuth.getCurrentUser).mockRejectedValue(new Error('Not authenticated'));
+    vi.mocked(amplifyAuth.getCurrentUser).mockRejectedValue(
+      new Error('Not authenticated')
+    );
 
     const { result } = renderHook(() => useAuth(), {
       wrapper: AuthProvider,
@@ -64,7 +66,11 @@ describe('AuthContext', () => {
   it('有効なトークンがある場合は自動的に認証状態になる', async () => {
     // 有効なトークンを設定
     const futureTimestamp = Math.floor(Date.now() / 1000) + 3600;
-    const payload = { sub: 'user-123', email: 'test@example.com', exp: futureTimestamp };
+    const payload = {
+      sub: 'user-123',
+      email: 'test@example.com',
+      exp: futureTimestamp,
+    };
     const encodedPayload = btoa(JSON.stringify(payload));
     const token = `header.${encodedPayload}.signature`;
     localStorage.setItem('auth_token', token);
@@ -96,7 +102,11 @@ describe('AuthContext', () => {
   it('期限切れトークンの場合は未認証状態になる', async () => {
     // 期限切れトークンを設定
     const pastTimestamp = Math.floor(Date.now() / 1000) - 3600;
-    const payload = { sub: 'user-123', email: 'test@example.com', exp: pastTimestamp };
+    const payload = {
+      sub: 'user-123',
+      email: 'test@example.com',
+      exp: pastTimestamp,
+    };
     const encodedPayload = btoa(JSON.stringify(payload));
     const token = `header.${encodedPayload}.signature`;
     localStorage.setItem('auth_token', token);
@@ -162,7 +172,11 @@ describe('AuthContext', () => {
   it('ログアウトするとユーザー情報がクリアされる', async () => {
     // 初期状態でログイン済み
     const futureTimestamp = Math.floor(Date.now() / 1000) + 3600;
-    const payload = { sub: 'user-123', email: 'test@example.com', exp: futureTimestamp };
+    const payload = {
+      sub: 'user-123',
+      email: 'test@example.com',
+      exp: futureTimestamp,
+    };
     const encodedPayload = btoa(JSON.stringify(payload));
     const token = `header.${encodedPayload}.signature`;
     localStorage.setItem('auth_token', token);
@@ -196,7 +210,9 @@ describe('AuthContext', () => {
   });
 
   it('ログインが失敗するとエラーをスローする', async () => {
-    vi.mocked(amplifyAuth.signIn).mockRejectedValue(new Error('Invalid credentials'));
+    vi.mocked(amplifyAuth.signIn).mockRejectedValue(
+      new Error('Invalid credentials')
+    );
 
     const { result } = renderHook(() => useAuth(), {
       wrapper: AuthProvider,
@@ -216,7 +232,9 @@ describe('AuthContext', () => {
   });
 
   it('ログアウトが失敗してもエラーをスローする', async () => {
-    vi.mocked(amplifyAuth.signOut).mockRejectedValue(new Error('Signout failed'));
+    vi.mocked(amplifyAuth.signOut).mockRejectedValue(
+      new Error('Signout failed')
+    );
 
     const { result } = renderHook(() => useAuth(), {
       wrapper: AuthProvider,
@@ -235,11 +253,17 @@ describe('AuthContext', () => {
 
   it('認証状態チェック時にエラーが発生した場合、ユーザーをクリアする', async () => {
     // console.errorをモック
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
 
     // 有効な形式のJWTトークンを作成（期限内）
     const futureTimestamp = Math.floor(Date.now() / 1000) + 3600;
-    const payload = { sub: 'user-123', email: 'test@example.com', exp: futureTimestamp };
+    const payload = {
+      sub: 'user-123',
+      email: 'test@example.com',
+      exp: futureTimestamp,
+    };
     const encodedPayload = btoa(JSON.stringify(payload));
     const token = `header.${encodedPayload}.signature`;
     localStorage.setItem('auth_token', token);
@@ -257,7 +281,10 @@ describe('AuthContext', () => {
     });
 
     // console.errorが呼ばれたことを確認
-    expect(consoleErrorSpy).toHaveBeenCalledWith('認証状態の確認に失敗しました:', authError);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '認証状態の確認に失敗しました:',
+      authError
+    );
 
     // エラーが発生した場合、ユーザーはnullになり、トークンがクリアされる
     expect(result.current.user).toBeNull();
@@ -270,7 +297,11 @@ describe('AuthContext', () => {
   it('signInDetailsがundefinedの場合でも認証状態チェックが成功する', async () => {
     // 有効なトークンを設定
     const futureTimestamp = Math.floor(Date.now() / 1000) + 3600;
-    const payload = { sub: 'user-123', email: 'test@example.com', exp: futureTimestamp };
+    const payload = {
+      sub: 'user-123',
+      email: 'test@example.com',
+      exp: futureTimestamp,
+    };
     const encodedPayload = btoa(JSON.stringify(payload));
     const token = `header.${encodedPayload}.signature`;
     localStorage.setItem('auth_token', token);

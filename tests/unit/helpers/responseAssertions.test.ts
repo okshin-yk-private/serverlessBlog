@@ -48,7 +48,10 @@ describe('responseAssertions', () => {
       };
 
       expect(() =>
-        expectSuccessResponse(response, 200, { id: expect.any(String), title: expect.any(String) })
+        expectSuccessResponse(response, 200, {
+          id: expect.any(String),
+          title: expect.any(String),
+        })
       ).not.toThrow();
     });
   });
@@ -69,7 +72,9 @@ describe('responseAssertions', () => {
         body: JSON.stringify({ message: 'Invalid input' }),
       };
 
-      expect(() => expectErrorResponse(response, 400, 'Invalid input')).not.toThrow();
+      expect(() =>
+        expectErrorResponse(response, 400, 'Invalid input')
+      ).not.toThrow();
     });
 
     it('should throw error when status code does not match', () => {

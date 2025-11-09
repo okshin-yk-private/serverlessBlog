@@ -1,5 +1,10 @@
 import { APIGatewayProxyEvent, Context } from 'aws-lambda';
-import { DynamoDBClient, CreateTableCommand, DeleteTableCommand, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
+import {
+  DynamoDBClient,
+  CreateTableCommand,
+  DeleteTableCommand,
+  DescribeTableCommand,
+} from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
 
 // テスト用のDynamoDBクライアント
@@ -45,7 +50,10 @@ jest.mock('@aws-lambda-powertools/metrics', () => ({
 }));
 
 // ハンドラーをインポート（モックの後）
-import { handler, resetDynamoDBClient } from '../../../functions/posts/getPublicPost/handler';
+import {
+  handler,
+  resetDynamoDBClient,
+} from '../../../functions/posts/getPublicPost/handler';
 
 describe('getPublicPost Lambda Handler - Integration Tests', () => {
   const mockContext = {} as Context;
@@ -57,9 +65,11 @@ describe('getPublicPost Lambda Handler - Integration Tests', () => {
       let connectionReady = false;
       for (let i = 0; i < 15; i++) {
         try {
-          await dynamoDBClient.send(new DescribeTableCommand({
-            TableName: 'connection-check',
-          }));
+          await dynamoDBClient.send(
+            new DescribeTableCommand({
+              TableName: 'connection-check',
+            })
+          );
           connectionReady = true;
           break;
         } catch (error: any) {
@@ -70,7 +80,7 @@ describe('getPublicPost Lambda Handler - Integration Tests', () => {
           }
           // その他のエラーの場合はリトライ
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
       if (!connectionReady) {
@@ -78,33 +88,35 @@ describe('getPublicPost Lambda Handler - Integration Tests', () => {
       }
 
       // テーブル作成
-      await dynamoDBClient.send(new CreateTableCommand({
-        TableName: TABLE_NAME,
-        KeySchema: [
-          { AttributeName: 'id', KeyType: 'HASH' },
-        ],
-        AttributeDefinitions: [
-          { AttributeName: 'id', AttributeType: 'S' },
-        ],
-        BillingMode: 'PAY_PER_REQUEST',
-      }));
+      await dynamoDBClient.send(
+        new CreateTableCommand({
+          TableName: TABLE_NAME,
+          KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+          AttributeDefinitions: [{ AttributeName: 'id', AttributeType: 'S' }],
+          BillingMode: 'PAY_PER_REQUEST',
+        })
+      );
 
       // テーブルが作成されるまで待機
       let tableReady = false;
       for (let i = 0; i < 30; i++) {
         try {
-          const result = await dynamoDBClient.send(new DescribeTableCommand({
-            TableName: TABLE_NAME,
-          }));
+          const result = await dynamoDBClient.send(
+            new DescribeTableCommand({
+              TableName: TABLE_NAME,
+            })
+          );
           if (result.Table?.TableStatus === 'ACTIVE') {
             tableReady = true;
             break;
           }
         } catch (error: any) {
           // エラーメッセージのみをログ出力（循環参照を避ける）
-          console.warn(`Table not ready yet: ${error?.message || 'Unknown error'}`);
+          console.warn(
+            `Table not ready yet: ${error?.message || 'Unknown error'}`
+          );
         }
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
       if (!tableReady) {
@@ -112,7 +124,9 @@ describe('getPublicPost Lambda Handler - Integration Tests', () => {
       }
     } catch (error: any) {
       if (error.name !== 'ResourceInUseException') {
-        console.error(`Table creation error: ${error?.message || 'Unknown error'}`);
+        console.error(
+          `Table creation error: ${error?.message || 'Unknown error'}`
+        );
         throw error;
       }
       // テーブルが既に存在する場合は続行
@@ -122,9 +136,11 @@ describe('getPublicPost Lambda Handler - Integration Tests', () => {
   // テーブル削除
   afterAll(async () => {
     try {
-      await dynamoDBClient.send(new DeleteTableCommand({
-        TableName: TABLE_NAME,
-      }));
+      await dynamoDBClient.send(
+        new DeleteTableCommand({
+          TableName: TABLE_NAME,
+        })
+      );
     } catch (error) {
       // テーブルが存在しない場合は無視
     }
@@ -152,10 +168,12 @@ describe('getPublicPost Lambda Handler - Integration Tests', () => {
         publishedAt: '2024-01-02T00:00:00.000Z',
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: publishedPost,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: publishedPost,
+        })
+      );
 
       const event: Partial<APIGatewayProxyEvent> = {
         pathParameters: {
@@ -192,10 +210,12 @@ describe('getPublicPost Lambda Handler - Integration Tests', () => {
         publishedAt: '2024-01-03T00:00:00.000Z',
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: publishedPost,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: publishedPost,
+        })
+      );
 
       const event: Partial<APIGatewayProxyEvent> = {
         pathParameters: {
@@ -230,10 +250,12 @@ describe('getPublicPost Lambda Handler - Integration Tests', () => {
         updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: draftPost,
-      }));
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: draftPost,
+        })
+      );
 
       const event: Partial<APIGatewayProxyEvent> = {
         pathParameters: {

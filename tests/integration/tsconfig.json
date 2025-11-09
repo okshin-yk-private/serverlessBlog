@@ -15,7 +15,5 @@
       "/opt/nodejs/*": ["../../layers/common/nodejs/*"]
     }
   },
-  "include": [
-    "**/*.ts"
-  ]
+  "include": ["**/*.ts"]
 }

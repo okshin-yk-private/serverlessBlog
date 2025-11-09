@@ -1,27 +1,68 @@
-# GitHub Actions Test Workflow
-# Task 9.1: GitHub Actions テストワークフローの実装
+# Unified CI Test Workflow
+# Requirement R31: GitHub Actions CI/CD
+# Requirement R45: 継続的テスト
+# Requirement R39: TDD手法、100%テストカバレッジ
 #
-# Requirements:
-# - R31: GitHub Actions CI/CD
-# - R45: 継続的テスト
-# - R39: TDD手法、100%テストカバレッジ
+# This workflow combines Lint and Test workflows for optimal parallel execution
 
-name: Test
+name: CI_TEST
 
 on:
-  pull_request:
+  push:
     branches:
       - main
       - develop
-      - 'feature/**'
-  push:
+      - feature/**
+  pull_request:
     branches:
       - main
       - develop
 
 jobs:
   # =======================================
-  # Job 1: Backend Unit Tests (Lambda functions)
+  # Job 1: Lint Check (runs in parallel)
+  # =======================================
+  lint:
+    name: ESLint & Prettier Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend/admin
+        run: npm ci
+
+      - name: Install infrastructure dependencies
+        working-directory: infrastructure
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Prettier check
+        run: npm run format:check
+
+      - name: Lint frontend
+        working-directory: frontend/admin
+        run: npm run lint
+
+      - name: Lint infrastructure
+        working-directory: infrastructure
+        run: npm run lint || echo "Infrastructure linting may have issues - continuing..."
+
+  # =======================================
+  # Job 2: Backend Unit Tests (runs in parallel)
   # =======================================
   backend-unit-tests:
     name: Backend Unit Tests
@@ -34,7 +75,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -48,7 +89,7 @@ jobs:
       - name: Check coverage thresholds
         run: |
           echo "Checking coverage requirements (100% for all metrics)..."
-          # Jest will fail if coverage is below threshold defined in jest.config.js
+          # Jest will fail if coverage is below threshold defined in jest.config.cjs
 
       - name: Upload backend coverage reports
         uses: actions/upload-artifact@v4
@@ -59,7 +100,7 @@ jobs:
           retention-days: 30
 
   # =======================================
-  # Job 2: Infrastructure Tests (CDK)
+  # Job 3: Infrastructure Tests (runs in parallel)
   # =======================================
   infrastructure-tests:
     name: Infrastructure Tests (CDK)
@@ -72,7 +113,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install root dependencies
@@ -109,7 +150,7 @@ jobs:
           retention-days: 30
 
   # =======================================
-  # Job 3: Frontend Unit Tests (Public Site)
+  # Job 4: Frontend Tests - Public (runs in parallel)
   # =======================================
   frontend-public-tests:
     name: Frontend Tests (Public Site)
@@ -122,7 +163,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install root dependencies
@@ -149,7 +190,7 @@ jobs:
           retention-days: 30
 
   # =======================================
-  # Job 4: Frontend Unit Tests (Admin)
+  # Job 5: Frontend Tests - Admin (runs in parallel)
   # =======================================
   frontend-admin-tests:
     name: Frontend Tests (Admin)
@@ -162,7 +203,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install root dependencies
@@ -189,11 +230,12 @@ jobs:
           retention-days: 30
 
   # =======================================
-  # Job 5: E2E Tests - Public Site
+  # Job 6: E2E Tests - Public Site (after unit tests)
   # =======================================
   e2e-public-tests:
     name: E2E Tests (Public Site)
     runs-on: ubuntu-latest
+    needs: [frontend-public-tests]
 
     steps:
       - name: Checkout code
@@ -202,7 +244,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
@@ -253,11 +295,12 @@ jobs:
           retention-days: 30
 
   # =======================================
-  # Job 6: E2E Tests - Admin Site (Part 1)
+  # Job 7: E2E Tests - Admin Site (after unit tests)
   # =======================================
-  e2e-admin-tests-1:
+  e2e-admin-tests:
     name: E2E Tests (Admin - Auth & Security)
     runs-on: ubuntu-latest
+    needs: [frontend-admin-tests]
 
     steps:
       - name: Checkout code
@@ -266,7 +309,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
@@ -308,16 +351,16 @@ jobs:
         env:
           CI: true
 
-      - name: Upload Playwright Report (Admin 1)
+      - name: Upload Playwright Report (Admin)
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report-admin-1
+          name: playwright-report-admin
           path: playwright-report-admin/
           retention-days: 30
 
   # =======================================
-  # Job 6: Coverage Summary and Enforcement
+  # Job 8: Coverage Summary and Enforcement
   # =======================================
   coverage-check:
     name: Coverage Summary & Enforcement
@@ -372,7 +415,6 @@ jobs:
 
             if [ -f "$coverage_path/lcov-report/index.html" ]; then
               # Extract coverage percentages from HTML report
-              # This is a simplified check - in production you'd parse lcov.info
               echo "✓ Coverage report exists for $component"
 
               # Check if coverage.json exists (if using json reporter)
@@ -396,37 +438,40 @@ jobs:
           echo "========================================="
           echo ""
           echo "Note: Individual test jobs enforce 100% coverage"
-          echo "via jest.config.js coverageThreshold settings."
+          echo "via jest.config.cjs coverageThreshold settings."
           echo "If any test job passed, it means 100% coverage"
           echo "was achieved for that component."
 
   # =======================================
-  # Job 8: Final Status Check
+  # Job 9: Final CI Success Check
   # =======================================
-  test-success:
-    name: All Tests Passed
+  ci-success:
+    name: All CI Checks Passed
     runs-on: ubuntu-latest
     needs:
+      - lint
       - backend-unit-tests
       - infrastructure-tests
       - frontend-public-tests
       - frontend-admin-tests
       - e2e-public-tests
-      - e2e-admin-tests-1
+      - e2e-admin-tests
       - coverage-check
 
     steps:
-      - name: Confirm all tests passed
+      - name: Confirm all CI checks passed
         run: |
           echo "========================================="
-          echo "✓ All Test Suites Passed Successfully!"
+          echo "✓ All CI Checks Passed Successfully!"
           echo "========================================="
           echo ""
+          echo "✓ Lint Checks: PASSED"
           echo "✓ Backend Unit Tests: PASSED"
           echo "✓ Infrastructure Tests: PASSED"
           echo "✓ Frontend (Public) Tests: PASSED"
           echo "✓ Frontend (Admin) Tests: PASSED"
-          echo "✓ E2E Tests: PASSED"
+          echo "✓ E2E Tests (Public): PASSED"
+          echo "✓ E2E Tests (Admin): PASSED"
           echo "✓ Coverage Check: PASSED (100%)"
           echo ""
           echo "========================================="

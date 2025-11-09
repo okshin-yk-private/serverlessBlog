@@ -32,7 +32,9 @@ describe('PostEditor', () => {
     render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
 
     expect(screen.getByRole('button', { name: /保存/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /キャンセル/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /キャンセル/i })
+    ).toBeInTheDocument();
   });
 
   it('初期値が正しく設定される', () => {
@@ -43,12 +45,22 @@ describe('PostEditor', () => {
       publishStatus: 'published',
     };
 
-    render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} initialData={initialData} />);
+    render(
+      <PostEditor
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+        initialData={initialData}
+      />
+    );
 
     const titleInput = screen.getByLabelText(/タイトル/i) as HTMLInputElement;
     const contentInput = screen.getByLabelText(/本文/i) as HTMLTextAreaElement;
-    const categorySelect = screen.getByLabelText(/カテゴリ/i) as HTMLSelectElement;
-    const statusSelect = screen.getByLabelText(/公開状態/i) as HTMLSelectElement;
+    const categorySelect = screen.getByLabelText(
+      /カテゴリ/i
+    ) as HTMLSelectElement;
+    const statusSelect = screen.getByLabelText(
+      /公開状態/i
+    ) as HTMLSelectElement;
 
     expect(titleInput.value).toBe('既存記事タイトル');
     expect(contentInput.value).toBe('# 既存記事本文');
@@ -108,7 +120,10 @@ describe('PostEditor', () => {
     render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
-    await user.type(screen.getByLabelText(/本文/i), '# テスト本文\n\nこれはテストです。');
+    await user.type(
+      screen.getByLabelText(/本文/i),
+      '# テスト本文\n\nこれはテストです。'
+    );
     await user.selectOptions(screen.getByLabelText(/カテゴリ/i), 'tech');
     await user.selectOptions(screen.getByLabelText(/公開状態/i), 'draft');
 
@@ -157,7 +172,9 @@ describe('PostEditor', () => {
 
   it('保存中はボタンが無効化される', async () => {
     const user = userEvent.setup();
-    const slowSave = vi.fn(() => new Promise<void>(resolve => setTimeout(resolve, 100)));
+    const slowSave = vi.fn(
+      () => new Promise<void>((resolve) => setTimeout(resolve, 100))
+    );
     render(<PostEditor onSave={slowSave} onCancel={mockOnCancel} />);
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
@@ -181,8 +198,10 @@ describe('PostEditor', () => {
   it('カテゴリの選択肢が正しく表示される', () => {
     render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
 
-    const categorySelect = screen.getByLabelText(/カテゴリ/i) as HTMLSelectElement;
-    const options = Array.from(categorySelect.options).map(opt => opt.value);
+    const categorySelect = screen.getByLabelText(
+      /カテゴリ/i
+    ) as HTMLSelectElement;
+    const options = Array.from(categorySelect.options).map((opt) => opt.value);
 
     expect(options).toContain('tech');
     expect(options).toContain('life');
@@ -193,8 +212,10 @@ describe('PostEditor', () => {
   it('公開状態の選択肢が正しく表示される', () => {
     render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
 
-    const statusSelect = screen.getByLabelText(/公開状態/i) as HTMLSelectElement;
-    const options = Array.from(statusSelect.options).map(opt => opt.value);
+    const statusSelect = screen.getByLabelText(
+      /公開状態/i
+    ) as HTMLSelectElement;
+    const options = Array.from(statusSelect.options).map((opt) => opt.value);
 
     expect(options).toContain('draft');
     expect(options).toContain('published');

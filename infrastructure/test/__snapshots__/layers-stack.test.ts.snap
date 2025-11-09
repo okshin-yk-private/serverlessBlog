@@ -37,7 +37,7 @@ exports[`LayersStack Snapshot test 1`] = `
         ],
         "Content": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "73702a16833e4abf1e6cefd0c3eb98132ee4f2db1c0a541f2fe575753d90dc30.zip",
+          "S3Key": "eb328d508b043a8a669a2b2ad426b0bd787f9cdb9ae9dd4f43ff55319a9dc31d.zip",
         },
         "Description": "Common utilities - Markdown conversion, S3 presigned URLs, DynamoDB helpers",
         "LayerName": "serverless-blog-common",

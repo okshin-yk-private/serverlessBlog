@@ -32,7 +32,10 @@ setupTracerMock();
 setupMetricsMock();
 
 // ハンドラーをインポート（モックの後）
-import { handler, resetDynamoDBClient } from '../../../functions/posts/listPosts/handler';
+import {
+  handler,
+  resetDynamoDBClient,
+} from '../../../functions/posts/listPosts/handler';
 
 describe('listPosts Lambda Handler', () => {
   const mockContext = createMockContext();
@@ -143,7 +146,9 @@ describe('listPosts Lambda Handler', () => {
         publishStatus: 'published',
         createdAt: '2025-01-01T00:00:00.000Z',
       };
-      const nextToken = Buffer.from(JSON.stringify(lastEvaluatedKey)).toString('base64');
+      const nextToken = Buffer.from(JSON.stringify(lastEvaluatedKey)).toString(
+        'base64'
+      );
 
       const event = createMockAPIGatewayEvent({
         queryStringParameters: {

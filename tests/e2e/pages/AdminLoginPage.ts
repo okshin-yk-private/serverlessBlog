@@ -72,7 +72,7 @@ export class AdminLoginPage extends BasePage {
       // エラーメッセージが表示されるまで最大5秒待機
       await this.page.locator(this.selectors.errorMessage).waitFor({
         state: 'visible',
-        timeout: 5000
+        timeout: 5000,
       });
       return true;
     } catch {
@@ -84,7 +84,9 @@ export class AdminLoginPage extends BasePage {
    * エラーメッセージを取得
    */
   async getErrorMessage(): Promise<string> {
-    return await this.page.locator(this.selectors.errorMessage).textContent() || '';
+    return (
+      (await this.page.locator(this.selectors.errorMessage).textContent()) || ''
+    );
   }
 
   /**
@@ -114,8 +116,12 @@ export class AdminLoginPage extends BasePage {
    */
   async isLoginFormVisible(): Promise<boolean> {
     const emailVisible = await this.isElementVisible(this.selectors.emailInput);
-    const passwordVisible = await this.isElementVisible(this.selectors.passwordInput);
-    const buttonVisible = await this.isElementVisible(this.selectors.loginButton);
+    const passwordVisible = await this.isElementVisible(
+      this.selectors.passwordInput
+    );
+    const buttonVisible = await this.isElementVisible(
+      this.selectors.loginButton
+    );
 
     return emailVisible && passwordVisible && buttonVisible;
   }

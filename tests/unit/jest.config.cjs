@@ -17,14 +17,9 @@ module.exports = {
   testMatch: ['<rootDir>/tests/unit/**/*.test.ts'],
 
   // integration testを除外
-  testPathIgnorePatterns: [
-    '/node_modules/',
-    '/tests/integration/',
-  ],
+  testPathIgnorePatterns: ['/node_modules/', '/tests/integration/'],
 
-  transformIgnorePatterns: [
-    'node_modules/(?!(@aws-sdk)/)',
-  ],
+  transformIgnorePatterns: ['node_modules/(?!(@aws-sdk)/)'],
   setupFiles: ['<rootDir>/tests/unit/jest.setup.js'],
 
   // カバレッジ収集対象ファイル
@@ -48,10 +43,10 @@ module.exports = {
 
   // カバレッジレポート形式 (HTML, JSON, LCOV, Text)
   coverageReporters: [
-    'html',      // HTMLレポート - ブラウザで詳細確認用
-    'json',      // JSONレポート - CI/CD統合用
-    'lcov',      // LCOVレポート - カバレッジバッジ・外部ツール統合用
-    'text',      // テキストレポート - コンソール出力用
+    'html', // HTMLレポート - ブラウザで詳細確認用
+    'json', // JSONレポート - CI/CD統合用
+    'lcov', // LCOVレポート - カバレッジバッジ・外部ツール統合用
+    'text', // テキストレポート - コンソール出力用
   ],
 
   // カバレッジディレクトリ
@@ -66,9 +61,12 @@ module.exports = {
     '<rootDir>/tests/unit/node_modules',
   ],
   transform: {
-    '^.+\\.ts$': ['ts-jest', {
-      tsconfig: '<rootDir>/tests/unit/tsconfig.json',
-      isolatedModules: true,
-    }],
+    '^.+\\.ts$': [
+      'ts-jest',
+      {
+        tsconfig: '<rootDir>/tests/unit/tsconfig.json',
+        isolatedModules: true,
+      },
+    ],
   },
 };

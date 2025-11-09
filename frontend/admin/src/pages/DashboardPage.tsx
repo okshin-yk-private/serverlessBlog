@@ -17,12 +17,18 @@ const DashboardPage = () => {
       setError(null);
 
       // 公開記事を取得
-      const publishedResponse = await getPosts({ publishStatus: 'published', limit: 5 });
+      const publishedResponse = await getPosts({
+        publishStatus: 'published',
+        limit: 5,
+      });
       setPublishedPosts(publishedResponse.posts);
       setPublishedTotal(publishedResponse.total);
 
       // 下書き記事を取得
-      const draftResponse = await getPosts({ publishStatus: 'draft', limit: 5 });
+      const draftResponse = await getPosts({
+        publishStatus: 'draft',
+        limit: 5,
+      });
       setDraftPosts(draftResponse.posts);
       setDraftTotal(draftResponse.total);
     } catch (err) {
@@ -77,16 +83,22 @@ const DashboardPage = () => {
   return (
     <div className="min-h-screen bg-gray-100" data-testid="dashboard">
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">ダッシュボード</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-6">
+          ダッシュボード
+        </h1>
 
         {/* 記事統計 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-gray-700 mb-2">公開記事数</h2>
+            <h2 className="text-lg font-semibold text-gray-700 mb-2">
+              公開記事数
+            </h2>
             <p className="text-4xl font-bold text-blue-600">{publishedTotal}</p>
           </div>
           <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-gray-700 mb-2">下書き記事数</h2>
+            <h2 className="text-lg font-semibold text-gray-700 mb-2">
+              下書き記事数
+            </h2>
             <p className="text-4xl font-bold text-yellow-600">{draftTotal}</p>
           </div>
         </div>
@@ -120,7 +132,9 @@ const DashboardPage = () => {
         {/* 公開記事一覧 */}
         {publishedPosts.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">最近の公開記事</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              最近の公開記事
+            </h2>
             <div className="bg-white shadow overflow-hidden sm:rounded-lg">
               <ul className="divide-y divide-gray-200">
                 {publishedPosts.map((post) => (
@@ -142,7 +156,9 @@ const DashboardPage = () => {
         {/* 下書き記事一覧 */}
         {draftPosts.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">最近の下書き</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              最近の下書き
+            </h2>
             <div className="bg-white shadow overflow-hidden sm:rounded-lg">
               <ul className="divide-y divide-gray-200">
                 {draftPosts.map((post) => (

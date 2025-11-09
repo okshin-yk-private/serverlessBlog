@@ -57,7 +57,7 @@ export class ApiStack extends cdk.Stack {
         cognitoUserPools: [userPool],
         authorizerName: 'blog-cognito-authorizer',
         identitySource: 'method.request.header.Authorization',
-      },
+      }
     );
 
     // AuthorizerをRestApiに明示的に関連付ける

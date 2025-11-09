@@ -8,7 +8,10 @@ import App from './App';
  */
 async function enableMocking() {
   // デバッグ: 環境変数を確認
-  console.log('[MSW] VITE_ENABLE_MSW_MOCK:', import.meta.env.VITE_ENABLE_MSW_MOCK);
+  console.log(
+    '[MSW] VITE_ENABLE_MSW_MOCK:',
+    import.meta.env.VITE_ENABLE_MSW_MOCK
+  );
   console.log('[MSW] All env:', import.meta.env);
 
   if (import.meta.env.VITE_ENABLE_MSW_MOCK !== 'true') {
@@ -28,7 +31,9 @@ async function enableMocking() {
     console.log('[MSW] Worker started successfully');
   } catch (error) {
     console.error('[MSW] Failed to start worker:', error);
-    console.log('[MSW] This might be due to localStorage unavailability or other issues');
+    console.log(
+      '[MSW] This might be due to localStorage unavailability or other issues'
+    );
     // MSW起動に失敗してもアプリケーションは動作させる
   }
 }
@@ -46,7 +51,7 @@ enableMocking()
       ReactDOM.createRoot(document.getElementById('root')!).render(
         <React.StrictMode>
           <App />
-        </React.StrictMode>,
+        </React.StrictMode>
       );
       console.log('[App] React application rendered successfully');
     } catch (error) {
@@ -54,7 +59,8 @@ enableMocking()
       // フォールバック: HTMLに直接エラーメッセージを表示
       const root = document.getElementById('root');
       if (root) {
-        root.innerHTML = '<div style="padding: 20px;"><h1>アプリケーションの起動に失敗しました</h1><p>ページを再読み込みしてください。</p></div>';
+        root.innerHTML =
+          '<div style="padding: 20px;"><h1>アプリケーションの起動に失敗しました</h1><p>ページを再読み込みしてください。</p></div>';
       }
     }
   });

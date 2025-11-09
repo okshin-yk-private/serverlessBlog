@@ -36,7 +36,7 @@ export const createPost = async (data: CreatePostRequest): Promise<Post> => {
   const token = getAuthToken();
   const response = await axios.post(`${API_URL}/admin/posts`, data, {
     headers: {
-      'Authorization': `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
   });
@@ -46,11 +46,14 @@ export const createPost = async (data: CreatePostRequest): Promise<Post> => {
 /**
  * 記事を更新
  */
-export const updatePost = async (id: string, data: UpdatePostRequest): Promise<Post> => {
+export const updatePost = async (
+  id: string,
+  data: UpdatePostRequest
+): Promise<Post> => {
   const token = getAuthToken();
   const response = await axios.put(`${API_URL}/admin/posts/${id}`, data, {
     headers: {
-      'Authorization': `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
   });
@@ -64,7 +67,7 @@ export const getPost = async (id: string): Promise<Post> => {
   const token = getAuthToken();
   const response = await axios.get(`${API_URL}/admin/posts/${id}`, {
     headers: {
-      'Authorization': `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
     },
   });
   return response.data;
@@ -73,14 +76,17 @@ export const getPost = async (id: string): Promise<Post> => {
 /**
  * 画像アップロード用のPre-signed URLを取得
  */
-export const getUploadUrl = async (filename: string, contentType: string): Promise<{ uploadUrl: string; imageUrl: string }> => {
+export const getUploadUrl = async (
+  filename: string,
+  contentType: string
+): Promise<{ uploadUrl: string; imageUrl: string }> => {
   const token = getAuthToken();
   const response = await axios.post(
     `${API_URL}/admin/upload-url`,
     { filename, contentType },
     {
       headers: {
-        'Authorization': `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
     }
@@ -120,7 +126,9 @@ export interface GetPostsResponse {
 /**
  * 記事一覧を取得
  */
-export const getPosts = async (params?: GetPostsParams): Promise<GetPostsResponse> => {
+export const getPosts = async (
+  params?: GetPostsParams
+): Promise<GetPostsResponse> => {
   const token = getAuthToken();
   const queryParams = new URLSearchParams();
 
@@ -134,11 +142,14 @@ export const getPosts = async (params?: GetPostsParams): Promise<GetPostsRespons
     queryParams.append('nextToken', params.nextToken);
   }
 
-  const response = await axios.get(`${API_URL}/admin/posts?${queryParams.toString()}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
+  const response = await axios.get(
+    `${API_URL}/admin/posts?${queryParams.toString()}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
 
   return {
     posts: response.data.items || response.data.posts || [],
@@ -154,7 +165,7 @@ export const deletePost = async (id: string): Promise<void> => {
   const token = getAuthToken();
   await axios.delete(`${API_URL}/admin/posts/${id}`, {
     headers: {
-      'Authorization': `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
     },
   });
 };

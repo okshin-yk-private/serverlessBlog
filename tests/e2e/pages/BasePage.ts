@@ -27,7 +27,10 @@ export class BasePage {
   /**
    * 要素が表示されるまで待機
    */
-  async waitForElement(selector: string, options?: { timeout?: number }): Promise<Locator> {
+  async waitForElement(
+    selector: string,
+    options?: { timeout?: number }
+  ): Promise<Locator> {
     const element = this.page.locator(selector);
     await element.waitFor({ state: 'visible', ...options });
     return element;
@@ -36,7 +39,10 @@ export class BasePage {
   /**
    * 要素が非表示になるまで待機
    */
-  async waitForElementHidden(selector: string, options?: { timeout?: number }): Promise<void> {
+  async waitForElementHidden(
+    selector: string,
+    options?: { timeout?: number }
+  ): Promise<void> {
     const element = this.page.locator(selector);
     await element.waitFor({ state: 'hidden', ...options });
   }
@@ -44,7 +50,10 @@ export class BasePage {
   /**
    * テキストを含む要素を待機
    */
-  async waitForText(text: string, options?: { timeout?: number }): Promise<Locator> {
+  async waitForText(
+    text: string,
+    options?: { timeout?: number }
+  ): Promise<Locator> {
     const element = this.page.getByText(text);
     await element.waitFor({ state: 'visible', ...options });
     return element;
@@ -68,7 +77,10 @@ export class BasePage {
    * スクリーンショットを撮影
    */
   async takeScreenshot(name: string): Promise<Buffer> {
-    return await this.page.screenshot({ path: `test-results/screenshots/${name}.png`, fullPage: true });
+    return await this.page.screenshot({
+      path: `test-results/screenshots/${name}.png`,
+      fullPage: true,
+    });
   }
 
   /**

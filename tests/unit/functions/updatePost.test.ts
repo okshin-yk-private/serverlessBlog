@@ -50,7 +50,10 @@ jest.mock('../../../layers/common/nodejs/utils/markdownUtils', () => ({
 }));
 
 // ハンドラーをインポート（モックの後）
-import { handler, resetDynamoDBClient } from '../../../functions/posts/updatePost/handler';
+import {
+  handler,
+  resetDynamoDBClient,
+} from '../../../functions/posts/updatePost/handler';
 
 describe('updatePost Lambda Handler', () => {
   const mockContext = createMockContext();
@@ -374,7 +377,10 @@ describe('updatePost Lambda Handler', () => {
           id: 'post-7',
         },
         body: JSON.stringify({
-          imageUrls: ['https://example.com/new1.jpg', 'https://example.com/new2.jpg'],
+          imageUrls: [
+            'https://example.com/new1.jpg',
+            'https://example.com/new2.jpg',
+          ],
         }),
         requestContext: {
           authorizer: {
@@ -391,7 +397,10 @@ describe('updatePost Lambda Handler', () => {
       // Assert
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.imageUrls).toEqual(['https://example.com/new1.jpg', 'https://example.com/new2.jpg']);
+      expect(body.imageUrls).toEqual([
+        'https://example.com/new1.jpg',
+        'https://example.com/new2.jpg',
+      ]);
     });
   });
 
@@ -558,7 +567,9 @@ describe('updatePost Lambda Handler', () => {
   describe('異常系 - DynamoDBエラー', () => {
     it('DynamoDB GetItemエラーの場合は500エラーを返す', async () => {
       // Arrange
-      mockDynamoDBSend.mockRejectedValueOnce(new Error('DynamoDB GetItem Error'));
+      mockDynamoDBSend.mockRejectedValueOnce(
+        new Error('DynamoDB GetItem Error')
+      );
 
       const event = createMockAPIGatewayEvent({
         pathParameters: {
@@ -601,7 +612,9 @@ describe('updatePost Lambda Handler', () => {
       };
 
       mockDynamoDBSend.mockResolvedValueOnce({ Item: existingPost });
-      mockDynamoDBSend.mockRejectedValueOnce(new Error('DynamoDB PutItem Error'));
+      mockDynamoDBSend.mockRejectedValueOnce(
+        new Error('DynamoDB PutItem Error')
+      );
 
       const event = createMockAPIGatewayEvent({
         pathParameters: {
