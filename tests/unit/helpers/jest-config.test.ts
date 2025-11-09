@@ -14,7 +14,7 @@ describe('Jest Configuration', () => {
     let config: any;
 
     beforeAll(() => {
-      const configPath = path.join(__dirname, '../jest.config.js');
+      const configPath = path.join(__dirname, '../jest.config.cjs');
       delete require.cache[require.resolve(configPath)];
       config = require(configPath);
     });
@@ -89,7 +89,7 @@ describe('Jest Configuration', () => {
     beforeAll(() => {
       const configPath = path.join(
         __dirname,
-        '../../../infrastructure/jest.config.js'
+        '../../../infrastructure/jest.config.cjs'
       );
       delete require.cache[require.resolve(configPath)];
       config = require(configPath);
@@ -170,7 +170,7 @@ describe('Jest Configuration', () => {
 
   describe('Istanbul Integration', () => {
     test('unit tests should use Istanbul for detailed metrics', () => {
-      const configPath = path.join(__dirname, '../jest.config.js');
+      const configPath = path.join(__dirname, '../jest.config.cjs');
       delete require.cache[require.resolve(configPath)];
       const config = require(configPath);
 
@@ -183,7 +183,7 @@ describe('Jest Configuration', () => {
     test('infrastructure tests should use Istanbul for detailed metrics', () => {
       const configPath = path.join(
         __dirname,
-        '../../../infrastructure/jest.config.js'
+        '../../../infrastructure/jest.config.cjs'
       );
       delete require.cache[require.resolve(configPath)];
       const config = require(configPath);
