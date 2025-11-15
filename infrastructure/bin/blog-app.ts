@@ -74,7 +74,8 @@ const lambdaFunctionsStack = new LambdaFunctionsStack(
   'ServerlessBlogLambdaFunctionsStack',
   {
     env,
-    layersStack,
+    powertoolsLayer: layersStack.powertoolsLayer,
+    commonLayer: layersStack.commonLayer,
     blogPostsTable: databaseStack.blogPostsTable,
     imagesBucket: storageStack.imageBucket,
     restApi: apiStack.restApi,
