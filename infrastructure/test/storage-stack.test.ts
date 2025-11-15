@@ -96,15 +96,6 @@ describe('StorageStack', () => {
   });
 
   describe('Static Content Buckets', () => {
-    test('Public site bucket should have website configuration', () => {
-      template.hasResourceProperties('AWS::S3::Bucket', {
-        WebsiteConfiguration: {
-          IndexDocument: 'index.html',
-          ErrorDocument: 'error.html',
-        },
-      });
-    });
-
     test('Should export public site bucket name', () => {
       template.hasOutput('PublicSiteBucketName', {
         Value: Match.objectLike({

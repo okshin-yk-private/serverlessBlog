@@ -1,0 +1,328 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`MonitoringStack スナップショットテスト MonitoringStackスナップショットが一致すること 1`] = `
+{
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "AlarmTopicD01E77F9": {
+      "Properties": {
+        "DisplayName": "Blog Platform Alarms",
+        "TopicName": "BlogPlatform-Alarms",
+      },
+      "Type": "AWS::SNS::Topic",
+    },
+    "AlarmTopictestexamplecom608C37CB": {
+      "Properties": {
+        "Endpoint": "test@example.com",
+        "Protocol": "email",
+        "TopicArn": {
+          "Ref": "AlarmTopicD01E77F9",
+        },
+      },
+      "Type": "AWS::SNS::Subscription",
+    },
+    "MonitoringDashboard96464763": {
+      "Properties": {
+        "DashboardBody": {
+          "Fn::Join": [
+            "",
+            [
+              "{"widgets":[{"type":"metric","width":12,"height":6,"x":0,"y":0,"properties":{"view":"timeSeries","title":"Lambda: TestStackTestFunction18743AFA - Errors & Invocations","region":"",
+              {
+                "Ref": "AWS::Region",
+              },
+              "","metrics":[["AWS/Lambda","Errors","FunctionName","",
+              {
+                "Fn::ImportValue": "TestStack:ExportsOutputRefTestFunction22AD90FC921DCA96",
+              },
+              "",{"stat":"Sum"}],["AWS/Lambda","Invocations","FunctionName","",
+              {
+                "Fn::ImportValue": "TestStack:ExportsOutputRefTestFunction22AD90FC921DCA96",
+              },
+              "",{"stat":"Sum"}]],"yAxis":{}}},{"type":"metric","width":12,"height":6,"x":12,"y":0,"properties":{"view":"timeSeries","title":"Lambda: TestStackTestFunction18743AFA - Duration & Throttles","region":"",
+              {
+                "Ref": "AWS::Region",
+              },
+              "","metrics":[["AWS/Lambda","Duration","FunctionName","",
+              {
+                "Fn::ImportValue": "TestStack:ExportsOutputRefTestFunction22AD90FC921DCA96",
+              },
+              ""],["AWS/Lambda","Throttles","FunctionName","",
+              {
+                "Fn::ImportValue": "TestStack:ExportsOutputRefTestFunction22AD90FC921DCA96",
+              },
+              "",{"stat":"Sum","yAxis":"right"}]],"yAxis":{}}},{"type":"metric","width":12,"height":6,"x":0,"y":6,"properties":{"view":"timeSeries","title":"DynamoDB: TestStackTestTableA1332B53 - Throttles","region":"",
+              {
+                "Ref": "AWS::Region",
+              },
+              "","metrics":[["AWS/DynamoDB","ReadThrottleEvents","TableName","",
+              {
+                "Fn::ImportValue": "TestStack:ExportsOutputRefTestTable5769773ACF700865",
+              },
+              "",{"stat":"Sum"}],["AWS/DynamoDB","WriteThrottleEvents","TableName","",
+              {
+                "Fn::ImportValue": "TestStack:ExportsOutputRefTestTable5769773ACF700865",
+              },
+              "",{"stat":"Sum"}]],"yAxis":{}}},{"type":"metric","width":12,"height":6,"x":0,"y":12,"properties":{"view":"timeSeries","title":"API Gateway: TestStackTestApi3128E937 - Errors","region":"",
+              {
+                "Ref": "AWS::Region",
+              },
+              "","metrics":[["AWS/ApiGateway","4XXError","ApiName","TestApi",{"stat":"Sum"}],["AWS/ApiGateway","5XXError","ApiName","TestApi",{"stat":"Sum"}]],"yAxis":{}}},{"type":"metric","width":12,"height":6,"x":12,"y":12,"properties":{"view":"timeSeries","title":"API Gateway: TestStackTestApi3128E937 - Latency","region":"",
+              {
+                "Ref": "AWS::Region",
+              },
+              "","metrics":[["AWS/ApiGateway","Latency","ApiName","TestApi"]],"yAxis":{}}}]}",
+            ],
+          ],
+        },
+        "DashboardName": "BlogPlatform-Monitoring",
+      },
+      "Type": "AWS::CloudWatch::Dashboard",
+    },
+    "TestStackTestApi3128E9374XXError4690BF7C": {
+      "Properties": {
+        "AlarmActions": [
+          {
+            "Ref": "AlarmTopicD01E77F9",
+          },
+        ],
+        "AlarmDescription": "API Gateway 4XX error rate is too high",
+        "AlarmName": "TestStackTestApi3128E937-4XXError",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "ApiName",
+            "Value": "TestApi",
+          },
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "4XXError",
+        "Namespace": "AWS/ApiGateway",
+        "Period": 300,
+        "Statistic": "Sum",
+        "Threshold": 10,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "TestStackTestApi3128E9375XXErrorFB5BB397": {
+      "Properties": {
+        "AlarmActions": [
+          {
+            "Ref": "AlarmTopicD01E77F9",
+          },
+        ],
+        "AlarmDescription": "API Gateway 5XX error rate is too high",
+        "AlarmName": "TestStackTestApi3128E937-5XXError",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "ApiName",
+            "Value": "TestApi",
+          },
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "5XXError",
+        "Namespace": "AWS/ApiGateway",
+        "Period": 300,
+        "Statistic": "Sum",
+        "Threshold": 5,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "TestStackTestApi3128E937Latency9E0FC216": {
+      "Properties": {
+        "AlarmActions": [
+          {
+            "Ref": "AlarmTopicD01E77F9",
+          },
+        ],
+        "AlarmDescription": "API Gateway latency is too high",
+        "AlarmName": "TestStackTestApi3128E937-Latency",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "ApiName",
+            "Value": "TestApi",
+          },
+        ],
+        "EvaluationPeriods": 2,
+        "MetricName": "Latency",
+        "Namespace": "AWS/ApiGateway",
+        "Period": 300,
+        "Statistic": "Average",
+        "Threshold": 2000,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "TestStackTestFunction18743AFADuration7AC87A45": {
+      "Properties": {
+        "AlarmActions": [
+          {
+            "Ref": "AlarmTopicD01E77F9",
+          },
+        ],
+        "AlarmDescription": "Lambda function duration is too high",
+        "AlarmName": "TestStackTestFunction18743AFA-Duration",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "FunctionName",
+            "Value": {
+              "Fn::ImportValue": "TestStack:ExportsOutputRefTestFunction22AD90FC921DCA96",
+            },
+          },
+        ],
+        "EvaluationPeriods": 2,
+        "MetricName": "Duration",
+        "Namespace": "AWS/Lambda",
+        "Period": 300,
+        "Statistic": "Average",
+        "Threshold": 10000,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "TestStackTestFunction18743AFAErrorRate5E633C90": {
+      "Properties": {
+        "AlarmActions": [
+          {
+            "Ref": "AlarmTopicD01E77F9",
+          },
+        ],
+        "AlarmDescription": "Lambda function error rate is too high",
+        "AlarmName": "TestStackTestFunction18743AFA-ErrorRate",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "FunctionName",
+            "Value": {
+              "Fn::ImportValue": "TestStack:ExportsOutputRefTestFunction22AD90FC921DCA96",
+            },
+          },
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "Errors",
+        "Namespace": "AWS/Lambda",
+        "Period": 300,
+        "Statistic": "Sum",
+        "Threshold": 1,
+        "TreatMissingData": "notBreaching",
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "TestStackTestFunction18743AFAThrottlesE38B29BE": {
+      "Properties": {
+        "AlarmActions": [
+          {
+            "Ref": "AlarmTopicD01E77F9",
+          },
+        ],
+        "AlarmDescription": "Lambda function is being throttled",
+        "AlarmName": "TestStackTestFunction18743AFA-Throttles",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "FunctionName",
+            "Value": {
+              "Fn::ImportValue": "TestStack:ExportsOutputRefTestFunction22AD90FC921DCA96",
+            },
+          },
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "Throttles",
+        "Namespace": "AWS/Lambda",
+        "Period": 300,
+        "Statistic": "Sum",
+        "Threshold": 1,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "TestStackTestTableA1332B53ReadThrottles72325F84": {
+      "Properties": {
+        "AlarmActions": [
+          {
+            "Ref": "AlarmTopicD01E77F9",
+          },
+        ],
+        "AlarmDescription": "DynamoDB table read throttles detected",
+        "AlarmName": "TestStackTestTableA1332B53-ReadThrottles",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "TableName",
+            "Value": {
+              "Fn::ImportValue": "TestStack:ExportsOutputRefTestTable5769773ACF700865",
+            },
+          },
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "ReadThrottleEvents",
+        "Namespace": "AWS/DynamoDB",
+        "Period": 300,
+        "Statistic": "Sum",
+        "Threshold": 1,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "TestStackTestTableA1332B53WriteThrottlesD04D20B9": {
+      "Properties": {
+        "AlarmActions": [
+          {
+            "Ref": "AlarmTopicD01E77F9",
+          },
+        ],
+        "AlarmDescription": "DynamoDB table write throttles detected",
+        "AlarmName": "TestStackTestTableA1332B53-WriteThrottles",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "TableName",
+            "Value": {
+              "Fn::ImportValue": "TestStack:ExportsOutputRefTestTable5769773ACF700865",
+            },
+          },
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "WriteThrottleEvents",
+        "Namespace": "AWS/DynamoDB",
+        "Period": 300,
+        "Statistic": "Sum",
+        "Threshold": 1,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;

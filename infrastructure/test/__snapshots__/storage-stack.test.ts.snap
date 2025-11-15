@@ -53,6 +53,16 @@ exports[`StorageStack Snapshot test 1`] = `
   "Resources": {
     "AdminSiteBucket6BE9C9FA": {
       "DeletionPolicy": "Retain",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "reason": "Server access logs disabled for development environment to reduce costs. Enable in production with enableAccessLogs=true.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "BucketEncryption": {
           "ServerSideEncryptionConfiguration": [
@@ -75,6 +85,16 @@ exports[`StorageStack Snapshot test 1`] = `
       "UpdateReplacePolicy": "Retain",
     },
     "AdminSiteBucketPolicy1C9AECFE": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "reason": "Server access logs disabled for development environment to reduce costs. Enable in production with enableAccessLogs=true.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "Bucket": {
           "Ref": "AdminSiteBucket6BE9C9FA",
@@ -123,6 +143,16 @@ exports[`StorageStack Snapshot test 1`] = `
     },
     "ImageBucket97210811": {
       "DeletionPolicy": "Retain",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "reason": "Server access logs disabled for development environment to reduce costs. Enable in production with enableAccessLogs=true.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "BucketEncryption": {
           "ServerSideEncryptionConfiguration": [
@@ -161,6 +191,16 @@ exports[`StorageStack Snapshot test 1`] = `
       "UpdateReplacePolicy": "Retain",
     },
     "ImageBucketPolicy9E7B0384": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "reason": "Server access logs disabled for development environment to reduce costs. Enable in production with enableAccessLogs=true.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "Bucket": {
           "Ref": "ImageBucket97210811",
@@ -209,6 +249,16 @@ exports[`StorageStack Snapshot test 1`] = `
     },
     "PublicSiteBucket37ED9704": {
       "DeletionPolicy": "Retain",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "reason": "Server access logs disabled for development environment to reduce costs. Enable in production with enableAccessLogs=true.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "BucketEncryption": {
           "ServerSideEncryptionConfiguration": [
@@ -226,15 +276,21 @@ exports[`StorageStack Snapshot test 1`] = `
           "IgnorePublicAcls": true,
           "RestrictPublicBuckets": true,
         },
-        "WebsiteConfiguration": {
-          "ErrorDocument": "error.html",
-          "IndexDocument": "index.html",
-        },
       },
       "Type": "AWS::S3::Bucket",
       "UpdateReplacePolicy": "Retain",
     },
     "PublicSiteBucketPolicy5236F71C": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "reason": "Server access logs disabled for development environment to reduce costs. Enable in production with enableAccessLogs=true.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "Bucket": {
           "Ref": "PublicSiteBucket37ED9704",

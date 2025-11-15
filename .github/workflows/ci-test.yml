@@ -141,6 +141,18 @@ jobs:
         env:
           CI: true
 
+      - name: Run CDK Nag security checks
+        run: |
+          cd infrastructure
+          echo "========================================="
+          echo "CDK Nag Security Validation"
+          echo "========================================="
+          npm run cdk:synth
+          echo ""
+          echo "✓ CDK Nag checks passed"
+        env:
+          CI: true
+
       - name: Upload infrastructure coverage reports
         uses: actions/upload-artifact@v4
         if: always()
@@ -398,6 +410,33 @@ jobs:
         with:
           name: frontend-admin-coverage
           path: coverage-frontend-admin/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Reorganize coverage files
+        run: |
+          mkdir -p coverage infrastructure/coverage frontend/public/coverage frontend/admin/coverage
+          cp -r coverage-backend/* coverage/ || true
+          cp -r coverage-infrastructure/* infrastructure/coverage/ || true
+          cp -r coverage-frontend-public/* frontend/public/coverage/ || true
+          cp -r coverage-frontend-admin/* frontend/admin/coverage/ || true
+
+      - name: Generate coverage badges
+        run: npm run coverage:badges
+
+      - name: Upload coverage badges
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-badges
+          path: docs/badges/
+          retention-days: 90
 
       - name: Verify 100% Coverage Requirement
         run: |

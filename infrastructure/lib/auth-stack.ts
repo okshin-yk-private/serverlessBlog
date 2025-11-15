@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { Construct } from 'constructs';
+import { NagSuppressions } from 'cdk-nag';
 
 export class AuthStack extends cdk.Stack {
   public readonly userPool: cognito.UserPool;
@@ -86,5 +87,51 @@ export class AuthStack extends cdk.Stack {
       description: 'Cognito User Pool ARN',
       exportName: 'BlogUserPoolArn',
     });
+
+    // CDK Nag Suppressions
+    // AwsSolutions-COG2: Cognito User PoolでMFAをREQUIREDに設定していない
+    // 理由: 開発環境ではOPTIONALに設定。本番環境ではREQUIREDを推奨
+    NagSuppressions.addResourceSuppressions(
+      this.userPool,
+      [
+        {
+          id: 'AwsSolutions-COG2',
+          reason:
+            'MFA set to OPTIONAL for development environment. Should be set to REQUIRED in production for enhanced security.',
+        },
+      ],
+      true
+    );
+
+    // AwsSolutions-IAM5[Resource::*]: Cognito User PoolのSMSロールにワイルドカード権限
+    // 理由: CognitoがSMS送信のために自動生成するロールで、AWS推奨のデフォルト動作
+    NagSuppressions.addResourceSuppressions(
+      this.userPool,
+      [
+        {
+          id: 'AwsSolutions-IAM5',
+          reason:
+            'Cognito User Pool SMS role requires wildcard permissions for SNS operations. This is AWS default behavior for SMS authentication.',
+          appliesTo: ['Resource::*'],
+        },
+      ],
+      true
+    );
+
+    // AwsSolutions-COG3: Cognito User PoolにAdvancedSecurityModeがENFORCEDに設定されていない
+    // 理由: 開発環境ではコストを抑えるためOFFに設定。本番環境ではENFORCEDを推奨
+    // Advanced Security Mode (ENFORCED)は、悪意のあるサインイン試行を検出・防止するが、
+    // 月額使用料が発生する（MAU課金）
+    NagSuppressions.addResourceSuppressions(
+      this.userPool,
+      [
+        {
+          id: 'AwsSolutions-COG3',
+          reason:
+            'Advanced Security Mode not enforced in development environment to reduce costs. Should be set to ENFORCED in production for threat detection.',
+        },
+      ],
+      true
+    );
   }
 }

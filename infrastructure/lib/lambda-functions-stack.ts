@@ -144,7 +144,7 @@ export class LambdaFunctionsStack extends cdk.Stack {
       ...commonFunctionProps,
       functionName: 'blog-upload-url',
       code: lambda.Code.fromAsset(
-        path.join(__dirname, '../../functions/images/uploadUrl')
+        path.join(__dirname, '../../functions/images/getUploadUrl')
       ),
       handler: 'index.handler',
       description: 'Generate pre-signed URL for image upload',

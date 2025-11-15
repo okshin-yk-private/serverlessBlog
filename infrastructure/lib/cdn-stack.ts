@@ -6,15 +6,19 @@ import { Construct } from 'constructs';
 
 export interface CdnStackProps extends cdk.StackProps {
   imageBucket: s3.Bucket;
+  publicSiteBucket: s3.Bucket;
+  adminSiteBucket: s3.Bucket;
 }
 
 export class CdnStack extends cdk.Stack {
   public readonly imageDistribution: cloudfront.Distribution;
+  public readonly publicSiteDistribution: cloudfront.Distribution;
+  public readonly adminSiteDistribution: cloudfront.Distribution;
 
   constructor(scope: Construct, id: string, props: CdnStackProps) {
     super(scope, id, props);
 
-    const { imageBucket } = props;
+    const { imageBucket, publicSiteBucket, adminSiteBucket } = props;
 
     // CloudFront Distribution for Image CDN
     this.imageDistribution = new cloudfront.Distribution(
@@ -48,7 +52,85 @@ export class CdnStack extends cdk.Stack {
       }
     );
 
-    // CloudFront domain name output
+    // CloudFront Distribution for Public Site
+    this.publicSiteDistribution = new cloudfront.Distribution(
+      this,
+      'PublicSiteDistribution',
+      {
+        comment: 'CDN for public blog site',
+        defaultBehavior: {
+          origin:
+            origins.S3BucketOrigin.withOriginAccessControl(publicSiteBucket),
+          viewerProtocolPolicy:
+            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+          cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
+          compress: true,
+          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        },
+        defaultRootObject: 'index.html',
+        errorResponses: [
+          {
+            httpStatus: 403,
+            responseHttpStatus: 200,
+            responsePagePath: '/index.html',
+            ttl: cdk.Duration.minutes(5),
+          },
+          {
+            httpStatus: 404,
+            responseHttpStatus: 200,
+            responsePagePath: '/index.html',
+            ttl: cdk.Duration.minutes(5),
+          },
+        ],
+        priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+        enableLogging: false,
+        minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
+      }
+    );
+
+    // CloudFront Distribution for Admin Site
+    this.adminSiteDistribution = new cloudfront.Distribution(
+      this,
+      'AdminSiteDistribution',
+      {
+        comment: 'CDN for admin dashboard',
+        defaultBehavior: {
+          origin:
+            origins.S3BucketOrigin.withOriginAccessControl(adminSiteBucket),
+          viewerProtocolPolicy:
+            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+          cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
+          compress: true,
+          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        },
+        defaultRootObject: 'index.html',
+        errorResponses: [
+          {
+            httpStatus: 403,
+            responseHttpStatus: 200,
+            responsePagePath: '/index.html',
+            ttl: cdk.Duration.minutes(5),
+          },
+          {
+            httpStatus: 404,
+            responseHttpStatus: 200,
+            responsePagePath: '/index.html',
+            ttl: cdk.Duration.minutes(5),
+          },
+        ],
+        priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+        enableLogging: false,
+        minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
+      }
+    );
+
+    // CDK Nag Suppressions
+    // AwsSolutions-S5 は既にOACを使用しているため不要
+    // PublicSiteBucketとAdminSiteBucketはCloudFront経由でのみアクセス可能
+
+    // CloudFront domain name outputs
     new cdk.CfnOutput(this, 'ImageDistributionDomainName', {
       value: this.imageDistribution.distributionDomainName,
       description: 'CloudFront distribution domain name for images',
@@ -59,6 +141,30 @@ export class CdnStack extends cdk.Stack {
       value: this.imageDistribution.distributionId,
       description: 'CloudFront distribution ID for images',
       exportName: 'ImageDistributionId',
+    });
+
+    new cdk.CfnOutput(this, 'PublicSiteDistributionDomainName', {
+      value: this.publicSiteDistribution.distributionDomainName,
+      description: 'CloudFront distribution domain name for public site',
+      exportName: 'PublicSiteDistributionDomainName',
+    });
+
+    new cdk.CfnOutput(this, 'PublicSiteDistributionId', {
+      value: this.publicSiteDistribution.distributionId,
+      description: 'CloudFront distribution ID for public site',
+      exportName: 'PublicSiteDistributionId',
+    });
+
+    new cdk.CfnOutput(this, 'AdminSiteDistributionDomainName', {
+      value: this.adminSiteDistribution.distributionDomainName,
+      description: 'CloudFront distribution domain name for admin site',
+      exportName: 'AdminSiteDistributionDomainName',
+    });
+
+    new cdk.CfnOutput(this, 'AdminSiteDistributionId', {
+      value: this.adminSiteDistribution.distributionId,
+      description: 'CloudFront distribution ID for admin site',
+      exportName: 'AdminSiteDistributionId',
     });
   }
 }
