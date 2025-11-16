@@ -139,7 +139,9 @@ exports[`StorageStack Snapshot test 1`] = `
               "Action": "s3:GetObject",
               "Condition": {
                 "StringEquals": {
-                  "AWS:SourceAccount": "123456789012",
+                  "AWS:SourceAccount": {
+                    "Ref": "AWS::AccountId",
+                  },
                 },
               },
               "Effect": "Allow",
@@ -272,7 +274,9 @@ exports[`StorageStack Snapshot test 1`] = `
               "Action": "s3:GetObject",
               "Condition": {
                 "StringEquals": {
-                  "AWS:SourceAccount": "123456789012",
+                  "AWS:SourceAccount": {
+                    "Ref": "AWS::AccountId",
+                  },
                 },
               },
               "Effect": "Allow",
@@ -389,7 +393,9 @@ exports[`StorageStack Snapshot test 1`] = `
               "Action": "s3:GetObject",
               "Condition": {
                 "StringEquals": {
-                  "AWS:SourceAccount": "123456789012",
+                  "AWS:SourceAccount": {
+                    "Ref": "AWS::AccountId",
+                  },
                 },
               },
               "Effect": "Allow",

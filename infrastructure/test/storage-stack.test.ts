@@ -10,10 +10,7 @@ describe('StorageStack', () => {
   beforeEach(() => {
     app = new cdk.App();
     stack = new StorageStack(app, 'TestStorageStack', {
-      env: {
-        account: '123456789012',
-        region: 'ap-northeast-1',
-      },
+      stage: 'dev', // テスト環境用のstage設定
     });
     template = Template.fromStack(stack);
   });
