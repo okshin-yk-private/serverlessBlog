@@ -90,7 +90,25 @@ jobs:
       - name: CDK Bootstrap (if needed)
         working-directory: infrastructure
         run: |
-          npx cdk bootstrap aws://${{ steps.aws-account.outputs.account-id }}/${{ vars.AWS_REGION }} || echo "Already bootstrapped or skipping"
+          echo "========================================="
+          echo "CDK Bootstrap Check"
+          echo "========================================="
+          echo "Account ID: ${{ steps.aws-account.outputs.account-id }}"
+          echo "Region: ${{ vars.AWS_REGION }}"
+          echo ""
+
+          # Bootstrap実行
+          if npx cdk bootstrap aws://${{ steps.aws-account.outputs.account-id }}/${{ vars.AWS_REGION }}; then
+            echo "✓ CDK Bootstrap successful"
+          else
+            EXIT_CODE=$?
+            if [ $EXIT_CODE -eq 0 ]; then
+              echo "✓ Environment already bootstrapped"
+            else
+              echo "✗ CDK Bootstrap failed with exit code: $EXIT_CODE"
+              exit $EXIT_CODE
+            fi
+          fi
 
       - name: CDK Diff
         working-directory: infrastructure
