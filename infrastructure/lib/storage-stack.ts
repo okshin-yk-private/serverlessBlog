@@ -6,6 +6,7 @@ import { NagSuppressions } from 'cdk-nag';
 
 export interface StorageStackProps extends cdk.StackProps {
   readonly enableAccessLogs?: boolean;
+  readonly stage?: string; // dev or prd
 }
 
 export class StorageStack extends cdk.Stack {
@@ -18,11 +19,13 @@ export class StorageStack extends cdk.Stack {
     super(scope, id, props);
 
     const enableAccessLogs = props?.enableAccessLogs ?? false;
+    const stage = props?.stage ?? 'dev';
+    const accountId = cdk.Stack.of(this).account;
 
     // Access Logs Bucket (if enabled)
     if (enableAccessLogs) {
       this.accessLogsBucket = new s3.Bucket(this, 'AccessLogsBucket', {
-        bucketName: 'serverless-blog-access-logs',
+        bucketName: `serverless-blog-access-logs-${stage}-${accountId}`,
         encryption: s3.BucketEncryption.S3_MANAGED,
         blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
         removalPolicy: cdk.RemovalPolicy.RETAIN,
@@ -38,7 +41,7 @@ export class StorageStack extends cdk.Stack {
 
     // Image Storage Bucket
     this.imageBucket = new s3.Bucket(this, 'ImageBucket', {
-      bucketName: 'serverless-blog-images',
+      bucketName: `serverless-blog-images-${stage}-${accountId}`,
       versioned: true,
       encryption: s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -78,7 +81,7 @@ export class StorageStack extends cdk.Stack {
 
     // Public Site Bucket - for hosting the public blog
     this.publicSiteBucket = new s3.Bucket(this, 'PublicSiteBucket', {
-      bucketName: 'serverless-blog-public-site',
+      bucketName: `serverless-blog-public-site-${stage}-${accountId}`,
       encryption: s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
@@ -107,7 +110,7 @@ export class StorageStack extends cdk.Stack {
 
     // Admin Site Bucket - for hosting the admin dashboard
     this.adminSiteBucket = new s3.Bucket(this, 'AdminSiteBucket', {
-      bucketName: 'serverless-blog-admin-site',
+      bucketName: `serverless-blog-admin-site-${stage}-${accountId}`,
       encryption: s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: cdk.RemovalPolicy.RETAIN,

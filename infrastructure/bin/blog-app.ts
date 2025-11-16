@@ -23,9 +23,9 @@ import { MonitoringStack } from '../lib/monitoring-stack';
 
 const app = new cdk.App();
 
-// 環境判定: 本番環境かどうか
-const environment = app.node.tryGetContext('environment') || 'dev';
-const isProduction = environment === 'prod';
+// stage context取得: dev or prd (ワークフローから --context stage=dev として渡される)
+const stage = app.node.tryGetContext('stage') || 'dev';
+const isProduction = stage === 'prd';
 
 // 環境設定
 const env = {
@@ -48,6 +48,7 @@ const databaseStack = new DatabaseStack(app, 'ServerlessBlogDatabaseStack', {
 // Storage Stack (S3アクセスログは本番環境のみ有効)
 const storageStack = new StorageStack(app, 'ServerlessBlogStorageStack', {
   env,
+  stage,
   enableAccessLogs: isProduction,
 });
 
