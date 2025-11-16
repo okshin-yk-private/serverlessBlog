@@ -20,7 +20,8 @@ export class StorageStack extends cdk.Stack {
 
     const enableAccessLogs = props?.enableAccessLogs ?? false;
     const stage = props?.stage ?? 'dev';
-    const accountId = cdk.Stack.of(this).account;
+    // cdk.Aws.ACCOUNT_IDを使用（cdk.Stack.of(this).accountはトークンを返すため、バケット名には不適切）
+    const accountId = cdk.Aws.ACCOUNT_ID;
 
     // Access Logs Bucket (if enabled)
     if (enableAccessLogs) {
