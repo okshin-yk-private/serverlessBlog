@@ -5,9 +5,9 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
 
 export interface CdnStackProps extends cdk.StackProps {
-  imageBucket: s3.Bucket;
-  publicSiteBucket: s3.Bucket;
-  adminSiteBucket: s3.Bucket;
+  imageBucketName: string;
+  publicSiteBucketName: string;
+  adminSiteBucketName: string;
 }
 
 export class CdnStack extends cdk.Stack {
@@ -18,9 +18,29 @@ export class CdnStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: CdnStackProps) {
     super(scope, id, props);
 
-    const { imageBucket, publicSiteBucket, adminSiteBucket } = props;
+    const { imageBucketName, publicSiteBucketName, adminSiteBucketName } =
+      props;
+
+    // Import buckets by name to avoid circular dependencies
+    const imageBucket = s3.Bucket.fromBucketName(
+      this,
+      'ImportedImageBucket',
+      imageBucketName
+    );
+    const publicSiteBucket = s3.Bucket.fromBucketName(
+      this,
+      'ImportedPublicSiteBucket',
+      publicSiteBucketName
+    );
+    const adminSiteBucket = s3.Bucket.fromBucketName(
+      this,
+      'ImportedAdminSiteBucket',
+      adminSiteBucketName
+    );
 
     // CloudFront Distribution for Image CDN
+    // Using Origin Access Control (OAC) - recommended best practice over OAI
+    // OAC provides enhanced security with short-term credentials and supports SSE-KMS
     this.imageDistribution = new cloudfront.Distribution(
       this,
       'ImageDistribution',
@@ -53,6 +73,7 @@ export class CdnStack extends cdk.Stack {
     );
 
     // CloudFront Distribution for Public Site
+    // Using Origin Access Control (OAC) - recommended best practice over OAI
     this.publicSiteDistribution = new cloudfront.Distribution(
       this,
       'PublicSiteDistribution',
@@ -90,6 +111,7 @@ export class CdnStack extends cdk.Stack {
     );
 
     // CloudFront Distribution for Admin Site
+    // Using Origin Access Control (OAC) - recommended best practice over OAI
     this.adminSiteDistribution = new cloudfront.Distribution(
       this,
       'AdminSiteDistribution',
@@ -127,7 +149,11 @@ export class CdnStack extends cdk.Stack {
     );
 
     // CDK Nag Suppressions
-    // AwsSolutions-S5 は既にOACを使用しているため不要
+    // AwsSolutions-S5 は既にCloudFront Origin Access Control (OAC)を使用しているため不要
+    // OACはOAIの後継で、以下の利点があります：
+    // - SSE-KMSサポート
+    // - 動的リクエスト（PUT/DELETE）サポート
+    // - 短期認証情報による強化されたセキュリティ
     // PublicSiteBucketとAdminSiteBucketはCloudFront経由でのみアクセス可能
 
     // CloudFront domain name outputs

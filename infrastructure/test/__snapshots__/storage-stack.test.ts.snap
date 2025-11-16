@@ -135,6 +135,33 @@ exports[`StorageStack Snapshot test 1`] = `
                 },
               ],
             },
+            {
+              "Action": "s3:GetObject",
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceAccount": "123456789012",
+                },
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudfront.amazonaws.com",
+              },
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::GetAtt": [
+                        "AdminSiteBucket6BE9C9FA",
+                        "Arn",
+                      ],
+                    },
+                    "/*",
+                  ],
+                ],
+              },
+              "Sid": "AllowCloudFrontServicePrincipal",
+            },
           ],
           "Version": "2012-10-17",
         },
@@ -241,6 +268,33 @@ exports[`StorageStack Snapshot test 1`] = `
                 },
               ],
             },
+            {
+              "Action": "s3:GetObject",
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceAccount": "123456789012",
+                },
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudfront.amazonaws.com",
+              },
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::GetAtt": [
+                        "ImageBucket97210811",
+                        "Arn",
+                      ],
+                    },
+                    "/*",
+                  ],
+                ],
+              },
+              "Sid": "AllowCloudFrontServicePrincipal",
+            },
           ],
           "Version": "2012-10-17",
         },
@@ -330,6 +384,33 @@ exports[`StorageStack Snapshot test 1`] = `
                   ],
                 },
               ],
+            },
+            {
+              "Action": "s3:GetObject",
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceAccount": "123456789012",
+                },
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudfront.amazonaws.com",
+              },
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::GetAtt": [
+                        "PublicSiteBucket37ED9704",
+                        "Arn",
+                      ],
+                    },
+                    "/*",
+                  ],
+                ],
+              },
+              "Sid": "AllowCloudFrontServicePrincipal",
             },
           ],
           "Version": "2012-10-17",

@@ -63,9 +63,9 @@ const apiStack = new ApiStack(app, 'ServerlessBlogApiStack', {
 // CDN Stack (CloudFront)
 const cdnStack = new CdnStack(app, 'ServerlessBlogCdnStack', {
   env,
-  imageBucket: storageStack.imageBucket,
-  publicSiteBucket: storageStack.publicSiteBucket,
-  adminSiteBucket: storageStack.adminSiteBucket,
+  imageBucketName: storageStack.imageBucket.bucketName,
+  publicSiteBucketName: storageStack.publicSiteBucket.bucketName,
+  adminSiteBucketName: storageStack.adminSiteBucket.bucketName,
 });
 
 // Lambda Functions Stack

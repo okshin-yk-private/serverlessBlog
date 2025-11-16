@@ -1,5 +1,6 @@
 import * as cdk from 'aws-cdk-lib';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 import { NagSuppressions } from 'cdk-nag';
 
@@ -58,6 +59,23 @@ export class StorageStack extends cdk.Stack {
       serverAccessLogsPrefix: enableAccessLogs ? 'image-bucket/' : undefined,
     });
 
+    // Add bucket policy to allow CloudFront OAC access
+    // Using wildcard for distribution ID initially - should be scoped down after deployment
+    this.imageBucket.addToResourcePolicy(
+      new iam.PolicyStatement({
+        sid: 'AllowCloudFrontServicePrincipal',
+        effect: iam.Effect.ALLOW,
+        principals: [new iam.ServicePrincipal('cloudfront.amazonaws.com')],
+        actions: ['s3:GetObject'],
+        resources: [this.imageBucket.arnForObjects('*')],
+        conditions: {
+          StringEquals: {
+            'AWS:SourceAccount': cdk.Stack.of(this).account,
+          },
+        },
+      })
+    );
+
     // Public Site Bucket - for hosting the public blog
     this.publicSiteBucket = new s3.Bucket(this, 'PublicSiteBucket', {
       bucketName: 'serverless-blog-public-site',
@@ -71,6 +89,22 @@ export class StorageStack extends cdk.Stack {
         : undefined,
     });
 
+    // Add bucket policy to allow CloudFront OAC access
+    this.publicSiteBucket.addToResourcePolicy(
+      new iam.PolicyStatement({
+        sid: 'AllowCloudFrontServicePrincipal',
+        effect: iam.Effect.ALLOW,
+        principals: [new iam.ServicePrincipal('cloudfront.amazonaws.com')],
+        actions: ['s3:GetObject'],
+        resources: [this.publicSiteBucket.arnForObjects('*')],
+        conditions: {
+          StringEquals: {
+            'AWS:SourceAccount': cdk.Stack.of(this).account,
+          },
+        },
+      })
+    );
+
     // Admin Site Bucket - for hosting the admin dashboard
     this.adminSiteBucket = new s3.Bucket(this, 'AdminSiteBucket', {
       bucketName: 'serverless-blog-admin-site',
@@ -83,6 +117,22 @@ export class StorageStack extends cdk.Stack {
         ? 'admin-site-bucket/'
         : undefined,
     });
+
+    // Add bucket policy to allow CloudFront OAC access
+    this.adminSiteBucket.addToResourcePolicy(
+      new iam.PolicyStatement({
+        sid: 'AllowCloudFrontServicePrincipal',
+        effect: iam.Effect.ALLOW,
+        principals: [new iam.ServicePrincipal('cloudfront.amazonaws.com')],
+        actions: ['s3:GetObject'],
+        resources: [this.adminSiteBucket.arnForObjects('*')],
+        conditions: {
+          StringEquals: {
+            'AWS:SourceAccount': cdk.Stack.of(this).account,
+          },
+        },
+      })
+    );
 
     // CDK Nag Suppressions (開発環境用)
     if (!enableAccessLogs) {
