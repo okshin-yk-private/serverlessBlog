@@ -3,6 +3,7 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
+import { NagSuppressions } from 'cdk-nag';
 
 export interface CdnStackProps extends cdk.StackProps {
   imageBucketName: string;
@@ -72,6 +73,24 @@ export class CdnStack extends cdk.Stack {
       }
     );
 
+    // CDK Nag suppressions for Image Distribution
+    NagSuppressions.addResourceSuppressions(
+      this.imageDistribution,
+      [
+        {
+          id: 'AwsSolutions-CFR3',
+          reason:
+            'Access logging disabled for development environment to reduce costs. Enable in production.',
+        },
+        {
+          id: 'AwsSolutions-CFR4',
+          reason:
+            'Using default CloudFront certificate for development. The minimumProtocolVersion is set to TLS_V1_2_2021, but CFR4 requires custom certificate to enforce this.',
+        },
+      ],
+      true
+    );
+
     // CloudFront Distribution for Public Site
     // Using Origin Access Control (OAC) - recommended best practice over OAI
     this.publicSiteDistribution = new cloudfront.Distribution(
@@ -110,6 +129,24 @@ export class CdnStack extends cdk.Stack {
       }
     );
 
+    // CDK Nag suppressions for Public Site Distribution
+    NagSuppressions.addResourceSuppressions(
+      this.publicSiteDistribution,
+      [
+        {
+          id: 'AwsSolutions-CFR3',
+          reason:
+            'Access logging disabled for development environment to reduce costs. Enable in production.',
+        },
+        {
+          id: 'AwsSolutions-CFR4',
+          reason:
+            'Using default CloudFront certificate for development. The minimumProtocolVersion is set to TLS_V1_2_2021, but CFR4 requires custom certificate to enforce this.',
+        },
+      ],
+      true
+    );
+
     // CloudFront Distribution for Admin Site
     // Using Origin Access Control (OAC) - recommended best practice over OAI
     this.adminSiteDistribution = new cloudfront.Distribution(
@@ -146,6 +183,24 @@ export class CdnStack extends cdk.Stack {
         enableLogging: false,
         minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
       }
+    );
+
+    // CDK Nag suppressions for Admin Site Distribution
+    NagSuppressions.addResourceSuppressions(
+      this.adminSiteDistribution,
+      [
+        {
+          id: 'AwsSolutions-CFR3',
+          reason:
+            'Access logging disabled for development environment to reduce costs. Enable in production.',
+        },
+        {
+          id: 'AwsSolutions-CFR4',
+          reason:
+            'Using default CloudFront certificate for development. The minimumProtocolVersion is set to TLS_V1_2_2021, but CFR4 requires custom certificate to enforce this.',
+        },
+      ],
+      true
     );
 
     // CDK Nag Suppressions
