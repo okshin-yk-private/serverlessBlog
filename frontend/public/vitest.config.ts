@@ -20,7 +20,7 @@ export default defineConfig({
     // 100%カバレッジ閾値の強制
     coverage: {
       provider: 'v8',
-      reporter: ['html', 'json', 'lcov', 'text'],
+      reporter: ['html', 'json', 'json-summary', 'lcov', 'text'],
       reportsDirectory: './coverage',
       exclude: [
         'node_modules/',
