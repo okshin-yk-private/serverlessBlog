@@ -44,6 +44,27 @@ exports[`AuthStack Snapshot test 1`] = `
   "Resources": {
     "BlogUserPoolBB1AE2CC": {
       "DeletionPolicy": "Retain",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-COG2",
+              "reason": "MFA set to OPTIONAL for development environment. Should be set to REQUIRED in production for enhanced security.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Cognito User Pool SMS role requires wildcard permissions for SNS operations. This is AWS default behavior for SMS authentication.",
+            },
+            {
+              "id": "AwsSolutions-COG3",
+              "reason": "Advanced Security Mode not enforced in development environment to reduce costs. Should be set to ENFORCED in production for threat detection.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "AccountRecoverySetting": {
           "RecoveryMechanisms": [
@@ -140,6 +161,27 @@ exports[`AuthStack Snapshot test 1`] = `
       "Type": "AWS::Cognito::UserPoolClient",
     },
     "BlogUserPoolsmsRole9F911302": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-COG2",
+              "reason": "MFA set to OPTIONAL for development environment. Should be set to REQUIRED in production for enhanced security.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Cognito User Pool SMS role requires wildcard permissions for SNS operations. This is AWS default behavior for SMS authentication.",
+            },
+            {
+              "id": "AwsSolutions-COG3",
+              "reason": "Advanced Security Mode not enforced in development environment to reduce costs. Should be set to ENFORCED in production for threat detection.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "AssumeRolePolicyDocument": {
           "Statement": [

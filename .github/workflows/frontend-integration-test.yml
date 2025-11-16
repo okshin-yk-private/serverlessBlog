@@ -1,0 +1,242 @@
+name: Frontend Integration Tests (AWS Environment)
+
+# 手動実行のみ（AWS環境デプロイ完了後）
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'AWS Environment to test against'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prd
+        default: 'dev'
+
+permissions:
+  id-token: write   # OIDC認証に必要
+  contents: read
+  issues: write      # テスト結果をIssueにコメント（オプション）
+
+jobs:
+  # AWS環境デプロイ状態確認
+  check-deployment:
+    name: Check AWS Deployment Status
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    outputs:
+      api-endpoint: ${{ steps.get-outputs.outputs.api-endpoint }}
+      cloudfront-url: ${{ steps.get-outputs.outputs.cloudfront-url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-northeast-1' }}
+
+      - name: Get CloudFormation Stack Outputs
+        id: get-outputs
+        run: |
+          # APIエンドポイントとCloudFront URLを取得
+          API_ENDPOINT=$(aws cloudformation describe-stacks \
+            --stack-name BlogAppApiStack-${{ github.event.inputs.environment }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+            --output text)
+
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks \
+            --stack-name BlogAppCdnStack-${{ github.event.inputs.environment }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
+            --output text)
+
+          if [ -z "$API_ENDPOINT" ] || [ -z "$CLOUDFRONT_URL" ]; then
+            echo "❌ AWS環境が正しくデプロイされていません"
+            exit 1
+          fi
+
+          echo "api-endpoint=$API_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "cloudfront-url=$CLOUDFRONT_URL" >> $GITHUB_OUTPUT
+
+          echo "✅ AWS環境デプロイ確認完了"
+          echo "API Endpoint: $API_ENDPOINT"
+          echo "CloudFront URL: $CLOUDFRONT_URL"
+
+  # 公開サイト統合テスト
+  test-public-site:
+    name: Public Site Integration Tests
+    runs-on: ubuntu-latest
+    needs: check-deployment
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd frontend/public && npm ci
+
+      - name: Run Public Site Integration Tests
+        env:
+          VITE_API_ENDPOINT: ${{ needs.check-deployment.outputs.api-endpoint }}
+          VITE_CLOUDFRONT_URL: ${{ needs.check-deployment.outputs.cloudfront-url }}
+          TEST_ENVIRONMENT: ${{ github.event.inputs.environment }}
+        run: |
+          # 公開サイト統合テスト実行
+          npm run test:integration:frontend:public
+        continue-on-error: false
+
+      - name: Upload Public Site Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-site-test-results-${{ github.event.inputs.environment }}
+          path: |
+            tests/integration/frontend/public/results/
+            coverage/frontend-public-integration/
+          retention-days: 30
+
+  # 管理画面統合テスト
+  test-admin-site:
+    name: Admin Site Integration Tests
+    runs-on: ubuntu-latest
+    needs: check-deployment
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd frontend/admin && npm ci
+
+      - name: Run Admin Site Integration Tests
+        env:
+          VITE_API_ENDPOINT: ${{ needs.check-deployment.outputs.api-endpoint }}
+          VITE_COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          TEST_ENVIRONMENT: ${{ github.event.inputs.environment }}
+          # テスト用管理者アカウント認証情報
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
+        run: |
+          # 管理画面統合テスト実行
+          npm run test:integration:frontend:admin
+        continue-on-error: false
+
+      - name: Upload Admin Site Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-site-test-results-${{ github.event.inputs.environment }}
+          path: |
+            tests/integration/frontend/admin/results/
+            coverage/frontend-admin-integration/
+          retention-days: 30
+
+  # 認証・認可統合テスト
+  test-auth:
+    name: Authentication & Authorization Tests
+    runs-on: ubuntu-latest
+    needs: check-deployment
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      - name: Run Authentication & Authorization Tests
+        env:
+          VITE_API_ENDPOINT: ${{ needs.check-deployment.outputs.api-endpoint }}
+          VITE_COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          TEST_ENVIRONMENT: ${{ github.event.inputs.environment }}
+          # テスト用管理者アカウント認証情報
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
+        run: |
+          # 認証・認可統合テスト実行
+          npm run test:integration:frontend:auth
+        continue-on-error: false
+
+      - name: Upload Auth Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-test-results-${{ github.event.inputs.environment }}
+          path: |
+            tests/integration/frontend/auth/results/
+            coverage/frontend-auth-integration/
+          retention-days: 30
+
+  # テスト結果サマリー
+  test-summary:
+    name: Test Results Summary
+    runs-on: ubuntu-latest
+    needs: [test-public-site, test-admin-site, test-auth]
+    if: always()
+
+    steps:
+      - name: Download All Test Results
+        uses: actions/download-artifact@v4
+        with:
+          path: test-results/
+
+      - name: Generate Test Summary
+        run: |
+          echo "# フロントエンド統合テスト結果 (${{ github.event.inputs.environment }}環境)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## テスト実行結果" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 各ジョブの結果を表示
+          echo "| テストスイート | 結果 |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 公開サイト統合テスト | ${{ needs.test-public-site.result == 'success' && '✅ 成功' || '❌ 失敗' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 管理画面統合テスト | ${{ needs.test-admin-site.result == 'success' && '✅ 成功' || '❌ 失敗' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 認証・認可統合テスト | ${{ needs.test-auth.result == 'success' && '✅ 成功' || '❌ 失敗' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 総合結果
+          if [ "${{ needs.test-public-site.result }}" == "success" ] && \
+             [ "${{ needs.test-admin-site.result }}" == "success" ] && \
+             [ "${{ needs.test-auth.result }}" == "success" ]; then
+            echo "## ✅ 総合結果: すべてのテストが成功しました" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          else
+            echo "## ❌ 総合結果: 一部のテストが失敗しました" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Report Test Results
+        if: failure()
+        run: |
+          echo "⚠️ フロントエンド統合テストが失敗しました。アーティファクトを確認してください。"

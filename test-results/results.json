@@ -10,7 +10,9 @@
     "grep": {},
     "grepInvert": null,
     "maxFailures": 0,
-    "metadata": {},
+    "metadata": {
+      "actualWorkers": 3
+    },
     "preserveOutput": "always",
     "reporter": [
       [
@@ -40,7 +42,9 @@
         "outputDir": "/Users/shin/practice/serverless_blog/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {},
+        "metadata": {
+          "actualWorkers": 3
+        },
         "id": "chromium",
         "name": "chromium",
         "testDir": "/Users/shin/practice/serverless_blog/tests/e2e",
@@ -93,14 +97,28 @@
                   "expectedStatus": "passed",
                   "projectId": "chromium",
                   "projectName": "chromium",
-                  "results": [],
-                  "status": "skipped"
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 862,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-11-10T14:20:13.219Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
                 }
               ],
               "id": "61e95150f9dbce4fb3dd-27e4004fcc0b83b68fc7",
               "file": "specs/article.spec.ts",
               "line": 19,
-              "column": 7
+              "column": 3
             }
           ]
         }
@@ -130,14 +148,28 @@
                   "expectedStatus": "passed",
                   "projectId": "chromium",
                   "projectName": "chromium",
-                  "results": [],
-                  "status": "skipped"
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 812,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-11-10T14:20:13.219Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
                 }
               ],
               "id": "7e53a42d8ab4d4542cd3-5bd346be11e9f9e61d2d",
               "file": "specs/home.spec.ts",
               "line": 21,
-              "column": 7
+              "column": 3
             },
             {
               "title": "should navigate to article detail page",
@@ -150,14 +182,28 @@
                   "expectedStatus": "passed",
                   "projectId": "chromium",
                   "projectName": "chromium",
-                  "results": [],
-                  "status": "skipped"
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 918,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-11-10T14:20:13.220Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
                 }
               ],
               "id": "7e53a42d8ab4d4542cd3-4e0d20c632a163231ae2",
               "file": "specs/home.spec.ts",
               "line": 31,
-              "column": 7
+              "column": 3
             }
           ]
         }
@@ -166,10 +212,10 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2025-11-07T15:16:23.196Z",
-    "duration": 20.666999999999973,
-    "expected": 0,
-    "skipped": 3,
+    "startTime": "2025-11-10T14:20:10.671Z",
+    "duration": 3596.8540000000003,
+    "expected": 3,
+    "skipped": 0,
     "unexpected": 0,
     "flaky": 0
   }

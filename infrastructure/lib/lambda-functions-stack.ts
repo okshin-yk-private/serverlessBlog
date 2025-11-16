@@ -4,6 +4,7 @@ import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
+import { NagSuppressions } from 'cdk-nag';
 import * as path from 'path';
 
 export interface LambdaFunctionsStackProps extends cdk.StackProps {
@@ -144,7 +145,7 @@ export class LambdaFunctionsStack extends cdk.Stack {
       ...commonFunctionProps,
       functionName: 'blog-upload-url',
       code: lambda.Code.fromAsset(
-        path.join(__dirname, '../../functions/images/uploadUrl')
+        path.join(__dirname, '../../functions/images/getUploadUrl')
       ),
       handler: 'index.handler',
       description: 'Generate pre-signed URL for image upload',
@@ -243,6 +244,74 @@ export class LambdaFunctionsStack extends cdk.Stack {
         authorizationType: apigateway.AuthorizationType.NONE,
       }
     );
+
+    // CDK Nag Suppressions
+
+    // Public API endpoints - intentionally without authentication
+    NagSuppressions.addResourceSuppressions(
+      postsResource,
+      [
+        {
+          id: 'AwsSolutions-APIG4',
+          reason:
+            'Public API endpoints (GET /posts and GET /posts/{id}) are intentionally designed without authentication to allow public access to published blog posts.',
+        },
+        {
+          id: 'AwsSolutions-COG4',
+          reason:
+            'Public API endpoints (GET /posts and GET /posts/{id}) do not require Cognito authorization as they serve public content.',
+        },
+      ],
+      true
+    );
+
+    // Lambda IAM - All functions use AWSLambdaBasicExecutionRole
+    const lambdaFunctions = [
+      this.createPostFunction,
+      this.getPostFunction,
+      this.updatePostFunction,
+      this.deletePostFunction,
+      this.listPostsFunction,
+      this.getPublicPostFunction,
+      this.uploadUrlFunction,
+    ];
+
+    lambdaFunctions.forEach((fn) => {
+      NagSuppressions.addResourceSuppressions(
+        fn,
+        [
+          {
+            id: 'AwsSolutions-IAM4',
+            reason:
+              'Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.',
+            appliesTo: [
+              'Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole',
+            ],
+          },
+          {
+            id: 'AwsSolutions-IAM5',
+            reason:
+              'Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. These are minimal required permissions for the functions to operate.',
+            appliesTo: [
+              'Resource::*',
+              'Resource::<BlogPostsTable95467250.Arn>/index/*',
+              'Action::s3:Abort*',
+              'Resource::<ImageBucket97210811.Arn>/*',
+            ],
+          },
+        ],
+        true
+      );
+    });
+
+    // API Gateway - WAF integration (Warning only, acceptable for development)
+    NagSuppressions.addStackSuppressions(this, [
+      {
+        id: 'AwsSolutions-APIG3',
+        reason:
+          'AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.',
+      },
+    ]);
 
     // Outputs
     new cdk.CfnOutput(this, 'CreatePostFunctionArn', {

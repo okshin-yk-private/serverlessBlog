@@ -29,7 +29,10 @@ export function getDynamoDBClient(): DynamoDBDocumentClient {
  * @param item - Item to put
  * @returns Put command output
  */
-export async function putItem(tableName: string, item: Record<string, any>) {
+export async function putItem(
+  tableName: string,
+  item: Record<string, unknown>
+) {
   if (!tableName || !item) {
     throw new Error('Table name and item are required');
   }
@@ -51,8 +54,8 @@ export async function putItem(tableName: string, item: Record<string, any>) {
  */
 export async function getItem(
   tableName: string,
-  key: Record<string, any>
-): Promise<Record<string, any> | null> {
+  key: Record<string, unknown>
+): Promise<Record<string, unknown> | null> {
   const client = getDynamoDBClient();
   const command = new GetCommand({
     TableName: tableName,
@@ -74,9 +77,9 @@ export async function getItem(
 export async function queryItems(
   tableName: string,
   keyConditionExpression: string,
-  expressionAttributeValues: Record<string, any>,
+  expressionAttributeValues: Record<string, unknown>,
   indexName?: string
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const client = getDynamoDBClient();
   const command = new QueryCommand({
     TableName: tableName,
@@ -95,7 +98,10 @@ export async function queryItems(
  * @param key - Item key
  * @returns Delete command output
  */
-export async function deleteItem(tableName: string, key: Record<string, any>) {
+export async function deleteItem(
+  tableName: string,
+  key: Record<string, unknown>
+) {
   if (!tableName || !key) {
     throw new Error('Table name and key are required');
   }

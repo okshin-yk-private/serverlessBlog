@@ -32,8 +32,9 @@ const TABLE_NAME = process.env.TABLE_NAME!;
 let dynamoDBClient: ReturnType<typeof DynamoDBDocumentClient.from> | null =
   null;
 
-export function getDynamoDBClient() {
+export function getDynamoDBClient(): DynamoDBDocumentClient {
   if (!dynamoDBClient) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const clientConfig: any = {};
 
     // 統合テスト用: DynamoDB Localエンドポイントが設定されている場合
@@ -58,7 +59,7 @@ export function getDynamoDBClient() {
 }
 
 // テスト用: DynamoDBクライアントをリセット
-export function resetDynamoDBClient() {
+export function resetDynamoDBClient(): void {
   dynamoDBClient = null;
 }
 

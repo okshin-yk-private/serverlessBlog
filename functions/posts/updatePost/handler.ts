@@ -40,6 +40,7 @@ let dynamoDBClient: DynamoDBDocumentClient | null = null;
 
 export function getDynamoDBClient(): DynamoDBDocumentClient {
   if (!dynamoDBClient) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const clientConfig: any = {};
 
     if (process.env.DYNAMODB_ENDPOINT) {
@@ -126,7 +127,7 @@ export const handler = async (
     }
 
     // JSONパース
-    let updateData: any;
+    let updateData: unknown;
     try {
       updateData = JSON.parse(event.body);
     } catch (error) {

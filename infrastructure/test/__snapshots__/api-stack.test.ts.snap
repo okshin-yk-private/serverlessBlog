@@ -2,6 +2,19 @@
 
 exports[`ApiStack Snapshot test 1`] = `
 {
+  "Metadata": {
+    "cdk_nag": {
+      "rules_to_suppress": [
+        {
+          "applies_to": [
+            "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs",
+          ],
+          "id": "AwsSolutions-IAM4",
+          "reason": "API Gateway CloudWatch role uses AWS managed policy AmazonAPIGatewayPushToCloudWatchLogs which is the recommended approach for API Gateway logging.",
+        },
+      ],
+    },
+  },
   "Outputs": {
     "AdminResourceId": {
       "Description": "Admin resource ID",
@@ -96,7 +109,30 @@ exports[`ApiStack Snapshot test 1`] = `
     },
   },
   "Resources": {
+    "ApiGatewayAccessLogsFB871B4C": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "LogGroupName": "/aws/apigateway/serverless-blog-api",
+        "RetentionInDays": 7,
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete",
+    },
     "BlogApi17ECE3AB": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG3",
+              "reason": "AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.",
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization will be implemented when Lambda functions are integrated with API Gateway methods. Currently resources are created but methods are not yet attached.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "Description": "Serverless Blog REST API",
         "EndpointConfiguration": {
@@ -113,6 +149,20 @@ exports[`ApiStack Snapshot test 1`] = `
       "DependsOn": [
         "BlogApi17ECE3AB",
       ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG3",
+              "reason": "AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.",
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization will be implemented when Lambda functions are integrated with API Gateway methods. Currently resources are created but methods are not yet attached.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "CloudWatchRoleArn": {
           "Fn::GetAtt": [
@@ -126,6 +176,20 @@ exports[`ApiStack Snapshot test 1`] = `
     },
     "BlogApiCloudWatchRole66A88900": {
       "DeletionPolicy": "Retain",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG3",
+              "reason": "AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.",
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization will be implemented when Lambda functions are integrated with API Gateway methods. Currently resources are created but methods are not yet attached.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "AssumeRolePolicyDocument": {
           "Statement": [
@@ -157,16 +221,29 @@ exports[`ApiStack Snapshot test 1`] = `
       "Type": "AWS::IAM::Role",
       "UpdateReplacePolicy": "Retain",
     },
-    "BlogApiDeploymentB3254DE35595cd9def4b46d28027a8b3e6b22615": {
+    "BlogApiDeploymentB3254DE3582160d1c7865fad00b5ddbb86833b7c": {
       "DependsOn": [
         "BlogApiadminOPTIONSDC8B627C",
         "BlogApiadmin6399BE5B",
         "BlogApiOPTIONSDA3C7AF0",
         "BlogApipostsOPTIONSCF6C9BA3",
         "BlogApipostsC4C4C4BC",
+        "RequestValidatorB6FDBF18",
       ],
       "Metadata": {
         "aws:cdk:do-not-refactor": true,
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG3",
+              "reason": "AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.",
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization will be implemented when Lambda functions are integrated with API Gateway methods. Currently resources are created but methods are not yet attached.",
+            },
+          ],
+        },
       },
       "Properties": {
         "Description": "Serverless Blog REST API",
@@ -180,9 +257,32 @@ exports[`ApiStack Snapshot test 1`] = `
       "DependsOn": [
         "BlogApiAccountD776435D",
       ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG3",
+              "reason": "AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.",
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization will be implemented when Lambda functions are integrated with API Gateway methods. Currently resources are created but methods are not yet attached.",
+            },
+          ],
+        },
+      },
       "Properties": {
+        "AccessLogSetting": {
+          "DestinationArn": {
+            "Fn::GetAtt": [
+              "ApiGatewayAccessLogsFB871B4C",
+              "Arn",
+            ],
+          },
+          "Format": "{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","user":"$context.identity.user","caller":"$context.identity.caller","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}",
+        },
         "DeploymentId": {
-          "Ref": "BlogApiDeploymentB3254DE35595cd9def4b46d28027a8b3e6b22615",
+          "Ref": "BlogApiDeploymentB3254DE3582160d1c7865fad00b5ddbb86833b7c",
         },
         "MethodSettings": [
           {
@@ -202,6 +302,20 @@ exports[`ApiStack Snapshot test 1`] = `
       "Type": "AWS::ApiGateway::Stage",
     },
     "BlogApiOPTIONSDA3C7AF0": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG3",
+              "reason": "AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.",
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization will be implemented when Lambda functions are integrated with API Gateway methods. Currently resources are created but methods are not yet attached.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "ApiKeyRequired": false,
         "AuthorizationType": "NONE",
@@ -247,6 +361,20 @@ exports[`ApiStack Snapshot test 1`] = `
       "Type": "AWS::ApiGateway::Method",
     },
     "BlogApiadmin6399BE5B": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG3",
+              "reason": "AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.",
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization will be implemented when Lambda functions are integrated with API Gateway methods. Currently resources are created but methods are not yet attached.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "ParentId": {
           "Fn::GetAtt": [
@@ -262,6 +390,20 @@ exports[`ApiStack Snapshot test 1`] = `
       "Type": "AWS::ApiGateway::Resource",
     },
     "BlogApiadminOPTIONSDC8B627C": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG3",
+              "reason": "AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.",
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization will be implemented when Lambda functions are integrated with API Gateway methods. Currently resources are created but methods are not yet attached.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "ApiKeyRequired": false,
         "AuthorizationType": "NONE",
@@ -304,6 +446,20 @@ exports[`ApiStack Snapshot test 1`] = `
       "Type": "AWS::ApiGateway::Method",
     },
     "BlogApipostsC4C4C4BC": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG3",
+              "reason": "AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.",
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization will be implemented when Lambda functions are integrated with API Gateway methods. Currently resources are created but methods are not yet attached.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "ParentId": {
           "Fn::GetAtt": [
@@ -319,6 +475,20 @@ exports[`ApiStack Snapshot test 1`] = `
       "Type": "AWS::ApiGateway::Resource",
     },
     "BlogApipostsOPTIONSCF6C9BA3": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG3",
+              "reason": "AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.",
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization will be implemented when Lambda functions are integrated with API Gateway methods. Currently resources are created but methods are not yet attached.",
+            },
+          ],
+        },
+      },
       "Properties": {
         "ApiKeyRequired": false,
         "AuthorizationType": "NONE",
@@ -375,6 +545,17 @@ exports[`ApiStack Snapshot test 1`] = `
         "Type": "COGNITO_USER_POOLS",
       },
       "Type": "AWS::ApiGateway::Authorizer",
+    },
+    "RequestValidatorB6FDBF18": {
+      "Properties": {
+        "Name": "BlogApiRequestValidator",
+        "RestApiId": {
+          "Ref": "BlogApi17ECE3AB",
+        },
+        "ValidateRequestBody": true,
+        "ValidateRequestParameters": true,
+      },
+      "Type": "AWS::ApiGateway::RequestValidator",
     },
   },
   "Rules": {

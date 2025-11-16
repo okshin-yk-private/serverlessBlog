@@ -9,6 +9,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "cdk": "cdk",
+    "cdk:synth": "cdk synth --all",
+    "cdk:nag": "cdk synth --all --quiet 2>&1 | grep -E '(AwsSolutions|Error|Warning)'",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix"
   },

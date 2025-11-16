@@ -40,6 +40,7 @@ module.exports = {
   coverageReporters: [
     'html', // HTMLレポート - ブラウザで詳細確認用
     'json', // JSONレポート - CI/CD統合用
+    'json-summary', // JSONサマリーレポート - カバレッジバッジ生成用
     'lcov', // LCOVレポート - カバレッジバッジ・外部ツール統合用
     'text', // テキストレポート - コンソール出力用
   ],

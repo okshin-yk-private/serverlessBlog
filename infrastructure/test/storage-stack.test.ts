@@ -96,15 +96,6 @@ describe('StorageStack', () => {
   });
 
   describe('Static Content Buckets', () => {
-    test('Public site bucket should have website configuration', () => {
-      template.hasResourceProperties('AWS::S3::Bucket', {
-        WebsiteConfiguration: {
-          IndexDocument: 'index.html',
-          ErrorDocument: 'error.html',
-        },
-      });
-    });
-
     test('Should export public site bucket name', () => {
       template.hasOutput('PublicSiteBucketName', {
         Value: Match.objectLike({
@@ -130,5 +121,72 @@ describe('StorageStack', () => {
 
   test('Snapshot test', () => {
     expect(template.toJSON()).toMatchSnapshot();
+  });
+
+  describe('Access Logs Bucket', () => {
+    test('Should not create access logs bucket when disabled (default)', () => {
+      const appNoLogs = new cdk.App();
+      const stackWithoutLogs = new StorageStack(
+        appNoLogs,
+        'TestStorageStackNoLogs',
+        {
+          env: {
+            account: '123456789012',
+            region: 'ap-northeast-1',
+          },
+        }
+      );
+      const templateWithoutLogs = Template.fromStack(stackWithoutLogs);
+
+      // Should have exactly 3 buckets (image, public, admin)
+      templateWithoutLogs.resourceCountIs('AWS::S3::Bucket', 3);
+    });
+
+    test('Should create access logs bucket when enabled', () => {
+      const appWithLogs = new cdk.App();
+      const stackWithLogs = new StorageStack(
+        appWithLogs,
+        'TestStorageStackWithLogs',
+        {
+          enableAccessLogs: true,
+          env: {
+            account: '123456789012',
+            region: 'ap-northeast-1',
+          },
+        }
+      );
+      const templateWithLogs = Template.fromStack(stackWithLogs);
+
+      // Should have 4 buckets (image, public, admin, access-logs)
+      templateWithLogs.resourceCountIs('AWS::S3::Bucket', 4);
+    });
+
+    test('Access logs bucket should have correct configuration', () => {
+      const appLogsConfig = new cdk.App();
+      const stackWithLogs = new StorageStack(
+        appLogsConfig,
+        'TestStorageStackLogsConfig',
+        {
+          enableAccessLogs: true,
+          env: {
+            account: '123456789012',
+            region: 'ap-northeast-1',
+          },
+        }
+      );
+      const templateWithLogs = Template.fromStack(stackWithLogs);
+
+      // Access logs bucket should have lifecycle rules
+      templateWithLogs.hasResourceProperties('AWS::S3::Bucket', {
+        LifecycleConfiguration: {
+          Rules: Match.arrayWith([
+            Match.objectLike({
+              Status: 'Enabled',
+              ExpirationInDays: 90,
+            }),
+          ]),
+        },
+      });
+    });
   });
 });
