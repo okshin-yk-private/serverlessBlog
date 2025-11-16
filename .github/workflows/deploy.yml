@@ -32,8 +32,8 @@ jobs:
     # develop または main ブランチへのpush時のみ実行
     if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     environment:
-      # ブランチ名から環境名を動的に決定: develop → dev, main → prd
-      name: ${{ github.ref == 'refs/heads/main' && 'prd' || 'dev' }}
+      # ブランチ名から環境名を動的に決定: develop → dev, main → prod
+      name: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
       url: ${{ github.ref == 'refs/heads/main' && 'https://yourblog.example.com' || 'https://dev.yourblog.example.com' }}
 
     steps:
