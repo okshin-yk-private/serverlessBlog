@@ -39,6 +39,7 @@ let dynamoDBClient: DynamoDBDocumentClient | null = null;
 
 export function getDynamoDBClient(): DynamoDBDocumentClient {
   if (!dynamoDBClient) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const clientConfig: any = {};
 
     if (process.env.DYNAMODB_ENDPOINT) {
@@ -133,6 +134,7 @@ export const handler = async (
     });
 
     // DynamoDB Queryパラメータ
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const queryCommandInput: any = {
       TableName: TABLE_NAME,
       Limit: limit,

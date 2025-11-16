@@ -32,6 +32,7 @@ let s3Client: S3Client | null = null;
 
 export function getS3Client(): S3Client {
   if (!s3Client) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const clientConfig: any = {};
 
     if (process.env.S3_ENDPOINT) {

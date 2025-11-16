@@ -23,6 +23,7 @@ let cognitoClient: CognitoIdentityProviderClient | null = null;
 
 export function getCognitoClient(): CognitoIdentityProviderClient {
   if (!cognitoClient) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const clientConfig: any = {};
 
     if (process.env.COGNITO_ENDPOINT) {
@@ -73,7 +74,7 @@ export const handler = async (
       return createErrorResponse(400, 'リクエストボディが必要です');
     }
 
-    let requestBody: any;
+    let requestBody: unknown;
     try {
       requestBody = JSON.parse(event.body);
     } catch (error) {
@@ -113,7 +114,7 @@ export const handler = async (
         message: 'ログアウトしました',
       }),
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('ログアウト処理中にエラーが発生しました', { error });
 
     // Cognito-specific error handling

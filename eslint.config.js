@@ -22,8 +22,12 @@ export default [
       '**/.serena/**',
       '**/.husky/**',
       'infrastructure/bin/**',
+      'infrastructure/lib/**/*.js', // Transpiled CDK files
+      'infrastructure/test/**/*.js', // Transpiled test files
+      'infrastructure/*.js', // Transpiled root files
       'frontend/**',  // Frontend has its own eslint.config.js
       'tests/**/*.js', // JavaScript test files
+      'scripts/**/*.js', // Utility scripts (Node.js)
     ],
   },
   // Base TypeScript configuration
