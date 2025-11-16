@@ -10,7 +10,7 @@ on:
         type: choice
         options:
           - dev
-          - prd
+          - prod
         default: 'dev'
       cleanup:
         description: 'Clean up test data after execution'

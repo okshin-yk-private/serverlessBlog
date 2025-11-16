@@ -10,7 +10,7 @@ on:
         type: choice
         options:
           - dev
-          - prd
+          - prod
         default: 'dev'
 
 permissions:

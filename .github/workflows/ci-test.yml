@@ -8,11 +8,6 @@
 name: CI_TEST
 
 on:
-  push:
-    branches:
-      - main
-      - develop
-      - feature/**
   pull_request:
     branches:
       - main
