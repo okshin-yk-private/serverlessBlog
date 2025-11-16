@@ -17,6 +17,37 @@ exports[`MonitoringStack スナップショットテスト MonitoringStackスナ
       },
       "Type": "AWS::SNS::Topic",
     },
+    "AlarmTopicPolicy309DB5F8": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "SNS:Publish",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Ref": "AlarmTopicD01E77F9",
+              },
+              "Sid": "AllowPublishThroughSSLOnly",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Topics": [
+          {
+            "Ref": "AlarmTopicD01E77F9",
+          },
+        ],
+      },
+      "Type": "AWS::SNS::TopicPolicy",
+    },
     "AlarmTopictestexamplecom608C37CB": {
       "Properties": {
         "Endpoint": "test@example.com",

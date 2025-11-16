@@ -105,11 +105,17 @@ export class ApiStack extends cdk.Stack {
     );
 
     // CDK Nag Suppressions
+    // AwsSolutions-APIG3: AWS WAF integration
     // AwsSolutions-APIG4: API Gatewayの認証が未実装
     // 理由: リソースにメソッドが未統合のため。Lambda統合時に認証を実装予定
     NagSuppressions.addResourceSuppressions(
       this.restApi,
       [
+        {
+          id: 'AwsSolutions-APIG3',
+          reason:
+            'AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.',
+        },
         {
           id: 'AwsSolutions-APIG4',
           reason:

@@ -18,6 +18,7 @@ import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as cloudwatchActions from 'aws-cdk-lib/aws-cloudwatch-actions';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as snsSubscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
@@ -56,6 +57,22 @@ export class MonitoringStack extends cdk.Stack {
       displayName: 'Blog Platform Alarms',
       topicName: 'BlogPlatform-Alarms',
     });
+
+    // SNSトピックにSSL強制ポリシーを追加
+    this.alarmTopic.addToResourcePolicy(
+      new iam.PolicyStatement({
+        sid: 'AllowPublishThroughSSLOnly',
+        effect: iam.Effect.DENY,
+        principals: [new iam.AnyPrincipal()],
+        actions: ['SNS:Publish'],
+        resources: [this.alarmTopic.topicArn],
+        conditions: {
+          Bool: {
+            'aws:SecureTransport': 'false',
+          },
+        },
+      })
+    );
 
     // メールサブスクリプション追加
     this.alarmTopic.addSubscription(

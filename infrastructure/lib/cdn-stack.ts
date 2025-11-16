@@ -78,6 +78,16 @@ export class CdnStack extends cdk.Stack {
       this.imageDistribution,
       [
         {
+          id: 'AwsSolutions-CFR1',
+          reason:
+            'Geo restrictions not required for development environment. Can be enabled in production based on business requirements.',
+        },
+        {
+          id: 'AwsSolutions-CFR2',
+          reason:
+            'AWS WAF integration not required for development environment. Should be enabled in production for enhanced security against web attacks.',
+        },
+        {
           id: 'AwsSolutions-CFR3',
           reason:
             'Access logging disabled for development environment to reduce costs. Enable in production.',
@@ -134,6 +144,16 @@ export class CdnStack extends cdk.Stack {
       this.publicSiteDistribution,
       [
         {
+          id: 'AwsSolutions-CFR1',
+          reason:
+            'Geo restrictions not required for development environment. Can be enabled in production based on business requirements.',
+        },
+        {
+          id: 'AwsSolutions-CFR2',
+          reason:
+            'AWS WAF integration not required for development environment. Should be enabled in production for enhanced security against web attacks.',
+        },
+        {
           id: 'AwsSolutions-CFR3',
           reason:
             'Access logging disabled for development environment to reduce costs. Enable in production.',
@@ -189,6 +209,16 @@ export class CdnStack extends cdk.Stack {
     NagSuppressions.addResourceSuppressions(
       this.adminSiteDistribution,
       [
+        {
+          id: 'AwsSolutions-CFR1',
+          reason:
+            'Geo restrictions not required for development environment. Can be enabled in production based on business requirements.',
+        },
+        {
+          id: 'AwsSolutions-CFR2',
+          reason:
+            'AWS WAF integration not required for development environment. Should be enabled in production for enhanced security against web attacks.',
+        },
         {
           id: 'AwsSolutions-CFR3',
           reason:
