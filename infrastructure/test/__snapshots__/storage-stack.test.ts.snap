@@ -73,7 +73,17 @@ exports[`StorageStack Snapshot test 1`] = `
             },
           ],
         },
-        "BucketName": "serverless-blog-admin-site",
+        "BucketName": {
+          "Fn::Join": [
+            "",
+            [
+              "serverless-blog-admin-site-dev-",
+              {
+                "Ref": "AWS::AccountId",
+              },
+            ],
+          ],
+        },
         "PublicAccessBlockConfiguration": {
           "BlockPublicAcls": true,
           "BlockPublicPolicy": true,
@@ -139,7 +149,9 @@ exports[`StorageStack Snapshot test 1`] = `
               "Action": "s3:GetObject",
               "Condition": {
                 "StringEquals": {
-                  "AWS:SourceAccount": "123456789012",
+                  "AWS:SourceAccount": {
+                    "Ref": "AWS::AccountId",
+                  },
                 },
               },
               "Effect": "Allow",
@@ -190,7 +202,17 @@ exports[`StorageStack Snapshot test 1`] = `
             },
           ],
         },
-        "BucketName": "serverless-blog-images",
+        "BucketName": {
+          "Fn::Join": [
+            "",
+            [
+              "serverless-blog-images-dev-",
+              {
+                "Ref": "AWS::AccountId",
+              },
+            ],
+          ],
+        },
         "LifecycleConfiguration": {
           "Rules": [
             {
@@ -272,7 +294,9 @@ exports[`StorageStack Snapshot test 1`] = `
               "Action": "s3:GetObject",
               "Condition": {
                 "StringEquals": {
-                  "AWS:SourceAccount": "123456789012",
+                  "AWS:SourceAccount": {
+                    "Ref": "AWS::AccountId",
+                  },
                 },
               },
               "Effect": "Allow",
@@ -323,7 +347,17 @@ exports[`StorageStack Snapshot test 1`] = `
             },
           ],
         },
-        "BucketName": "serverless-blog-public-site",
+        "BucketName": {
+          "Fn::Join": [
+            "",
+            [
+              "serverless-blog-public-site-dev-",
+              {
+                "Ref": "AWS::AccountId",
+              },
+            ],
+          ],
+        },
         "PublicAccessBlockConfiguration": {
           "BlockPublicAcls": true,
           "BlockPublicPolicy": true,
@@ -389,7 +423,9 @@ exports[`StorageStack Snapshot test 1`] = `
               "Action": "s3:GetObject",
               "Condition": {
                 "StringEquals": {
-                  "AWS:SourceAccount": "123456789012",
+                  "AWS:SourceAccount": {
+                    "Ref": "AWS::AccountId",
+                  },
                 },
               },
               "Effect": "Allow",
