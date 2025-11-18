@@ -63,7 +63,16 @@ describe('PostCreatePage', () => {
   // 記事作成フロー
   it('有効な記事データを入力して保存するとcreatePostが呼ばれる', async () => {
     const user = userEvent.setup();
-    vi.mocked(postsApi.createPost).mockResolvedValue({ id: 'test-id' });
+    vi.mocked(postsApi.createPost).mockResolvedValue({
+      id: 'test-id',
+      title: 'テスト記事タイトル',
+      contentMarkdown: 'テスト本文',
+      contentHtml: '<p>テスト本文</p>',
+      category: 'technology',
+      publishStatus: 'draft',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
 
     render(
       <BrowserRouter>
@@ -93,7 +102,16 @@ describe('PostCreatePage', () => {
 
   it('記事作成成功後は/postsへナビゲートする', async () => {
     const user = userEvent.setup();
-    vi.mocked(postsApi.createPost).mockResolvedValue({ id: 'test-id' });
+    vi.mocked(postsApi.createPost).mockResolvedValue({
+      id: 'test-id',
+      title: 'Test',
+      contentMarkdown: 'Test',
+      contentHtml: '<p>Test</p>',
+      category: 'technology',
+      publishStatus: 'draft',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
 
     render(
       <BrowserRouter>
@@ -353,7 +371,16 @@ describe('PostCreatePage', () => {
   // 公開状態トグル
   it('公開状態を下書きから公開に変更できる', async () => {
     const user = userEvent.setup();
-    vi.mocked(postsApi.createPost).mockResolvedValue({ id: 'test-id' });
+    vi.mocked(postsApi.createPost).mockResolvedValue({
+      id: 'test-id',
+      title: 'Test',
+      contentMarkdown: 'Test',
+      contentHtml: '<p>Test</p>',
+      category: 'technology',
+      publishStatus: 'published',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
 
     render(
       <BrowserRouter>
@@ -408,7 +435,16 @@ describe('PostCreatePage', () => {
     const user = userEvent.setup();
     vi.mocked(postsApi.createPost)
       .mockRejectedValueOnce(new Error('作成エラー'))
-      .mockResolvedValueOnce({ id: 'test-id' });
+      .mockResolvedValueOnce({
+        id: 'test-id',
+        title: 'Test',
+        contentMarkdown: 'Test',
+        contentHtml: '<p>Test</p>',
+        category: 'technology',
+        publishStatus: 'draft',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
 
     render(
       <BrowserRouter>

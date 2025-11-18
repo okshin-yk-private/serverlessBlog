@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { BrowserRouter, MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
 import LoginPage from './LoginPage';
 import { AuthProvider } from '../contexts/AuthContext';
 import * as amplifyAuth from 'aws-amplify/auth';
@@ -152,7 +152,7 @@ describe('LoginPage', () => {
     } as any);
 
     // MemoryRouterで履歴を追跡
-    const { container } = render(
+    render(
       <MemoryRouter initialEntries={['/login']}>
         <AuthProvider>
           <LoginPage />

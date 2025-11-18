@@ -147,6 +147,7 @@ graph TB
 | **HTTP クライアント** | Axios | インターセプター、エラーハンドリング、TypeScript統合 | Fetch API（機能不足）、SWR（キャッシュ不要） |
 | **テストライブラリ** | **React Testing Library** | **ユーザー視点テスト、アクセシビリティ重視、Jestとの統合** | **Enzyme（非推奨）、Cypress Component Testing（遅い）** |
 | **E2Eテスト** | **Playwright** | **クロスブラウザ、並列実行、信頼性高、スクリーンショット** | **Cypress（遅い）、Selenium（複雑）** |
+| **デプロイツール** | **AWS CLI (S3 Sync + CloudFront Invalidation)** | **ネイティブAWS統合、シンプル、信頼性高** | **vite-plugin-s3（設定複雑）、Netlify（ベンダーロックイン）** |
 
 #### Infrastructure as Code (CDK) 技術スタック
 
@@ -256,6 +257,155 @@ graph TB
 
 **トレードオフ**: 複数ツール管理（対策: 設定集約、共通ヘルパー）、E2E実行時間（対策: 並列実行、クリティカルパスのみE2E）
 
+#### 設計決定 7: 条件付きCI/CDワークフロー実行
+
+**決定**: ファイル変更パスに基づいて、インフラ/バックエンドとフロントエンドのCI/CDを条件付きで実行する。
+
+**コンテキスト**: 現在のCI/CD設計ではインフラ・バックエンド（CDK）のみに対応し、フロントエンド（React Public/Admin）のビルド・デプロイが含まれていない。フロントエンド変更時にインフラデプロイを実行することは非効率であり、逆にインフラ変更時にフロントエンドのみ更新することはシステム不整合を引き起こす可能性がある。
+
+**代替案**:
+1. **単一ワークフロー（常に全デプロイ）**: すべての変更で常にインフラ+フロントエンド両方をデプロイ（利点: シンプル、欠点: 非効率、実行時間長い）
+2. **手動ワークフロートリガー**: GitHub Actionsの手動トリガーでデプロイ対象を選択（利点: 柔軟性、欠点: 手動操作必要、自動化不足）
+3. **完全分離ワークフロー**: インフラとフロントエンドを完全に別ワークフローで管理（利点: 独立性、欠点: ワークフロー重複、メンテナンス負荷）
+
+**選択したアプローチ**: **パストリガーによる条件付き実行（GitHub Actions `on.push.paths`）**
+
+**ワークフロートリガー条件**:
+
+**パターンA: インフラ・バックエンド変更時**:
+```yaml
+on:
+  push:
+    paths:
+      - 'infrastructure/**'
+      - 'layers/**'
+      - 'functions/**'
+      - '.github/workflows/deploy.yml'
+```
+- 実行フロー:
+  1. インフラ・バックエンドCI（Lint, Unit Test, CDK Test, CDK Nag）
+  2. インフラ・バックエンドCD（CDK Deploy）
+  3. フロントエンドCI（Lint, Unit Test, E2E Test）
+  4. フロントエンドCD（Build, S3 Deploy, CloudFront Invalidation）
+
+**パターンB: フロントエンドのみ変更時**:
+```yaml
+on:
+  push:
+    paths:
+      - 'frontend/public/**'
+      - 'frontend/admin/**'
+```
+- 実行フロー:
+  1. フロントエンドCI（Lint, Unit Test, E2E Test）
+  2. フロントエンドCD（Build, S3 Deploy, CloudFront Invalidation）
+  3. インフラ・バックエンドCI/CDはスキップ
+
+**根拠**:
+- **効率性**: 変更されたコンポーネントのみデプロイし、CI/CD実行時間を最大50%削減
+- **安全性**: インフラ変更時は必ずフロントエンドも再デプロイし、API エンドポイント変更との整合性を保証
+- **自動化**: パストリガーによる自動判定で手動操作不要、開発者負担ゼロ
+- **コスト削減**: 不要なデプロイを回避し、GitHub Actions実行時間とAWSデプロイコストを最適化
+
+**トレードオフ**:
+- **ワークフロー複雑性増加**: パストリガー設定の保守必要（対策: ワークフロー定義を`.github/workflows/`で一元管理、コメントで条件明記）
+- **エッジケーステスト**: 両方変更時の動作検証必要（対策: 統合テスト環境で検証、ワークフロー実行ログ監視）
+
+**影響を受ける要件**: R31（CI/CD GitHub Actions）
+**影響を受けるタスク**: タスク9.x（CI/CDパイプライン）、タスク10.x（最終統合とデプロイ準備）
+
+#### 設計決定 8: フロントエンドCI/CDパイプラインの統合
+
+**決定**: Vite Build → S3 Sync → CloudFront Invalidation の3ステップでフロントエンドデプロイを実装する。
+
+**コンテキスト**: R31でCI/CD GitHub Actionsワークフロー必須だが、現在の設計にフロントエンドビルド・デプロイプロセスが欠落している。公開サイト（frontend/public）と管理画面（frontend/admin）の2つのViteアプリケーションをそれぞれS3にデプロイし、CloudFront経由で配信する必要がある。
+
+**フロントエンドビルドプロセス**:
+```yaml
+- name: Build Frontend (Public)
+  working-directory: frontend/public
+  run: |
+    npm ci
+    npm run build
+  env:
+    VITE_API_ENDPOINT: ${{ secrets.API_ENDPOINT }}
+    VITE_COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+
+- name: Build Frontend (Admin)
+  working-directory: frontend/admin
+  run: |
+    npm ci
+    npm run build
+  env:
+    VITE_API_ENDPOINT: ${{ secrets.API_ENDPOINT }}
+    VITE_COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+    VITE_COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+```
+
+**S3デプロイステップ**:
+```yaml
+- name: Deploy to S3 (Public)
+  run: |
+    aws s3 sync frontend/public/dist/ s3://${{ secrets.PUBLIC_BUCKET_NAME }}/ \
+      --delete \
+      --cache-control "public,max-age=31536000,immutable" \
+      --exclude "index.html" \
+      --exclude "*.map"
+    # index.htmlは短いTTL
+    aws s3 cp frontend/public/dist/index.html s3://${{ secrets.PUBLIC_BUCKET_NAME }}/ \
+      --cache-control "public,max-age=0,must-revalidate"
+
+- name: Deploy to S3 (Admin)
+  run: |
+    aws s3 sync frontend/admin/dist/ s3://${{ secrets.ADMIN_BUCKET_NAME }}/ \
+      --delete \
+      --cache-control "public,max-age=31536000,immutable" \
+      --exclude "index.html" \
+      --exclude "*.map"
+    aws s3 cp frontend/admin/dist/index.html s3://${{ secrets.ADMIN_BUCKET_NAME }}/ \
+      --cache-control "public,max-age=0,must-revalidate"
+```
+
+**CloudFront キャッシュ無効化ステップ**:
+```yaml
+- name: Invalidate CloudFront Cache (Public)
+  run: |
+    aws cloudfront create-invalidation \
+      --distribution-id ${{ secrets.PUBLIC_DISTRIBUTION_ID }} \
+      --paths "/*"
+
+- name: Invalidate CloudFront Cache (Admin)
+  run: |
+    aws cloudfront create-invalidation \
+      --distribution-id ${{ secrets.ADMIN_DISTRIBUTION_ID }} \
+      --paths "/*"
+```
+
+**フロントエンド専用環境変数設定**:
+
+| 環境変数 | 説明 | 必須 |
+|---------|------|------|
+| `VITE_API_ENDPOINT` | API Gateway エンドポイントURL | ✓ |
+| `VITE_COGNITO_USER_POOL_ID` | Cognito User Pool ID | ✓ |
+| `VITE_COGNITO_CLIENT_ID` | Cognito App Client ID（Admin のみ） | ✓（Admin） |
+| `PUBLIC_BUCKET_NAME` | 公開サイトS3バケット名 | ✓ |
+| `ADMIN_BUCKET_NAME` | 管理画面S3バケット名 | ✓ |
+| `PUBLIC_DISTRIBUTION_ID` | 公開サイトCloudFront Distribution ID | ✓ |
+| `ADMIN_DISTRIBUTION_ID` | 管理画面CloudFront Distribution ID | ✓ |
+
+**根拠**:
+- **Vite Build**: 高速ビルド（1-2分）、最適化済みバンドル、Tree Shaking、Code Splitting
+- **S3 Sync**: 変更ファイルのみアップロード、`--delete`で古いファイル削除、差分デプロイ高速化
+- **Cache-Control**: 静的アセット（JS/CSS/画像）は1年キャッシュ、index.htmlは即時更新
+- **CloudFront Invalidation**: キャッシュクリアで即座に新バージョン配信、`/*`で全ファイル無効化
+
+**トレードオフ**:
+- **CloudFront Invalidation コスト**: 月1000リクエスト無料、超過時$0.005/リクエスト（対策: デプロイ頻度を制限、ステージング環境で検証）
+- **S3 Sync 実行時間**: 初回デプロイ時は全ファイルアップロードで遅い（対策: キャッシュ活用、CI/CDキャッシュストレージ使用）
+
+**影響を受ける要件**: R31（CI/CD GitHub Actions）、R33（公開ブログサイト）、R34（管理画面）
+**影響を受けるタスク**: タスク9.x（CI/CDパイプライン）、タスク5.x（公開サイト）、タスク6.x（管理画面）
+
 #### 設計決定 4: DynamoDB単一テーブル設計
 
 **決定**: 単一テーブル（BlogPosts）+ 2つのGSI（CategoryIndex, PublishStatusIndex）を採用する。
@@ -345,31 +495,64 @@ graph TB
 ```mermaid
 graph TB
     PR[プルリクエスト作成]
-    Lint[ESLint + Prettier]
-    UnitTest[ユニットテスト Jest]
-    IntegrationTest[統合テスト Jest]
-    FrontendTest[フロントエンドテスト RTL]
-    CDKTest[CDK スタックテスト]
-    Coverage[カバレッジ測定]
-    CoverageCheck{カバレッジ100%?}
-    E2ETest[E2Eテスト Playwright]
-    CDKNag[CDK Nag セキュリティ検証]
-    Build[ビルド成功]
-    Deploy[デプロイ dev/prd]
+    PathCheck{変更パス判定}
+
+    subgraph Infrastructure_Backend_CI
+        InfraLint[ESLint + Prettier]
+        InfraUnitTest[ユニットテスト Jest]
+        InfraIntegrationTest[統合テスト Jest]
+        InfraCDKTest[CDK スタックテスト]
+        CDKNag[CDK Nag セキュリティ検証]
+        InfraCoverage[カバレッジ測定]
+    end
+
+    subgraph Frontend_CI
+        FrontendLint[ESLint + Prettier]
+        FrontendUnitTest[ユニットテスト RTL]
+        FrontendE2ETest[E2Eテスト Playwright]
+        FrontendCoverage[カバレッジ測定]
+    end
+
+    CoverageCheck{全カバレッジ100%?}
+
+    subgraph Deployment
+        InfraDeploy[CDK Deploy インフラ・バックエンド]
+        FrontendBuild[Vite Build Public/Admin]
+        S3Deploy[S3 Sync デプロイ]
+        CloudFrontInvalidate[CloudFront キャッシュ無効化]
+    end
+
+    Success[デプロイ成功]
     Fail[ビルド失敗 PR Block]
 
-    PR --> Lint
-    Lint --> UnitTest
-    UnitTest --> IntegrationTest
-    IntegrationTest --> FrontendTest
-    FrontendTest --> CDKTest
-    CDKTest --> Coverage
-    Coverage --> CoverageCheck
-    CoverageCheck -->|Yes| E2ETest
+    PR --> PathCheck
+
+    PathCheck -->|インフラ/バックエンド変更| InfraLint
+    PathCheck -->|フロントエンド変更| FrontendLint
+    PathCheck -->|両方変更| InfraLint
+    PathCheck -->|両方変更| FrontendLint
+
+    InfraLint --> InfraUnitTest
+    InfraUnitTest --> InfraIntegrationTest
+    InfraIntegrationTest --> InfraCDKTest
+    InfraCDKTest --> CDKNag
+    CDKNag --> InfraCoverage
+
+    FrontendLint --> FrontendUnitTest
+    FrontendUnitTest --> FrontendE2ETest
+    FrontendE2ETest --> FrontendCoverage
+
+    InfraCoverage --> CoverageCheck
+    FrontendCoverage --> CoverageCheck
+
+    CoverageCheck -->|Yes| InfraDeploy
+    CoverageCheck -->|Yes| FrontendBuild
     CoverageCheck -->|No| Fail
-    E2ETest --> CDKNag
-    CDKNag --> Build
-    Build --> Deploy
+
+    InfraDeploy --> FrontendBuild
+    FrontendBuild --> S3Deploy
+    S3Deploy --> CloudFrontInvalidate
+    CloudFrontInvalidate --> Success
 ```
 
 ### 記事作成フロー（ユーザー視点）
@@ -451,7 +634,7 @@ sequenceDiagram
 | **28.1** | X-Ray分散トレーシング | X-Ray | トレーシング有効化 | すべてのLambda |
 | **29.1** | ユニットテスト | Jest | jest.config.js | ユニットテスト |
 | **30.1** | 統合テスト | Jest | 統合テストスイート | 統合テスト |
-| **31.1** | CI/CD GitHub Actions | GitHub Actions | .github/workflows/test.yml | CI/CD |
+| **31.1** | CI/CD GitHub Actions（インフラ・バックエンド + フロントエンド） | GitHub Actions | .github/workflows/ci-test.yml, deploy.yml, deploy-frontend.yml | CI/CDテストフロー |
 | **32.1** | CDK Nag セキュリティ検証 | CDK Nag | AWS Solutions Checks | CI/CD |
 | **33.1** | 公開ブログサイト | React Public Site | S3 + CloudFront | フロントエンド |
 | **34.1** | 管理画面 | React Admin Site | S3 + CloudFront | フロントエンド |

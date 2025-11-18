@@ -1,4 +1,4 @@
-import { http, HttpResponse, delay } from 'msw';
+import { http, HttpResponse } from 'msw';
 
 // E2Eテスト時は相対パスでマッチさせる（MSWは同一オリジンのリクエストをインターセプトできる）
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';

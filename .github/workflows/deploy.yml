@@ -1,10 +1,15 @@
-# AWS CDK Deployment Workflow
+# AWS CDK Deployment Workflow (条件付きトリガー統合)
 # Requirement R31: GitHub Actions CI/CD デプロイワークフロー
 # Requirement R45: 継続的テスト実行（デプロイ前のテスト実行確認）
+# Design Decision 7: 条件付きCI/CDワークフロー実行
 #
-# このワークフローはAWS CDKを使用してインフラストラクチャをデプロイします
+# このワークフローはAWS CDKとフロントエンドを条件付きでデプロイします
 # - develop ブランチ → dev環境へ自動デプロイ
 # - main ブランチ → prd環境へ手動承認後デプロイ
+#
+# パストリガーによる条件付き実行:
+# - インフラ/バックエンド変更時: infrastructure/**, layers/**, functions/** → インフラCI/CD + フロントエンドCI/CD両方実行
+# - フロントエンドのみ変更時: frontend/public/**, frontend/admin/** → フロントエンドCI/CDのみ実行
 #
 # DRY原則に基づき、単一のdeployジョブで全環境に対応
 # 各ブランチのEnvironment Secretsに AWS_ROLE_ARN を設定
@@ -16,6 +21,16 @@ on:
     branches:
       - develop
       - main
+    paths:
+      # インフラ/バックエンド変更
+      - 'infrastructure/**'
+      - 'layers/**'
+      - 'functions/**'
+      # フロントエンド変更
+      - 'frontend/public/**'
+      - 'frontend/admin/**'
+      # ワークフロー自体の変更
+      - '.github/workflows/deploy.yml'
 
 # AWS OIDC認証のための権限設定
 permissions:
@@ -24,13 +39,59 @@ permissions:
 
 jobs:
   # =======================================
-  # Deploy Job (DRY - 全環境共通)
+  # Path Detection Job (変更パス検出)
   # =======================================
-  deploy:
-    name: Deploy to ${{ github.ref == 'refs/heads/main' && 'Production' || 'Development' }} Environment
+  detect-changes:
+    name: Detect Changed Paths
     runs-on: ubuntu-latest
-    # develop または main ブランチへのpush時のみ実行
-    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    outputs:
+      infrastructure: ${{ steps.filter.outputs.infrastructure }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        id: filter
+        run: |
+          # 変更されたファイルのリストを取得
+          if [ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]; then
+            # 初回プッシュの場合、すべてのファイルを変更とみなす
+            CHANGED_FILES=$(git ls-tree -r --name-only HEAD)
+          else
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          # インフラ/バックエンド変更チェック
+          if echo "$CHANGED_FILES" | grep -qE '^(infrastructure/|layers/|functions/|\.github/workflows/deploy\.yml)'; then
+            echo "infrastructure=true" >> $GITHUB_OUTPUT
+            echo "✓ Infrastructure/Backend changes detected"
+          else
+            echo "infrastructure=false" >> $GITHUB_OUTPUT
+            echo "✗ No Infrastructure/Backend changes"
+          fi
+
+          # フロントエンド変更チェック
+          if echo "$CHANGED_FILES" | grep -qE '^(frontend/public/|frontend/admin/)'; then
+            echo "frontend=true" >> $GITHUB_OUTPUT
+            echo "✓ Frontend changes detected"
+          else
+            echo "frontend=false" >> $GITHUB_OUTPUT
+            echo "✗ No Frontend changes"
+          fi
+
+  # =======================================
+  # Deploy Infrastructure Job (条件付き実行)
+  # =======================================
+  deploy-infrastructure:
+    name: Deploy Infrastructure to ${{ github.ref == 'refs/heads/main' && 'Production' || 'Development' }}
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    # インフラ/バックエンド変更時のみ実行
+    if: needs.detect-changes.outputs.infrastructure == 'true'
     environment:
       # ブランチ名から環境名を動的に決定: develop → dev, main → prod
       name: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
@@ -135,7 +196,7 @@ jobs:
         if: success()
         run: |
           echo "========================================="
-          echo "✓ Deployment to ${{ steps.env.outputs.env_name }} Environment Complete!"
+          echo "✓ Infrastructure Deployment to ${{ steps.env.outputs.env_name }} Environment Complete!"
           echo "========================================="
           echo ""
           echo "Environment: ${{ steps.env.outputs.stage }}"
@@ -146,4 +207,143 @@ jobs:
           echo ""
           if [ "${{ steps.env.outputs.stage }}" == "prd" ]; then
             echo "⚠️  PRODUCTION DEPLOYMENT SUCCESSFUL"
+          fi
+
+  # =======================================
+  # Deploy Frontend Job (条件付き実行)
+  # =======================================
+  deploy-frontend:
+    name: Deploy Frontend to ${{ github.ref == 'refs/heads/main' && 'Production' || 'Development' }}
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-infrastructure]
+    # フロントエンド変更時、またはインフラ変更時（API変更に対応）に実行
+    if: |
+      always() &&
+      (needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.infrastructure == 'true') &&
+      (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped')
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+      url: ${{ github.ref == 'refs/heads/main' && 'https://yourblog.example.com' || 'https://dev.yourblog.example.com' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Set environment stage
+        id: env
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "stage=prd" >> $GITHUB_OUTPUT
+            echo "env_name=Production" >> $GITHUB_OUTPUT
+          else
+            echo "stage=dev" >> $GITHUB_OUTPUT
+            echo "env_name=Development" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: GitHubActions-DeployFrontend-${{ steps.env.outputs.stage }}
+
+      # =======================================
+      # Public Site Deployment
+      # =======================================
+      - name: Install Public Site dependencies
+        working-directory: frontend/public
+        run: npm ci
+
+      - name: Build Public Site
+        working-directory: frontend/public
+        run: npm run build
+        env:
+          VITE_API_ENDPOINT: ${{ secrets.API_ENDPOINT }}
+          VITE_COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+
+      - name: Deploy Public Site to S3
+        run: |
+          echo "========================================="
+          echo "Deploying Public Site to S3"
+          echo "========================================="
+          # 静的アセット（JS/CSS/画像）を1年キャッシュ
+          aws s3 sync frontend/public/dist/ s3://${{ secrets.PUBLIC_BUCKET_NAME }}/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html" \
+            --exclude "*.map"
+          # index.htmlは即時更新
+          aws s3 cp frontend/public/dist/index.html s3://${{ secrets.PUBLIC_BUCKET_NAME }}/ \
+            --cache-control "public,max-age=0,must-revalidate"
+          echo "✓ Public Site deployed to S3"
+
+      - name: Invalidate Public Site CloudFront Cache
+        run: |
+          echo "Invalidating CloudFront cache for Public Site..."
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.PUBLIC_DISTRIBUTION_ID }} \
+            --paths "/*"
+          echo "✓ CloudFront cache invalidated"
+
+      # =======================================
+      # Admin Site Deployment
+      # =======================================
+      - name: Install Admin Site dependencies
+        working-directory: frontend/admin
+        run: npm ci
+
+      - name: Build Admin Site
+        working-directory: frontend/admin
+        run: npm run build
+        env:
+          VITE_API_ENDPOINT: ${{ secrets.API_ENDPOINT }}
+          VITE_COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+
+      - name: Deploy Admin Site to S3
+        run: |
+          echo "========================================="
+          echo "Deploying Admin Site to S3"
+          echo "========================================="
+          # 静的アセット（JS/CSS/画像）を1年キャッシュ
+          aws s3 sync frontend/admin/dist/ s3://${{ secrets.ADMIN_BUCKET_NAME }}/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html" \
+            --exclude "*.map"
+          # index.htmlは即時更新
+          aws s3 cp frontend/admin/dist/index.html s3://${{ secrets.ADMIN_BUCKET_NAME }}/ \
+            --cache-control "public,max-age=0,must-revalidate"
+          echo "✓ Admin Site deployed to S3"
+
+      - name: Invalidate Admin Site CloudFront Cache
+        run: |
+          echo "Invalidating CloudFront cache for Admin Site..."
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.ADMIN_DISTRIBUTION_ID }} \
+            --paths "/*"
+          echo "✓ CloudFront cache invalidated"
+
+      - name: Frontend Deployment Summary
+        if: success()
+        run: |
+          echo "========================================="
+          echo "✓ Frontend Deployment to ${{ steps.env.outputs.env_name }} Environment Complete!"
+          echo "========================================="
+          echo ""
+          echo "Environment: ${{ steps.env.outputs.stage }}"
+          echo "Git Branch: ${{ github.ref_name }}"
+          echo "Commit SHA: ${{ github.sha }}"
+          echo ""
+          echo "Public Site Bucket: ${{ secrets.PUBLIC_BUCKET_NAME }}"
+          echo "Admin Site Bucket: ${{ secrets.ADMIN_BUCKET_NAME }}"
+          echo ""
+          if [ "${{ steps.env.outputs.stage }}" == "prd" ]; then
+            echo "⚠️  PRODUCTION FRONTEND DEPLOYMENT SUCCESSFUL"
           fi

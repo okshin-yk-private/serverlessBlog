@@ -43,7 +43,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     setIsSubmitting(true);
     try {
       await onLogin({ email, password, rememberMe });
-    } catch (_err) {
+    } catch {
       // エラーはLoginPageで処理される
     } finally {
       setIsSubmitting(false);
@@ -52,7 +52,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
   // グローバルエラーメッセージを計算（propsのerrorまたはバリデーションエラー）
   const validationErrors = [emailError, passwordError].filter(Boolean);
-  const _hasErrors = error || validationErrors.length > 0;
 
   return (
     <form

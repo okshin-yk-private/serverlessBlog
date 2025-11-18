@@ -233,6 +233,131 @@ export class CdnStack extends cdk.Stack {
       true
     );
 
+    // Add restrictive bucket policies for OAC
+    // セキュリティ強化: 特定のCloudFrontディストリビューションのみがS3にアクセス可能
+    const _imageBucketPolicy = new s3.CfnBucketPolicy(
+      this,
+      'ImageBucketPolicy',
+      {
+        bucket: imageBucketName,
+        policyDocument: {
+          Statement: [
+            {
+              Sid: 'AllowCloudFrontOAC',
+              Effect: 'Allow',
+              Principal: {
+                Service: 'cloudfront.amazonaws.com',
+              },
+              Action: 's3:GetObject',
+              Resource: `arn:aws:s3:::${imageBucketName}/*`,
+              Condition: {
+                StringEquals: {
+                  'AWS:SourceArn': `arn:aws:cloudfront::${cdk.Aws.ACCOUNT_ID}:distribution/${this.imageDistribution.distributionId}`,
+                },
+              },
+            },
+            {
+              Sid: 'DenyInsecureTransport',
+              Effect: 'Deny',
+              Principal: '*',
+              Action: 's3:*',
+              Resource: [
+                `arn:aws:s3:::${imageBucketName}`,
+                `arn:aws:s3:::${imageBucketName}/*`,
+              ],
+              Condition: {
+                Bool: {
+                  'aws:SecureTransport': 'false',
+                },
+              },
+            },
+          ],
+        },
+      }
+    );
+
+    const _publicSiteBucketPolicy = new s3.CfnBucketPolicy(
+      this,
+      'PublicSiteBucketPolicy',
+      {
+        bucket: publicSiteBucketName,
+        policyDocument: {
+          Statement: [
+            {
+              Sid: 'AllowCloudFrontOAC',
+              Effect: 'Allow',
+              Principal: {
+                Service: 'cloudfront.amazonaws.com',
+              },
+              Action: 's3:GetObject',
+              Resource: `arn:aws:s3:::${publicSiteBucketName}/*`,
+              Condition: {
+                StringEquals: {
+                  'AWS:SourceArn': `arn:aws:cloudfront::${cdk.Aws.ACCOUNT_ID}:distribution/${this.publicSiteDistribution.distributionId}`,
+                },
+              },
+            },
+            {
+              Sid: 'DenyInsecureTransport',
+              Effect: 'Deny',
+              Principal: '*',
+              Action: 's3:*',
+              Resource: [
+                `arn:aws:s3:::${publicSiteBucketName}`,
+                `arn:aws:s3:::${publicSiteBucketName}/*`,
+              ],
+              Condition: {
+                Bool: {
+                  'aws:SecureTransport': 'false',
+                },
+              },
+            },
+          ],
+        },
+      }
+    );
+
+    const _adminSiteBucketPolicy = new s3.CfnBucketPolicy(
+      this,
+      'AdminSiteBucketPolicy',
+      {
+        bucket: adminSiteBucketName,
+        policyDocument: {
+          Statement: [
+            {
+              Sid: 'AllowCloudFrontOAC',
+              Effect: 'Allow',
+              Principal: {
+                Service: 'cloudfront.amazonaws.com',
+              },
+              Action: 's3:GetObject',
+              Resource: `arn:aws:s3:::${adminSiteBucketName}/*`,
+              Condition: {
+                StringEquals: {
+                  'AWS:SourceArn': `arn:aws:cloudfront::${cdk.Aws.ACCOUNT_ID}:distribution/${this.adminSiteDistribution.distributionId}`,
+                },
+              },
+            },
+            {
+              Sid: 'DenyInsecureTransport',
+              Effect: 'Deny',
+              Principal: '*',
+              Action: 's3:*',
+              Resource: [
+                `arn:aws:s3:::${adminSiteBucketName}`,
+                `arn:aws:s3:::${adminSiteBucketName}/*`,
+              ],
+              Condition: {
+                Bool: {
+                  'aws:SecureTransport': 'false',
+                },
+              },
+            },
+          ],
+        },
+      }
+    );
+
     // CDK Nag Suppressions
     // AwsSolutions-S5 は既にCloudFront Origin Access Control (OAC)を使用しているため不要
     // OACはOAIの後継で、以下の利点があります：

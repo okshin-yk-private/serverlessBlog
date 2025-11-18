@@ -16,9 +16,6 @@ const PostListPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nextToken, setNextToken] = useState<string | undefined>(undefined);
-  const [currentNextToken, setCurrentNextToken] = useState<string | undefined>(
-    undefined
-  );
   const [category, setCategory] = useState<string>('');
   const [tags, setTags] = useState<string>('');
   const [hasPrevious, setHasPrevious] = useState(false);
@@ -50,23 +47,15 @@ const PostListPage: React.FC = () => {
   };
 
   useEffect(() => {
-    // URLからシミュレーションパラメータを取得（テスト用）
-    const urlParams = new URLSearchParams(window.location.search);
-    const simulateError = urlParams.get('simulateError') || undefined;
-    const simulateRetry = urlParams.get('simulateRetry') || undefined;
-
     loadPosts({
       category: category || undefined,
       tags: tags || undefined,
-      simulateError,
-      simulateRetry,
     });
   }, []);
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedCategory = e.target.value;
     setCategory(selectedCategory);
-    setCurrentNextToken(undefined);
     setHasPrevious(false);
     loadPosts({
       category: selectedCategory || undefined,
@@ -75,7 +64,6 @@ const PostListPage: React.FC = () => {
   };
 
   const handleTagSearch = () => {
-    setCurrentNextToken(undefined);
     setHasPrevious(false);
     loadPosts({
       category: category || undefined,
@@ -86,7 +74,6 @@ const PostListPage: React.FC = () => {
   const handleNextPage = () => {
     if (nextToken) {
       setHasPrevious(true);
-      setCurrentNextToken(nextToken);
       loadPosts({
         category: category || undefined,
         tags: tags || undefined,
@@ -98,7 +85,6 @@ const PostListPage: React.FC = () => {
   const handlePrevPage = () => {
     // 前のページに戻る（簡易実装）
     setHasPrevious(false);
-    setCurrentNextToken(undefined);
     loadPosts({
       category: category || undefined,
       tags: tags || undefined,
