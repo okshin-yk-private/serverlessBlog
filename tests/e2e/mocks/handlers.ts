@@ -16,7 +16,7 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { mockPosts, mockPost, createMockPost } from './mockData';
+import { mockPosts, createMockPost } from './mockData';
 
 // ブラウザ環境では import.meta.env を使用
 // nullish coalescing演算子(??)を使用して、undefinedとnullのみデフォルト値を使用

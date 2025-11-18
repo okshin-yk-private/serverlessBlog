@@ -5,6 +5,7 @@ import {
 } from 'aws-lambda';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { randomUUID } from 'crypto';
 import { Logger } from '@aws-lambda-powertools/logger';
 import { Tracer } from '@aws-lambda-powertools/tracer';
 import { Metrics, MetricUnit } from '@aws-lambda-powertools/metrics';
@@ -154,10 +155,13 @@ export const handler = async (
       return createErrorResponse(500, 'サーバー設定エラーが発生しました');
     }
 
-    // S3キーの生成（ユーザーID + タイムスタンプ + ファイル名）
-    const timestamp = Date.now();
-    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const key = `images/${userId}/${timestamp}_${sanitizedFileName}`;
+    // S3キーの生成（UUID + 拡張子）
+    // セキュリティ: UUIDを使用してファイル名を推測不可能にする
+    const extension = fileName
+      .substring(fileName.lastIndexOf('.'))
+      .toLowerCase();
+    const uuid = randomUUID();
+    const key = `images/${userId}/${uuid}${extension}`;
 
     logger.info('Pre-signed URL生成中', { key, contentType });
 

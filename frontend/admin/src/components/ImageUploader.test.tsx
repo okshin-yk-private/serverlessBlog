@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ImageUploader } from './ImageUploader';
 
@@ -123,7 +123,7 @@ describe('ImageUploader', () => {
 
   it('アップロード中はプログレスバーが表示される', async () => {
     const user = userEvent.setup();
-    const mockUploadFn = vi.fn(
+    const mockUploadFn = vi.fn<(file: File) => Promise<string>>(
       () =>
         new Promise((resolve) =>
           setTimeout(
@@ -309,7 +309,7 @@ describe('ImageUploader', () => {
 
   it('selectedFileがnullの場合、handleUploadは何もしない', async () => {
     const mockUploadFn = vi.fn();
-    const { rerender } = render(
+    render(
       <ImageUploader
         onUploadComplete={mockOnUploadComplete}
         uploadFunction={mockUploadFn}

@@ -10,7 +10,6 @@ const PostListPage = () => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<TabType>('published');
   const [posts, setPosts] = useState<Post[]>([]);
-  const [total, setTotal] = useState<number>(0);
   const [nextToken, setNextToken] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +30,6 @@ const PostListPage = () => {
         limit: 100,
       });
       setPosts(response.posts);
-      setTotal(response.total);
       setNextToken(response.nextToken);
     } catch (err) {
       console.error('記事取得エラー:', err);

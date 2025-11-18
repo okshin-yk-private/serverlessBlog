@@ -13,4 +13,5 @@ import { setupWorker } from 'msw/browser';
 import { handlers } from '../../../../tests/e2e/mocks/handlers';
 
 // MSWブラウザワーカーを作成
+// @ts-ignore - MSW version mismatch between browser and handlers
 export const worker = setupWorker(...handlers);

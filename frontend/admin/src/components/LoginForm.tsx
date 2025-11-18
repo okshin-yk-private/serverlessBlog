@@ -52,7 +52,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
   // グローバルエラーメッセージを計算（propsのerrorまたはバリデーションエラー）
   const validationErrors = [emailError, passwordError].filter(Boolean);
-  const _hasErrors = error || validationErrors.length > 0;
 
   return (
     <form

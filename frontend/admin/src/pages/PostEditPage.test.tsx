@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import PostEditPage from './PostEditPage';
 import * as postsApi from '../api/posts';
 
@@ -30,7 +30,7 @@ vi.mock('../components/PostEditor', () => ({
   ),
 }));
 vi.mock('../components/ImageUploader', () => ({
-  ImageUploader: ({ onUploadComplete, uploadFunction }: any) => (
+  ImageUploader: ({ onUploadComplete }: any) => (
     <div data-testid="image-uploader">
       <button onClick={() => onUploadComplete('https://example.com/image.jpg')}>
         Upload Image
@@ -41,26 +41,6 @@ vi.mock('../components/ImageUploader', () => ({
 
 const mockGetPost = vi.mocked(postsApi.getPost);
 const mockUpdatePost = vi.mocked(postsApi.updatePost);
-const mockUploadImage = vi.mocked(postsApi.uploadImage);
-
-const renderPostEditPage = (postId: string = '1') => {
-  return render(
-    <BrowserRouter>
-      <Routes>
-        <Route path="/posts/edit/:id" element={<PostEditPage />} />
-      </Routes>
-    </BrowserRouter>,
-    {
-      wrapper: ({ children }) => (
-        <BrowserRouter>
-          <Routes>
-            <Route path="/posts/edit/:id" element={<PostEditPage />} />
-          </Routes>
-        </BrowserRouter>
-      ),
-    }
-  );
-};
 
 // MemoryRouter版のヘルパー
 const renderWithRouter = (postId: string = '1') => {

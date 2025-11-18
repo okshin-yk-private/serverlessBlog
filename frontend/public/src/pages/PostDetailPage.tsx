@@ -16,7 +16,6 @@ const PostDetailPage: React.FC = () => {
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     const loadPost = async () => {
@@ -29,14 +28,12 @@ const PostDetailPage: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
-        setNotFound(false);
 
         const data = await fetchPost(id);
         setPost(data);
       } catch (err: any) {
         // Check if error is 404
         if (err?.response?.status === 404) {
-          setNotFound(true);
           setError('記事が見つかりませんでした');
         } else {
           setError('記事の読み込みに失敗しました');

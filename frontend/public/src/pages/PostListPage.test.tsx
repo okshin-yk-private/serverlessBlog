@@ -12,12 +12,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import PostListPage from './PostListPage';
 import type { Post, PostListResponse } from '../types/post';
-import * as api from '../services/api';
 
 // モックデータ
 const mockPosts: Post[] = [
