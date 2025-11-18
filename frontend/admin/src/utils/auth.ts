@@ -68,7 +68,7 @@ export const decodeToken = (token: string): any | null => {
     const payload = parts[1];
     const decoded = JSON.parse(atob(payload));
     return decoded;
-  } catch (error) {
+  } catch {
     return null;
   }
 };

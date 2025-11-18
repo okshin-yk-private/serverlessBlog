@@ -43,7 +43,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     setIsSubmitting(true);
     try {
       await onLogin({ email, password, rememberMe });
-    } catch (_err) {
+    } catch {
       // エラーはLoginPageで処理される
     } finally {
       setIsSubmitting(false);
