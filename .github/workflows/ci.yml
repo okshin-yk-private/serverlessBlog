@@ -1,0 +1,229 @@
+# Continuous Integration Workflow (PR-based)
+# Requirement R31: GitHub Actions CI/CD デプロイワークフロー
+# Requirement R45: 継続的テスト実行
+#
+# PRに対してCI実行（テスト・ビルド検証）
+# ラベルに基づいて必要なジョブのみ実行
+
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # =======================================
+  # Infrastructure CI (条件付き実行)
+  # =======================================
+  infrastructure-ci:
+    name: Infrastructure CI
+    runs-on: ubuntu-latest
+    # infrastructureラベルが付いている、またはworkflowラベルが付いている場合に実行
+    if: |
+      contains(github.event.pull_request.labels.*.name, 'infrastructure') ||
+      contains(github.event.pull_request.labels.*.name, 'workflow')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install infrastructure dependencies
+        working-directory: infrastructure
+        run: npm ci
+
+      - name: Install Lambda Layer dependencies (Common)
+        working-directory: layers/common/nodejs
+        run: npm ci
+
+      - name: Install Lambda Layer dependencies (Powertools)
+        working-directory: layers/powertools/nodejs
+        run: npm ci
+
+      - name: Run infrastructure tests
+        working-directory: infrastructure
+        run: npm test
+
+      - name: Build infrastructure
+        working-directory: infrastructure
+        run: npm run build
+
+      - name: CDK Synth (Validation)
+        working-directory: infrastructure
+        run: npm run cdk synth
+
+      - name: Infrastructure CI Summary
+        if: success()
+        run: |
+          echo "========================================="
+          echo "✓ Infrastructure CI Passed!"
+          echo "========================================="
+          echo "- All tests passed"
+          echo "- TypeScript compilation successful"
+          echo "- CDK synth successful"
+
+  # =======================================
+  # Lambda Functions CI (条件付き実行)
+  # =======================================
+  functions-ci:
+    name: Lambda Functions CI
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.pull_request.labels.*.name, 'infrastructure') ||
+      contains(github.event.pull_request.labels.*.name, 'tests')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Run Lambda functions tests
+        run: npm test -- tests/unit/functions/
+
+      - name: Functions CI Summary
+        if: success()
+        run: |
+          echo "========================================="
+          echo "✓ Lambda Functions CI Passed!"
+          echo "========================================="
+
+  # =======================================
+  # Frontend Public CI (条件付き実行)
+  # =======================================
+  frontend-public-ci:
+    name: Frontend Public CI
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'frontend')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install frontend/public dependencies
+        working-directory: frontend/public
+        run: npm ci
+
+      - name: Run lint
+        working-directory: frontend/public
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Run tests
+        working-directory: frontend/public
+        run: npm test
+
+      - name: Build frontend/public
+        working-directory: frontend/public
+        run: npm run build
+        env:
+          VITE_API_ENDPOINT: https://api.example.com
+
+      - name: Frontend Public CI Summary
+        if: success()
+        run: |
+          echo "========================================="
+          echo "✓ Frontend Public CI Passed!"
+          echo "========================================="
+
+  # =======================================
+  # Frontend Admin CI (条件付き実行)
+  # =======================================
+  frontend-admin-ci:
+    name: Frontend Admin CI
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'frontend')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install frontend/admin dependencies
+        working-directory: frontend/admin
+        run: npm ci
+
+      - name: Run lint
+        working-directory: frontend/admin
+        run: npm run lint
+
+      - name: Run tests
+        working-directory: frontend/admin
+        run: npm test
+
+      - name: Build frontend/admin
+        working-directory: frontend/admin
+        run: npm run build
+        env:
+          VITE_API_ENDPOINT: https://api.example.com
+          VITE_USER_POOL_ID: us-east-1_example
+          VITE_USER_POOL_CLIENT_ID: example123
+
+      - name: Frontend Admin CI Summary
+        if: success()
+        run: |
+          echo "========================================="
+          echo "✓ Frontend Admin CI Passed!"
+          echo "========================================="
+
+  # =======================================
+  # CI Summary (全ジョブ完了後)
+  # =======================================
+  ci-summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [infrastructure-ci, functions-ci, frontend-public-ci, frontend-admin-ci]
+    if: always()
+
+    steps:
+      - name: Check CI Results
+        run: |
+          echo "========================================="
+          echo "CI Results Summary"
+          echo "========================================="
+          echo "Infrastructure CI: ${{ needs.infrastructure-ci.result }}"
+          echo "Functions CI: ${{ needs.functions-ci.result }}"
+          echo "Frontend Public CI: ${{ needs.frontend-public-ci.result }}"
+          echo "Frontend Admin CI: ${{ needs.frontend-admin-ci.result }}"
+          echo ""
+
+          # いずれかのジョブが失敗した場合はエラー
+          if [ "${{ needs.infrastructure-ci.result }}" == "failure" ] || \
+             [ "${{ needs.functions-ci.result }}" == "failure" ] || \
+             [ "${{ needs.frontend-public-ci.result }}" == "failure" ] || \
+             [ "${{ needs.frontend-admin-ci.result }}" == "failure" ]; then
+            echo "❌ CI Failed"
+            exit 1
+          else
+            echo "✅ All CI Jobs Passed or Skipped"
+          fi

@@ -1,15 +1,14 @@
-# AWS CDK Deployment Workflow (条件付きトリガー統合)
+# AWS CDK Deployment Workflow (PR-based)
 # Requirement R31: GitHub Actions CI/CD デプロイワークフロー
 # Requirement R45: 継続的テスト実行（デプロイ前のテスト実行確認）
-# Design Decision 7: 条件付きCI/CDワークフロー実行
 #
-# このワークフローはAWS CDKとフロントエンドを条件付きでデプロイします
+# このワークフローはAWS CDKとフロントエンドをデプロイします
 # - develop ブランチ → dev環境へ自動デプロイ
 # - main ブランチ → prd環境へ手動承認後デプロイ
 #
-# パストリガーによる条件付き実行:
-# - インフラ/バックエンド変更時: infrastructure/**, layers/**, functions/** → インフラCI/CD + フロントエンドCI/CD両方実行
-# - フロントエンドのみ変更時: frontend/public/**, frontend/admin/** → フロントエンドCI/CDのみ実行
+# PRベースのワークフロー:
+# - PRでCI実行（ci.yml）
+# - developまたはmainへのマージ後にデプロイ実行（このワークフロー）
 #
 # DRY原則に基づき、単一のdeployジョブで全環境に対応
 # 各ブランチのEnvironment Secretsに AWS_ROLE_ARN を設定
@@ -21,16 +20,6 @@ on:
     branches:
       - develop
       - main
-    paths:
-      # インフラ/バックエンド変更
-      - 'infrastructure/**'
-      - 'layers/**'
-      - 'functions/**'
-      # フロントエンド変更
-      - 'frontend/public/**'
-      - 'frontend/admin/**'
-      # ワークフロー自体の変更
-      - '.github/workflows/deploy.yml'
 
 # AWS OIDC認証のための権限設定
 permissions:
@@ -39,59 +28,11 @@ permissions:
 
 jobs:
   # =======================================
-  # Path Detection Job (変更パス検出)
-  # =======================================
-  detect-changes:
-    name: Detect Changed Paths
-    runs-on: ubuntu-latest
-    outputs:
-      infrastructure: ${{ steps.filter.outputs.infrastructure }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Detect changed paths
-        id: filter
-        run: |
-          # 変更されたファイルのリストを取得
-          if [ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]; then
-            # 初回プッシュの場合、すべてのファイルを変更とみなす
-            CHANGED_FILES=$(git ls-tree -r --name-only HEAD)
-          else
-            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
-          fi
-
-          echo "Changed files:"
-          echo "$CHANGED_FILES"
-
-          # インフラ/バックエンド変更チェック
-          if echo "$CHANGED_FILES" | grep -qE '^(infrastructure/|layers/|functions/|\.github/workflows/deploy\.yml)'; then
-            echo "infrastructure=true" >> $GITHUB_OUTPUT
-            echo "✓ Infrastructure/Backend changes detected"
-          else
-            echo "infrastructure=false" >> $GITHUB_OUTPUT
-            echo "✗ No Infrastructure/Backend changes"
-          fi
-
-          # フロントエンド変更チェック
-          if echo "$CHANGED_FILES" | grep -qE '^(frontend/public/|frontend/admin/)'; then
-            echo "frontend=true" >> $GITHUB_OUTPUT
-            echo "✓ Frontend changes detected"
-          else
-            echo "frontend=false" >> $GITHUB_OUTPUT
-            echo "✗ No Frontend changes"
-          fi
-
-  # =======================================
-  # Deploy Infrastructure Job (条件付き実行)
+  # Deploy Infrastructure Job
   # =======================================
   deploy-infrastructure:
     name: Deploy Infrastructure to ${{ github.ref == 'refs/heads/main' && 'Production' || 'Development' }}
     runs-on: ubuntu-latest
-    needs: detect-changes
-    # インフラ/バックエンド変更時のみ実行
-    if: needs.detect-changes.outputs.infrastructure == 'true'
     environment:
       # ブランチ名から環境名を動的に決定: develop → dev, main → prod
       name: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
@@ -210,17 +151,12 @@ jobs:
           fi
 
   # =======================================
-  # Deploy Frontend Job (条件付き実行)
+  # Deploy Frontend Job
   # =======================================
   deploy-frontend:
     name: Deploy Frontend to ${{ github.ref == 'refs/heads/main' && 'Production' || 'Development' }}
     runs-on: ubuntu-latest
-    needs: [detect-changes, deploy-infrastructure]
-    # フロントエンド変更時、またはインフラ変更時（API変更に対応）に実行
-    if: |
-      always() &&
-      (needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.infrastructure == 'true') &&
-      (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped')
+    needs: deploy-infrastructure
     environment:
       name: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
       url: ${{ github.ref == 'refs/heads/main' && 'https://yourblog.example.com' || 'https://dev.yourblog.example.com' }}
