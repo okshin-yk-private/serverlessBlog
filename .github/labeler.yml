@@ -1,0 +1,41 @@
+# GitHub Labeler Configuration
+# Requirement R31: GitHub Actions CI/CD デプロイワークフロー
+#
+# PRに自動的にラベルを付与する設定
+# actions/labeler@v6 で使用
+
+# インフラ/バックエンド変更
+infrastructure:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'infrastructure/**'
+      - 'layers/**'
+      - 'functions/**'
+
+# フロントエンド変更
+frontend:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'frontend/public/**'
+      - 'frontend/admin/**'
+
+# ワークフロー変更
+workflow:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/workflows/**'
+
+# テスト変更
+tests:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tests/**'
+      - '**/*.test.ts'
+      - '**/*.test.tsx'
+
+# ドキュメント変更
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.md'
+      - 'docs/**'
