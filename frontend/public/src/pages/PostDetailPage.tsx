@@ -164,82 +164,96 @@ const PostDetailPage: React.FC = () => {
         .container {
           max-width: 800px;
           margin: 0 auto;
-          padding: 20px;
+          padding: 30px 20px;
         }
 
         .back-link {
-          display: inline-block;
-          margin-bottom: 20px;
-          color: #0066cc;
+          display: inline-flex;
+          align-items: center;
+          margin-bottom: 25px;
+          color: #1e40af;
           text-decoration: none;
+          font-weight: 600;
+          font-size: 1rem;
+          transition: color 0.2s;
         }
 
         .back-link:hover {
-          text-decoration: underline;
+          color: #0f172a;
         }
 
         .post-detail {
           background-color: #fff;
-          padding: 30px;
-          border-radius: 8px;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          padding: 40px;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         }
 
         .post-header {
-          margin-bottom: 30px;
+          margin-bottom: 40px;
+          border-bottom: 2px solid #f0f0f0;
+          padding-bottom: 25px;
         }
 
         .post-header h1 {
-          margin: 0 0 15px 0;
-          font-size: 2rem;
+          margin: 0 0 20px 0;
+          font-size: 2.5rem;
+          font-weight: 700;
           line-height: 1.3;
+          color: #1a202c;
+          letter-spacing: -0.5px;
         }
 
         .post-meta {
           display: flex;
           gap: 15px;
           color: #666;
-          font-size: 0.9rem;
-          margin-bottom: 15px;
+          font-size: 0.95rem;
+          margin-bottom: 18px;
+          flex-wrap: wrap;
         }
 
         .category {
-          background-color: #e3f2fd;
-          padding: 4px 12px;
-          border-radius: 4px;
-          color: #1976d2;
+          background: linear-gradient(135deg, #0f172a 0%, #1e40af 100%);
+          padding: 6px 14px;
+          border-radius: 6px;
+          color: white;
+          font-weight: 600;
         }
 
         .tags {
           display: flex;
-          gap: 8px;
+          gap: 10px;
           flex-wrap: wrap;
         }
 
         .tag {
-          background-color: #f5f5f5;
-          padding: 4px 10px;
-          border-radius: 4px;
-          font-size: 0.85rem;
-          color: #555;
+          background-color: #e2e8f0;
+          padding: 6px 12px;
+          border-radius: 6px;
+          font-size: 0.9rem;
+          color: #2d3748;
+          font-weight: 500;
         }
 
         .images {
           display: flex;
           flex-direction: column;
-          gap: 15px;
-          margin-bottom: 30px;
+          gap: 20px;
+          margin-bottom: 35px;
         }
 
         .images img {
           max-width: 100%;
           height: auto;
-          border-radius: 8px;
+          border-radius: 10px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
         .post-content {
           line-height: 1.8;
-          color: #333;
+          color: #2d3748;
+          font-size: 1.05rem;
         }
 
         .post-content h1,
@@ -248,61 +262,95 @@ const PostDetailPage: React.FC = () => {
         .post-content h4,
         .post-content h5,
         .post-content h6 {
-          margin-top: 1.5em;
-          margin-bottom: 0.5em;
+          margin-top: 2em;
+          margin-bottom: 0.75em;
+          font-weight: 700;
+          color: #1a202c;
+          line-height: 1.3;
+        }
+
+        .post-content h2 {
+          font-size: 1.8rem;
+          border-bottom: 2px solid #e2e8f0;
+          padding-bottom: 0.5em;
+        }
+
+        .post-content h3 {
+          font-size: 1.5rem;
         }
 
         .post-content p {
-          margin-bottom: 1em;
+          margin-bottom: 1.2em;
         }
 
         .post-content img {
           max-width: 100%;
           height: auto;
+          border-radius: 8px;
+          margin: 1.5em 0;
         }
 
         .post-content code {
-          background-color: #f5f5f5;
-          padding: 2px 6px;
-          border-radius: 3px;
-          font-family: 'Courier New', monospace;
+          background-color: #2d3748;
+          color: #48bb78;
+          padding: 3px 8px;
+          border-radius: 4px;
+          font-family: 'Courier New', 'Consolas', monospace;
+          font-size: 0.9em;
         }
 
         .post-content pre {
-          background-color: #f5f5f5;
-          padding: 15px;
-          border-radius: 5px;
+          background-color: #2d3748;
+          padding: 20px;
+          border-radius: 8px;
           overflow-x: auto;
+          margin: 1.5em 0;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
         .post-content pre code {
           background-color: transparent;
+          color: #48bb78;
           padding: 0;
         }
 
         .related-articles {
-          margin-top: 50px;
-          padding: 30px;
-          background-color: #f9f9f9;
-          border-radius: 8px;
+          margin-top: 60px;
+          padding: 35px;
+          background: linear-gradient(135deg, #f7f8fa 0%, #e9ecef 100%);
+          border-radius: 12px;
         }
 
         .related-articles h2 {
-          margin: 0 0 20px 0;
-          font-size: 1.5rem;
+          margin: 0 0 25px 0;
+          font-size: 1.8rem;
+          font-weight: 700;
+          color: #1a202c;
         }
 
         @media (max-width: 768px) {
           .container {
-            padding: 15px;
+            padding: 20px 15px;
           }
 
           .post-detail {
-            padding: 20px;
+            padding: 25px;
           }
 
           .post-header h1 {
+            font-size: 1.8rem;
+          }
+
+          .post-content {
+            font-size: 1rem;
+          }
+
+          .post-content h2 {
             font-size: 1.5rem;
+          }
+
+          .post-content h3 {
+            font-size: 1.3rem;
           }
         }
       `}</style>

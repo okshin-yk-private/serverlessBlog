@@ -242,7 +242,15 @@ const PostListPage: React.FC = () => {
         .container {
           max-width: 1200px;
           margin: 0 auto;
-          padding: 20px;
+          padding: 30px 20px;
+        }
+
+        .container > h1 {
+          font-size: 2.5rem;
+          font-weight: 700;
+          color: #1a202c;
+          margin-bottom: 35px;
+          letter-spacing: -0.5px;
         }
 
         .error-message {
@@ -255,31 +263,53 @@ const PostListPage: React.FC = () => {
         }
 
         .filter-section {
-          margin-bottom: 20px;
+          margin-bottom: 25px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
         }
 
         .filter-section label {
-          margin-right: 10px;
+          font-weight: 600;
+          color: #2d3748;
+          font-size: 1rem;
         }
 
         .filter-section select,
         .filter-section input {
-          padding: 5px 10px;
-          border: 1px solid #ccc;
-          border-radius: 4px;
-          margin-right: 10px;
+          padding: 10px 14px;
+          border: 2px solid #e2e8f0;
+          border-radius: 6px;
+          font-size: 1rem;
+          transition: border-color 0.2s;
+          background-color: white;
+        }
+
+        .filter-section select:focus,
+        .filter-section input:focus {
+          outline: none;
+          border-color: #1e40af;
         }
 
         .filter-section button {
-          padding: 5px 15px;
-          border: 1px solid #ccc;
-          border-radius: 4px;
-          background-color: #fff;
+          padding: 10px 20px;
+          border: none;
+          border-radius: 6px;
+          background: linear-gradient(135deg, #0f172a 0%, #1e40af 100%);
+          color: white;
+          font-weight: 600;
           cursor: pointer;
+          transition: transform 0.2s, box-shadow 0.2s;
+          font-size: 1rem;
         }
 
         .filter-section button:hover {
-          background-color: #f5f5f5;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(30, 64, 175, 0.4);
+        }
+
+        .filter-section button:active {
+          transform: translateY(0);
         }
 
         .post-list-container {
@@ -326,7 +356,7 @@ const PostListPage: React.FC = () => {
         }
 
         .post-link:hover h2 {
-          color: #0066cc;
+          color: #1e40af;
         }
 
         .post-meta {
@@ -337,27 +367,38 @@ const PostListPage: React.FC = () => {
         }
 
         .pagination {
-          margin-top: 30px;
+          margin-top: 40px;
           display: flex;
-          gap: 10px;
+          gap: 15px;
           justify-content: center;
         }
 
         .pagination button {
-          padding: 10px 20px;
-          border: 1px solid #ccc;
-          border-radius: 4px;
-          background-color: #fff;
+          padding: 12px 24px;
+          border: none;
+          border-radius: 6px;
+          background: linear-gradient(135deg, #0f172a 0%, #1e40af 100%);
+          color: white;
+          font-weight: 600;
           cursor: pointer;
+          transition: transform 0.2s, box-shadow 0.2s;
+          font-size: 1rem;
         }
 
         .pagination button:disabled {
-          opacity: 0.5;
+          background: #e2e8f0;
+          color: #a0aec0;
           cursor: not-allowed;
+          transform: none;
         }
 
         .pagination button:not(:disabled):hover {
-          background-color: #f5f5f5;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(30, 64, 175, 0.4);
+        }
+
+        .pagination button:not(:disabled):active {
+          transform: translateY(0);
         }
       `}</style>
     </div>
