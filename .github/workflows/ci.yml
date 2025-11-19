@@ -8,17 +8,91 @@
 name: CI
 
 on:
+  # ラベル付与完了後に実行（label.yml完了を待つ）
+  workflow_run:
+    workflows: ["PR Auto Labeler"]
+    types: [completed]
+    branches:
+      - main
+      - develop
+  # ラベルの手動変更時にも実行
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [labeled, unlabeled]
     branches:
       - main
       - develop
 
 jobs:
   # =======================================
+  # Job 0: Get PR Info and Labels (for workflow_run events)
+  # =======================================
+  get-pr-labels:
+    name: Get PR Labels
+    runs-on: ubuntu-latest
+    outputs:
+      pr-number: ${{ steps.get-pr.outputs.pr-number }}
+      has-infrastructure: ${{ steps.check-labels.outputs.has-infrastructure }}
+      has-frontend: ${{ steps.check-labels.outputs.has-frontend }}
+      has-tests: ${{ steps.check-labels.outputs.has-tests }}
+      has-workflow: ${{ steps.check-labels.outputs.has-workflow }}
+    steps:
+      - name: Get PR number
+        id: get-pr
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            # workflow_runイベントの場合
+            PR_NUMBER=$(gh api /repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }} \
+              --jq '.pull_requests[0].number')
+            echo "pr-number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          else
+            # pull_requestイベントの場合
+            echo "pr-number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check labels
+        id: check-labels
+        run: |
+          PR_NUMBER="${{ steps.get-pr.outputs.pr-number }}"
+
+          # PRのラベルを取得
+          LABELS=$(gh api /repos/${{ github.repository }}/pulls/$PR_NUMBER --jq '.labels[].name' | tr '\n' ',' || echo "")
+
+          echo "PR Labels: $LABELS"
+
+          # 各ラベルの存在をチェック
+          if echo "$LABELS" | grep -q "infrastructure"; then
+            echo "has-infrastructure=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-infrastructure=false" >> $GITHUB_OUTPUT
+          fi
+
+          if echo "$LABELS" | grep -q "frontend"; then
+            echo "has-frontend=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-frontend=false" >> $GITHUB_OUTPUT
+          fi
+
+          if echo "$LABELS" | grep -q "tests"; then
+            echo "has-tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-tests=false" >> $GITHUB_OUTPUT
+          fi
+
+          if echo "$LABELS" | grep -q "workflow"; then
+            echo "has-workflow=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-workflow=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # =======================================
   # Job 1: Lint Check (always runs)
   # =======================================
   lint:
+    needs: [get-pr-labels]
     name: ESLint & Prettier Check
     runs-on: ubuntu-latest
 
@@ -61,11 +135,12 @@ jobs:
   # Job 2: Backend Unit Tests (conditional)
   # =======================================
   backend-unit-tests:
+    needs: [get-pr-labels]
     name: Backend Unit Tests
     runs-on: ubuntu-latest
     if: |
-      contains(github.event.pull_request.labels.*.name, 'infrastructure') ||
-      contains(github.event.pull_request.labels.*.name, 'tests')
+      needs.get-pr-labels.outputs.has-infrastructure == 'true' ||
+      needs.get-pr-labels.outputs.has-tests == 'true'
 
     steps:
       - name: Checkout code
@@ -102,11 +177,12 @@ jobs:
   # Job 3: Infrastructure Tests (conditional)
   # =======================================
   infrastructure-tests:
+    needs: [get-pr-labels]
     name: Infrastructure Tests (CDK)
     runs-on: ubuntu-latest
     if: |
-      contains(github.event.pull_request.labels.*.name, 'infrastructure') ||
-      contains(github.event.pull_request.labels.*.name, 'workflow')
+      needs.get-pr-labels.outputs.has-infrastructure == 'true' ||
+      needs.get-pr-labels.outputs.has-workflow == 'true'
 
     steps:
       - name: Checkout code
@@ -167,9 +243,10 @@ jobs:
   # Job 4: Frontend Tests - Public (conditional)
   # =======================================
   frontend-public-tests:
+    needs: [get-pr-labels]
     name: Frontend Tests (Public Site)
     runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.labels.*.name, 'frontend')
+    if: needs.get-pr-labels.outputs.has-frontend == 'true'
 
     steps:
       - name: Checkout code
@@ -208,9 +285,10 @@ jobs:
   # Job 5: Frontend Tests - Admin (conditional)
   # =======================================
   frontend-admin-tests:
+    needs: [get-pr-labels]
     name: Frontend Tests (Admin)
     runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.labels.*.name, 'frontend')
+    if: needs.get-pr-labels.outputs.has-frontend == 'true'
 
     steps:
       - name: Checkout code
@@ -507,6 +585,7 @@ jobs:
     name: All CI Checks Passed
     runs-on: ubuntu-latest
     needs:
+      - get-pr-labels
       - lint
       - backend-unit-tests
       - infrastructure-tests
