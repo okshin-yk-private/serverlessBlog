@@ -226,6 +226,10 @@ jobs:
           echo "✓ CDK Nag checks passed"
         env:
           CI: true
+          # Mock credentials for CDK synth (DEV environment Basic Auth)
+          # These are only used during synthesis and are not deployed
+          BASIC_AUTH_USERNAME: ci-mock-user
+          BASIC_AUTH_PASSWORD: ci-mock-password
 
       - name: Upload infrastructure coverage reports
         uses: actions/upload-artifact@v4
