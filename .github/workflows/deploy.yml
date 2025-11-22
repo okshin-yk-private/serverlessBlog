@@ -198,16 +198,10 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='AdminSiteDistributionId'].OutputValue" \
             --output text)
 
-          # Mask sensitive values
-          echo "::add-mask::$PUBLIC_BUCKET"
-          echo "::add-mask::$ADMIN_BUCKET"
-          echo "::add-mask::$PUBLIC_DIST_ID"
-          echo "::add-mask::$ADMIN_DIST_ID"
-
-          echo "Public Bucket: ***"
-          echo "Admin Bucket: ***"
-          echo "Public Distribution ID: ***"
-          echo "Admin Distribution ID: ***"
+          echo "Public Bucket: $PUBLIC_BUCKET"
+          echo "Admin Bucket: $ADMIN_BUCKET"
+          echo "Public Distribution ID: $PUBLIC_DIST_ID"
+          echo "Admin Distribution ID: $ADMIN_DIST_ID"
 
           # Set outputs for next job
           echo "public-bucket-name=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
