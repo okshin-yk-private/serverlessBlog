@@ -22,7 +22,12 @@ describe('CloudFront Functions Basic Authentication', () => {
   let template: Template;
 
   beforeEach(() => {
-    app = new cdk.App();
+    // Create app with non-DEV stage (production) to test that Basic Auth is NOT created
+    app = new cdk.App({
+      context: {
+        stage: 'prd',
+      },
+    });
 
     //  Create actual buckets in a parent stack first
     const bucketStack = new cdk.Stack(app, 'BucketStack', {
@@ -68,6 +73,20 @@ describe('CloudFront Functions Basic Authentication', () => {
   });
 
   describe('CloudFront Function Creation - DEV Environment', () => {
+    const originalEnv = process.env;
+
+    beforeAll(() => {
+      process.env = {
+        ...originalEnv,
+        BASIC_AUTH_USERNAME: 'testuser',
+        BASIC_AUTH_PASSWORD: 'testpass123',
+      };
+    });
+
+    afterAll(() => {
+      process.env = originalEnv;
+    });
+
     beforeEach(() => {
       app = new cdk.App({
         context: {
@@ -146,7 +165,7 @@ describe('CloudFront Functions Basic Authentication', () => {
       // Verify Base64 encoding logic exists
       expect(functionCode).toContain('Authorization');
       expect(functionCode).toContain('Basic');
-      expect(functionCode).toContain('atob');
+      expect(functionCode).toContain('btoa');
     });
 
     test('should return 401 Unauthorized logic in function code', () => {
@@ -227,6 +246,20 @@ describe('CloudFront Functions Basic Authentication', () => {
   });
 
   describe('Basic Auth Function Code Logic', () => {
+    const originalEnv = process.env;
+
+    beforeAll(() => {
+      process.env = {
+        ...originalEnv,
+        BASIC_AUTH_USERNAME: 'admin',
+        BASIC_AUTH_PASSWORD: 'SecureP@ss123',
+      };
+    });
+
+    afterAll(() => {
+      process.env = originalEnv;
+    });
+
     beforeEach(() => {
       app = new cdk.App({
         context: {
@@ -283,14 +316,14 @@ describe('CloudFront Functions Basic Authentication', () => {
       expect(functionCode).toContain('statusCode');
     });
 
-    test('should decode Base64 Authorization header', () => {
+    test('should encode expected credentials with Base64', () => {
       const functions = template.findResources('AWS::CloudFront::Function');
       const functionCode =
         functions[Object.keys(functions)[0]].Properties.FunctionCode;
 
-      // Verify Base64 decoding logic
-      expect(functionCode).toContain('atob');
-      expect(functionCode).toContain('split');
+      // Verify Base64 encoding of expected credentials
+      expect(functionCode).toContain('btoa');
+      expect(functionCode).toContain('authString');
       expect(functionCode).toContain(':');
     });
 
@@ -319,6 +352,21 @@ describe('CloudFront Functions Basic Authentication', () => {
   });
 
   describe('Error Handling', () => {
+    const originalEnv = process.env;
+
+    beforeAll(() => {
+      // Clear environment variables to ensure error handling tests work correctly
+      process.env = {
+        ...originalEnv,
+      };
+      delete process.env.BASIC_AUTH_USERNAME;
+      delete process.env.BASIC_AUTH_PASSWORD;
+    });
+
+    afterAll(() => {
+      process.env = originalEnv;
+    });
+
     test('should throw error when basicAuth context is missing in DEV environment', () => {
       const appNoAuth = new cdk.App({
         context: {
@@ -354,10 +402,13 @@ describe('CloudFront Functions Basic Authentication', () => {
         adminSiteBucketName: adminBucket.bucketName,
       };
 
-      // Should throw error when basicAuth is not provided in DEV
+      // Should throw error when credentials are not available
+      // (Either from environment variables or Parameter Store)
       expect(() => {
         new CdnStack(appNoAuth, 'TestCdnStackNoAuth', props);
-      }).toThrow(/basicAuth context is required/i);
+      }).toThrow(
+        /Parameter Store values not yet cached|credentials are required/i
+      );
     });
 
     test('should throw error when username is missing in DEV environment', () => {
@@ -403,7 +454,9 @@ describe('CloudFront Functions Basic Authentication', () => {
 
       expect(() => {
         new CdnStack(appNoUsername, 'TestCdnStackNoUsername', props);
-      }).toThrow(/username.*required/i);
+      }).toThrow(
+        /Parameter Store values not yet cached|credentials are required/i
+      );
     });
 
     test('should throw error when password is missing in DEV environment', () => {
@@ -449,7 +502,9 @@ describe('CloudFront Functions Basic Authentication', () => {
 
       expect(() => {
         new CdnStack(appNoPassword, 'TestCdnStackNoPassword', props);
-      }).toThrow(/password.*required/i);
+      }).toThrow(
+        /Parameter Store values not yet cached|credentials are required/i
+      );
     });
   });
 });
