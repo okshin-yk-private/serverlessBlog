@@ -120,6 +120,10 @@ jobs:
 
       - name: CDK Diff
         working-directory: infrastructure
+        env:
+          # DEV環境Basic認証用の環境変数（Parameter Storeから取得）
+          BASIC_AUTH_USERNAME: ${{ steps.env.outputs.stage == 'dev' && secrets.DEV_BASIC_AUTH_USERNAME || '' }}
+          BASIC_AUTH_PASSWORD: ${{ steps.env.outputs.stage == 'dev' && secrets.DEV_BASIC_AUTH_PASSWORD || '' }}
         run: |
           echo "========================================="
           echo "CDK Diff - ${{ steps.env.outputs.env_name }} Environment"
@@ -129,6 +133,10 @@ jobs:
 
       - name: CDK Deploy
         working-directory: infrastructure
+        env:
+          # DEV環境Basic認証用の環境変数（Parameter Storeから取得）
+          BASIC_AUTH_USERNAME: ${{ steps.env.outputs.stage == 'dev' && secrets.DEV_BASIC_AUTH_USERNAME || '' }}
+          BASIC_AUTH_PASSWORD: ${{ steps.env.outputs.stage == 'dev' && secrets.DEV_BASIC_AUTH_PASSWORD || '' }}
         run: |
           echo "========================================="
           echo "CDK Deploy - ${{ steps.env.outputs.env_name }} Environment"

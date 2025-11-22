@@ -50,37 +50,43 @@ export class CdnStack extends cdk.Stack {
     let basicAuthFunction: cloudfront.Function | undefined;
 
     if (isDev) {
-      // Get Basic Auth credentials from AWS Parameter Store
+      // Get Basic Auth credentials from environment variables or AWS Parameter Store
       // Task 4.3.2: CDK cdk.context.json configuration -> Parameter Store migration
       // Requirement R47: DEV環境Basic認証機能
-      const username = ssm.StringParameter.valueFromLookup(
-        this,
-        '/serverless-blog/dev/basic-auth/username'
-      );
+      // Priority: 1. Environment variables (GitHub Actions), 2. Parameter Store (Local)
+      const username =
+        process.env.BASIC_AUTH_USERNAME ||
+        ssm.StringParameter.valueFromLookup(
+          this,
+          '/serverless-blog/dev/basic-auth/username'
+        );
 
-      const password = ssm.StringParameter.valueFromLookup(
-        this,
-        '/serverless-blog/dev/basic-auth/password'
-      );
+      const password =
+        process.env.BASIC_AUTH_PASSWORD ||
+        ssm.StringParameter.valueFromLookup(
+          this,
+          '/serverless-blog/dev/basic-auth/password'
+        );
 
-      // Validate that parameters were successfully retrieved
-      if (
-        !username ||
-        username === 'dummy-value-for-/serverless-blog/dev/basic-auth/username'
-      ) {
+      // Validate that credentials are available
+      if (!username || !password) {
         throw new Error(
-          'Failed to retrieve Basic Auth username from Parameter Store. ' +
-            'Please ensure /serverless-blog/dev/basic-auth/username exists in ap-northeast-1 region.'
+          'DEV environment Basic Auth credentials are required. ' +
+            'Set BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD environment variables, ' +
+            'or ensure Parameter Store parameters exist at /serverless-blog/dev/basic-auth/*'
         );
       }
 
-      if (
-        !password ||
-        password === 'dummy-value-for-/serverless-blog/dev/basic-auth/password'
-      ) {
+      // Check if we got dummy values from Parameter Store (initial CDK run)
+      const isDummyUsername =
+        username === 'dummy-value-for-/serverless-blog/dev/basic-auth/username';
+      const isDummyPassword =
+        password === 'dummy-value-for-/serverless-blog/dev/basic-auth/password';
+
+      if (isDummyUsername || isDummyPassword) {
         throw new Error(
-          'Failed to retrieve Basic Auth password from Parameter Store. ' +
-            'Please ensure /serverless-blog/dev/basic-auth/password exists in ap-northeast-1 region.'
+          'Parameter Store values not yet cached. ' +
+            'Please run CDK deploy again, or set BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD environment variables.'
         );
       }
 
