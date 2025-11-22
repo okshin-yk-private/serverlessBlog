@@ -110,6 +110,35 @@
   - 画像アクセスパフォーマンスとキャッシングをテスト
   - _Requirements: R11, R30_
 
+- [ ] 4.3 DEV環境Basic認証の実装
+- [x] 4.3.1 (P) CloudFront Functions Basic認証関数の実装
+  - viewer-requestイベント用のCloudFront Function作成
+  - Authorizationヘッダー検証ロジック実装（Base64デコード、ユーザー名・パスワード比較）
+  - 認証失敗時の401 Unauthorized + WWW-Authenticateヘッダー返却
+  - 認証成功時のオリジンへのリクエスト転送
+  - _Requirements: R47_
+
+- [x] 4.3.2 (P) CDK cdk.context.json設定とBasic認証デプロイ
+  - cdk.context.jsonにDEV環境Basic認証情報設定（username、password）
+  - .gitignoreにcdk.context.jsonを追加（認証情報漏洩防止）
+  - CDKデプロイ時にCloudFront FunctionへBasic認証情報埋め込み
+  - DEV環境のみCloudFront Functionを有効化（本番環境では無効）
+  - _Requirements: R47_
+
+- [x] 4.3.3 (P) GitHub Actions Playwright自動認証の設定
+  - GitHub Secretsに`DEV_BASIC_AUTH_USERNAME`と`DEV_BASIC_AUTH_PASSWORD`を設定
+  - Playwright設定ファイル（playwright.config.ts）にextraHTTPHeaders設定追加
+  - 環境変数からBasic認証ヘッダーを自動生成（Base64エンコード）
+  - DEV環境E2Eテスト実行時にBasic認証を自動適用
+  - _Requirements: R47_
+
+- [ ] 4.3.4* E2Eテストでのクロス環境認証検証
+  - DEV環境でのBasic認証テスト（正常系・異常系）
+  - 本番環境でのBasic認証無効化テスト
+  - GitHub ActionsでのPlaywright自動認証テスト実行
+  - CloudFront Functionログ検証（認証成功・失敗ログ）
+  - _Requirements: R47_
+
 - [ ] 5. 公開ブログサイトの実装
 - [x] 5.1 記事一覧ページの実装（TDD）
   - 記事一覧レンダリングのコンポーネントテストを作成

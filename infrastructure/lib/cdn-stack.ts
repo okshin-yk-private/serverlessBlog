@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import { NagSuppressions } from 'cdk-nag';
 
@@ -22,6 +23,10 @@ export class CdnStack extends cdk.Stack {
     const { imageBucketName, publicSiteBucketName, adminSiteBucketName } =
       props;
 
+    // Get stage context (dev, prd)
+    const stage = this.node.tryGetContext('stage') || 'dev';
+    const isDev = stage === 'dev';
+
     // Import buckets by name to avoid circular dependencies
     const imageBucket = s3.Bucket.fromBucketName(
       this,
@@ -38,6 +43,87 @@ export class CdnStack extends cdk.Stack {
       'ImportedAdminSiteBucket',
       adminSiteBucketName
     );
+
+    // Basic Authentication CloudFront Function for DEV environment
+    // Task 4.3.1: CloudFront Functions Basic Authentication implementation
+    // Requirement R47: DEV環境Basic認証機能
+    let basicAuthFunction: cloudfront.Function | undefined;
+
+    if (isDev) {
+      // Get Basic Auth credentials from AWS Parameter Store
+      // Task 4.3.2: CDK cdk.context.json configuration -> Parameter Store migration
+      // Requirement R47: DEV環境Basic認証機能
+      const username = ssm.StringParameter.valueFromLookup(
+        this,
+        '/serverless-blog/dev/basic-auth/username'
+      );
+
+      const password = ssm.StringParameter.valueFromLookup(
+        this,
+        '/serverless-blog/dev/basic-auth/password'
+      );
+
+      // Validate that parameters were successfully retrieved
+      if (
+        !username ||
+        username === 'dummy-value-for-/serverless-blog/dev/basic-auth/username'
+      ) {
+        throw new Error(
+          'Failed to retrieve Basic Auth username from Parameter Store. ' +
+            'Please ensure /serverless-blog/dev/basic-auth/username exists in ap-northeast-1 region.'
+        );
+      }
+
+      if (
+        !password ||
+        password === 'dummy-value-for-/serverless-blog/dev/basic-auth/password'
+      ) {
+        throw new Error(
+          'Failed to retrieve Basic Auth password from Parameter Store. ' +
+            'Please ensure /serverless-blog/dev/basic-auth/password exists in ap-northeast-1 region.'
+        );
+      }
+
+      // CloudFront Function code for Basic Authentication
+      // - Checks Authorization header
+      // - Decodes Base64 credentials
+      // - Validates username and password
+      // - Returns 401 Unauthorized if authentication fails
+      // - Forwards request to origin if authentication succeeds
+      const basicAuthCode = `function handler(event) {
+  var request = event.request;
+  var headers = request.headers;
+
+  // Expected credentials (embedded at deployment time)
+  var authString = 'Basic ' + btoa('${username}:${password}');
+
+  // Check if Authorization header exists
+  if (
+    typeof headers.authorization === 'undefined' ||
+    headers.authorization.value !== authString
+  ) {
+    // Return 401 Unauthorized with WWW-Authenticate header
+    return {
+      statusCode: 401,
+      statusDescription: 'Unauthorized',
+      headers: {
+        'www-authenticate': { value: 'Basic realm="DEV Environment"' },
+      },
+    };
+  }
+
+  // Authentication successful - forward request to origin
+  return request;
+}`;
+
+      basicAuthFunction = new cloudfront.Function(this, 'BasicAuthFunction', {
+        functionName: `BasicAuthFunction-${stage}`,
+        code: cloudfront.FunctionCode.fromInline(basicAuthCode),
+        comment: 'Basic Authentication for DEV environment',
+        runtime: cloudfront.FunctionRuntime.JS_2_0,
+        autoPublish: true,
+      });
+    }
 
     // CloudFront Distribution for Image CDN
     // Using Origin Access Control (OAC) - recommended best practice over OAI
@@ -117,6 +203,15 @@ export class CdnStack extends cdk.Stack {
           cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
           compress: true,
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+          // Add Basic Auth function for DEV environment
+          functionAssociations: basicAuthFunction
+            ? [
+                {
+                  function: basicAuthFunction,
+                  eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+                },
+              ]
+            : undefined,
         },
         defaultRootObject: 'index.html',
         errorResponses: [

@@ -50,6 +50,7 @@ graph TB
     Dev[開発者 TDD実践]
 
     CloudFront[CloudFront CDN]
+    BasicAuthFunc[CloudFront Functions: DEV Basic認証]
     PublicSite[S3: 公開サイト]
     AdminSite[S3: 管理画面]
 
@@ -74,6 +75,8 @@ graph TB
     Reader -->|HTTPS| CloudFront
     Admin -->|HTTPS| CloudFront
 
+    CloudFront -->|DEV環境のみ| BasicAuthFunc
+    BasicAuthFunc -->|認証成功| PublicSite
     CloudFront -->|静的配信| PublicSite
     CloudFront -->|静的配信| AdminSite
     CloudFront -->|APIリクエスト| APIGateway
@@ -459,6 +462,59 @@ on:
 **影響を受ける要件**: R12, R7, R1, R35
 **影響を受けるタスク**: タスク2.1（記事作成-XSS対策）、タスク2.2（記事取得-HTML変換）、タスク5.2（記事詳細-HTML表示）
 
+#### 設計決定 9: DEV環境Basic認証（CloudFront Functions）
+
+**決定**: DEV環境の公開サイトにCloudFront FunctionsでBasic認証を実装する。
+
+**コンテキスト**: R47でDEV環境のパブリックサイトへのアクセス保護が必須、公開前のコンテンツが不正にアクセスされることを防止する必要がある。
+
+**代替案**:
+1. **Lambda@Edge + Secrets Manager**: Lambda@EdgeでSecrets Managerから認証情報を動的取得 → コスト高（CloudFront Functionsの6倍）、実装複雑
+2. **WAF IP Set**: 特定IPアドレスのみアクセス許可 → GitHub ActionsのIPアドレスが動的で管理困難
+3. **CloudFront Functions + ハードコード**: 認証情報を関数コードに直接埋め込み → セキュリティリスク、バージョン管理で認証情報漏洩
+
+**選択したアプローチ**: **CloudFront Functions + CDKデプロイ時にCDKコンテキストから認証情報を関数コードに埋め込む**
+
+**CloudFront Functions認証フロー**:
+```mermaid
+sequenceDiagram
+    participant User as ユーザー
+    participant CF as CloudFront
+    participant CFFunc as CloudFront Function DEV Basic認証
+    participant S3 as S3 公開サイト
+
+    User->>CF: HTTPSリクエスト（DEV環境）
+    CF->>CFFunc: viewer-requestイベント
+    CFFunc->>CFFunc: Authorizationヘッダー確認
+    alt 認証ヘッダーなし
+        CFFunc->>User: 401 Unauthorized + WWW-Authenticate
+        User->>CF: 認証情報入力後 再リクエスト
+        CF->>CFFunc: Authorizationヘッダー付きリクエスト
+    end
+    CFFunc->>CFFunc: Base64デコード
+    CFFunc->>CFFunc: ユーザー名・パスワード検証
+    alt 認証成功
+        CFFunc->>S3: オリジンへ転送
+        S3->>User: コンテンツ返却
+    else 認証失敗
+        CFFunc->>User: 401 Unauthorized
+    end
+```
+
+**根拠**:
+- **コスト効率**: Lambda@Edgeの1/6のコスト、200万リクエスト無料枠（月額~$0.10）
+- **シンプル実装**: JavaScriptで認証ヘッダーをチェック、Base64デコード、文字列比較のみ
+- **低レイテンシ**: エッジロケーションで実行、1ms未満の実行時間
+- **DEV環境限定**: 本番環境では不要、DEV環境のみ適用（環境ベースの条件付きデプロイ）
+- **セキュリティ**: HTTPS強制、認証情報はCDKコンテキスト（cdk.context.json）で管理、.gitignoreに追加
+
+**トレードオフ**:
+- **利点**: コスト効率、シンプル実装、低レイテンシ、GitHub Actions統合容易
+- **欠点**: 認証情報ローテーションが手動、Secrets Manager統合なし、CloudFront Functions再デプロイ必要
+
+**影響を受ける要件**: R47（DEV環境Basic認証）
+**影響を受けるタスク**: タスク4.3（CloudFront Functions Basic認証実装）、タスク9.x（CI/CDパイプライン - Playwright環境変数設定）
+
 ## システムフロー
 
 ### TDD開発フロー
@@ -650,6 +706,7 @@ sequenceDiagram
 | **44.1** | **テストデータ管理** | **Faker.js + Factory** | **testDataFactory.ts** | **すべてのテスト** |
 | **45.1** | **継続的テスト実行** | **GitHub Actions** | **.github/workflows/test.yml** | **CI/CDテストフロー** |
 | **46.1** | **テストドキュメント** | **describeブロック + HTMLレポート** | **jest --coverage --html** | **すべてのテスト** |
+| **47.1** | **DEV環境Basic認証** | **CloudFront Functions** | **viewer-requestイベント + CDKデプロイ時認証情報埋め込み** | **CloudFront Functions認証フロー** |
 
 ## コンポーネントとインターフェース
 
@@ -884,7 +941,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 
 export interface DatabaseStackProps extends cdk.StackProps {
-  stage: 'dev' | 'stg' | 'prd';
+  stage: 'dev' | 'dev' | 'prd';
 }
 
 export class DatabaseStack extends cdk.Stack {
@@ -936,6 +993,156 @@ export class DatabaseStack extends cdk.Stack {
 **CDNStack**: CloudFront Distribution、S3 Origin、Cache Policy定義
 
 詳細な契約定義とテスト観点は `infrastructure/test/` の各テストファイルを参照
+
+### CloudFront Functions層（DEV環境のみ）
+
+#### BasicAuthFunction (DEV環境Basic認証)
+
+| Field | Detail |
+|-------|--------|
+| Intent | DEV環境の公開サイトへのアクセスをBasic認証で保護する |
+| Requirements | 47.1-47.13 |
+| Owner / Reviewers | インフラエンジニア |
+
+**責任と境界**:
+- **主要責任**: CloudFrontのviewer-requestイベントでBasic認証を実行し、認証成功時のみオリジンへリクエストを転送する
+- **ドメイン境界**: エッジ認証レイヤー（DEV環境のみ）
+- **データ所有権**: 認証情報（ユーザー名・パスワード）はCDKデプロイ時に関数コードに埋め込まれる
+- **トランザクション境界**: 単一HTTPリクエストの認証チェック
+
+**依存関係**:
+- **インバウンド**: CloudFront Distribution（DEV環境の公開サイト）
+- **アウトバウンド**: S3 公開サイトバケット（認証成功時のみ）
+- **外部依存**: なし（JavaScriptビルトイン関数のみ使用）
+
+**契約定義（CloudFront Function）**:
+
+```javascript
+// CloudFront Function Contract (JavaScript ES5.1)
+function handler(event) {
+  var request = event.request;
+  var headers = request.headers;
+
+  // Expected credentials (embedded at CDK deploy time)
+  var authUser = 'REPLACE_WITH_CDK_CONTEXT_USERNAME';
+  var authPass = 'REPLACE_WITH_CDK_CONTEXT_PASSWORD';
+  var authString = 'Basic ' + btoa(authUser + ':' + authPass);
+
+  // Check Authorization header
+  if (
+    typeof headers.authorization === 'undefined' ||
+    headers.authorization.value !== authString
+  ) {
+    return {
+      statusCode: 401,
+      statusDescription: 'Unauthorized',
+      headers: {
+        'www-authenticate': { value: 'Basic realm="Secure Area"' }
+      }
+    };
+  }
+
+  // Authentication successful, forward to origin
+  return request;
+}
+```
+
+**事前条件（Preconditions）**:
+- DEV環境でデプロイされること
+- cdk.context.jsonに`devBasicAuthUsername`と`devBasicAuthPassword`が設定されていること
+- HTTPS通信であること（CloudFrontがHTTPSに強制リダイレクト）
+
+**事後条件（Postconditions）**:
+- 認証成功時、オリジンへリクエストを転送
+- 認証失敗時、401 Unauthorizedレスポンスを返す
+- WWW-Authenticateヘッダーでブラウザに認証プロンプトを表示
+
+**不変条件（Invariants）**:
+- 実行時間は常に1ms未満
+- 認証情報は関数コードに埋め込まれ、実行時に外部取得しない
+- 本番環境では関連付けられない
+
+**環境ベースデプロイ戦略**:
+
+```typescript
+// CDKデプロイ時の条件付きCloudFront Functions関連付け
+if (stage === 'dev') {
+  const basicAuthFunction = new cloudfront.Function(this, 'BasicAuthFunction', {
+    code: cloudfront.FunctionCode.fromInline(
+      // CDK Contextから認証情報を取得し、関数コードに埋め込む
+      functionCode
+        .replace('REPLACE_WITH_CDK_CONTEXT_USERNAME', this.node.tryGetContext('devBasicAuthUsername'))
+        .replace('REPLACE_WITH_CDK_CONTEXT_PASSWORD', this.node.tryGetContext('devBasicAuthPassword'))
+    ),
+    runtime: cloudfront.FunctionRuntime.JS_2_0,
+  });
+
+  publicSiteDistribution.addBehavior('/*', origin, {
+    functionAssociations: [{
+      function: basicAuthFunction,
+      eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+    }],
+  });
+}
+```
+
+**Playwright統合戦略**:
+
+GitHub ActionsでPlaywrightテストがDEV環境のBasic認証を通過する設定:
+
+```typescript
+// playwright.config.ts
+import { defineConfig } from '@playwright/test';
+
+const httpCredentials = {
+  username: process.env.DEV_BASIC_AUTH_USERNAME || '',
+  password: process.env.DEV_BASIC_AUTH_PASSWORD || '',
+};
+
+// Base64エンコードした認証情報をすべてのリクエストに追加
+const credentialsBase64 = Buffer.from(
+  `${httpCredentials.username}:${httpCredentials.password}`
+).toString('base64');
+
+export default defineConfig({
+  use: {
+    baseURL: process.env.DEV_BASE_URL,
+    extraHTTPHeaders: {
+      'Authorization': `Basic ${credentialsBase64}`,
+    },
+  },
+});
+```
+
+**GitHub Actions環境変数設定**:
+
+```yaml
+# .github/workflows/test.yml
+- name: Run E2E Tests (DEV)
+  env:
+    DEV_BASE_URL: ${{ secrets.DEV_BASE_URL }}
+    DEV_BASIC_AUTH_USERNAME: ${{ secrets.DEV_BASIC_AUTH_USERNAME }}
+    DEV_BASIC_AUTH_PASSWORD: ${{ secrets.DEV_BASIC_AUTH_PASSWORD }}
+  run: npx playwright test
+```
+
+**セキュリティ考慮事項**:
+- **HTTPS強制**: CloudFrontがHTTPリクエストをHTTPSにリダイレクト（ViewerProtocolPolicy.REDIRECT_TO_HTTPS）
+- **認証情報管理**: cdk.context.jsonを.gitignoreに追加、GitHub Secretsには含めない
+- **認証情報ローテーション**: 必要時にcdk.context.jsonを更新し、CDK再デプロイ
+- **環境分離**: DEV環境のみ適用、本番環境では認証なし
+
+**コスト分析**:
+- **CloudFront Functions**: 200万リクエスト無料枠、超過時$0.10/100万リクエスト
+- **月額推定コスト**: ~$0.10（DEV環境の低トラフィック想定）
+- **Lambda@Edgeとの比較**: Lambda@Edgeの1/6のコスト
+
+**テスト観点**:
+- CloudFront Function: 認証ヘッダーなし → 401エラー、認証ヘッダー正しい → オリジン転送、認証ヘッダー誤り → 401エラー
+- CDKスタック: DEV環境でのみCloudFront Functions関連付け、本番環境では関連付けなし
+- Playwright: GitHub Actions環境変数からBasic認証情報取得、extraHTTPHeadersでAuthorization追加、DEV環境でのE2Eテスト成功
+
+詳細な実装は `infrastructure/lib/cdn-stack.ts` と `tests/e2e/` を参照
 
 ## データモデル
 

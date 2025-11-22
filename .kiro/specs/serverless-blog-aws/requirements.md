@@ -544,3 +544,22 @@
 3. WHEN テストスイートを作成する THEN Blog Platform開発チーム SHALL describeブロックで論理的にテストをグループ化する
 4. WHERE テストデータが複雑な場合 THE Blog Platform開発チーム SHALL テストデータの構造をコメントで説明する
 5. WHEN カバレッジレポートを生成する THEN Blog Platform SHALL HTMLレポートを生成して閲覧可能にする
+
+### Requirement 47: DEV環境Basic認証機能
+**Objective:** As a セキュリティエンジニア, I want DEV環境のパブリックサイトへのアクセスを保護する, so that 公開前のコンテンツが不正にアクセスされることを防げる
+
+#### Acceptance Criteria
+
+1. WHILE 環境がDEVである THE Blog Platform SHALL 公開サイトへのすべてのリクエストにBasic認証を適用する
+2. WHEN DEV環境でユーザーが公開サイトにアクセスする THEN Blog Platform SHALL CloudFront FunctionsでBasic認証を実行する
+3. WHEN Basic認証が要求される THEN Blog Platform SHALL WWW-Authenticateヘッダーを返してブラウザにログインプロンプトを表示させる
+4. WHEN ユーザーが認証情報を送信する THEN Blog Platform SHALL AWS Secrets Managerから認証情報を取得して検証する
+5. IF 認証情報が正しい THEN Blog Platform SHALL リクエストをオリジンに転送する
+6. IF 認証情報が誤っている THEN Blog Platform SHALL 401 Unauthorizedレスポンスを返す
+7. IF 認証情報が送信されていない THEN Blog Platform SHALL 401 Unauthorizedレスポンスと認証プロンプトを返す
+8. WHERE 環境が本番（PRD）である THE Blog Platform SHALL Basic認証を適用しない
+9. WHEN GitHub ActionsでPlaywrightテストを実行する THEN Blog Platform SHALL 環境変数から認証情報を取得して自動認証する
+10. WHEN CloudFront Functionをデプロイする THEN Blog Platform SHALL DEV環境のディストリビューションにのみ関連付ける
+11. WHEN Secrets Managerにシークレットを保存する THEN Blog Platform SHALL ユーザー名とパスワードをJSON形式で保存する
+12. WHERE CloudFront Functionが認証情報を取得する THE Blog Platform SHALL Secrets Manager ARNを環境変数から取得する
+13. WHEN PlaywrightテストがDEV環境で実行される THEN Blog Platform SHALL HTTPAuthorizationヘッダーをすべてのリクエストに自動追加する
