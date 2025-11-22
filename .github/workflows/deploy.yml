@@ -166,7 +166,7 @@ jobs:
             echo "⚠️  Deploying to PRODUCTION"
             echo ""
           fi
-          npx cdk deploy --all --require-approval never --context stage=${{ steps.env.outputs.stage }} --ci --outputs-file cdk-outputs.json 2>&1 | grep -v "arn:aws" | grep -v "https://" | grep -v "^ServerlessBlog.*Stack\." || true
+          npx cdk deploy --all --require-approval never --context stage=${{ steps.env.outputs.stage }} --ci --outputs-file cdk-outputs.json
           echo "✓ CDK Deployment completed successfully"
 
       - name: Get Stack Outputs
