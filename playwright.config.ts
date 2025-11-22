@@ -60,6 +60,18 @@ export default defineConfig({
     // タイムアウト設定
     actionTimeout: 10000,
     navigationTimeout: 30000,
+
+    // DEV環境Basic認証（Task 4.3.3）
+    // GitHub Actions環境変数から認証情報を取得してBase64エンコード
+    // Requirement R47: DEV環境Basic認証機能
+    extraHTTPHeaders:
+      process.env.DEV_BASIC_AUTH_USERNAME && process.env.DEV_BASIC_AUTH_PASSWORD
+        ? {
+            Authorization: `Basic ${Buffer.from(
+              `${process.env.DEV_BASIC_AUTH_USERNAME}:${process.env.DEV_BASIC_AUTH_PASSWORD}`
+            ).toString('base64')}`,
+          }
+        : undefined,
   },
 
   // グローバルタイムアウト

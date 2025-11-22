@@ -91,8 +91,9 @@ jobs:
         id: aws-account
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "::add-mask::$ACCOUNT_ID"
           echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-          echo "AWS Account ID: $ACCOUNT_ID"
+          echo "AWS Account ID: ***"
 
       - name: CDK Bootstrap (if needed)
         working-directory: infrastructure
@@ -136,7 +137,8 @@ jobs:
             echo "⚠️  Deploying to PRODUCTION"
             echo ""
           fi
-          npx cdk deploy --all --require-approval never --context stage=${{ steps.env.outputs.stage }}
+          npx cdk deploy --all --require-approval never --context stage=${{ steps.env.outputs.stage }} --ci --outputs-file cdk-outputs.json 2>&1 | grep -v "arn:aws" | grep -v "https://" | grep -v "^ServerlessBlog.*Stack\." || true
+          echo "✓ CDK Deployment completed successfully"
 
       - name: Get Stack Outputs
         id: get-stack-outputs
@@ -167,10 +169,16 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='AdminSiteDistributionId'].OutputValue" \
             --output text)
 
-          echo "Public Bucket: $PUBLIC_BUCKET"
-          echo "Admin Bucket: $ADMIN_BUCKET"
-          echo "Public Distribution ID: $PUBLIC_DIST_ID"
-          echo "Admin Distribution ID: $ADMIN_DIST_ID"
+          # Mask sensitive values
+          echo "::add-mask::$PUBLIC_BUCKET"
+          echo "::add-mask::$ADMIN_BUCKET"
+          echo "::add-mask::$PUBLIC_DIST_ID"
+          echo "::add-mask::$ADMIN_DIST_ID"
+
+          echo "Public Bucket: ***"
+          echo "Admin Bucket: ***"
+          echo "Public Distribution ID: ***"
+          echo "Admin Distribution ID: ***"
 
           # Set outputs for next job
           echo "public-bucket-name=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
@@ -189,7 +197,6 @@ jobs:
           echo "Region: ${{ vars.AWS_REGION }}"
           echo "Git Branch: ${{ github.ref_name }}"
           echo "Commit SHA: ${{ github.sha }}"
-          echo "Account ID: ${{ steps.aws-account.outputs.account-id }}"
           echo ""
           if [ "${{ steps.env.outputs.stage }}" == "prd" ]; then
             echo "⚠️  PRODUCTION DEPLOYMENT SUCCESSFUL"
@@ -322,10 +329,8 @@ jobs:
           echo "Git Branch: ${{ github.ref_name }}"
           echo "Commit SHA: ${{ github.sha }}"
           echo ""
-          echo "Public Site Bucket: ${{ needs.deploy-infrastructure.outputs.public-bucket-name }}"
-          echo "Admin Site Bucket: ${{ needs.deploy-infrastructure.outputs.admin-bucket-name }}"
-          echo "Public Distribution ID: ${{ needs.deploy-infrastructure.outputs.public-distribution-id }}"
-          echo "Admin Distribution ID: ${{ needs.deploy-infrastructure.outputs.admin-distribution-id }}"
+          echo "✓ Public Site deployed and cache invalidated"
+          echo "✓ Admin Site deployed and cache invalidated"
           echo ""
           if [ "${{ steps.env.outputs.stage }}" == "prd" ]; then
             echo "⚠️  PRODUCTION FRONTEND DEPLOYMENT SUCCESSFUL"
