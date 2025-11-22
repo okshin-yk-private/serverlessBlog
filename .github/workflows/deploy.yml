@@ -95,8 +95,29 @@ jobs:
           echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
           echo "AWS Account ID: ***"
 
+      - name: Get Basic Auth Credentials from Parameter Store (DEV only)
+        id: basic-auth
+        if: steps.env.outputs.stage == 'dev'
+        run: |
+          echo "Retrieving Basic Auth credentials from Parameter Store..."
+          USERNAME=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --region ap-northeast-1 --query "Parameter.Value" --output text)
+          PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --region ap-northeast-1 --query "Parameter.Value" --output text)
+
+          # Mask sensitive values in logs
+          echo "::add-mask::$USERNAME"
+          echo "::add-mask::$PASSWORD"
+
+          # Export as outputs
+          echo "username=$USERNAME" >> $GITHUB_OUTPUT
+          echo "password=$PASSWORD" >> $GITHUB_OUTPUT
+          echo "✓ Basic Auth credentials retrieved successfully"
+
       - name: CDK Bootstrap (if needed)
         working-directory: infrastructure
+        env:
+          # DEV環境Basic認証用の環境変数（Parameter Storeから取得）
+          BASIC_AUTH_USERNAME: ${{ steps.basic-auth.outputs.username }}
+          BASIC_AUTH_PASSWORD: ${{ steps.basic-auth.outputs.password }}
         run: |
           echo "========================================="
           echo "CDK Bootstrap Check"
@@ -117,23 +138,6 @@ jobs:
               exit $EXIT_CODE
             fi
           fi
-
-      - name: Get Basic Auth Credentials from Parameter Store (DEV only)
-        id: basic-auth
-        if: steps.env.outputs.stage == 'dev'
-        run: |
-          echo "Retrieving Basic Auth credentials from Parameter Store..."
-          USERNAME=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --region ap-northeast-1 --query "Parameter.Value" --output text)
-          PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --region ap-northeast-1 --query "Parameter.Value" --output text)
-
-          # Mask sensitive values in logs
-          echo "::add-mask::$USERNAME"
-          echo "::add-mask::$PASSWORD"
-
-          # Export as outputs
-          echo "username=$USERNAME" >> $GITHUB_OUTPUT
-          echo "password=$PASSWORD" >> $GITHUB_OUTPUT
-          echo "✓ Basic Auth credentials retrieved successfully"
 
       - name: CDK Diff
         working-directory: infrastructure
