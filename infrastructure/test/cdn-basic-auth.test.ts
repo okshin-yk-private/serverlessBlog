@@ -21,6 +21,49 @@ describe('CloudFront Functions Basic Authentication', () => {
   let stack: CdnStack;
   let template: Template;
 
+  test('should default to dev stage when no stage context is provided', () => {
+    const appNoStage = new cdk.App();
+
+    const bucketStack = new cdk.Stack(appNoStage, 'BucketStackNoStage', {
+      env: {
+        account: '123456789012',
+        region: 'ap-northeast-1',
+      },
+    });
+
+    const imageBucket = new cdk.aws_s3.Bucket(bucketStack, 'ImageBucket', {
+      bucketName: 'test-image-bucket-no-stage',
+    });
+    const publicBucket = new cdk.aws_s3.Bucket(bucketStack, 'PublicBucket', {
+      bucketName: 'test-public-bucket-no-stage',
+    });
+    const adminBucket = new cdk.aws_s3.Bucket(bucketStack, 'AdminBucket', {
+      bucketName: 'test-admin-bucket-no-stage',
+    });
+
+    const props = {
+      env: {
+        account: '123456789012',
+        region: 'ap-northeast-1',
+      },
+      imageBucketName: imageBucket.bucketName,
+      publicSiteBucketName: publicBucket.bucketName,
+      adminSiteBucketName: adminBucket.bucketName,
+    };
+
+    // Should not throw error when stage context is missing (defaults to dev)
+    // But dev stage requires Basic Auth credentials
+    process.env.BASIC_AUTH_USERNAME = 'test-user-no-stage';
+    process.env.BASIC_AUTH_PASSWORD = 'test-password-no-stage';
+
+    expect(() => {
+      new CdnStack(appNoStage, 'TestCdnStackNoStage', props);
+    }).not.toThrow();
+
+    delete process.env.BASIC_AUTH_USERNAME;
+    delete process.env.BASIC_AUTH_PASSWORD;
+  });
+
   beforeEach(() => {
     // Create app with non-DEV stage (production) to test that Basic Auth is NOT created
     app = new cdk.App({
@@ -365,6 +408,53 @@ describe('CloudFront Functions Basic Authentication', () => {
 
     afterAll(() => {
       process.env = originalEnv;
+    });
+
+    test('should throw error when credentials are empty strings', () => {
+      // Mock Parameter Store to return empty strings
+      jest
+        .spyOn(cdk.aws_ssm.StringParameter, 'valueFromLookup')
+        .mockReturnValue('');
+
+      const appEmptyCreds = new cdk.App({
+        context: {
+          stage: 'dev',
+        },
+      });
+
+      const bucketStack = new cdk.Stack(appEmptyCreds, 'BucketStackEmpty', {
+        env: {
+          account: '123456789012',
+          region: 'ap-northeast-1',
+        },
+      });
+
+      const imageBucket = new cdk.aws_s3.Bucket(bucketStack, 'ImageBucket', {
+        bucketName: 'test-image-bucket-empty',
+      });
+      const publicBucket = new cdk.aws_s3.Bucket(bucketStack, 'PublicBucket', {
+        bucketName: 'test-public-bucket-empty',
+      });
+      const adminBucket = new cdk.aws_s3.Bucket(bucketStack, 'AdminBucket', {
+        bucketName: 'test-admin-bucket-empty',
+      });
+
+      const props = {
+        env: {
+          account: '123456789012',
+          region: 'ap-northeast-1',
+        },
+        imageBucketName: imageBucket.bucketName,
+        publicSiteBucketName: publicBucket.bucketName,
+        adminSiteBucketName: adminBucket.bucketName,
+      };
+
+      // Should throw error when credentials are empty
+      expect(() => {
+        new CdnStack(appEmptyCreds, 'TestCdnStackEmpty', props);
+      }).toThrow(/credentials are required/i);
+
+      jest.restoreAllMocks();
     });
 
     test('should throw error when basicAuth context is missing in DEV environment', () => {
