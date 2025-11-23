@@ -85,7 +85,7 @@ const PostDetailPage: React.FC = () => {
       <SEOHead
         title={post.title}
         description={generateDescription(post.contentHtml)}
-        keywords={post.tags}
+        keywords={Array.isArray(post.tags) ? post.tags : []}
         url={`${window.location.origin}/posts/${post.id}`}
         imageUrl={
           post.imageUrls && post.imageUrls.length > 0

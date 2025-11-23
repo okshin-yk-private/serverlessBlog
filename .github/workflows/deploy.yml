@@ -36,7 +36,7 @@ jobs:
     environment:
       # ブランチ名から環境名を動的に決定: develop → dev, main → prod
       name: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
-      url: ${{ github.ref == 'refs/heads/main' && 'https://yourblog.example.com' || 'https://dev.yourblog.example.com' }}
+      # CloudFront URLはデプロイ後のサマリーで表示されます
 
     steps:
       - name: Checkout code
@@ -160,6 +160,7 @@ jobs:
 
       - name: Deployment Summary
         if: success()
+        working-directory: infrastructure
         run: |
           echo "========================================="
           echo "✓ Infrastructure Deployment to ${{ steps.env.outputs.env_name }} Environment Complete!"
@@ -169,6 +170,11 @@ jobs:
           echo "Region: ${{ vars.AWS_REGION }}"
           echo "Git Branch: ${{ github.ref_name }}"
           echo "Commit SHA: ${{ github.sha }}"
+          echo ""
+          echo "CloudFront URLs:"
+          echo "  Public Site:  https://$(jq -r '.ServerlessBlogCdnStack.PublicSiteDistributionDomainName' cdk-outputs.json)"
+          echo "  Admin Site:   https://$(jq -r '.ServerlessBlogCdnStack.AdminSiteDistributionDomainName' cdk-outputs.json)"
+          echo "  Image CDN:    https://$(jq -r '.ServerlessBlogCdnStack.ImageDistributionDomainName' cdk-outputs.json)"
           echo ""
           if [ "${{ steps.env.outputs.stage }}" == "prd" ]; then
             echo "⚠️  PRODUCTION DEPLOYMENT SUCCESSFUL"
@@ -183,7 +189,7 @@ jobs:
     needs: deploy-infrastructure
     environment:
       name: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
-      url: ${{ github.ref == 'refs/heads/main' && 'https://yourblog.example.com' || 'https://dev.yourblog.example.com' }}
+      # CloudFront URLはデプロイ後のサマリーで表示されます
 
     steps:
       - name: Checkout code
@@ -219,14 +225,20 @@ jobs:
           ADMIN_BUCKET=$(jq -r '.ServerlessBlogStorageStack.AdminSiteBucketName' cdk-outputs.json)
           PUBLIC_DIST_ID=$(jq -r '.ServerlessBlogCdnStack.PublicSiteDistributionId' cdk-outputs.json)
           ADMIN_DIST_ID=$(jq -r '.ServerlessBlogCdnStack.AdminSiteDistributionId' cdk-outputs.json)
+          PUBLIC_DIST_DOMAIN=$(jq -r '.ServerlessBlogCdnStack.PublicSiteDistributionDomainName' cdk-outputs.json)
+          ADMIN_DIST_DOMAIN=$(jq -r '.ServerlessBlogCdnStack.AdminSiteDistributionDomainName' cdk-outputs.json)
 
           echo "public-bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
           echo "admin-bucket=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
           echo "public-dist-id=$PUBLIC_DIST_ID" >> $GITHUB_OUTPUT
           echo "admin-dist-id=$ADMIN_DIST_ID" >> $GITHUB_OUTPUT
+          echo "public-dist-domain=$PUBLIC_DIST_DOMAIN" >> $GITHUB_OUTPUT
+          echo "admin-dist-domain=$ADMIN_DIST_DOMAIN" >> $GITHUB_OUTPUT
 
           echo "Public Bucket: $PUBLIC_BUCKET"
           echo "Admin Bucket: $ADMIN_BUCKET"
+          echo "Public CloudFront Domain: $PUBLIC_DIST_DOMAIN"
+          echo "Admin CloudFront Domain: $ADMIN_DIST_DOMAIN"
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -324,7 +336,10 @@ jobs:
           echo "Commit SHA: ${{ github.sha }}"
           echo ""
           echo "✓ Public Site deployed and cache invalidated"
+          echo "  URL: https://${{ steps.outputs.outputs.public-dist-domain }}"
+          echo ""
           echo "✓ Admin Site deployed and cache invalidated"
+          echo "  URL: https://${{ steps.outputs.outputs.admin-dist-domain }}"
           echo ""
           if [ "${{ steps.env.outputs.stage }}" == "prd" ]; then
             echo "⚠️  PRODUCTION FRONTEND DEPLOYMENT SUCCESSFUL"

@@ -48,7 +48,7 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
     // Basic meta tags
     updateMetaTag('description', description);
 
-    if (keywords !== undefined) {
+    if (keywords !== undefined && Array.isArray(keywords)) {
       updateMetaTag('keywords', keywords.join(', '));
     }
 
