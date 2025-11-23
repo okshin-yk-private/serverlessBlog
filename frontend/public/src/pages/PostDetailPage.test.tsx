@@ -433,15 +433,13 @@ describe('PostDetailPage', () => {
         </MemoryRouter>
       );
 
+      // Wait for the SEOHead useEffect to complete
       await waitFor(() => {
-        expect(screen.getByText('Short content')).toBeInTheDocument();
+        const descriptionMeta = document.querySelector(
+          'meta[name="description"]'
+        );
+        expect(descriptionMeta?.getAttribute('content')).toBe('Short content');
       });
-
-      // Check meta description doesn't have ellipsis
-      const descriptionMeta = document.querySelector(
-        'meta[name="description"]'
-      );
-      expect(descriptionMeta?.getAttribute('content')).toBe('Short content');
     });
 
     test('長いコンテンツ（150文字以上）の場合、descriptionに省略記号が付く', async () => {
