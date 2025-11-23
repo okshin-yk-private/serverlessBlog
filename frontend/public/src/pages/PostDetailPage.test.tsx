@@ -536,9 +536,10 @@ describe('PostDetailPage', () => {
         expect(screen.getByText('Test Post Title')).toBeInTheDocument();
       });
 
-      // keywordsメタタグが存在しないことを確認（空配列の場合は作成されない）
+      // keywordsメタタグは空文字列のcontentで作成される
       const keywordsMeta = document.querySelector('meta[name="keywords"]');
-      expect(keywordsMeta).toBeNull();
+      expect(keywordsMeta).toBeTruthy();
+      expect(keywordsMeta?.getAttribute('content')).toBe('');
     });
   });
 });
