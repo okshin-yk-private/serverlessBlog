@@ -33,11 +33,6 @@ jobs:
   deploy-infrastructure:
     name: Deploy Infrastructure to ${{ github.ref == 'refs/heads/main' && 'Production' || 'Development' }}
     runs-on: ubuntu-latest
-    outputs:
-      public-bucket-name: ${{ steps.get-stack-outputs.outputs.public-bucket-name }}
-      admin-bucket-name: ${{ steps.get-stack-outputs.outputs.admin-bucket-name }}
-      public-distribution-id: ${{ steps.get-stack-outputs.outputs.public-distribution-id }}
-      admin-distribution-id: ${{ steps.get-stack-outputs.outputs.admin-distribution-id }}
     environment:
       # ブランチ名から環境名を動的に決定: develop → dev, main → prod
       name: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
@@ -169,45 +164,12 @@ jobs:
           npx cdk deploy --all --require-approval never --context stage=${{ steps.env.outputs.stage }} --ci --outputs-file cdk-outputs.json
           echo "✓ CDK Deployment completed successfully"
 
-      - name: Get Stack Outputs
-        id: get-stack-outputs
-        run: |
-          echo "========================================="
-          echo "Retrieving CloudFormation Stack Outputs"
-          echo "========================================="
-
-          # Get outputs from Storage Stack
-          PUBLIC_BUCKET=$(aws cloudformation describe-stacks \
-            --stack-name ServerlessBlogStorageStack \
-            --query "Stacks[0].Outputs[?OutputKey=='PublicSiteBucketName'].OutputValue" \
-            --output text)
-
-          ADMIN_BUCKET=$(aws cloudformation describe-stacks \
-            --stack-name ServerlessBlogStorageStack \
-            --query "Stacks[0].Outputs[?OutputKey=='AdminSiteBucketName'].OutputValue" \
-            --output text)
-
-          # Get outputs from CDN Stack
-          PUBLIC_DIST_ID=$(aws cloudformation describe-stacks \
-            --stack-name ServerlessBlogCdnStack \
-            --query "Stacks[0].Outputs[?OutputKey=='PublicSiteDistributionId'].OutputValue" \
-            --output text)
-
-          ADMIN_DIST_ID=$(aws cloudformation describe-stacks \
-            --stack-name ServerlessBlogCdnStack \
-            --query "Stacks[0].Outputs[?OutputKey=='AdminSiteDistributionId'].OutputValue" \
-            --output text)
-
-          echo "Public Bucket: $PUBLIC_BUCKET"
-          echo "Admin Bucket: $ADMIN_BUCKET"
-          echo "Public Distribution ID: $PUBLIC_DIST_ID"
-          echo "Admin Distribution ID: $ADMIN_DIST_ID"
-
-          # Set outputs for next job
-          echo "public-bucket-name=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
-          echo "admin-bucket-name=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
-          echo "public-distribution-id=$PUBLIC_DIST_ID" >> $GITHUB_OUTPUT
-          echo "admin-distribution-id=$ADMIN_DIST_ID" >> $GITHUB_OUTPUT
+      - name: Upload CDK Outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdk-outputs
+          path: infrastructure/cdk-outputs.json
+          retention-days: 1
 
       - name: Deployment Summary
         if: success()
@@ -257,6 +219,28 @@ jobs:
             echo "env_name=Development" >> $GITHUB_OUTPUT
           fi
 
+      - name: Download CDK Outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: cdk-outputs
+          path: ./
+
+      - name: Extract Stack Outputs
+        id: outputs
+        run: |
+          PUBLIC_BUCKET=$(jq -r '.ServerlessBlogStorageStack.PublicSiteBucketName' cdk-outputs.json)
+          ADMIN_BUCKET=$(jq -r '.ServerlessBlogStorageStack.AdminSiteBucketName' cdk-outputs.json)
+          PUBLIC_DIST_ID=$(jq -r '.ServerlessBlogCdnStack.PublicSiteDistributionId' cdk-outputs.json)
+          ADMIN_DIST_ID=$(jq -r '.ServerlessBlogCdnStack.AdminSiteDistributionId' cdk-outputs.json)
+
+          echo "public-bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
+          echo "admin-bucket=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
+          echo "public-dist-id=$PUBLIC_DIST_ID" >> $GITHUB_OUTPUT
+          echo "admin-dist-id=$ADMIN_DIST_ID" >> $GITHUB_OUTPUT
+
+          echo "Public Bucket: $PUBLIC_BUCKET"
+          echo "Admin Bucket: $ADMIN_BUCKET"
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -284,13 +268,13 @@ jobs:
           echo "Deploying Public Site to S3"
           echo "========================================="
           # 静的アセット（JS/CSS/画像）を1年キャッシュ
-          aws s3 sync frontend/public/dist/ s3://${{ needs.deploy-infrastructure.outputs.public-bucket-name }}/ \
+          aws s3 sync frontend/public/dist/ s3://${{ steps.outputs.outputs.public-bucket }}/ \
             --delete \
             --cache-control "public,max-age=31536000,immutable" \
             --exclude "index.html" \
             --exclude "*.map"
           # index.htmlは即時更新
-          aws s3 cp frontend/public/dist/index.html s3://${{ needs.deploy-infrastructure.outputs.public-bucket-name }}/ \
+          aws s3 cp frontend/public/dist/index.html s3://${{ steps.outputs.outputs.public-bucket }}/ \
             --cache-control "public,max-age=0,must-revalidate"
           echo "✓ Public Site deployed to S3"
 
@@ -298,7 +282,7 @@ jobs:
         run: |
           echo "Invalidating CloudFront cache for Public Site..."
           aws cloudfront create-invalidation \
-            --distribution-id ${{ needs.deploy-infrastructure.outputs.public-distribution-id }} \
+            --distribution-id ${{ steps.outputs.outputs.public-dist-id }} \
             --paths "/*"
           echo "✓ CloudFront cache invalidated"
 
@@ -323,13 +307,13 @@ jobs:
           echo "Deploying Admin Site to S3"
           echo "========================================="
           # 静的アセット（JS/CSS/画像）を1年キャッシュ
-          aws s3 sync frontend/admin/dist/ s3://${{ needs.deploy-infrastructure.outputs.admin-bucket-name }}/ \
+          aws s3 sync frontend/admin/dist/ s3://${{ steps.outputs.outputs.admin-bucket }}/ \
             --delete \
             --cache-control "public,max-age=31536000,immutable" \
             --exclude "index.html" \
             --exclude "*.map"
           # index.htmlは即時更新
-          aws s3 cp frontend/admin/dist/index.html s3://${{ needs.deploy-infrastructure.outputs.admin-bucket-name }}/ \
+          aws s3 cp frontend/admin/dist/index.html s3://${{ steps.outputs.outputs.admin-bucket }}/ \
             --cache-control "public,max-age=0,must-revalidate"
           echo "✓ Admin Site deployed to S3"
 
@@ -337,7 +321,7 @@ jobs:
         run: |
           echo "Invalidating CloudFront cache for Admin Site..."
           aws cloudfront create-invalidation \
-            --distribution-id ${{ needs.deploy-infrastructure.outputs.admin-distribution-id }} \
+            --distribution-id ${{ steps.outputs.outputs.admin-dist-id }} \
             --paths "/*"
           echo "✓ CloudFront cache invalidated"
 
