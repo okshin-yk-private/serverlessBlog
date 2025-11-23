@@ -1,7 +1,19 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LoginForm } from '../components/LoginForm';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
+
+/**
+ * エラーオブジェクトの型ガード
+ */
+const isErrorWithMessage = (error: unknown): error is { message: string } => {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof (error as { message: unknown }).message === 'string'
+  );
+};
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -19,7 +31,7 @@ const LoginPage = () => {
 
       // ログイン状態を保持する場合の処理は AuthContext で実装済み
       navigate('/dashboard');
-    } catch (err: any) {
+    } catch (err) {
       console.error('ログインエラー:', err);
       // エラーメッセージを日本語化
       const errorMessageMap: Record<string, string> = {
@@ -28,10 +40,11 @@ const LoginPage = () => {
         'Network error':
           'ログインに失敗しました。メールアドレスとパスワードを確認してください。',
       };
-      const errorMessage =
-        errorMessageMap[err?.message] ||
-        err?.message ||
-        'ログインに失敗しました。メールアドレスとパスワードを確認してください。';
+      const errorMessage = isErrorWithMessage(err)
+        ? errorMessageMap[err.message] ||
+          err.message ||
+          'ログインに失敗しました。メールアドレスとパスワードを確認してください。'
+        : 'ログインに失敗しました。メールアドレスとパスワードを確認してください。';
       setError(errorMessage);
     }
   };

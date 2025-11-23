@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PostEditor } from '../components/PostEditor';
+import { PostEditor, type PostData } from '../components/PostEditor';
 import { ImageUploader } from '../components/ImageUploader';
 import { getPost, updatePost, uploadImage } from '../api/posts';
 
 const PostEditPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [initialData, setInitialData] = useState<any>(null);
+  const [initialData, setInitialData] = useState<PostData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,12 +38,7 @@ const PostEditPage = () => {
     fetchPost();
   }, [id]);
 
-  const handleSave = async (data: {
-    title: string;
-    contentMarkdown: string;
-    category: string;
-    publishStatus: 'draft' | 'published';
-  }) => {
+  const handleSave = async (data: PostData) => {
     // IDはuseEffectでチェック済み。IDがない場合はPostEditorが表示されないため、
     // このhandleSaveは呼ばれない。したがって、冗長なIDチェックは不要。
     try {

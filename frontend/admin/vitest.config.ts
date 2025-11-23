@@ -9,7 +9,7 @@ export default defineConfig({
     setupFiles: './src/test/setup.ts',
     env: {
       // 単体テスト環境では VITE_ENABLE_MSW_MOCK を未設定にして、Amplifyモックを使用
-      VITE_ENABLE_MSW_MOCK: undefined as any,
+      VITE_ENABLE_MSW_MOCK: undefined as string | undefined,
     },
     coverage: {
       provider: 'v8',
