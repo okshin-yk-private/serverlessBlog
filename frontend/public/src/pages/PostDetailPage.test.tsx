@@ -516,5 +516,29 @@ describe('PostDetailPage', () => {
         expect(authorElement.textContent).toBe('Admin');
       });
     });
+
+    test('tagsが配列でない場合、SEOHeadに空配列が渡される', async () => {
+      const postWithInvalidTags = {
+        ...mockPost,
+        tags: undefined as any,
+      };
+      vi.mocked(api.fetchPost).mockResolvedValue(postWithInvalidTags);
+
+      render(
+        <MemoryRouter initialEntries={['/posts/post-123']}>
+          <Routes>
+            <Route path="/posts/:id" element={<PostDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Post Title')).toBeInTheDocument();
+      });
+
+      // keywordsメタタグが存在しないことを確認（空配列の場合は作成されない）
+      const keywordsMeta = document.querySelector('meta[name="keywords"]');
+      expect(keywordsMeta).toBeNull();
+    });
   });
 });
