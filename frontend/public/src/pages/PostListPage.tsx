@@ -33,7 +33,7 @@ const PostListPage: React.FC = () => {
 
       const response = await fetchPosts(filters);
 
-      setPosts(response.items);
+      setPosts(response.items || []);
       setNextToken(response.nextToken);
     } catch (err) {
       // エラー時は空の記事リストを表示（500エラーや network errorハンドリング）
