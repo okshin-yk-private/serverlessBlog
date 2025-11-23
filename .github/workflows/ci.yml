@@ -17,6 +17,7 @@ on:
 permissions:
   contents: read
   pull-requests: write  # Required for actions/labeler to add labels
+  id-token: write       # Required for AWS OIDC authentication (CDK Diff)
 
 jobs:
   # =======================================
@@ -238,6 +239,86 @@ jobs:
           name: infrastructure-coverage
           path: infrastructure/coverage/
           retention-days: 30
+
+  # =======================================
+  # Job 3.5: Infrastructure CDK Diff (conditional, parallel)
+  # =======================================
+  infrastructure-diff:
+    needs: [setup-labels]
+    name: Infrastructure CDK Diff (Preview Changes)
+    runs-on: ubuntu-latest
+    environment: dev  # Use DEV environment secrets (AWS_ROLE_ARN, AWS_REGION)
+    if: needs.setup-labels.outputs.has-infrastructure == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install infrastructure dependencies
+        run: |
+          cd infrastructure
+          npm ci
+
+      - name: Install Lambda Layer dependencies (Common)
+        run: |
+          cd layers/common/nodejs
+          npm ci
+
+      - name: Install Lambda Layer dependencies (Powertools)
+        run: |
+          cd layers/powertools/nodejs
+          npm ci
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: GitHubActions-CDKDiff-CI
+
+      - name: Get Basic Auth Credentials from Parameter Store (DEV)
+        id: basic-auth
+        run: |
+          echo "Retrieving Basic Auth credentials from Parameter Store..."
+          USERNAME=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --region ${{ vars.AWS_REGION }} --query "Parameter.Value" --output text)
+          PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --region ${{ vars.AWS_REGION }} --query "Parameter.Value" --output text)
+
+          echo "::add-mask::$USERNAME"
+          echo "::add-mask::$PASSWORD"
+          echo "username=$USERNAME" >> $GITHUB_OUTPUT
+          echo "password=$PASSWORD" >> $GITHUB_OUTPUT
+
+      - name: Run CDK Diff (Preview Infrastructure Changes)
+        working-directory: infrastructure
+        env:
+          BASIC_AUTH_USERNAME: ${{ steps.basic-auth.outputs.username }}
+          BASIC_AUTH_PASSWORD: ${{ steps.basic-auth.outputs.password }}
+        run: |
+          echo "========================================="
+          echo "CDK Diff - Infrastructure Change Preview"
+          echo "========================================="
+          echo ""
+          echo "Comparing against DEV environment stack..."
+          echo ""
+          npx cdk diff --all --context stage=dev
+          echo ""
+          echo "========================================="
+          echo "ℹ️  CDK Diff completed successfully"
+          echo "========================================="
+          echo ""
+          echo "This preview shows infrastructure changes that will be"
+          echo "deployed after merging to develop/main branch."
+          echo ""
+          echo "Review the changes carefully before approving the PR."
 
   # =======================================
   # Job 4: Frontend Tests - Public (conditional)
