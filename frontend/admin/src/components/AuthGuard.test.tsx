@@ -3,16 +3,12 @@ import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthGuard } from './AuthGuard';
 
-// モックのAuthContext
+// モックのuseAuth
 const mockUseAuth = vi.fn();
 
-vi.mock('../contexts/AuthContext', async () => {
-  const actual = await vi.importActual('../contexts/AuthContext');
-  return {
-    ...actual,
-    useAuth: () => mockUseAuth(),
-  };
-});
+vi.mock('../hooks/useAuth', () => ({
+  useAuth: () => mockUseAuth(),
+}));
 
 describe('AuthGuard', () => {
   it('認証済みの場合は子要素を表示する', () => {

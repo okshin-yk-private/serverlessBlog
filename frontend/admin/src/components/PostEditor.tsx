@@ -8,7 +8,7 @@ import {
 } from '../utils/validation';
 import { Button } from './Button';
 
-interface PostData {
+export interface PostData {
   title: string;
   contentMarkdown: string;
   category: string;

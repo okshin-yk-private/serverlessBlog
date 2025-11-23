@@ -56,9 +56,20 @@ export const removeAuthToken = (): void => {
 };
 
 /**
+ * JWTペイロードの型定義
+ */
+interface JWTPayload {
+  exp?: number;
+  iat?: number;
+  sub?: string;
+  email?: string;
+  [key: string]: unknown;
+}
+
+/**
  * JWTトークンをデコード
  */
-export const decodeToken = (token: string): any | null => {
+export const decodeToken = (token: string): JWTPayload | null => {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) {
@@ -66,7 +77,7 @@ export const decodeToken = (token: string): any | null => {
     }
 
     const payload = parts[1];
-    const decoded = JSON.parse(atob(payload));
+    const decoded = JSON.parse(atob(payload)) as JWTPayload;
     return decoded;
   } catch {
     return null;

@@ -563,29 +563,29 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download backend coverage
+        if: needs.backend-unit-tests.result == 'success'
         uses: actions/download-artifact@v4
-        continue-on-error: true
         with:
           name: backend-coverage
           path: coverage-backend/
 
       - name: Download infrastructure coverage
+        if: needs.infrastructure-tests.result == 'success'
         uses: actions/download-artifact@v4
-        continue-on-error: true
         with:
           name: infrastructure-coverage
           path: coverage-infrastructure/
 
       - name: Download frontend (public) coverage
+        if: needs.frontend-public-tests.result == 'success'
         uses: actions/download-artifact@v4
-        continue-on-error: true
         with:
           name: frontend-public-coverage
           path: coverage-frontend-public/
 
       - name: Download frontend (admin) coverage
+        if: needs.frontend-admin-tests.result == 'success'
         uses: actions/download-artifact@v4
-        continue-on-error: true
         with:
           name: frontend-admin-coverage
           path: coverage-frontend-admin/
