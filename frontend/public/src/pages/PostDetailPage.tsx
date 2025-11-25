@@ -161,99 +161,118 @@ const PostDetailPage: React.FC = () => {
       )}
 
       <style>{`
+        * {
+          box-sizing: border-box;
+        }
+
         .container {
-          max-width: 800px;
+          max-width: 900px;
           margin: 0 auto;
-          padding: 30px 20px;
+          padding: 48px 32px 80px;
+          background: #fafafa;
+          min-height: 100vh;
         }
 
         .back-link {
           display: inline-flex;
           align-items: center;
-          margin-bottom: 25px;
-          color: #1e40af;
+          margin-bottom: 32px;
+          color: #6b7280;
           text-decoration: none;
-          font-weight: 600;
-          font-size: 1rem;
-          transition: color 0.2s;
+          font-weight: 500;
+          font-size: 0.95rem;
+          transition: all 0.2s ease;
+          padding: 8px 16px;
+          border-radius: 8px;
+          border: 1px solid transparent;
         }
 
         .back-link:hover {
-          color: #0f172a;
+          color: #111827;
+          background: white;
+          border-color: #e5e7eb;
         }
 
         .post-detail {
-          background-color: #fff;
-          padding: 40px;
-          border-radius: 12px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+          background: white;
+          padding: 56px;
+          border-radius: 16px;
+          border: 1px solid #e5e7eb;
         }
 
         .post-header {
-          margin-bottom: 40px;
-          border-bottom: 2px solid #f0f0f0;
-          padding-bottom: 25px;
+          margin-bottom: 48px;
+          padding-bottom: 32px;
+          border-bottom: 1px solid #e5e7eb;
         }
 
         .post-header h1 {
-          margin: 0 0 20px 0;
-          font-size: 2.5rem;
+          margin: 0 0 24px 0;
+          font-size: 2.75rem;
           font-weight: 700;
-          line-height: 1.3;
-          color: #1a202c;
-          letter-spacing: -0.5px;
+          line-height: 1.2;
+          color: #111827;
+          letter-spacing: -0.025em;
         }
 
         .post-meta {
           display: flex;
-          gap: 15px;
-          color: #666;
+          gap: 16px;
           font-size: 0.95rem;
-          margin-bottom: 18px;
+          margin-bottom: 20px;
           flex-wrap: wrap;
+          align-items: center;
         }
 
         .category {
-          background: linear-gradient(135deg, #0f172a 0%, #1e40af 100%);
-          padding: 6px 14px;
+          background: #111827;
+          padding: 6px 16px;
           border-radius: 6px;
           color: white;
-          font-weight: 600;
+          font-weight: 500;
+          font-size: 0.875rem;
+        }
+
+        .date,
+        .author {
+          color: #6b7280;
         }
 
         .tags {
           display: flex;
-          gap: 10px;
+          gap: 8px;
           flex-wrap: wrap;
         }
 
         .tag {
-          background-color: #e2e8f0;
-          padding: 6px 12px;
+          background: #ffffff;
+          padding: 6px 14px;
           border-radius: 6px;
-          font-size: 0.9rem;
-          color: #2d3748;
+          font-size: 0.875rem;
+          color: #374151;
           font-weight: 500;
+          border: 1px solid #e5e7eb;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
         }
 
         .images {
           display: flex;
           flex-direction: column;
-          gap: 20px;
-          margin-bottom: 35px;
+          gap: 24px;
+          margin-bottom: 40px;
         }
 
         .images img {
           max-width: 100%;
           height: auto;
-          border-radius: 10px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          border-radius: 12px;
+          border: 1px solid #e5e7eb;
         }
 
         .post-content {
           line-height: 1.8;
-          color: #2d3748;
-          font-size: 1.05rem;
+          color: #374151;
+          font-size: 1.0625rem;
         }
 
         .post-content h1,
@@ -262,16 +281,17 @@ const PostDetailPage: React.FC = () => {
         .post-content h4,
         .post-content h5,
         .post-content h6 {
-          margin-top: 2em;
-          margin-bottom: 0.75em;
+          margin-top: 2.5em;
+          margin-bottom: 0.875em;
           font-weight: 700;
-          color: #1a202c;
+          color: #111827;
           line-height: 1.3;
+          letter-spacing: -0.015em;
         }
 
         .post-content h2 {
-          font-size: 1.8rem;
-          border-bottom: 2px solid #e2e8f0;
+          font-size: 1.875rem;
+          border-bottom: 1px solid #e5e7eb;
           padding-bottom: 0.5em;
         }
 
@@ -279,66 +299,112 @@ const PostDetailPage: React.FC = () => {
           font-size: 1.5rem;
         }
 
+        .post-content h4 {
+          font-size: 1.25rem;
+        }
+
         .post-content p {
-          margin-bottom: 1.2em;
+          margin-bottom: 1.5em;
+        }
+
+        .post-content a {
+          color: #111827;
+          text-decoration: underline;
+          text-underline-offset: 2px;
+          transition: color 0.2s ease;
+        }
+
+        .post-content a:hover {
+          color: #6b7280;
+        }
+
+        .post-content strong {
+          color: #111827;
+          font-weight: 600;
+        }
+
+        .post-content ul,
+        .post-content ol {
+          margin: 1.5em 0;
+          padding-left: 1.75em;
+        }
+
+        .post-content li {
+          margin-bottom: 0.5em;
         }
 
         .post-content img {
           max-width: 100%;
           height: auto;
-          border-radius: 8px;
-          margin: 1.5em 0;
+          border-radius: 12px;
+          margin: 2em 0;
+          border: 1px solid #e5e7eb;
         }
 
         .post-content code {
-          background-color: #2d3748;
-          color: #48bb78;
+          background: #f3f4f6;
+          color: #111827;
           padding: 3px 8px;
-          border-radius: 4px;
-          font-family: 'Courier New', 'Consolas', monospace;
+          border-radius: 6px;
+          font-family: 'Monaco', 'Courier New', monospace;
           font-size: 0.9em;
         }
 
         .post-content pre {
-          background-color: #2d3748;
-          padding: 20px;
-          border-radius: 8px;
+          background: #1f2937;
+          padding: 24px;
+          border-radius: 12px;
           overflow-x: auto;
-          margin: 1.5em 0;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          margin: 2em 0;
         }
 
         .post-content pre code {
-          background-color: transparent;
-          color: #48bb78;
+          background: transparent;
+          color: #e5e7eb;
           padding: 0;
+          font-size: 0.9rem;
+        }
+
+        .post-content blockquote {
+          border-left: 4px solid #e5e7eb;
+          padding-left: 1.5em;
+          margin: 1.5em 0;
+          color: #6b7280;
+          font-style: italic;
         }
 
         .related-articles {
-          margin-top: 60px;
-          padding: 35px;
-          background: linear-gradient(135deg, #f7f8fa 0%, #e9ecef 100%);
-          border-radius: 12px;
+          margin-top: 80px;
+          padding: 40px;
+          background: #f9fafb;
+          border-radius: 16px;
+          border: 1px solid #e5e7eb;
         }
 
         .related-articles h2 {
-          margin: 0 0 25px 0;
-          font-size: 1.8rem;
+          margin: 0 0 24px 0;
+          font-size: 1.75rem;
           font-weight: 700;
-          color: #1a202c;
+          color: #111827;
+        }
+
+        .related-articles p {
+          color: #6b7280;
+          margin: 0;
         }
 
         @media (max-width: 768px) {
           .container {
-            padding: 20px 15px;
+            padding: 32px 20px 60px;
           }
 
           .post-detail {
-            padding: 25px;
+            padding: 32px 24px;
+            border-radius: 12px;
           }
 
           .post-header h1 {
-            font-size: 1.8rem;
+            font-size: 2rem;
           }
 
           .post-content {
@@ -350,7 +416,11 @@ const PostDetailPage: React.FC = () => {
           }
 
           .post-content h3 {
-            font-size: 1.3rem;
+            font-size: 1.25rem;
+          }
+
+          .related-articles {
+            padding: 24px;
           }
         }
       `}</style>
