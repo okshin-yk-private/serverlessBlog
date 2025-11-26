@@ -141,6 +141,24 @@ describe('PostListPage', () => {
       });
     });
 
+    it('response.itemsがundefinedの場合は空の記事リストを表示する', async () => {
+      // Arrange
+      const axios = await import('axios');
+      vi.mocked(axios.default.get).mockResolvedValueOnce({
+        data: {
+          count: 0,
+        } as any,
+      });
+
+      // Act
+      renderWithRouter(<PostListPage />);
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.getByText('記事がありません')).toBeInTheDocument();
+      });
+    });
+
     it('各記事にタイトル、カテゴリ、作成日時が表示される', async () => {
       // Arrange
       const axios = await import('axios');
@@ -439,6 +457,141 @@ describe('PostListPage', () => {
         );
       });
     });
+
+    it('カテゴリピルボタン（Technology）をクリックするとフィルタされる', async () => {
+      // Arrange
+      const user = userEvent.setup();
+      const axios = await import('axios');
+
+      // 最初は全記事
+      vi.mocked(axios.default.get).mockResolvedValueOnce({
+        data: {
+          items: mockPosts,
+          count: mockPosts.length,
+        } as PostListResponse,
+      });
+
+      renderWithRouter(<PostListPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('テスト記事1')).toBeInTheDocument();
+      });
+
+      // technologyカテゴリでフィルタ
+      vi.mocked(axios.default.get).mockResolvedValueOnce({
+        data: {
+          items: mockPosts.filter((p) => p.category === 'technology'),
+          count: 2,
+        } as PostListResponse,
+      });
+
+      // Act - Technologyピルボタンをクリック
+      const technologyButton = screen.getByRole('button', {
+        name: /Technology/i,
+      });
+      await user.click(technologyButton);
+
+      // Assert
+      await waitFor(() => {
+        expect(axios.default.get).toHaveBeenLastCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            params: expect.objectContaining({
+              category: 'technology',
+            }),
+          })
+        );
+      });
+    });
+
+    it('カテゴリピルボタン（Life）をクリックするとフィルタされる', async () => {
+      // Arrange
+      const user = userEvent.setup();
+      const axios = await import('axios');
+
+      // 最初は全記事
+      vi.mocked(axios.default.get).mockResolvedValueOnce({
+        data: {
+          items: mockPosts,
+          count: mockPosts.length,
+        } as PostListResponse,
+      });
+
+      renderWithRouter(<PostListPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('テスト記事1')).toBeInTheDocument();
+      });
+
+      // lifeカテゴリでフィルタ
+      vi.mocked(axios.default.get).mockResolvedValueOnce({
+        data: {
+          items: mockPosts.filter((p) => p.category === 'life'),
+          count: 1,
+        } as PostListResponse,
+      });
+
+      // Act - Lifeピルボタンをクリック
+      const lifeButton = screen.getByRole('button', { name: /Life/i });
+      await user.click(lifeButton);
+
+      // Assert
+      await waitFor(() => {
+        expect(axios.default.get).toHaveBeenLastCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            params: expect.objectContaining({
+              category: 'life',
+            }),
+          })
+        );
+      });
+    });
+
+    it('カテゴリピルボタン（All）をクリックするとフィルタが解除される', async () => {
+      // Arrange
+      const user = userEvent.setup();
+      const axios = await import('axios');
+
+      vi.mocked(axios.default.get).mockResolvedValue({
+        data: {
+          items: mockPosts,
+          count: mockPosts.length,
+        } as PostListResponse,
+      });
+
+      renderWithRouter(<PostListPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('テスト記事1')).toBeInTheDocument();
+      });
+
+      // まずTechnologyを選択
+      const technologyButton = screen.getByRole('button', {
+        name: /Technology/i,
+      });
+      await user.click(technologyButton);
+
+      await waitFor(() => {
+        expect(axios.default.get).toHaveBeenCalled();
+      });
+
+      // Act - Allピルボタンをクリック
+      const allButton = screen.getByRole('button', { name: /All/i });
+      await user.click(allButton);
+
+      // Assert
+      await waitFor(() => {
+        expect(axios.default.get).toHaveBeenLastCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            params: expect.not.objectContaining({
+              category: expect.anything(),
+            }),
+          })
+        );
+      });
+    });
   });
 
   describe('タグフィルタ機能', () => {
@@ -491,9 +644,7 @@ describe('PostListPage', () => {
       // Act
       const tagInput = screen.getByLabelText(/タグ/i);
       await user.type(tagInput, 'react');
-
-      const searchButton = screen.getByRole('button', { name: /検索/i });
-      await user.click(searchButton);
+      await user.keyboard('{Enter}');
 
       // Assert
       await waitFor(() => {
@@ -532,10 +683,10 @@ describe('PostListPage', () => {
         expect(screen.getByLabelText(/タグ/i)).toBeInTheDocument();
       });
 
-      const searchButton = screen.getByRole('button', { name: /検索/i });
-
-      // Act - 空のタグで検索
-      await user.click(searchButton);
+      // Act - 空のタグで検索（Enterキーを押す）
+      const tagInput = screen.getByLabelText(/タグ/i);
+      await user.click(tagInput);
+      await user.keyboard('{Enter}');
 
       // Assert - tagsパラメータが含まれないことを確認
       await waitFor(() => {
@@ -580,9 +731,7 @@ describe('PostListPage', () => {
 
       const tagInput = screen.getByLabelText(/タグ/i);
       await user.type(tagInput, 'react');
-
-      const searchButton = screen.getByRole('button', { name: /検索/i });
-      await user.click(searchButton);
+      await user.keyboard('{Enter}');
 
       // Assert
       await waitFor(() => {

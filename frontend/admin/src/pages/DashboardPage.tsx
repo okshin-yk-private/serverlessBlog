@@ -105,7 +105,7 @@ const DashboardPage = () => {
 
         {/* ナビゲーションリンク */}
         <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6 mb-8">
-          <p className="text-gray-600 mb-4">ブログ管理画面へようこそ</p>
+          <p className="text-gray-600 mb-4">Polylex管理画面へようこそ</p>
           <div className="space-x-4">
             <Link
               to="/posts"

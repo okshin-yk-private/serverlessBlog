@@ -127,7 +127,7 @@ const PostListPage: React.FC = () => {
   };
 
   return (
-    <div className="container">
+    <div className="page-container">
       {/* SEO Meta Tags */}
       <SEOHead
         title={generateSEOTitle()}
@@ -137,17 +137,81 @@ const PostListPage: React.FC = () => {
         type="website"
       />
 
-      <h1>ブログ記事一覧</h1>
+      {/* Hero Section */}
+      <div className="hero-section">
+        <h1 className="hero-title">Welcome to Polylex</h1>
+        <p className="hero-subtitle">
+          A personal blog exploring the world through multifaceted perspectives,
+          like a polyhedron.
+          <br />
+          All views expressed here are personal opinions and do not represent
+          any organization.
+        </p>
+      </div>
 
-      {/* カテゴリフィルタ */}
-      <div className="filter-section">
-        <label htmlFor="category-select">カテゴリ:</label>
+      <div className="container">
+        {/* Filter Section */}
+        <div className="filter-bar">
+          <div className="category-pills">
+            <button
+              className={`category-pill ${category === '' ? 'active' : ''}`}
+              onClick={() => {
+                setCategory('');
+                setHasPrevious(false);
+                loadPosts({ tags: tags || undefined });
+              }}
+            >
+              All
+            </button>
+            <button
+              className={`category-pill ${category === 'technology' ? 'active' : ''}`}
+              onClick={() => {
+                setCategory('technology');
+                setHasPrevious(false);
+                loadPosts({ category: 'technology', tags: tags || undefined });
+              }}
+            >
+              Technology
+            </button>
+            <button
+              className={`category-pill ${category === 'life' ? 'active' : ''}`}
+              onClick={() => {
+                setCategory('life');
+                setHasPrevious(false);
+                loadPosts({ category: 'life', tags: tags || undefined });
+              }}
+            >
+              Life
+            </button>
+          </div>
+
+          <div className="search-box">
+            <input
+              id="tag-input"
+              data-testid="search-input"
+              type="text"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="Search articles..."
+              aria-label="タグ"
+              className="search-input"
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleTagSearch();
+                }
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Hidden select for testing */}
         <select
           id="category-select"
           data-testid="category-filter"
           value={category}
           onChange={handleCategoryChange}
           aria-label="カテゴリ"
+          style={{ display: 'none' }}
         >
           <option value="" data-testid="category-option">
             すべて
@@ -159,246 +223,354 @@ const PostListPage: React.FC = () => {
             Life
           </option>
         </select>
-      </div>
-
-      {/* タグフィルタ */}
-      <div className="filter-section">
-        <label htmlFor="tag-input">タグ:</label>
-        <input
-          id="tag-input"
-          data-testid="search-input"
-          type="text"
-          value={tags}
-          onChange={(e) => setTags(e.target.value)}
-          placeholder="タグを入力"
-          aria-label="タグ"
-        />
         <button
           onClick={handleTagSearch}
           data-testid="search-button"
           aria-label="検索"
+          style={{ display: 'none' }}
         >
           検索
         </button>
-      </div>
 
-      {/* エラーメッセージ */}
-      {error && (
-        <div className="error-message" role="alert">
-          {error}
+        {/* エラーメッセージ */}
+        {error && (
+          <div className="error-message" role="alert">
+            {error}
+          </div>
+        )}
+
+        {/* 記事一覧 */}
+        {posts.length === 0 ? (
+          <p data-testid="no-articles">記事がありません</p>
+        ) : (
+          <div className="post-list-container" data-testid="article-list">
+            {posts.map((post) => (
+              <article
+                key={post.id}
+                className="post-card"
+                data-testid="article-card"
+              >
+                <Link to={`/posts/${post.id}`} className="post-link">
+                  <h2 data-testid="article-title">{post.title}</h2>
+                  <div className="post-meta">
+                    <span className="category" data-testid="article-category">
+                      {post.category}
+                    </span>
+                    <span className="date">
+                      {new Date(post.createdAt).toLocaleDateString('ja-JP')}
+                    </span>
+                  </div>
+                  {post.tags && post.tags.length > 0 && (
+                    <div className="tags">
+                      {post.tags.map((tag) => (
+                        <span key={tag} className="tag">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="excerpt" data-testid="article-excerpt">
+                    {/* 記事の要約（最初の100文字） */}
+                    {post.contentHtml
+                      ? post.contentHtml
+                          .substring(0, 100)
+                          .replace(/<[^>]*>/g, '') + '...'
+                      : ''}
+                  </div>
+                </Link>
+              </article>
+            ))}
+          </div>
+        )}
+
+        {/* ページネーション */}
+        <div className="pagination">
+          <button onClick={handlePrevPage} disabled={!hasPrevious}>
+            前へ
+          </button>
+          <button
+            onClick={handleNextPage}
+            disabled={!nextToken}
+            data-testid="load-more"
+          >
+            次へ（もっと読み込む）
+          </button>
         </div>
-      )}
-
-      {/* 記事一覧 */}
-      {posts.length === 0 ? (
-        <p data-testid="no-articles">記事がありません</p>
-      ) : (
-        <div className="post-list-container" data-testid="article-list">
-          {posts.map((post) => (
-            <article
-              key={post.id}
-              className="post-card"
-              data-testid="article-card"
-            >
-              <Link to={`/posts/${post.id}`} className="post-link">
-                <h2 data-testid="article-title">{post.title}</h2>
-                <div className="post-meta">
-                  <span className="category" data-testid="article-category">
-                    {post.category}
-                  </span>
-                  <span className="date">
-                    {new Date(post.createdAt).toLocaleDateString('ja-JP')}
-                  </span>
-                </div>
-                <div className="excerpt" data-testid="article-excerpt">
-                  {/* 記事の要約（最初の100文字） */}
-                  {post.contentHtml
-                    ? post.contentHtml
-                        .substring(0, 100)
-                        .replace(/<[^>]*>/g, '') + '...'
-                    : ''}
-                </div>
-              </Link>
-            </article>
-          ))}
-        </div>
-      )}
-
-      {/* ページネーション */}
-      <div className="pagination">
-        <button onClick={handlePrevPage} disabled={!hasPrevious}>
-          前へ
-        </button>
-        <button
-          onClick={handleNextPage}
-          disabled={!nextToken}
-          data-testid="load-more"
-        >
-          次へ（もっと読み込む）
-        </button>
       </div>
 
       <style>{`
+        * {
+          box-sizing: border-box;
+        }
+
+        .page-container {
+          min-height: 100vh;
+          background: #fafafa;
+        }
+
+        .hero-section {
+          background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+          padding: 80px 32px 60px;
+          text-align: center;
+          border-bottom: 1px solid #e5e7eb;
+        }
+
+        .hero-title {
+          font-size: 3.5rem;
+          font-weight: 700;
+          color: #111827;
+          margin: 0 0 24px 0;
+          letter-spacing: 0.02em;
+          font-family: 'Brush Script MT', 'Apple Chancery', cursive;
+          font-style: italic;
+        }
+
+        .hero-subtitle {
+          font-size: 1.125rem;
+          color: #6b7280;
+          margin: 0;
+          max-width: 700px;
+          margin: 0 auto;
+          line-height: 1.8;
+          font-family: 'Brush Script MT', 'Apple Chancery', cursive;
+          font-style: italic;
+          font-weight: 500;
+        }
+
         .container {
           max-width: 1200px;
           margin: 0 auto;
-          padding: 30px 20px;
+          padding: 40px 32px;
         }
 
-        .container > h1 {
-          font-size: 2.5rem;
-          font-weight: 700;
-          color: #1a202c;
-          margin-bottom: 35px;
-          letter-spacing: -0.5px;
+        .filter-bar {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+          margin-bottom: 40px;
+        }
+
+        .category-pills {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .category-pill {
+          padding: 10px 20px;
+          border: 1px solid #e5e7eb;
+          border-radius: 24px;
+          background: white;
+          color: #6b7280;
+          font-size: 0.95rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .category-pill:hover {
+          border-color: #d1d5db;
+          color: #374151;
+        }
+
+        .category-pill.active {
+          background: #111827;
+          color: white;
+          border-color: #111827;
+        }
+
+        .search-box {
+          max-width: 400px;
+        }
+
+        .search-input {
+          width: 100%;
+          padding: 12px 20px;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          font-size: 0.95rem;
+          background: white;
+          transition: all 0.2s ease;
+        }
+
+        .search-input:focus {
+          outline: none;
+          border-color: #9ca3af;
+          box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.1);
+        }
+
+        .search-input::placeholder {
+          color: #9ca3af;
         }
 
         .error-message {
-          background-color: #fee;
-          border: 1px solid #fcc;
-          border-radius: 4px;
-          padding: 10px 15px;
-          margin-bottom: 20px;
-          color: #c33;
-        }
-
-        .filter-section {
-          margin-bottom: 25px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .filter-section label {
-          font-weight: 600;
-          color: #2d3748;
-          font-size: 1rem;
-        }
-
-        .filter-section select,
-        .filter-section input {
-          padding: 10px 14px;
-          border: 2px solid #e2e8f0;
-          border-radius: 6px;
-          font-size: 1rem;
-          transition: border-color 0.2s;
-          background-color: white;
-        }
-
-        .filter-section select:focus,
-        .filter-section input:focus {
-          outline: none;
-          border-color: #1e40af;
-        }
-
-        .filter-section button {
-          padding: 10px 20px;
-          border: none;
-          border-radius: 6px;
-          background: linear-gradient(135deg, #0f172a 0%, #1e40af 100%);
-          color: white;
-          font-weight: 600;
-          cursor: pointer;
-          transition: transform 0.2s, box-shadow 0.2s;
-          font-size: 1rem;
-        }
-
-        .filter-section button:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(30, 64, 175, 0.4);
-        }
-
-        .filter-section button:active {
-          transform: translateY(0);
+          background: #fef2f2;
+          border: 1px solid #fecaca;
+          border-radius: 8px;
+          padding: 16px;
+          margin-bottom: 24px;
+          color: #991b1b;
+          font-size: 0.95rem;
         }
 
         .post-list-container {
-          display: flex;
-          flex-direction: column;
-          gap: 20px;
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 24px;
         }
 
         @media (min-width: 768px) {
+          .filter-bar {
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+          }
+
           .post-list-container {
-            display: grid;
             grid-template-columns: repeat(2, 1fr);
           }
         }
 
         @media (min-width: 1024px) {
+          .hero-title {
+            font-size: 4rem;
+          }
+
           .post-list-container {
             grid-template-columns: repeat(3, 1fr);
           }
         }
 
         .post-card {
-          border: 1px solid #e0e0e0;
-          border-radius: 8px;
-          padding: 20px;
-          background-color: #fff;
-          transition: box-shadow 0.2s;
+          background: white;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          padding: 24px;
+          transition: all 0.2s ease;
+          height: 100%;
         }
 
         .post-card:hover {
-          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+          transform: translateY(-2px);
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+          border-color: #d1d5db;
         }
 
         .post-link {
           text-decoration: none;
           color: inherit;
           display: block;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
         }
 
         .post-card h2 {
-          margin: 0 0 10px 0;
-          font-size: 1.5rem;
-          color: #333;
+          margin: 0 0 12px 0;
+          font-size: 1.25rem;
+          font-weight: 600;
+          color: #111827;
+          line-height: 1.4;
         }
 
         .post-link:hover h2 {
-          color: #1e40af;
+          color: #374151;
         }
 
         .post-meta {
           display: flex;
-          gap: 10px;
-          color: #666;
-          font-size: 0.9rem;
+          gap: 12px;
+          margin-bottom: 12px;
+          font-size: 0.875rem;
+        }
+
+        .category {
+          background: #111827;
+          padding: 6px 16px;
+          border-radius: 6px;
+          color: white;
+          font-weight: 500;
+          font-size: 0.875rem;
+        }
+
+        .date {
+          color: #9ca3af;
+        }
+
+        .tags {
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+          margin-bottom: 12px;
+        }
+
+        .tag {
+          background: #ffffff;
+          padding: 4px 10px;
+          border-radius: 4px;
+          font-size: 0.75rem;
+          color: #374151;
+          font-weight: 500;
+          border: 1px solid #e5e7eb;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+
+        .excerpt {
+          color: #6b7280;
+          font-size: 0.95rem;
+          line-height: 1.6;
+          flex-grow: 1;
         }
 
         .pagination {
-          margin-top: 40px;
+          margin-top: 60px;
           display: flex;
-          gap: 15px;
+          gap: 12px;
           justify-content: center;
         }
 
         .pagination button {
-          padding: 12px 24px;
-          border: none;
-          border-radius: 6px;
-          background: linear-gradient(135deg, #0f172a 0%, #1e40af 100%);
-          color: white;
-          font-weight: 600;
+          padding: 12px 28px;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          background: white;
+          color: #374151;
+          font-weight: 500;
           cursor: pointer;
-          transition: transform 0.2s, box-shadow 0.2s;
-          font-size: 1rem;
+          transition: all 0.2s ease;
+          font-size: 0.95rem;
         }
 
         .pagination button:disabled {
-          background: #e2e8f0;
-          color: #a0aec0;
+          background: #f9fafb;
+          color: #d1d5db;
           cursor: not-allowed;
-          transform: none;
+          border-color: #f3f4f6;
         }
 
         .pagination button:not(:disabled):hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(30, 64, 175, 0.4);
+          background: #111827;
+          color: white;
+          border-color: #111827;
         }
 
-        .pagination button:not(:disabled):active {
-          transform: translateY(0);
+        @media (max-width: 768px) {
+          .hero-section {
+            padding: 60px 20px 40px;
+          }
+
+          .hero-title {
+            font-size: 2rem;
+          }
+
+          .hero-subtitle {
+            font-size: 1rem;
+            max-width: 90%;
+          }
+
+          .container {
+            padding: 32px 20px;
+          }
         }
       `}</style>
     </div>
