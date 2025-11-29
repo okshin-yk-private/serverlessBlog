@@ -139,7 +139,7 @@ const PostListPage: React.FC = () => {
 
       {/* Hero Section */}
       <div className="hero-section">
-        <h1 className="hero-title">Welcome to Polylex</h1>
+        <h1 className="hero-title">Not fast enough</h1>
         <p className="hero-subtitle">
           A personal blog exploring the world through multifaceted perspectives,
           like a polyhedron.
