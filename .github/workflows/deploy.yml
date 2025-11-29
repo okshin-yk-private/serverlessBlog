@@ -298,7 +298,7 @@ jobs:
         env:
           VITE_API_ENDPOINT: ${{ secrets.API_ENDPOINT }}
           VITE_COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
-          VITE_COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          VITE_COGNITO_USER_POOL_CLIENT_ID: ${{ secrets.COGNITO_USER_POOL_CLIENT_ID }}
 
       - name: Deploy Admin Site to S3
         run: |
