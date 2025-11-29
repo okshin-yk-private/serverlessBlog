@@ -93,24 +93,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       // Cognitoでサインイン
-      const { isSignedIn } = await signIn({ username: email, password });
+      const signInResult = await signIn({ username: email, password });
 
-      if (isSignedIn) {
-        // セッション情報を取得
-        const session = await fetchAuthSession();
-        const idToken = session.tokens?.idToken?.toString();
+      // 初回ログイン時のパスワード変更が必要な場合
+      if (
+        signInResult.nextStep?.signInStep ===
+        'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED'
+      ) {
+        // 新しいパスワードとして同じパスワードを使用して確認
+        // 注意: 本番環境では、ユーザーに新しいパスワードを入力させるUIを用意することを推奨
+        const { confirmSignIn } = await import('aws-amplify/auth');
+        const confirmResult = await confirmSignIn({
+          challengeResponse: password,
+        });
 
-        if (idToken) {
-          // トークンを保存
-          saveAuthToken(idToken);
-
-          // ユーザー情報を取得
-          const currentUser = await getCurrentUser();
-          setUser({
-            id: currentUser.userId,
-            email: currentUser.signInDetails?.loginId || email,
-          });
+        if (!confirmResult.isSignedIn) {
+          throw new Error('パスワード確認に失敗しました');
         }
+      } else if (!signInResult.isSignedIn) {
+        throw new Error('ログインに失敗しました');
+      }
+
+      // セッション情報を取得
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken?.toString();
+
+      if (idToken) {
+        // トークンを保存
+        saveAuthToken(idToken);
+
+        // ユーザー情報を取得
+        const currentUser = await getCurrentUser();
+        setUser({
+          id: currentUser.userId,
+          email: currentUser.signInDetails?.loginId || email,
+        });
       }
     } catch (error) {
       console.error('ログインに失敗しました:', error);
