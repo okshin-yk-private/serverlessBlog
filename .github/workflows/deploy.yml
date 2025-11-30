@@ -221,12 +221,22 @@ jobs:
       - name: Extract Stack Outputs
         id: outputs
         run: |
+          # Storage Stack outputs
           PUBLIC_BUCKET=$(jq -r '.ServerlessBlogStorageStack.PublicSiteBucketName' cdk-outputs.json)
           ADMIN_BUCKET=$(jq -r '.ServerlessBlogStorageStack.AdminSiteBucketName' cdk-outputs.json)
+
+          # CDN Stack outputs
           PUBLIC_DIST_ID=$(jq -r '.ServerlessBlogCdnStack.PublicSiteDistributionId' cdk-outputs.json)
           ADMIN_DIST_ID=$(jq -r '.ServerlessBlogCdnStack.AdminSiteDistributionId' cdk-outputs.json)
           PUBLIC_DIST_DOMAIN=$(jq -r '.ServerlessBlogCdnStack.PublicSiteDistributionDomainName' cdk-outputs.json)
           ADMIN_DIST_DOMAIN=$(jq -r '.ServerlessBlogCdnStack.AdminSiteDistributionDomainName' cdk-outputs.json)
+
+          # API Stack outputs
+          API_ENDPOINT=$(jq -r '.ServerlessBlogApiStack.ApiEndpoint' cdk-outputs.json)
+
+          # Auth Stack outputs
+          USER_POOL_ID=$(jq -r '.ServerlessBlogAuthStack.UserPoolId' cdk-outputs.json)
+          USER_POOL_CLIENT_ID=$(jq -r '.ServerlessBlogAuthStack.UserPoolClientId' cdk-outputs.json)
 
           echo "public-bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
           echo "admin-bucket=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
@@ -234,11 +244,17 @@ jobs:
           echo "admin-dist-id=$ADMIN_DIST_ID" >> $GITHUB_OUTPUT
           echo "public-dist-domain=$PUBLIC_DIST_DOMAIN" >> $GITHUB_OUTPUT
           echo "admin-dist-domain=$ADMIN_DIST_DOMAIN" >> $GITHUB_OUTPUT
+          echo "api-endpoint=$API_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "user-pool-id=$USER_POOL_ID" >> $GITHUB_OUTPUT
+          echo "user-pool-client-id=$USER_POOL_CLIENT_ID" >> $GITHUB_OUTPUT
 
           echo "Public Bucket: $PUBLIC_BUCKET"
           echo "Admin Bucket: $ADMIN_BUCKET"
           echo "Public CloudFront Domain: $PUBLIC_DIST_DOMAIN"
           echo "Admin CloudFront Domain: $ADMIN_DIST_DOMAIN"
+          echo "API Endpoint: $API_ENDPOINT"
+          echo "User Pool ID: $USER_POOL_ID"
+          echo "User Pool Client ID: $USER_POOL_CLIENT_ID"
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -258,8 +274,8 @@ jobs:
         working-directory: frontend/public
         run: npm run build
         env:
-          VITE_API_ENDPOINT: ${{ secrets.API_ENDPOINT }}
-          VITE_COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+          VITE_API_ENDPOINT: ${{ steps.outputs.outputs.api-endpoint }}
+          VITE_COGNITO_USER_POOL_ID: ${{ steps.outputs.outputs.user-pool-id }}
 
       - name: Deploy Public Site to S3
         run: |
@@ -296,9 +312,9 @@ jobs:
         working-directory: frontend/admin
         run: npm run build
         env:
-          VITE_API_ENDPOINT: ${{ secrets.API_ENDPOINT }}
-          VITE_COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
-          VITE_COGNITO_USER_POOL_CLIENT_ID: ${{ secrets.COGNITO_USER_POOL_CLIENT_ID }}
+          VITE_API_ENDPOINT: ${{ steps.outputs.outputs.api-endpoint }}
+          VITE_COGNITO_USER_POOL_ID: ${{ steps.outputs.outputs.user-pool-id }}
+          VITE_COGNITO_USER_POOL_CLIENT_ID: ${{ steps.outputs.outputs.user-pool-client-id }}
 
       - name: Deploy Admin Site to S3
         run: |
