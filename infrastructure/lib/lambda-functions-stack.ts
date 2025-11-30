@@ -173,6 +173,16 @@ export class LambdaFunctionsStack extends cdk.Stack {
       }
     );
 
+    // GET /admin/posts - 記事一覧取得（管理用、認証必須）
+    adminPostsResource.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(this.listPostsFunction),
+      {
+        authorizer,
+        authorizationType: apigateway.AuthorizationType.COGNITO,
+      }
+    );
+
     // /admin/posts/{id}
     const adminPostByIdResource = adminPostsResource.addResource('{id}');
 

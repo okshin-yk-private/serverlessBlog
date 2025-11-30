@@ -36,7 +36,7 @@ export const createPost = async (data: CreatePostRequest): Promise<Post> => {
   const token = getAuthToken();
   const response = await axios.post(`${API_URL}/admin/posts`, data, {
     headers: {
-      Authorization: token,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
   });
@@ -53,7 +53,7 @@ export const updatePost = async (
   const token = getAuthToken();
   const response = await axios.put(`${API_URL}/admin/posts/${id}`, data, {
     headers: {
-      Authorization: token,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
   });
@@ -67,7 +67,7 @@ export const getPost = async (id: string): Promise<Post> => {
   const token = getAuthToken();
   const response = await axios.get(`${API_URL}/admin/posts/${id}`, {
     headers: {
-      Authorization: token,
+      Authorization: `Bearer ${token}`,
     },
   });
   return response.data;
@@ -86,7 +86,7 @@ export const getUploadUrl = async (
     { filename, contentType },
     {
       headers: {
-        Authorization: token,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
     }
@@ -146,7 +146,7 @@ export const getPosts = async (
     `${API_URL}/admin/posts?${queryParams.toString()}`,
     {
       headers: {
-        Authorization: token,
+        Authorization: `Bearer ${token}`,
       },
     }
   );
@@ -165,7 +165,7 @@ export const deletePost = async (id: string): Promise<void> => {
   const token = getAuthToken();
   await axios.delete(`${API_URL}/admin/posts/${id}`, {
     headers: {
-      Authorization: token,
+      Authorization: `Bearer ${token}`,
     },
   });
 };
