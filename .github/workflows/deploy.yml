@@ -312,7 +312,7 @@ jobs:
         working-directory: frontend/admin
         run: npm run build
         env:
-          VITE_API_ENDPOINT: ${{ steps.outputs.outputs.api-endpoint }}
+          VITE_API_URL: ${{ steps.outputs.outputs.api-endpoint }}
           VITE_COGNITO_USER_POOL_ID: ${{ steps.outputs.outputs.user-pool-id }}
           VITE_COGNITO_USER_POOL_CLIENT_ID: ${{ steps.outputs.outputs.user-pool-client-id }}
 
