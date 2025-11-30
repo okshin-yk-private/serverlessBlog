@@ -72,6 +72,27 @@ export class ApiStack extends cdk.Stack {
       },
     });
 
+    // Gateway Responses for CORS (4xx/5xx errors need CORS headers)
+    this.restApi.addGatewayResponse('Default4xx', {
+      type: apigateway.ResponseType.DEFAULT_4XX,
+      responseHeaders: {
+        'Access-Control-Allow-Origin': "'*'",
+        'Access-Control-Allow-Headers':
+          "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'",
+        'Access-Control-Allow-Methods': "'GET,POST,PUT,DELETE,OPTIONS'",
+      },
+    });
+
+    this.restApi.addGatewayResponse('Default5xx', {
+      type: apigateway.ResponseType.DEFAULT_5XX,
+      responseHeaders: {
+        'Access-Control-Allow-Origin': "'*'",
+        'Access-Control-Allow-Headers':
+          "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'",
+        'Access-Control-Allow-Methods': "'GET,POST,PUT,DELETE,OPTIONS'",
+      },
+    });
+
     // Cognito User Pool Authorizer作成
     this.authorizer = new apigateway.CognitoUserPoolsAuthorizer(
       this,
@@ -139,9 +160,9 @@ export class ApiStack extends cdk.Stack {
       },
     ]);
 
-    // Export API endpoint
+    // Export API endpoint (末尾スラッシュを削除してフロントエンドの二重スラッシュを防ぐ)
     new cdk.CfnOutput(this, 'ApiEndpoint', {
-      value: this.restApi.url,
+      value: this.restApi.url.replace(/\/$/, ''),
       description: 'API Gateway endpoint URL',
       exportName: 'BlogApiEndpoint',
     });
