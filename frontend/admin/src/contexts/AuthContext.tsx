@@ -92,6 +92,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
+      // 既存のセッションがある場合はサインアウトしてからサインイン
+      try {
+        const currentUser = await getCurrentUser();
+        if (currentUser) {
+          await signOut();
+        }
+      } catch {
+        // ユーザーがいない場合は無視
+      }
+
       // Cognitoでサインイン
       const signInResult = await signIn({ username: email, password });
 
