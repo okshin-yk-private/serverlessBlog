@@ -46,7 +46,6 @@ exports[`ApiStack Snapshot test 1`] = `
             {
               "Ref": "BlogApiDeploymentStageprodC8FF7BB4",
             },
-            "/",
           ],
         ],
       },
@@ -221,13 +220,71 @@ exports[`ApiStack Snapshot test 1`] = `
       "Type": "AWS::IAM::Role",
       "UpdateReplacePolicy": "Retain",
     },
-    "BlogApiDeploymentB3254DE3582160d1c7865fad00b5ddbb86833b7c": {
+    "BlogApiDefault4xx22EFB7E2": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG3",
+              "reason": "AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.",
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization will be implemented when Lambda functions are integrated with API Gateway methods. Currently resources are created but methods are not yet attached.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "ResponseParameters": {
+          "gatewayresponse.header.Access-Control-Allow-Headers": "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'",
+          "gatewayresponse.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+          "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+        },
+        "ResponseType": "DEFAULT_4XX",
+        "RestApiId": {
+          "Ref": "BlogApi17ECE3AB",
+        },
+      },
+      "Type": "AWS::ApiGateway::GatewayResponse",
+    },
+    "BlogApiDefault5xx7B383DA4": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG3",
+              "reason": "AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.",
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization will be implemented when Lambda functions are integrated with API Gateway methods. Currently resources are created but methods are not yet attached.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "ResponseParameters": {
+          "gatewayresponse.header.Access-Control-Allow-Headers": "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'",
+          "gatewayresponse.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+          "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+        },
+        "ResponseType": "DEFAULT_5XX",
+        "RestApiId": {
+          "Ref": "BlogApi17ECE3AB",
+        },
+      },
+      "Type": "AWS::ApiGateway::GatewayResponse",
+    },
+    "BlogApiDeploymentB3254DE3cb5fdf7661695d23120ac5c29f053bd9": {
       "DependsOn": [
         "BlogApiadminOPTIONSDC8B627C",
         "BlogApiadmin6399BE5B",
         "BlogApiOPTIONSDA3C7AF0",
         "BlogApipostsOPTIONSCF6C9BA3",
         "BlogApipostsC4C4C4BC",
+        "BlogApiDefault4xx22EFB7E2",
+        "BlogApiDefault5xx7B383DA4",
         "RequestValidatorB6FDBF18",
       ],
       "Metadata": {
@@ -282,7 +339,7 @@ exports[`ApiStack Snapshot test 1`] = `
           "Format": "{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","user":"$context.identity.user","caller":"$context.identity.caller","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}",
         },
         "DeploymentId": {
-          "Ref": "BlogApiDeploymentB3254DE3582160d1c7865fad00b5ddbb86833b7c",
+          "Ref": "BlogApiDeploymentB3254DE3cb5fdf7661695d23120ac5c29f053bd9",
         },
         "MethodSettings": [
           {
