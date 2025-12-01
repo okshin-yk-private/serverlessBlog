@@ -47,4 +47,8 @@ module.exports = {
 
   // カバレッジディレクトリ
   coverageDirectory: '<rootDir>/coverage',
+
+  // カスタムスナップショットシリアライザー
+  // S3Keyハッシュを正規化して環境非依存のスナップショット比較を実現
+  snapshotSerializers: ['<rootDir>/test/snapshot-serializer.ts'],
 };

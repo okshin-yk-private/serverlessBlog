@@ -1,5 +1,6 @@
 import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
@@ -17,13 +18,13 @@ export interface LambdaFunctionsStackProps extends cdk.StackProps {
 }
 
 export class LambdaFunctionsStack extends cdk.Stack {
-  public readonly createPostFunction: lambda.Function;
-  public readonly getPostFunction: lambda.Function;
-  public readonly getPublicPostFunction: lambda.Function;
-  public readonly updatePostFunction: lambda.Function;
-  public readonly deletePostFunction: lambda.Function;
-  public readonly listPostsFunction: lambda.Function;
-  public readonly uploadUrlFunction: lambda.Function;
+  public readonly createPostFunction: NodejsFunction;
+  public readonly getPostFunction: NodejsFunction;
+  public readonly getPublicPostFunction: NodejsFunction;
+  public readonly updatePostFunction: NodejsFunction;
+  public readonly deletePostFunction: NodejsFunction;
+  public readonly listPostsFunction: NodejsFunction;
+  public readonly uploadUrlFunction: NodejsFunction;
 
   constructor(scope: Construct, id: string, props: LambdaFunctionsStackProps) {
     super(scope, id, props);
@@ -53,87 +54,129 @@ export class LambdaFunctionsStack extends cdk.Stack {
     };
 
     // POST /admin/posts - 記事作成
-    this.createPostFunction = new lambda.Function(this, 'CreatePostFunction', {
+    this.createPostFunction = new NodejsFunction(this, 'CreatePostFunction', {
       ...commonFunctionProps,
       functionName: 'blog-create-post',
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, '../../functions/posts/createPost')
+      entry: path.join(
+        __dirname,
+        '../../functions/posts/createPost/handler.ts'
       ),
-      handler: 'index.handler',
+      handler: 'handler',
       description: 'Create new blog post with Markdown to HTML conversion',
+      bundling: {
+        externalModules: [
+          '@aws-lambda-powertools/logger',
+          '@aws-lambda-powertools/tracer',
+          '@aws-lambda-powertools/metrics',
+        ],
+      },
     });
 
     // DynamoDBへの書き込み権限を付与
     blogPostsTable.grantWriteData(this.createPostFunction);
 
     // GET /admin/posts/{id} - 記事取得（管理用）
-    this.getPostFunction = new lambda.Function(this, 'GetPostFunction', {
+    this.getPostFunction = new NodejsFunction(this, 'GetPostFunction', {
       ...commonFunctionProps,
       functionName: 'blog-get-post',
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, '../../functions/posts/getPost')
-      ),
-      handler: 'index.handler',
+      entry: path.join(__dirname, '../../functions/posts/getPost/handler.ts'),
+      handler: 'handler',
       description: 'Get blog post by ID (admin, includes markdown)',
+      bundling: {
+        externalModules: [
+          '@aws-lambda-powertools/logger',
+          '@aws-lambda-powertools/tracer',
+          '@aws-lambda-powertools/metrics',
+        ],
+      },
     });
 
     // DynamoDBからの読み取り権限を付与
     blogPostsTable.grantReadData(this.getPostFunction);
 
     // PUT /admin/posts/{id} - 記事更新
-    this.updatePostFunction = new lambda.Function(this, 'UpdatePostFunction', {
+    this.updatePostFunction = new NodejsFunction(this, 'UpdatePostFunction', {
       ...commonFunctionProps,
       functionName: 'blog-update-post',
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, '../../functions/posts/updatePost')
+      entry: path.join(
+        __dirname,
+        '../../functions/posts/updatePost/handler.ts'
       ),
-      handler: 'index.handler',
+      handler: 'handler',
       description: 'Update existing blog post',
+      bundling: {
+        externalModules: [
+          '@aws-lambda-powertools/logger',
+          '@aws-lambda-powertools/tracer',
+          '@aws-lambda-powertools/metrics',
+        ],
+      },
     });
 
     // DynamoDBへの読み書き権限を付与
     blogPostsTable.grantReadWriteData(this.updatePostFunction);
 
     // DELETE /admin/posts/{id} - 記事削除
-    this.deletePostFunction = new lambda.Function(this, 'DeletePostFunction', {
+    this.deletePostFunction = new NodejsFunction(this, 'DeletePostFunction', {
       ...commonFunctionProps,
       functionName: 'blog-delete-post',
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, '../../functions/posts/deletePost')
+      entry: path.join(
+        __dirname,
+        '../../functions/posts/deletePost/handler.ts'
       ),
-      handler: 'index.handler',
+      handler: 'handler',
       description: 'Delete blog post',
+      bundling: {
+        externalModules: [
+          '@aws-lambda-powertools/logger',
+          '@aws-lambda-powertools/tracer',
+          '@aws-lambda-powertools/metrics',
+        ],
+      },
     });
 
     // DynamoDBへの読み書き権限を付与
     blogPostsTable.grantReadWriteData(this.deletePostFunction);
 
     // GET /posts - 記事一覧取得（公開用）
-    this.listPostsFunction = new lambda.Function(this, 'ListPostsFunction', {
+    this.listPostsFunction = new NodejsFunction(this, 'ListPostsFunction', {
       ...commonFunctionProps,
       functionName: 'blog-list-posts',
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, '../../functions/posts/listPosts')
-      ),
-      handler: 'index.handler',
+      entry: path.join(__dirname, '../../functions/posts/listPosts/handler.ts'),
+      handler: 'handler',
       description: 'List published blog posts',
+      bundling: {
+        externalModules: [
+          '@aws-lambda-powertools/logger',
+          '@aws-lambda-powertools/tracer',
+          '@aws-lambda-powertools/metrics',
+        ],
+      },
     });
 
     // DynamoDBからの読み取り権限を付与
     blogPostsTable.grantReadData(this.listPostsFunction);
 
     // GET /posts/{id} - 記事詳細取得（公開用）
-    this.getPublicPostFunction = new lambda.Function(
+    this.getPublicPostFunction = new NodejsFunction(
       this,
       'GetPublicPostFunction',
       {
         ...commonFunctionProps,
         functionName: 'blog-get-public-post',
-        code: lambda.Code.fromAsset(
-          path.join(__dirname, '../../functions/posts/getPublicPost')
+        entry: path.join(
+          __dirname,
+          '../../functions/posts/getPublicPost/handler.ts'
         ),
-        handler: 'index.handler',
+        handler: 'handler',
         description: 'Get published blog post by ID (public, HTML only)',
+        bundling: {
+          externalModules: [
+            '@aws-lambda-powertools/logger',
+            '@aws-lambda-powertools/tracer',
+            '@aws-lambda-powertools/metrics',
+          ],
+        },
       }
     );
 
@@ -141,14 +184,22 @@ export class LambdaFunctionsStack extends cdk.Stack {
     blogPostsTable.grantReadData(this.getPublicPostFunction);
 
     // POST /admin/images/upload-url - 画像アップロードURL生成
-    this.uploadUrlFunction = new lambda.Function(this, 'UploadUrlFunction', {
+    this.uploadUrlFunction = new NodejsFunction(this, 'UploadUrlFunction', {
       ...commonFunctionProps,
       functionName: 'blog-upload-url',
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, '../../functions/images/getUploadUrl')
+      entry: path.join(
+        __dirname,
+        '../../functions/images/getUploadUrl/handler.ts'
       ),
-      handler: 'index.handler',
+      handler: 'handler',
       description: 'Generate pre-signed URL for image upload',
+      bundling: {
+        externalModules: [
+          '@aws-lambda-powertools/logger',
+          '@aws-lambda-powertools/tracer',
+          '@aws-lambda-powertools/metrics',
+        ],
+      },
     });
 
     // S3への書き込み権限を付与

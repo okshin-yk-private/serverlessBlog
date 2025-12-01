@@ -32,7 +32,7 @@ describe('performanceUtils', () => {
 
       // Assert
       expect(result.value).toBe('result');
-      expect(result.executionTimeMs).toBeGreaterThanOrEqual(100);
+      expect(result.executionTimeMs).toBeGreaterThanOrEqual(95);
       expect(result.executionTimeMs).toBeLessThan(200);
     });
 

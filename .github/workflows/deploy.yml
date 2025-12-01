@@ -181,15 +181,14 @@ jobs:
           fi
 
   # =======================================
-  # Deploy Frontend Job
+  # Deploy Public Site Frontend Job
   # =======================================
-  deploy-frontend:
-    name: Deploy Frontend to ${{ github.ref == 'refs/heads/main' && 'Production' || 'Development' }}
+  deploy-public-frontend:
+    name: Deploy Public Site to ${{ github.ref == 'refs/heads/main' && 'Production' || 'Development' }}
     runs-on: ubuntu-latest
     needs: deploy-infrastructure
     environment:
       name: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
-      # CloudFront URLはデプロイ後のサマリーで表示されます
 
     steps:
       - name: Checkout code
@@ -223,49 +222,34 @@ jobs:
         run: |
           # Storage Stack outputs
           PUBLIC_BUCKET=$(jq -r '.ServerlessBlogStorageStack.PublicSiteBucketName' cdk-outputs.json)
-          ADMIN_BUCKET=$(jq -r '.ServerlessBlogStorageStack.AdminSiteBucketName' cdk-outputs.json)
 
           # CDN Stack outputs
           PUBLIC_DIST_ID=$(jq -r '.ServerlessBlogCdnStack.PublicSiteDistributionId' cdk-outputs.json)
-          ADMIN_DIST_ID=$(jq -r '.ServerlessBlogCdnStack.AdminSiteDistributionId' cdk-outputs.json)
           PUBLIC_DIST_DOMAIN=$(jq -r '.ServerlessBlogCdnStack.PublicSiteDistributionDomainName' cdk-outputs.json)
-          ADMIN_DIST_DOMAIN=$(jq -r '.ServerlessBlogCdnStack.AdminSiteDistributionDomainName' cdk-outputs.json)
 
           # API Stack outputs
           API_ENDPOINT=$(jq -r '.ServerlessBlogApiStack.ApiEndpoint' cdk-outputs.json)
 
           # Auth Stack outputs
           USER_POOL_ID=$(jq -r '.ServerlessBlogAuthStack.UserPoolId' cdk-outputs.json)
-          USER_POOL_CLIENT_ID=$(jq -r '.ServerlessBlogAuthStack.UserPoolClientId' cdk-outputs.json)
 
           echo "public-bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
-          echo "admin-bucket=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
           echo "public-dist-id=$PUBLIC_DIST_ID" >> $GITHUB_OUTPUT
-          echo "admin-dist-id=$ADMIN_DIST_ID" >> $GITHUB_OUTPUT
           echo "public-dist-domain=$PUBLIC_DIST_DOMAIN" >> $GITHUB_OUTPUT
-          echo "admin-dist-domain=$ADMIN_DIST_DOMAIN" >> $GITHUB_OUTPUT
           echo "api-endpoint=$API_ENDPOINT" >> $GITHUB_OUTPUT
           echo "user-pool-id=$USER_POOL_ID" >> $GITHUB_OUTPUT
-          echo "user-pool-client-id=$USER_POOL_CLIENT_ID" >> $GITHUB_OUTPUT
 
           echo "Public Bucket: $PUBLIC_BUCKET"
-          echo "Admin Bucket: $ADMIN_BUCKET"
           echo "Public CloudFront Domain: $PUBLIC_DIST_DOMAIN"
-          echo "Admin CloudFront Domain: $ADMIN_DIST_DOMAIN"
           echo "API Endpoint: $API_ENDPOINT"
-          echo "User Pool ID: $USER_POOL_ID"
-          echo "User Pool Client ID: $USER_POOL_CLIENT_ID"
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
-          role-session-name: GitHubActions-DeployFrontend-${{ steps.env.outputs.stage }}
+          role-session-name: GitHubActions-DeployPublicFrontend-${{ steps.env.outputs.stage }}
 
-      # =======================================
-      # Public Site Deployment
-      # =======================================
       - name: Install Public Site dependencies
         working-directory: frontend/public
         run: npm ci
@@ -301,9 +285,96 @@ jobs:
             --paths "/*"
           echo "✓ CloudFront cache invalidated"
 
-      # =======================================
-      # Admin Site Deployment
-      # =======================================
+      - name: Public Site Deployment Summary
+        if: success()
+        run: |
+          echo "========================================="
+          echo "✓ Public Site Deployment to ${{ steps.env.outputs.env_name }} Complete!"
+          echo "========================================="
+          echo ""
+          echo "Environment: ${{ steps.env.outputs.stage }}"
+          echo "Git Branch: ${{ github.ref_name }}"
+          echo "Commit SHA: ${{ github.sha }}"
+          echo ""
+          echo "✓ Public Site deployed and cache invalidated"
+          echo "  URL: https://${{ steps.outputs.outputs.public-dist-domain }}"
+          echo ""
+          if [ "${{ steps.env.outputs.stage }}" == "prd" ]; then
+            echo "⚠️  PRODUCTION PUBLIC SITE DEPLOYMENT SUCCESSFUL"
+          fi
+
+  # =======================================
+  # Deploy Admin Site Frontend Job
+  # =======================================
+  deploy-admin-frontend:
+    name: Deploy Admin Site to ${{ github.ref == 'refs/heads/main' && 'Production' || 'Development' }}
+    runs-on: ubuntu-latest
+    needs: deploy-infrastructure
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Set environment stage
+        id: env
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "stage=prd" >> $GITHUB_OUTPUT
+            echo "env_name=Production" >> $GITHUB_OUTPUT
+          else
+            echo "stage=dev" >> $GITHUB_OUTPUT
+            echo "env_name=Development" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download CDK Outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: cdk-outputs
+          path: ./
+
+      - name: Extract Stack Outputs
+        id: outputs
+        run: |
+          # Storage Stack outputs
+          ADMIN_BUCKET=$(jq -r '.ServerlessBlogStorageStack.AdminSiteBucketName' cdk-outputs.json)
+
+          # CDN Stack outputs
+          ADMIN_DIST_ID=$(jq -r '.ServerlessBlogCdnStack.AdminSiteDistributionId' cdk-outputs.json)
+          ADMIN_DIST_DOMAIN=$(jq -r '.ServerlessBlogCdnStack.AdminSiteDistributionDomainName' cdk-outputs.json)
+
+          # API Stack outputs
+          API_ENDPOINT=$(jq -r '.ServerlessBlogApiStack.ApiEndpoint' cdk-outputs.json)
+
+          # Auth Stack outputs
+          USER_POOL_ID=$(jq -r '.ServerlessBlogAuthStack.UserPoolId' cdk-outputs.json)
+          USER_POOL_CLIENT_ID=$(jq -r '.ServerlessBlogAuthStack.UserPoolClientId' cdk-outputs.json)
+
+          echo "admin-bucket=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
+          echo "admin-dist-id=$ADMIN_DIST_ID" >> $GITHUB_OUTPUT
+          echo "admin-dist-domain=$ADMIN_DIST_DOMAIN" >> $GITHUB_OUTPUT
+          echo "api-endpoint=$API_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "user-pool-id=$USER_POOL_ID" >> $GITHUB_OUTPUT
+          echo "user-pool-client-id=$USER_POOL_CLIENT_ID" >> $GITHUB_OUTPUT
+
+          echo "Admin Bucket: $ADMIN_BUCKET"
+          echo "Admin CloudFront Domain: $ADMIN_DIST_DOMAIN"
+          echo "API Endpoint: $API_ENDPOINT"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: GitHubActions-DeployAdminFrontend-${{ steps.env.outputs.stage }}
+
       - name: Install Admin Site dependencies
         working-directory: frontend/admin
         run: npm ci
@@ -340,23 +411,20 @@ jobs:
             --paths "/*"
           echo "✓ CloudFront cache invalidated"
 
-      - name: Frontend Deployment Summary
+      - name: Admin Site Deployment Summary
         if: success()
         run: |
           echo "========================================="
-          echo "✓ Frontend Deployment to ${{ steps.env.outputs.env_name }} Environment Complete!"
+          echo "✓ Admin Site Deployment to ${{ steps.env.outputs.env_name }} Complete!"
           echo "========================================="
           echo ""
           echo "Environment: ${{ steps.env.outputs.stage }}"
           echo "Git Branch: ${{ github.ref_name }}"
           echo "Commit SHA: ${{ github.sha }}"
           echo ""
-          echo "✓ Public Site deployed and cache invalidated"
-          echo "  URL: https://${{ steps.outputs.outputs.public-dist-domain }}"
-          echo ""
           echo "✓ Admin Site deployed and cache invalidated"
           echo "  URL: https://${{ steps.outputs.outputs.admin-dist-domain }}"
           echo ""
           if [ "${{ steps.env.outputs.stage }}" == "prd" ]; then
-            echo "⚠️  PRODUCTION FRONTEND DEPLOYMENT SUCCESSFUL"
+            echo "⚠️  PRODUCTION ADMIN SITE DEPLOYMENT SUCCESSFUL"
           fi
