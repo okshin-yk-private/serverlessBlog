@@ -16,11 +16,21 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
     css: true,
+    // ローカル実行時の負荷軽減: ワーカー数を制限
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        maxForks: process.env.CI ? 4 : 2,
+      },
+    },
 
     // 100%カバレッジ閾値の強制
     coverage: {
       provider: 'v8',
-      reporter: ['html', 'json', 'json-summary', 'lcov', 'text'],
+      // ローカル実行時はtextのみ、CI実行時は全種類を生成
+      reporter: process.env.CI
+        ? ['html', 'json', 'json-summary', 'lcov', 'text']
+        : ['text'],
       reportsDirectory: './coverage',
       exclude: [
         'node_modules/',

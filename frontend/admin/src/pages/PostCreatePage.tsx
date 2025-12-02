@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { PostEditor } from '../components/PostEditor';
 import { ImageUploader } from '../components/ImageUploader';
 import { createPost, uploadImage } from '../api/posts';
+import AdminLayout from '../components/AdminLayout';
 
 const PostCreatePage = () => {
   const navigate = useNavigate();
@@ -38,34 +39,28 @@ const PostCreatePage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">新規記事作成</h1>
-
-        {error && (
-          <div
-            className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded"
-            data-testid="error-message"
-          >
-            {error}
-          </div>
-        )}
-
-        <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            画像アップロード
-          </h2>
-          <ImageUploader
-            onUploadComplete={handleImageUpload}
-            uploadFunction={uploadImage}
-          />
+    <AdminLayout title="New Article" subtitle="新しい記事を作成">
+      {error && (
+        <div
+          className="admin-alert admin-alert-error"
+          data-testid="error-message"
+        >
+          {error}
         </div>
+      )}
 
-        <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6">
-          <PostEditor onSave={handleSave} onCancel={handleCancel} />
-        </div>
+      <div className="admin-card">
+        <h2 className="admin-card-title">画像アップロード</h2>
+        <ImageUploader
+          onUploadComplete={handleImageUpload}
+          uploadFunction={uploadImage}
+        />
       </div>
-    </div>
+
+      <div className="admin-card">
+        <PostEditor onSave={handleSave} onCancel={handleCancel} />
+      </div>
+    </AdminLayout>
   );
 };
 

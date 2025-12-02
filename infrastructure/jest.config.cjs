@@ -14,8 +14,15 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/test'],
   testMatch: ['**/*.test.ts'],
+  // ローカル実行時の負荷軽減: ワーカー数を制限
+  maxWorkers: process.env.CI ? 4 : 2,
   transform: {
-    '^.+\\.tsx?$': 'ts-jest',
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      {
+        isolatedModules: true,
+      },
+    ],
   },
 
   // カバレッジ収集対象ファイル
@@ -36,14 +43,11 @@ module.exports = {
     },
   },
 
-  // カバレッジレポート形式 (HTML, JSON, LCOV, Text)
-  coverageReporters: [
-    'html', // HTMLレポート - ブラウザで詳細確認用
-    'json', // JSONレポート - CI/CD統合用
-    'json-summary', // JSONサマリーレポート - カバレッジバッジ生成用
-    'lcov', // LCOVレポート - カバレッジバッジ・外部ツール統合用
-    'text', // テキストレポート - コンソール出力用
-  ],
+  // カバレッジレポート形式
+  // ローカル実行時はtextのみ、CI実行時は全種類を生成
+  coverageReporters: process.env.CI
+    ? ['html', 'json', 'json-summary', 'lcov', 'text']
+    : ['text'],
 
   // カバレッジディレクトリ
   coverageDirectory: '<rootDir>/coverage',
