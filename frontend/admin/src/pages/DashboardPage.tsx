@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { getPosts } from '../api/posts';
 import type { Post } from '../api/posts';
+import AdminLayout from '../components/AdminLayout';
 
 const DashboardPage = () => {
   const [publishedPosts, setPublishedPosts] = useState<Post[]>([]);
@@ -55,25 +56,23 @@ const DashboardPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-xl text-gray-700">読み込み中...</div>
-      </div>
+      <AdminLayout title="Dashboard">
+        <div className="admin-loading">読み込み中...</div>
+      </AdminLayout>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-xl text-red-600 mb-4">{error}</div>
-          <button
-            onClick={fetchDashboardData}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          >
-            再試行
-          </button>
-        </div>
-      </div>
+      <AdminLayout title="Dashboard">
+        <div className="admin-alert admin-alert-error">{error}</div>
+        <button
+          onClick={fetchDashboardData}
+          className="admin-btn admin-btn-primary"
+        >
+          再試行
+        </button>
+      </AdminLayout>
     );
   }
 
@@ -81,103 +80,166 @@ const DashboardPage = () => {
   const hasNoPosts = allPosts.length === 0;
 
   return (
-    <div className="min-h-screen bg-gray-100" data-testid="dashboard">
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">
-          ダッシュボード
-        </h1>
-
+    <AdminLayout title="Dashboard" subtitle="Polylex管理画面へようこそ">
+      <div data-testid="dashboard">
         {/* 記事統計 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-gray-700 mb-2">
-              公開記事数
-            </h2>
-            <p className="text-4xl font-bold text-blue-600">{publishedTotal}</p>
+        <div className="admin-stat-grid">
+          <div className="admin-stat-card">
+            <p className="admin-stat-label">公開記事数</p>
+            <p className="admin-stat-value accent">{publishedTotal}</p>
           </div>
-          <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-gray-700 mb-2">
-              下書き記事数
-            </h2>
-            <p className="text-4xl font-bold text-yellow-600">{draftTotal}</p>
+          <div className="admin-stat-card">
+            <p className="admin-stat-label">下書き記事数</p>
+            <p className="admin-stat-value">{draftTotal}</p>
           </div>
         </div>
 
-        {/* ナビゲーションリンク */}
-        <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6 mb-8">
-          <p className="text-gray-600 mb-4">Polylex管理画面へようこそ</p>
-          <div className="space-x-4">
-            <Link
-              to="/posts"
-              className="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              記事一覧
+        {/* クイックアクション */}
+        <div className="admin-card">
+          <h2 className="admin-card-title">クイックアクション</h2>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <Link to="/posts" className="admin-btn admin-btn-secondary">
+              記事一覧を見る
             </Link>
-            <Link
-              to="/posts/new"
-              className="inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-            >
-              新規記事作成
+            <Link to="/posts/new" className="admin-btn admin-btn-primary">
+              + 新規記事作成
             </Link>
           </div>
         </div>
 
         {/* 記事がない場合のメッセージ */}
         {hasNoPosts && (
-          <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6 text-center">
-            <p className="text-gray-600">記事がありません</p>
+          <div className="admin-card">
+            <div className="admin-empty">
+              <p className="admin-empty-title">記事がありません</p>
+              <p className="admin-empty-desc">新しい記事を作成しましょう</p>
+            </div>
           </div>
         )}
 
         {/* 公開記事一覧 */}
         {publishedPosts.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+          <div style={{ marginBottom: '32px' }}>
+            <h2
+              style={{
+                fontSize: '1.25rem',
+                fontWeight: 600,
+                color: '#111827',
+                marginBottom: '16px',
+              }}
+            >
               最近の公開記事
             </h2>
-            <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-              <ul className="divide-y divide-gray-200">
-                {publishedPosts.map((post) => (
-                  <li key={post.id} className="p-4 hover:bg-gray-50">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      {post.title}
-                    </h3>
-                    <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                      <span>カテゴリ: {post.category}</span>
-                      <span>作成日: {formatDate(post.createdAt)}</span>
+            <div className="admin-list">
+              {publishedPosts.map((post) => (
+                <div key={post.id} className="admin-list-item">
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <div>
+                      <h3
+                        style={{
+                          fontSize: '1.125rem',
+                          fontWeight: 600,
+                          color: '#111827',
+                          margin: '0 0 8px 0',
+                        }}
+                      >
+                        {post.title}
+                      </h3>
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: '16px',
+                          fontSize: '0.875rem',
+                          color: '#6b7280',
+                        }}
+                      >
+                        <span className="admin-badge admin-badge-dark">
+                          {post.category}
+                        </span>
+                        <span>{formatDate(post.createdAt)}</span>
+                      </div>
                     </div>
-                  </li>
-                ))}
-              </ul>
+                    <Link
+                      to={`/posts/edit/${post.id}`}
+                      className="admin-btn admin-btn-secondary admin-btn-sm"
+                    >
+                      編集
+                    </Link>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
 
         {/* 下書き記事一覧 */}
         {draftPosts.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+          <div>
+            <h2
+              style={{
+                fontSize: '1.25rem',
+                fontWeight: 600,
+                color: '#111827',
+                marginBottom: '16px',
+              }}
+            >
               最近の下書き
             </h2>
-            <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-              <ul className="divide-y divide-gray-200">
-                {draftPosts.map((post) => (
-                  <li key={post.id} className="p-4 hover:bg-gray-50">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      {post.title}
-                    </h3>
-                    <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                      <span>カテゴリ: {post.category}</span>
-                      <span>作成日: {formatDate(post.createdAt)}</span>
+            <div className="admin-list">
+              {draftPosts.map((post) => (
+                <div key={post.id} className="admin-list-item">
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <div>
+                      <h3
+                        style={{
+                          fontSize: '1.125rem',
+                          fontWeight: 600,
+                          color: '#111827',
+                          margin: '0 0 8px 0',
+                        }}
+                      >
+                        {post.title}
+                      </h3>
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: '16px',
+                          fontSize: '0.875rem',
+                          color: '#6b7280',
+                        }}
+                      >
+                        <span className="admin-badge admin-badge-warning">
+                          {post.category}
+                        </span>
+                        <span>{formatDate(post.createdAt)}</span>
+                      </div>
                     </div>
-                  </li>
-                ))}
-              </ul>
+                    <Link
+                      to={`/posts/edit/${post.id}`}
+                      className="admin-btn admin-btn-secondary admin-btn-sm"
+                    >
+                      編集
+                    </Link>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
       </div>
-    </div>
+    </AdminLayout>
   );
 };
 

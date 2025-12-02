@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { PostEditor, type PostData } from '../components/PostEditor';
 import { ImageUploader } from '../components/ImageUploader';
 import { getPost, updatePost, uploadImage } from '../api/posts';
+import AdminLayout from '../components/AdminLayout';
 
 const PostEditPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -65,56 +66,42 @@ const PostEditPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-gray-600">読み込み中...</div>
-      </div>
+      <AdminLayout title="Edit Article">
+        <div className="admin-loading">読み込み中...</div>
+      </AdminLayout>
     );
   }
 
   if (error && !initialData) {
     return (
-      <div className="min-h-screen bg-gray-100">
-        <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
-          <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
-          </div>
-        </div>
-      </div>
+      <AdminLayout title="Edit Article">
+        <div className="admin-alert admin-alert-error">{error}</div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">記事編集</h1>
+    <AdminLayout title="Edit Article" subtitle="記事を編集">
+      {error && <div className="admin-alert admin-alert-error">{error}</div>}
 
-        {error && (
-          <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
-          </div>
-        )}
-
-        <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            画像アップロード
-          </h2>
-          <ImageUploader
-            onUploadComplete={handleImageUpload}
-            uploadFunction={uploadImage}
-          />
-        </div>
-
-        <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6">
-          {initialData && (
-            <PostEditor
-              onSave={handleSave}
-              onCancel={handleCancel}
-              initialData={initialData}
-            />
-          )}
-        </div>
+      <div className="admin-card">
+        <h2 className="admin-card-title">画像アップロード</h2>
+        <ImageUploader
+          onUploadComplete={handleImageUpload}
+          uploadFunction={uploadImage}
+        />
       </div>
-    </div>
+
+      <div className="admin-card">
+        {initialData && (
+          <PostEditor
+            onSave={handleSave}
+            onCancel={handleCancel}
+            initialData={initialData}
+          />
+        )}
+      </div>
+    </AdminLayout>
   );
 };
 

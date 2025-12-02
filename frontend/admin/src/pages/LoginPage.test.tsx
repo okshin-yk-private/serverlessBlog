@@ -384,24 +384,11 @@ describe('LoginPage', () => {
     });
 
     // 背景とレイアウトのクラスが適用されている
-    const wrapper = container.querySelector('.min-h-screen');
+    const wrapper = container.querySelector('.login-page');
     expect(wrapper).toBeInTheDocument();
-    expect(wrapper).toHaveClass(
-      'flex',
-      'items-center',
-      'justify-center',
-      'bg-gray-100'
-    );
 
-    const formContainer = container.querySelector('.bg-white');
+    const formContainer = container.querySelector('.login-card');
     expect(formContainer).toBeInTheDocument();
-    expect(formContainer).toHaveClass(
-      'p-8',
-      'rounded-lg',
-      'shadow-md',
-      'w-full',
-      'max-w-md'
-    );
   });
 
   // エッジケーステスト

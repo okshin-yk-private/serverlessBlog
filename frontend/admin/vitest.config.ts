@@ -7,13 +7,23 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
+    // ローカル実行時の負荷軽減: ワーカー数を制限
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        maxForks: process.env.CI ? 4 : 2,
+      },
+    },
     env: {
       // 単体テスト環境では VITE_ENABLE_MSW_MOCK を未設定にして、Amplifyモックを使用
       VITE_ENABLE_MSW_MOCK: undefined as string | undefined,
     },
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'json-summary', 'html', 'lcov'],
+      // ローカル実行時はtextのみ、CI実行時は全種類を生成
+      reporter: process.env.CI
+        ? ['text', 'json', 'json-summary', 'html', 'lcov']
+        : ['text'],
       exclude: [
         'node_modules/',
         'src/test/',
