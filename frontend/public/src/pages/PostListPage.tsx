@@ -139,14 +139,7 @@ const PostListPage: React.FC = () => {
 
       {/* Hero Section */}
       <div className="hero-section">
-        <h1 className="hero-title">Not fast enough</h1>
-        <p className="hero-subtitle">
-          A personal blog exploring the world through multifaceted perspectives,
-          like a polyhedron.
-          <br />
-          All views expressed here are personal opinions and do not represent
-          any organization.
-        </p>
+        <h1 className="hero-title">I am the bone of my fallacy</h1>
       </div>
 
       <div className="container">
@@ -369,14 +362,14 @@ const PostListPage: React.FC = () => {
         }
 
         .category-pill:hover {
-          border-color: #d1d5db;
-          color: #374151;
+          border-color: #2D2A5A;
+          color: #2D2A5A;
         }
 
         .category-pill.active {
-          background: #111827;
+          background: #2D2A5A;
           color: white;
-          border-color: #111827;
+          border-color: #2D2A5A;
         }
 
         .search-box {
@@ -452,8 +445,8 @@ const PostListPage: React.FC = () => {
 
         .post-card:hover {
           transform: translateY(-2px);
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-          border-color: #d1d5db;
+          box-shadow: 0 10px 25px rgba(45, 42, 90, 0.15);
+          border-color: #C9A857;
         }
 
         .post-link {
@@ -469,12 +462,12 @@ const PostListPage: React.FC = () => {
           margin: 0 0 12px 0;
           font-size: 1.25rem;
           font-weight: 600;
-          color: #111827;
+          color: #2D2A5A;
           line-height: 1.4;
         }
 
         .post-link:hover h2 {
-          color: #374151;
+          color: #C9A857;
         }
 
         .post-meta {
@@ -485,7 +478,7 @@ const PostListPage: React.FC = () => {
         }
 
         .category {
-          background: #111827;
+          background: #2D2A5A;
           padding: 6px 16px;
           border-radius: 6px;
           color: white;
@@ -549,9 +542,9 @@ const PostListPage: React.FC = () => {
         }
 
         .pagination button:not(:disabled):hover {
-          background: #111827;
+          background: #2D2A5A;
           color: white;
-          border-color: #111827;
+          border-color: #2D2A5A;
         }
 
         @media (max-width: 768px) {
