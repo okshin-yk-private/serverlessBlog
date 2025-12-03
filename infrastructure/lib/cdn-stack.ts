@@ -13,9 +13,20 @@ export interface CdnStackProps extends cdk.StackProps {
 }
 
 export class CdnStack extends cdk.Stack {
-  public readonly imageDistribution: cloudfront.Distribution;
-  public readonly publicSiteDistribution: cloudfront.Distribution;
-  public readonly adminSiteDistribution: cloudfront.Distribution;
+  // Unified distribution for all sites (public, admin, images)
+  public readonly distribution: cloudfront.Distribution;
+
+  // Legacy properties for backward compatibility during migration
+  // These will return the same unified distribution
+  public get imageDistribution(): cloudfront.Distribution {
+    return this.distribution;
+  }
+  public get publicSiteDistribution(): cloudfront.Distribution {
+    return this.distribution;
+  }
+  public get adminSiteDistribution(): cloudfront.Distribution {
+    return this.distribution;
+  }
 
   constructor(scope: Construct, id: string, props: CdnStackProps) {
     super(scope, id, props);
@@ -131,75 +142,89 @@ export class CdnStack extends cdk.Stack {
       });
     }
 
-    // CloudFront Distribution for Image CDN
-    // Using Origin Access Control (OAC) - recommended best practice over OAI
-    // OAC provides enhanced security with short-term credentials and supports SSE-KMS
-    this.imageDistribution = new cloudfront.Distribution(
+    // CloudFront Function for Admin SPA routing
+    // Strips /admin prefix and handles SPA routes (paths without extension -> /index.html)
+    const adminSpaFunction = new cloudfront.Function(this, 'AdminSpaFunction', {
+      functionName: `AdminSpaFunction-${stage}`,
+      code: cloudfront.FunctionCode.fromInline(`function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+
+  // Strip /admin prefix for origin request
+  if (uri.startsWith('/admin')) {
+    uri = uri.substring(6); // Remove '/admin'
+    if (uri === '' || uri === '/') {
+      uri = '/index.html';
+    } else if (!uri.includes('.')) {
+      // SPA routing: paths without extension should serve index.html
+      uri = '/index.html';
+    }
+  }
+
+  request.uri = uri;
+  return request;
+}`),
+      comment:
+        'SPA routing for Admin site - strips /admin prefix and handles SPA routes',
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+      autoPublish: true,
+    });
+
+    // CloudFront Function for Images path rewriting
+    // Strips /images prefix for origin request
+    const imagePathFunction = new cloudfront.Function(
       this,
-      'ImageDistribution',
+      'ImagePathFunction',
       {
-        comment: 'CDN for blog images',
-        defaultBehavior: {
-          origin: origins.S3BucketOrigin.withOriginAccessControl(imageBucket),
-          viewerProtocolPolicy:
-            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
-          cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
-          compress: true, // Enable Gzip/Brotli compression
-          cachePolicy: new cloudfront.CachePolicy(this, 'ImageCachePolicy', {
-            cachePolicyName: 'BlogImageCachePolicy',
-            comment: 'Cache policy for blog images with 24 hour TTL',
-            defaultTtl: cdk.Duration.hours(24),
-            minTtl: cdk.Duration.hours(1),
-            maxTtl: cdk.Duration.days(365),
-            enableAcceptEncodingGzip: true,
-            enableAcceptEncodingBrotli: true,
-            headerBehavior: cloudfront.CacheHeaderBehavior.none(),
-            queryStringBehavior: cloudfront.CacheQueryStringBehavior.none(),
-            cookieBehavior: cloudfront.CacheCookieBehavior.none(),
-          }),
-        },
-        priceClass: cloudfront.PriceClass.PRICE_CLASS_100, // Use only North America and Europe edge locations for cost optimization
-        enableLogging: false, // Disable access logging for cost optimization (can be enabled later)
-        minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
+        functionName: `ImagePathFunction-${stage}`,
+        code: cloudfront.FunctionCode.fromInline(`function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+
+  // Strip /images prefix for origin request
+  if (uri.startsWith('/images')) {
+    uri = uri.substring(7); // Remove '/images'
+    if (uri === '') {
+      uri = '/';
+    }
+  }
+
+  request.uri = uri;
+  return request;
+}`),
+        comment: 'Strips /images prefix for origin request',
+        runtime: cloudfront.FunctionRuntime.JS_2_0,
+        autoPublish: true,
       }
     );
 
-    // CDK Nag suppressions for Image Distribution
-    NagSuppressions.addResourceSuppressions(
-      this.imageDistribution,
-      [
-        {
-          id: 'AwsSolutions-CFR1',
-          reason:
-            'Geo restrictions not required for development environment. Can be enabled in production based on business requirements.',
-        },
-        {
-          id: 'AwsSolutions-CFR2',
-          reason:
-            'AWS WAF integration not required for development environment. Should be enabled in production for enhanced security against web attacks.',
-        },
-        {
-          id: 'AwsSolutions-CFR3',
-          reason:
-            'Access logging disabled for development environment to reduce costs. Enable in production.',
-        },
-        {
-          id: 'AwsSolutions-CFR4',
-          reason:
-            'Using default CloudFront certificate for development. The minimumProtocolVersion is set to TLS_V1_2_2021, but CFR4 requires custom certificate to enforce this.',
-        },
-      ],
-      true
+    // Cache policy for images with long TTL
+    const imageCachePolicy = new cloudfront.CachePolicy(
+      this,
+      'ImageCachePolicy',
+      {
+        cachePolicyName: `BlogImageCachePolicy-${stage}`,
+        comment: 'Cache policy for blog images with 24 hour TTL',
+        defaultTtl: cdk.Duration.hours(24),
+        minTtl: cdk.Duration.hours(1),
+        maxTtl: cdk.Duration.days(365),
+        enableAcceptEncodingGzip: true,
+        enableAcceptEncodingBrotli: true,
+        headerBehavior: cloudfront.CacheHeaderBehavior.none(),
+        queryStringBehavior: cloudfront.CacheQueryStringBehavior.none(),
+        cookieBehavior: cloudfront.CacheCookieBehavior.none(),
+      }
     );
 
-    // CloudFront Distribution for Public Site
+    // Unified CloudFront Distribution for all sites (public, admin, images)
     // Using Origin Access Control (OAC) - recommended best practice over OAI
-    this.publicSiteDistribution = new cloudfront.Distribution(
+    // OAC provides enhanced security with short-term credentials and supports SSE-KMS
+    this.distribution = new cloudfront.Distribution(
       this,
-      'PublicSiteDistribution',
+      'UnifiedDistribution',
       {
-        comment: 'CDN for public blog site',
+        comment: 'Unified CDN for blog (public site, admin dashboard, images)',
+        // Default behavior: Public Site
         defaultBehavior: {
           origin:
             origins.S3BucketOrigin.withOriginAccessControl(publicSiteBucket),
@@ -209,7 +234,7 @@ export class CdnStack extends cdk.Stack {
           cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
           compress: true,
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
-          // Add Basic Auth function for DEV environment
+          // Add Basic Auth function for DEV environment (public site only)
           functionAssociations: basicAuthFunction
             ? [
                 {
@@ -219,7 +244,46 @@ export class CdnStack extends cdk.Stack {
               ]
             : undefined,
         },
+        // Additional behaviors for admin and images
+        additionalBehaviors: {
+          // Admin site behavior: /admin/*
+          '/admin/*': {
+            origin:
+              origins.S3BucketOrigin.withOriginAccessControl(adminSiteBucket),
+            viewerProtocolPolicy:
+              cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+            cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
+            compress: true,
+            cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+            // Admin SPA function strips /admin prefix and handles SPA routing
+            functionAssociations: [
+              {
+                function: adminSpaFunction,
+                eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+              },
+            ],
+          },
+          // Images behavior: /images/*
+          '/images/*': {
+            origin: origins.S3BucketOrigin.withOriginAccessControl(imageBucket),
+            viewerProtocolPolicy:
+              cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+            cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
+            compress: true,
+            cachePolicy: imageCachePolicy,
+            // Image path function strips /images prefix
+            functionAssociations: [
+              {
+                function: imagePathFunction,
+                eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+              },
+            ],
+          },
+        },
         defaultRootObject: 'index.html',
+        // SPA error handling for public site (root level)
         errorResponses: [
           {
             httpStatus: 403,
@@ -240,75 +304,9 @@ export class CdnStack extends cdk.Stack {
       }
     );
 
-    // CDK Nag suppressions for Public Site Distribution
+    // CDK Nag suppressions for Unified Distribution
     NagSuppressions.addResourceSuppressions(
-      this.publicSiteDistribution,
-      [
-        {
-          id: 'AwsSolutions-CFR1',
-          reason:
-            'Geo restrictions not required for development environment. Can be enabled in production based on business requirements.',
-        },
-        {
-          id: 'AwsSolutions-CFR2',
-          reason:
-            'AWS WAF integration not required for development environment. Should be enabled in production for enhanced security against web attacks.',
-        },
-        {
-          id: 'AwsSolutions-CFR3',
-          reason:
-            'Access logging disabled for development environment to reduce costs. Enable in production.',
-        },
-        {
-          id: 'AwsSolutions-CFR4',
-          reason:
-            'Using default CloudFront certificate for development. The minimumProtocolVersion is set to TLS_V1_2_2021, but CFR4 requires custom certificate to enforce this.',
-        },
-      ],
-      true
-    );
-
-    // CloudFront Distribution for Admin Site
-    // Using Origin Access Control (OAC) - recommended best practice over OAI
-    this.adminSiteDistribution = new cloudfront.Distribution(
-      this,
-      'AdminSiteDistribution',
-      {
-        comment: 'CDN for admin dashboard',
-        defaultBehavior: {
-          origin:
-            origins.S3BucketOrigin.withOriginAccessControl(adminSiteBucket),
-          viewerProtocolPolicy:
-            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
-          cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
-          compress: true,
-          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
-        },
-        defaultRootObject: 'index.html',
-        errorResponses: [
-          {
-            httpStatus: 403,
-            responseHttpStatus: 200,
-            responsePagePath: '/index.html',
-            ttl: cdk.Duration.minutes(5),
-          },
-          {
-            httpStatus: 404,
-            responseHttpStatus: 200,
-            responsePagePath: '/index.html',
-            ttl: cdk.Duration.minutes(5),
-          },
-        ],
-        priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
-        enableLogging: false,
-        minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
-      }
-    );
-
-    // CDK Nag suppressions for Admin Site Distribution
-    NagSuppressions.addResourceSuppressions(
-      this.adminSiteDistribution,
+      this.distribution,
       [
         {
           id: 'AwsSolutions-CFR1',
@@ -335,7 +333,8 @@ export class CdnStack extends cdk.Stack {
     );
 
     // Add restrictive bucket policies for OAC
-    // セキュリティ強化: 特定のCloudFrontディストリビューションのみがS3にアクセス可能
+    // セキュリティ強化: 統一CloudFrontディストリビューションのみがS3にアクセス可能
+    // All three buckets now reference the same unified distribution
     const _imageBucketPolicy = new s3.CfnBucketPolicy(
       this,
       'ImageBucketPolicy',
@@ -353,7 +352,7 @@ export class CdnStack extends cdk.Stack {
               Resource: `arn:aws:s3:::${imageBucketName}/*`,
               Condition: {
                 StringEquals: {
-                  'AWS:SourceArn': `arn:aws:cloudfront::${cdk.Aws.ACCOUNT_ID}:distribution/${this.imageDistribution.distributionId}`,
+                  'AWS:SourceArn': `arn:aws:cloudfront::${cdk.Aws.ACCOUNT_ID}:distribution/${this.distribution.distributionId}`,
                 },
               },
             },
@@ -394,7 +393,7 @@ export class CdnStack extends cdk.Stack {
               Resource: `arn:aws:s3:::${publicSiteBucketName}/*`,
               Condition: {
                 StringEquals: {
-                  'AWS:SourceArn': `arn:aws:cloudfront::${cdk.Aws.ACCOUNT_ID}:distribution/${this.publicSiteDistribution.distributionId}`,
+                  'AWS:SourceArn': `arn:aws:cloudfront::${cdk.Aws.ACCOUNT_ID}:distribution/${this.distribution.distributionId}`,
                 },
               },
             },
@@ -435,7 +434,7 @@ export class CdnStack extends cdk.Stack {
               Resource: `arn:aws:s3:::${adminSiteBucketName}/*`,
               Condition: {
                 StringEquals: {
-                  'AWS:SourceArn': `arn:aws:cloudfront::${cdk.Aws.ACCOUNT_ID}:distribution/${this.adminSiteDistribution.distributionId}`,
+                  'AWS:SourceArn': `arn:aws:cloudfront::${cdk.Aws.ACCOUNT_ID}:distribution/${this.distribution.distributionId}`,
                 },
               },
             },
@@ -467,40 +466,79 @@ export class CdnStack extends cdk.Stack {
     // - 短期認証情報による強化されたセキュリティ
     // PublicSiteBucketとAdminSiteBucketはCloudFront経由でのみアクセス可能
 
-    // CloudFront domain name outputs
+    // CloudFront domain name outputs for unified distribution
+    new cdk.CfnOutput(this, 'DistributionDomainName', {
+      value: this.distribution.distributionDomainName,
+      description: 'Unified CloudFront distribution domain name',
+      exportName: 'BlogDistributionDomainName',
+    });
+
+    new cdk.CfnOutput(this, 'DistributionId', {
+      value: this.distribution.distributionId,
+      description: 'Unified CloudFront distribution ID',
+      exportName: 'BlogDistributionId',
+    });
+
+    // URL outputs for convenience
+    new cdk.CfnOutput(this, 'PublicSiteUrl', {
+      value: `https://${this.distribution.distributionDomainName}`,
+      description: 'Public site URL (root path)',
+      exportName: 'BlogPublicSiteUrl',
+    });
+
+    new cdk.CfnOutput(this, 'AdminSiteUrl', {
+      value: `https://${this.distribution.distributionDomainName}/admin/`,
+      description: 'Admin site URL (/admin/ path)',
+      exportName: 'BlogAdminSiteUrl',
+    });
+
+    new cdk.CfnOutput(this, 'ImagesBaseUrl', {
+      value: `https://${this.distribution.distributionDomainName}/images/`,
+      description: 'Images base URL (/images/ path)',
+      exportName: 'BlogImagesBaseUrl',
+    });
+
+    // Legacy outputs for backward compatibility (all point to same distribution)
+    // These are required for GitHub Actions workflow cache invalidation
     new cdk.CfnOutput(this, 'ImageDistributionDomainName', {
-      value: this.imageDistribution.distributionDomainName,
-      description: 'CloudFront distribution domain name for images',
+      value: this.distribution.distributionDomainName,
+      description:
+        '[LEGACY] CloudFront distribution domain name for images - use DistributionDomainName instead',
       exportName: 'ImageDistributionDomainName',
     });
 
     new cdk.CfnOutput(this, 'ImageDistributionId', {
-      value: this.imageDistribution.distributionId,
-      description: 'CloudFront distribution ID for images',
+      value: this.distribution.distributionId,
+      description:
+        '[LEGACY] CloudFront distribution ID for images - use DistributionId instead',
       exportName: 'ImageDistributionId',
     });
 
     new cdk.CfnOutput(this, 'PublicSiteDistributionDomainName', {
-      value: this.publicSiteDistribution.distributionDomainName,
-      description: 'CloudFront distribution domain name for public site',
+      value: this.distribution.distributionDomainName,
+      description:
+        '[LEGACY] CloudFront distribution domain name for public site - use DistributionDomainName instead',
       exportName: 'PublicSiteDistributionDomainName',
     });
 
     new cdk.CfnOutput(this, 'PublicSiteDistributionId', {
-      value: this.publicSiteDistribution.distributionId,
-      description: 'CloudFront distribution ID for public site',
+      value: this.distribution.distributionId,
+      description:
+        '[LEGACY] CloudFront distribution ID for public site - use DistributionId instead',
       exportName: 'PublicSiteDistributionId',
     });
 
     new cdk.CfnOutput(this, 'AdminSiteDistributionDomainName', {
-      value: this.adminSiteDistribution.distributionDomainName,
-      description: 'CloudFront distribution domain name for admin site',
+      value: this.distribution.distributionDomainName,
+      description:
+        '[LEGACY] CloudFront distribution domain name for admin site - use DistributionDomainName instead',
       exportName: 'AdminSiteDistributionDomainName',
     });
 
     new cdk.CfnOutput(this, 'AdminSiteDistributionId', {
-      value: this.adminSiteDistribution.distributionId,
-      description: 'CloudFront distribution ID for admin site',
+      value: this.distribution.distributionId,
+      description:
+        '[LEGACY] CloudFront distribution ID for admin site - use DistributionId instead',
       exportName: 'AdminSiteDistributionId',
     });
   }

@@ -110,8 +110,17 @@ describe('CloudFront Functions Basic Authentication', () => {
       // When stage context is not 'dev', no Basic Auth function should be created
       const functions = template.findResources('AWS::CloudFront::Function');
 
-      // In non-DEV environment, we expect no CloudFront Functions
-      expect(Object.keys(functions)).toHaveLength(0);
+      // In non-DEV environment (prd), we expect 2 CloudFront Functions:
+      // - AdminSpaFunction (for /admin/* path rewriting and SPA routing)
+      // - ImagePathFunction (for /images/* path rewriting)
+      // But NOT BasicAuthFunction
+      expect(Object.keys(functions)).toHaveLength(2);
+
+      // Verify BasicAuthFunction is NOT present
+      const functionNames = Object.values(functions).map(
+        (f: any) => f.Properties.Name
+      );
+      expect(functionNames).not.toContain(expect.stringMatching(/BasicAuth/));
     });
   });
 
@@ -174,8 +183,12 @@ describe('CloudFront Functions Basic Authentication', () => {
     });
 
     test('should create Basic Auth CloudFront Function in DEV environment', () => {
-      // Verify CloudFront Function exists
-      template.resourceCountIs('AWS::CloudFront::Function', 1);
+      // Verify CloudFront Functions exist
+      // In DEV environment, we expect 3 CloudFront Functions:
+      // - BasicAuthFunction
+      // - AdminSpaFunction
+      // - ImagePathFunction
+      template.resourceCountIs('AWS::CloudFront::Function', 3);
     });
 
     test('should have correct function name', () => {
@@ -196,10 +209,14 @@ describe('CloudFront Functions Basic Authentication', () => {
 
     test('should embed credentials in function code', () => {
       const functions = template.findResources('AWS::CloudFront::Function');
-      const functionKeys = Object.keys(functions);
-      expect(functionKeys.length).toBe(1);
 
-      const functionCode = functions[functionKeys[0]].Properties.FunctionCode;
+      // Find BasicAuthFunction among all functions
+      const basicAuthFunction = Object.values(functions).find(
+        (f: any) => f.Properties.Name && f.Properties.Name.includes('BasicAuth')
+      ) as any;
+      expect(basicAuthFunction).toBeDefined();
+
+      const functionCode = basicAuthFunction.Properties.FunctionCode;
 
       // Verify credentials are embedded
       expect(functionCode).toContain('testuser');
@@ -213,8 +230,12 @@ describe('CloudFront Functions Basic Authentication', () => {
 
     test('should return 401 Unauthorized logic in function code', () => {
       const functions = template.findResources('AWS::CloudFront::Function');
-      const functionKeys = Object.keys(functions);
-      const functionCode = functions[functionKeys[0]].Properties.FunctionCode;
+
+      // Find BasicAuthFunction among all functions
+      const basicAuthFunction = Object.values(functions).find(
+        (f: any) => f.Properties.Name && f.Properties.Name.includes('BasicAuth')
+      ) as any;
+      const functionCode = basicAuthFunction.Properties.FunctionCode;
 
       // Verify 401 response logic
       expect(functionCode).toContain('401');
@@ -224,8 +245,12 @@ describe('CloudFront Functions Basic Authentication', () => {
 
     test('should forward request to origin on successful authentication', () => {
       const functions = template.findResources('AWS::CloudFront::Function');
-      const functionKeys = Object.keys(functions);
-      const functionCode = functions[functionKeys[0]].Properties.FunctionCode;
+
+      // Find BasicAuthFunction among all functions
+      const basicAuthFunction = Object.values(functions).find(
+        (f: any) => f.Properties.Name && f.Properties.Name.includes('BasicAuth')
+      ) as any;
+      const functionCode = basicAuthFunction.Properties.FunctionCode;
 
       // Verify request forwarding logic
       expect(functionCode).toContain('return request');
@@ -252,39 +277,52 @@ describe('CloudFront Functions Basic Authentication', () => {
       });
     });
 
-    test('should NOT be associated with Image Distribution', () => {
-      // Image distribution should not have Basic Auth
+    test('should have unified distribution with multiple behaviors', () => {
+      // Now using unified distribution with path-based routing
       const distributions = template.findResources(
         'AWS::CloudFront::Distribution'
       );
-      const imageDistribution = Object.values(distributions).find(
-        (dist: any) =>
-          dist.Properties.DistributionConfig.Comment === 'CDN for blog images'
-      );
 
-      expect(imageDistribution).toBeDefined();
+      // Should only have 1 unified distribution
+      expect(Object.keys(distributions)).toHaveLength(1);
+
+      const unifiedDistribution = Object.values(distributions)[0] as any;
       expect(
-        imageDistribution?.Properties.DistributionConfig.DefaultCacheBehavior
-          .FunctionAssociations
-      ).toBeUndefined();
+        unifiedDistribution.Properties.DistributionConfig.Comment
+      ).toContain('Unified CDN');
+
+      // Should have CacheBehaviors for /admin/* and /images/*
+      expect(
+        unifiedDistribution.Properties.DistributionConfig.CacheBehaviors
+      ).toBeDefined();
+      expect(
+        unifiedDistribution.Properties.DistributionConfig.CacheBehaviors.length
+      ).toBe(2);
     });
 
-    test('should NOT be associated with Admin Distribution', () => {
-      // Admin distribution should not have Basic Auth
+    test('should NOT apply Basic Auth to /admin/* and /images/* behaviors', () => {
+      // Basic Auth should only be applied to the default behavior (public site)
+      // Admin and images behaviors should have their own path-rewriting functions
       const distributions = template.findResources(
         'AWS::CloudFront::Distribution'
       );
-      const adminDistribution = Object.values(distributions).find(
-        (dist: any) =>
-          dist.Properties.DistributionConfig.Comment ===
-          'CDN for admin dashboard'
-      );
+      const unifiedDistribution = Object.values(distributions)[0] as any;
 
-      expect(adminDistribution).toBeDefined();
-      expect(
-        adminDistribution?.Properties.DistributionConfig.DefaultCacheBehavior
-          .FunctionAssociations
-      ).toBeUndefined();
+      // Check that /admin/* behavior has AdminSpaFunction (not BasicAuth)
+      const adminBehavior =
+        unifiedDistribution.Properties.DistributionConfig.CacheBehaviors.find(
+          (b: any) => b.PathPattern === '/admin/*'
+        );
+      expect(adminBehavior).toBeDefined();
+      expect(adminBehavior.FunctionAssociations).toHaveLength(1);
+
+      // Check that /images/* behavior has ImagePathFunction (not BasicAuth)
+      const imagesBehavior =
+        unifiedDistribution.Properties.DistributionConfig.CacheBehaviors.find(
+          (b: any) => b.PathPattern === '/images/*'
+        );
+      expect(imagesBehavior).toBeDefined();
+      expect(imagesBehavior.FunctionAssociations).toHaveLength(1);
     });
   });
 
@@ -347,8 +385,11 @@ describe('CloudFront Functions Basic Authentication', () => {
 
     test('should handle missing Authorization header', () => {
       const functions = template.findResources('AWS::CloudFront::Function');
-      const functionCode =
-        functions[Object.keys(functions)[0]].Properties.FunctionCode;
+      // Find BasicAuthFunction among all functions
+      const basicAuthFunction = Object.values(functions).find(
+        (f: any) => f.Properties.Name && f.Properties.Name.includes('BasicAuth')
+      ) as any;
+      const functionCode = basicAuthFunction.Properties.FunctionCode;
 
       // Verify handling of missing Authorization header
       expect(functionCode).toContain('request.headers');
@@ -361,8 +402,11 @@ describe('CloudFront Functions Basic Authentication', () => {
 
     test('should encode expected credentials with Base64', () => {
       const functions = template.findResources('AWS::CloudFront::Function');
-      const functionCode =
-        functions[Object.keys(functions)[0]].Properties.FunctionCode;
+      // Find BasicAuthFunction among all functions
+      const basicAuthFunction = Object.values(functions).find(
+        (f: any) => f.Properties.Name && f.Properties.Name.includes('BasicAuth')
+      ) as any;
+      const functionCode = basicAuthFunction.Properties.FunctionCode;
 
       // Verify Base64 encoding of expected credentials
       expect(functionCode).toContain('btoa');
@@ -372,8 +416,11 @@ describe('CloudFront Functions Basic Authentication', () => {
 
     test('should validate username and password', () => {
       const functions = template.findResources('AWS::CloudFront::Function');
-      const functionCode =
-        functions[Object.keys(functions)[0]].Properties.FunctionCode;
+      // Find BasicAuthFunction among all functions
+      const basicAuthFunction = Object.values(functions).find(
+        (f: any) => f.Properties.Name && f.Properties.Name.includes('BasicAuth')
+      ) as any;
+      const functionCode = basicAuthFunction.Properties.FunctionCode;
 
       // Verify credential validation
       expect(functionCode).toContain('admin');
@@ -383,8 +430,11 @@ describe('CloudFront Functions Basic Authentication', () => {
 
     test('should return proper 401 response structure', () => {
       const functions = template.findResources('AWS::CloudFront::Function');
-      const functionCode =
-        functions[Object.keys(functions)[0]].Properties.FunctionCode;
+      // Find BasicAuthFunction among all functions
+      const basicAuthFunction = Object.values(functions).find(
+        (f: any) => f.Properties.Name && f.Properties.Name.includes('BasicAuth')
+      ) as any;
+      const functionCode = basicAuthFunction.Properties.FunctionCode;
 
       // Verify 401 response structure
       expect(functionCode).toContain('statusCode');
@@ -595,6 +645,27 @@ describe('CloudFront Functions Basic Authentication', () => {
       }).toThrow(
         /Parameter Store values not yet cached|credentials are required/i
       );
+    });
+  });
+
+  describe('Legacy Properties for Backward Compatibility', () => {
+    test('should return unified distribution from legacy getter properties', () => {
+      // The legacy properties should all return the same unified distribution
+      // for backward compatibility during migration
+      expect(stack.imageDistribution).toBe(stack.distribution);
+      expect(stack.publicSiteDistribution).toBe(stack.distribution);
+      expect(stack.adminSiteDistribution).toBe(stack.distribution);
+    });
+
+    test('legacy properties should be defined CloudFront distributions', () => {
+      expect(stack.imageDistribution).toBeDefined();
+      expect(stack.publicSiteDistribution).toBeDefined();
+      expect(stack.adminSiteDistribution).toBeDefined();
+
+      // Verify they have CloudFront distribution properties
+      expect(stack.imageDistribution.distributionId).toBeDefined();
+      expect(stack.publicSiteDistribution.distributionDomainName).toBeDefined();
+      expect(stack.adminSiteDistribution.domainName).toBeDefined();
     });
   });
 });
