@@ -647,4 +647,25 @@ describe('CloudFront Functions Basic Authentication', () => {
       );
     });
   });
+
+  describe('Legacy Properties for Backward Compatibility', () => {
+    test('should return unified distribution from legacy getter properties', () => {
+      // The legacy properties should all return the same unified distribution
+      // for backward compatibility during migration
+      expect(stack.imageDistribution).toBe(stack.distribution);
+      expect(stack.publicSiteDistribution).toBe(stack.distribution);
+      expect(stack.adminSiteDistribution).toBe(stack.distribution);
+    });
+
+    test('legacy properties should be defined CloudFront distributions', () => {
+      expect(stack.imageDistribution).toBeDefined();
+      expect(stack.publicSiteDistribution).toBeDefined();
+      expect(stack.adminSiteDistribution).toBeDefined();
+
+      // Verify they have CloudFront distribution properties
+      expect(stack.imageDistribution.distributionId).toBeDefined();
+      expect(stack.publicSiteDistribution.distributionDomainName).toBeDefined();
+      expect(stack.adminSiteDistribution.domainName).toBeDefined();
+    });
+  });
 });
