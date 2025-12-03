@@ -41,6 +41,7 @@ vi.mock('../components/AdminLayout', () => ({
 
 const mockGetPosts = vi.mocked(postsApi.getPosts);
 const mockDeletePost = vi.mocked(postsApi.deletePost);
+const mockUpdatePost = vi.mocked(postsApi.updatePost);
 
 const renderPostListPage = () => {
   return render(
@@ -691,6 +692,240 @@ describe('PostListPage', () => {
       await waitFor(() => {
         expect(screen.getByText('Post A')).toBeInTheDocument();
         expect(screen.getByText('Post B')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('公開状態の切り替え', () => {
+    it('下書き記事を公開に変更できる', async () => {
+      const draftPost = {
+        id: '1',
+        title: 'Draft Post',
+        contentMarkdown: 'Content',
+        contentHtml: '<p>Content</p>',
+        category: 'tech',
+        publishStatus: 'draft' as const,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      };
+
+      // 初期表示（公開記事）- 空
+      mockGetPosts.mockResolvedValueOnce({ posts: [], total: 0 });
+      // 下書きタブクリック後
+      mockGetPosts.mockResolvedValueOnce({ posts: [draftPost], total: 1 });
+      // 公開後のリロード
+      mockGetPosts.mockResolvedValueOnce({ posts: [], total: 0 });
+      mockUpdatePost.mockResolvedValue(undefined);
+
+      renderPostListPage();
+
+      // 下書きタブをクリック
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: /下書き/i })
+        ).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByRole('button', { name: /下書き/i }));
+
+      // 公開ボタンをクリック
+      await waitFor(() => {
+        expect(
+          screen.getByTestId('publish-article-button')
+        ).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('publish-article-button'));
+
+      await waitFor(() => {
+        expect(mockUpdatePost).toHaveBeenCalledWith('1', {
+          title: 'Draft Post',
+          contentMarkdown: 'Content',
+          category: 'tech',
+          publishStatus: 'published',
+        });
+        expect(screen.getByText(/記事を公開しました/i)).toBeInTheDocument();
+      });
+    });
+
+    it('公開記事を下書きに変更できる', async () => {
+      const publishedPost = {
+        id: '1',
+        title: 'Published Post',
+        contentMarkdown: 'Content',
+        contentHtml: '<p>Content</p>',
+        category: 'tech',
+        publishStatus: 'published' as const,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      };
+
+      // 初期表示（公開記事）
+      mockGetPosts.mockResolvedValueOnce({ posts: [publishedPost], total: 1 });
+      // 下書きに変更後のリロード
+      mockGetPosts.mockResolvedValueOnce({ posts: [], total: 0 });
+      mockUpdatePost.mockResolvedValue(undefined);
+
+      renderPostListPage();
+
+      // 下書きに戻すボタンをクリック
+      await waitFor(() => {
+        expect(screen.getByTestId('draft-article-button')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('draft-article-button'));
+
+      await waitFor(() => {
+        expect(mockUpdatePost).toHaveBeenCalledWith('1', {
+          title: 'Published Post',
+          contentMarkdown: 'Content',
+          category: 'tech',
+          publishStatus: 'draft',
+        });
+        expect(
+          screen.getByText(/記事を下書きに変更しました/i)
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('公開状態の変更に失敗するとエラーメッセージを表示する', async () => {
+      const publishedPost = {
+        id: '1',
+        title: 'Published Post',
+        contentMarkdown: 'Content',
+        contentHtml: '<p>Content</p>',
+        category: 'tech',
+        publishStatus: 'published' as const,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      };
+
+      mockGetPosts.mockResolvedValue({ posts: [publishedPost], total: 1 });
+      mockUpdatePost.mockRejectedValue(new Error('Update failed'));
+
+      renderPostListPage();
+
+      // 下書きに戻すボタンをクリック
+      await waitFor(() => {
+        expect(screen.getByTestId('draft-article-button')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('draft-article-button'));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/記事のステータス更新に失敗しました/i)
+        ).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('検索フィルター', () => {
+    it('タイトルで記事を検索できる', async () => {
+      const posts = [
+        {
+          id: '1',
+          title: 'React Tutorial',
+          contentMarkdown: 'Content',
+          contentHtml: '<p>Content</p>',
+          category: 'tech',
+          publishStatus: 'published' as const,
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-01T00:00:00Z',
+        },
+        {
+          id: '2',
+          title: 'Vue.js Guide',
+          contentMarkdown: 'Content',
+          contentHtml: '<p>Content</p>',
+          category: 'tech',
+          publishStatus: 'published' as const,
+          createdAt: '2024-01-02T00:00:00Z',
+          updatedAt: '2024-01-02T00:00:00Z',
+        },
+      ];
+
+      mockGetPosts.mockResolvedValue({ posts, total: 2 });
+
+      renderPostListPage();
+
+      // 記事が表示される
+      await waitFor(() => {
+        expect(screen.getByText('React Tutorial')).toBeInTheDocument();
+        expect(screen.getByText('Vue.js Guide')).toBeInTheDocument();
+      });
+
+      // 検索クエリを入力
+      const searchInput = screen.getByTestId('admin-search-input');
+      fireEvent.change(searchInput, { target: { value: 'React' } });
+
+      // フィルターされた結果
+      await waitFor(() => {
+        expect(screen.getByText('React Tutorial')).toBeInTheDocument();
+        expect(screen.queryByText('Vue.js Guide')).not.toBeInTheDocument();
+      });
+    });
+
+    it('検索結果が0件の場合にメッセージを表示する', async () => {
+      const posts = [
+        {
+          id: '1',
+          title: 'React Tutorial',
+          contentMarkdown: 'Content',
+          contentHtml: '<p>Content</p>',
+          category: 'tech',
+          publishStatus: 'published' as const,
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-01T00:00:00Z',
+        },
+      ];
+
+      mockGetPosts.mockResolvedValue({ posts, total: 1 });
+
+      renderPostListPage();
+
+      // 記事が表示される
+      await waitFor(() => {
+        expect(screen.getByText('React Tutorial')).toBeInTheDocument();
+      });
+
+      // マッチしない検索クエリを入力
+      const searchInput = screen.getByTestId('admin-search-input');
+      fireEvent.change(searchInput, { target: { value: 'Angular' } });
+
+      // 検索結果なしメッセージ
+      await waitFor(() => {
+        expect(
+          screen.getByText('検索結果が見つかりません')
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('大文字小文字を区別せずに検索できる', async () => {
+      const posts = [
+        {
+          id: '1',
+          title: 'React Tutorial',
+          contentMarkdown: 'Content',
+          contentHtml: '<p>Content</p>',
+          category: 'tech',
+          publishStatus: 'published' as const,
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-01T00:00:00Z',
+        },
+      ];
+
+      mockGetPosts.mockResolvedValue({ posts, total: 1 });
+
+      renderPostListPage();
+
+      await waitFor(() => {
+        expect(screen.getByText('React Tutorial')).toBeInTheDocument();
+      });
+
+      // 小文字で検索
+      const searchInput = screen.getByTestId('admin-search-input');
+      fireEvent.change(searchInput, { target: { value: 'react' } });
+
+      // マッチする
+      await waitFor(() => {
+        expect(screen.getByText('React Tutorial')).toBeInTheDocument();
       });
     });
   });

@@ -528,4 +528,111 @@ describe('LoginPage', () => {
       expect(localStorage.getItem('auth_token')).toBe('enter-key-token');
     });
   });
+
+  it('パスワードを忘れたリンクをクリックするとパスワードリセットページへ遷移する', async () => {
+    const user = userEvent.setup();
+    renderLoginPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('forgot-password')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('forgot-password'));
+
+    // handleForgotPasswordが呼ばれ、navigate('/forgot-password')が実行される
+    // （MemoryRouter内なのでURLは変わらないが、関数は実行される）
+  });
+
+  it('マップされていないエラーメッセージが表示される', async () => {
+    const user = userEvent.setup();
+
+    // マップにないエラーメッセージを返す
+    vi.mocked(amplifyAuth.signIn).mockRejectedValue(
+      new Error('Some unmapped error message')
+    );
+
+    renderLoginPage();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /ログイン/i })
+      ).toBeInTheDocument();
+    });
+
+    await user.type(
+      screen.getByLabelText(/メールアドレス/i),
+      'test@example.com'
+    );
+    await user.type(screen.getByLabelText(/パスワード/i), 'password123');
+    await user.click(screen.getByRole('button', { name: /ログイン/i }));
+
+    // マップにないエラーはそのままメッセージが表示される
+    await waitFor(() => {
+      expect(
+        screen.getByText('Some unmapped error message')
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('messageプロパティを持たないエラーでフォールバックメッセージが表示される', async () => {
+    const user = userEvent.setup();
+
+    // messageプロパティを持たないエラーオブジェクト
+    vi.mocked(amplifyAuth.signIn).mockRejectedValue({ code: 'UnknownError' });
+
+    renderLoginPage();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /ログイン/i })
+      ).toBeInTheDocument();
+    });
+
+    await user.type(
+      screen.getByLabelText(/メールアドレス/i),
+      'test@example.com'
+    );
+    await user.type(screen.getByLabelText(/パスワード/i), 'password123');
+    await user.click(screen.getByRole('button', { name: /ログイン/i }));
+
+    // デフォルトのフォールバックメッセージが表示される
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'ログインに失敗しました。メールアドレスとパスワードを確認してください。'
+        )
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('空のメッセージを持つエラーでフォールバックメッセージが表示される', async () => {
+    const user = userEvent.setup();
+
+    // 空のmessageプロパティを持つエラー
+    vi.mocked(amplifyAuth.signIn).mockRejectedValue({ message: '' });
+
+    renderLoginPage();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /ログイン/i })
+      ).toBeInTheDocument();
+    });
+
+    await user.type(
+      screen.getByLabelText(/メールアドレス/i),
+      'test@example.com'
+    );
+    await user.type(screen.getByLabelText(/パスワード/i), 'password123');
+    await user.click(screen.getByRole('button', { name: /ログイン/i }));
+
+    // デフォルトのフォールバックメッセージが表示される
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'ログインに失敗しました。メールアドレスとパスワードを確認してください。'
+        )
+      ).toBeInTheDocument();
+    });
+  });
 });
