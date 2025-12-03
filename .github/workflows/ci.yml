@@ -457,7 +457,11 @@ jobs:
 
       - name: Install Playwright system dependencies only
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
+        run: |
+          # Disable Microsoft package repositories that may cause 403 errors
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list || true
+          sudo rm -f /etc/apt/sources.list.d/azure-cli.list || true
+          npx playwright install-deps chromium
 
       - name: Run E2E tests (Public Site) - Chromium only
         run: npm run test:e2e -- --project=chromium --workers=1
@@ -525,7 +529,11 @@ jobs:
 
       - name: Install Playwright system dependencies only
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
+        run: |
+          # Disable Microsoft package repositories that may cause 403 errors
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list || true
+          sudo rm -f /etc/apt/sources.list.d/azure-cli.list || true
+          npx playwright install-deps chromium
 
       - name: Run E2E tests (Admin - Auth & Security) - Chromium only
         run: npm run test:e2e:admin -- tests/e2e/specs/admin-auth.spec.ts tests/e2e/specs/admin-unauthorized-access.spec.ts --project=chromium --workers=1
