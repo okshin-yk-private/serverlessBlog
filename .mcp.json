@@ -43,6 +43,13 @@
     "playwright": {
       "command": "npx",
       "args": ["@playwright/mcp@latest"]
+    },
+    "aws-mcp": {
+      "command": "uvx",
+      "args": [
+        "mcp-proxy-for-aws@v1.1.2",
+        "https://aws-mcp.us-east-1.api.aws/mcp"
+      ]
     }
   }
 }
