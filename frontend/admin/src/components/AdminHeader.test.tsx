@@ -41,7 +41,12 @@ describe('AdminHeader', () => {
   describe('レンダリング', () => {
     it('ロゴが表示される', () => {
       renderAdminHeader();
-      expect(screen.getByAltText('Polylex Admin')).toBeInTheDocument();
+      expect(screen.getByAltText('Logo')).toBeInTheDocument();
+    });
+
+    it('サイトタイトルが表示される', () => {
+      renderAdminHeader();
+      expect(screen.getByText('Bone of my fallacy')).toBeInTheDocument();
     });
 
     it('Adminバッジが表示される', () => {
@@ -97,7 +102,9 @@ describe('AdminHeader', () => {
 
     it('ロゴが/dashboardへのリンクを持つ', () => {
       renderAdminHeader();
-      const logoLink = screen.getByRole('link', { name: /Polylex Admin/i });
+      const logoLink = screen.getByRole('link', {
+        name: /Bone of my fallacy/i,
+      });
       expect(logoLink).toHaveAttribute('href', '/dashboard');
     });
   });
