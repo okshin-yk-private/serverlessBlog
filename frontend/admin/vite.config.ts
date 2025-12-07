@@ -5,6 +5,8 @@ import tailwindcss from '@tailwindcss/postcss';
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // CloudFrontで /admin/ パスで配信するため、base を設定
+  base: '/admin/',
   css: {
     postcss: {
       plugins: [tailwindcss()],
