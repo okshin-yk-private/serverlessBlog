@@ -310,24 +310,22 @@ const PostListPage: React.FC = () => {
 
         .hero-title {
           font-size: 3.5rem;
-          font-weight: 700;
+          font-weight: 500;
           color: #111827;
           margin: 0 0 24px 0;
           letter-spacing: 0.02em;
-          font-family: 'Brush Script MT', 'Apple Chancery', cursive;
-          font-style: italic;
+          font-family: 'Patrick Hand', cursive;
         }
 
         .hero-subtitle {
-          font-size: 1.125rem;
+          font-size: 1.25rem;
           color: #6b7280;
           margin: 0;
           max-width: 700px;
           margin: 0 auto;
           line-height: 1.8;
-          font-family: 'Brush Script MT', 'Apple Chancery', cursive;
-          font-style: italic;
-          font-weight: 500;
+          font-family: 'Patrick Hand', cursive;
+          font-weight: 400;
         }
 
         .container {
