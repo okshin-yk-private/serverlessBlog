@@ -58,11 +58,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
         }
 
         .admin-hero-title {
+          font-family: 'Caveat', cursive;
           font-size: 2.5rem;
-          font-weight: 700;
-          color: #111827;
+          font-weight: 600;
+          color: #2D2A5A;
           margin: 0 0 8px 0;
-          letter-spacing: -0.02em;
+          letter-spacing: 0.02em;
         }
 
         .admin-hero-subtitle {
@@ -105,7 +106,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
         .admin-card-title {
           font-size: 1.125rem;
           font-weight: 600;
-          color: #111827;
+          color: #2D2A5A;
           margin: 0 0 16px 0;
         }
 
@@ -126,12 +127,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
         }
 
         .admin-btn-primary {
-          background: #111827;
+          background: #2D2A5A;
           color: white;
         }
 
         .admin-btn-primary:hover {
-          background: #374151;
+          background: #3d3a6a;
         }
 
         .admin-btn-secondary {
@@ -213,12 +214,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
         .admin-stat-value {
           font-size: 2.5rem;
           font-weight: 700;
-          color: #111827;
+          color: #2D2A5A;
           margin: 0;
         }
 
         .admin-stat-value.accent {
-          color: #111827;
+          color: #C9A857;
         }
 
         /* List styles */
@@ -289,9 +290,9 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
         }
 
         .admin-tab.active {
-          background: #111827;
+          background: #2D2A5A;
           color: white;
-          border-color: #111827;
+          border-color: #2D2A5A;
         }
 
         /* Alert styles */
@@ -331,7 +332,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
         }
 
         .admin-badge-dark {
-          background: #111827;
+          background: #2D2A5A;
           color: white;
         }
 

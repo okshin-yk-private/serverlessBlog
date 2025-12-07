@@ -29,11 +29,8 @@ const AdminHeader: React.FC = () => {
       <header className="admin-header">
         <div className="admin-header-container">
           <Link to="/dashboard" className="admin-logo">
-            <img
-              src="/logo_name.png"
-              alt="Polylex Admin"
-              className="admin-logo-image"
-            />
+            <img src="/fallacy.png" alt="Logo" className="admin-logo-image" />
+            <span className="admin-site-title">Bone of my fallacy</span>
             <span className="admin-badge">Admin</span>
           </Link>
           <nav className="admin-nav">
@@ -85,7 +82,6 @@ const AdminHeader: React.FC = () => {
           text-decoration: none;
           display: flex;
           align-items: center;
-          gap: 12px;
           transition: opacity 0.2s ease;
         }
 
@@ -94,16 +90,26 @@ const AdminHeader: React.FC = () => {
         }
 
         .admin-logo-image {
-          height: 48px;
+          height: 40px;
           width: auto;
+          margin-right: 12px;
+        }
+
+        .admin-site-title {
+          font-family: 'Caveat', cursive;
+          font-size: 1.6rem;
+          font-weight: 600;
+          color: #1f2937;
+          letter-spacing: 0.02em;
+          margin-right: 12px;
         }
 
         .admin-badge {
-          background: #111827;
+          background: #2D2A5A;
           color: white;
           padding: 4px 10px;
           border-radius: 6px;
-          font-size: 0.75rem;
+          font-size: 0.7rem;
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.05em;
@@ -116,7 +122,7 @@ const AdminHeader: React.FC = () => {
         }
 
         .admin-nav-link {
-          color: #6b7280;
+          color: #374151;
           text-decoration: none;
           font-size: 0.95rem;
           font-weight: 500;
@@ -132,12 +138,12 @@ const AdminHeader: React.FC = () => {
           left: 0;
           width: 0;
           height: 2px;
-          background: #111827;
+          background: #2D2A5A;
           transition: width 0.2s ease;
         }
 
         .admin-nav-link:hover {
-          color: #111827;
+          color: #1f2937;
         }
 
         .admin-nav-link:hover::after {
@@ -145,7 +151,7 @@ const AdminHeader: React.FC = () => {
         }
 
         .admin-nav-link.active {
-          color: #111827;
+          color: #1f2937;
         }
 
         .admin-nav-link.active::after {
@@ -153,7 +159,7 @@ const AdminHeader: React.FC = () => {
         }
 
         .admin-nav-new {
-          background: #111827;
+          background: #2D2A5A;
           color: white !important;
           padding: 8px 16px;
           border-radius: 8px;
@@ -165,7 +171,7 @@ const AdminHeader: React.FC = () => {
         }
 
         .admin-nav-new:hover {
-          background: #374151;
+          background: #3d3a6a;
           color: white !important;
         }
 
@@ -182,8 +188,8 @@ const AdminHeader: React.FC = () => {
         }
 
         .admin-logout-btn:hover {
-          border-color: #d1d5db;
-          color: #374151;
+          border-color: #2D2A5A;
+          color: #2D2A5A;
           background: #f9fafb;
         }
 
@@ -194,12 +200,18 @@ const AdminHeader: React.FC = () => {
           }
 
           .admin-logo-image {
-            height: 36px;
+            height: 32px;
+            margin-right: 8px;
+          }
+
+          .admin-site-title {
+            font-size: 1.2rem;
+            margin-right: 8px;
           }
 
           .admin-badge {
-            font-size: 0.65rem;
-            padding: 3px 8px;
+            font-size: 0.6rem;
+            padding: 3px 6px;
           }
 
           .admin-nav {
@@ -217,6 +229,12 @@ const AdminHeader: React.FC = () => {
           .admin-logout-btn {
             padding: 6px 12px;
             font-size: 0.85rem;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .admin-site-title {
+            display: none;
           }
         }
       `}</style>
