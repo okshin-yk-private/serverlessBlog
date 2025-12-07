@@ -9,6 +9,7 @@ import {
   signOut,
   getCurrentUser,
   fetchAuthSession,
+  confirmSignIn,
 } from 'aws-amplify/auth';
 import {
   getAuthToken,
@@ -29,11 +30,26 @@ interface User {
 /**
  * AuthContextの型定義
  */
+/**
+ * ログイン結果の型定義
+ */
+export interface LoginResult {
+  success: boolean;
+  requiresNewPassword: boolean;
+}
+
+/**
+ * AuthContextの型定義
+ */
 export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  requiresNewPassword: boolean;
+  pendingEmail: string | null;
+  login: (email: string, password: string) => Promise<LoginResult>;
+  confirmNewPassword: (newPassword: string) => Promise<void>;
+  cancelNewPassword: () => void;
   logout: () => Promise<void>;
 }
 
@@ -55,6 +71,8 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [requiresNewPassword, setRequiresNewPassword] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
 
   // 初期化時に既存のセッションをチェック
   useEffect(() => {
@@ -104,7 +122,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (
+    email: string,
+    password: string
+  ): Promise<LoginResult> => {
     try {
       // E2Eテスト時はMSWモックを使用
       if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
@@ -112,7 +133,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const response = await loginAPI(email, password);
         saveAuthToken(response.token);
         setUser(response.user);
-        return;
+        return { success: true, requiresNewPassword: false };
       }
 
       // 既存のセッションがある場合はサインアウトしてからサインイン
@@ -133,38 +154,85 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         signInResult.nextStep?.signInStep ===
         'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED'
       ) {
-        // 新しいパスワードとして同じパスワードを使用して確認
-        // 注意: 本番環境では、ユーザーに新しいパスワードを入力させるUIを用意することを推奨
-        const { confirmSignIn } = await import('aws-amplify/auth');
-        const confirmResult = await confirmSignIn({
-          challengeResponse: password,
-        });
+        // 新パスワード必要状態を設定
+        setRequiresNewPassword(true);
+        setPendingEmail(email);
+        return { success: true, requiresNewPassword: true };
+      }
 
-        if (!confirmResult.isSignedIn) {
-          throw new Error('パスワード確認に失敗しました');
-        }
-      } else if (!signInResult.isSignedIn) {
+      if (!signInResult.isSignedIn) {
         throw new Error('ログインに失敗しました');
       }
 
-      // セッション情報を取得
-      const session = await fetchAuthSession();
-      const idToken = session.tokens?.idToken?.toString();
-
-      if (idToken) {
-        // トークンを保存
-        saveAuthToken(idToken);
-
-        // ユーザー情報を取得
-        const currentUser = await getCurrentUser();
-        setUser({
-          id: currentUser.userId,
-          email: currentUser.signInDetails?.loginId || email,
-        });
-      }
+      // セッション情報を取得してログイン完了
+      await completeSignIn(email);
+      return { success: true, requiresNewPassword: false };
     } catch (error) {
       console.error('ログインに失敗しました:', error);
       throw error;
+    }
+  };
+
+  const confirmNewPassword = async (newPassword: string) => {
+    try {
+      // E2Eテスト時はモック動作
+      if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        setRequiresNewPassword(false);
+        setUser({
+          id: 'test-user-id',
+          email: pendingEmail || 'admin@example.com',
+        });
+        saveAuthToken('mock-token-after-password-change');
+        setPendingEmail(null);
+        return;
+      }
+
+      // Cognitoで新パスワードを確認
+      const confirmResult = await confirmSignIn({
+        challengeResponse: newPassword,
+      });
+
+      if (!confirmResult.isSignedIn) {
+        throw new Error('パスワード変更に失敗しました');
+      }
+
+      // セッション情報を取得してログイン完了
+      await completeSignIn(pendingEmail || '');
+
+      // 状態をリセット
+      setRequiresNewPassword(false);
+      setPendingEmail(null);
+    } catch (error) {
+      console.error('パスワード変更に失敗しました:', error);
+      throw error;
+    }
+  };
+
+  const cancelNewPassword = () => {
+    setRequiresNewPassword(false);
+    setPendingEmail(null);
+    // サインイン状態をクリア
+    signOut().catch(() => {
+      // エラーは無視
+    });
+  };
+
+  const completeSignIn = async (email: string) => {
+    // セッション情報を取得
+    const session = await fetchAuthSession();
+    const idToken = session.tokens?.idToken?.toString();
+
+    if (idToken) {
+      // トークンを保存
+      saveAuthToken(idToken);
+
+      // ユーザー情報を取得
+      const currentUser = await getCurrentUser();
+      setUser({
+        id: currentUser.userId,
+        email: currentUser.signInDetails?.loginId || email,
+      });
     }
   };
 
@@ -193,7 +261,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     isAuthenticated: !!user,
     isLoading,
+    requiresNewPassword,
+    pendingEmail,
     login,
+    confirmNewPassword,
+    cancelNewPassword,
     logout,
   };
 

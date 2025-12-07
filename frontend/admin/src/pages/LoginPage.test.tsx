@@ -12,6 +12,7 @@ vi.mock('aws-amplify/auth', () => ({
   signOut: vi.fn(),
   getCurrentUser: vi.fn(),
   fetchAuthSession: vi.fn(),
+  confirmSignIn: vi.fn(),
 }));
 
 // localStorageのモック

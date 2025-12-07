@@ -10,6 +10,7 @@ vi.mock('aws-amplify/auth', () => ({
   signOut: vi.fn(),
   getCurrentUser: vi.fn().mockRejectedValue(new Error('Not authenticated')),
   fetchAuthSession: vi.fn(),
+  confirmSignIn: vi.fn(),
 }));
 
 // useAuthのモック

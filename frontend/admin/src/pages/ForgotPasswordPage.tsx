@@ -1,16 +1,30 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { validateEmail } from '../utils/auth';
+import { resetPassword, confirmResetPassword } from 'aws-amplify/auth';
+import { validateEmail, validatePassword } from '../utils/auth';
+
+type Step = 'email' | 'confirm' | 'success';
 
 const ForgotPasswordPage = () => {
   const navigate = useNavigate();
+  const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
+  const [confirmationCode, setConfirmationCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [confirmPasswordError, setConfirmPasswordError] = useState<
+    string | null
+  >(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [generalError, setGeneralError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ステップ1: メールアドレス送信
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setGeneralError(null);
 
     // バリデーション
     const emailValidation = validateEmail(email);
@@ -20,19 +34,131 @@ const ForgotPasswordPage = () => {
       return;
     }
 
-    // パスワードリセットリクエスト送信
     setIsSubmitting(true);
     try {
-      // TODO: API実装時にパスワードリセットAPIを呼び出す
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // 仮の遅延
+      // E2Eテスト時はモック動作
+      if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        setStep('confirm');
+        setIsSubmitting(false);
+        return;
+      }
 
-      setSuccessMessage(
-        'パスワードリセットのリンクをメールアドレスに送信しました。'
-      );
-      setEmail('');
+      // Cognitoにパスワードリセットリクエストを送信
+      const output = await resetPassword({ username: email });
+
+      // 次のステップを確認
+      if (
+        output.nextStep.resetPasswordStep === 'CONFIRM_RESET_PASSWORD_WITH_CODE'
+      ) {
+        setStep('confirm');
+      } else if (output.nextStep.resetPasswordStep === 'DONE') {
+        // すでに完了している場合（通常はない）
+        setStep('success');
+      }
     } catch (err) {
       console.error('パスワードリセットエラー:', err);
-      setEmailError('パスワードリセットのリクエストに失敗しました。');
+
+      // エラーメッセージを設定
+      if (err instanceof Error) {
+        if (err.name === 'UserNotFoundException') {
+          setGeneralError('このメールアドレスは登録されていません。');
+        } else if (err.name === 'LimitExceededException') {
+          setGeneralError(
+            'リクエスト回数の上限に達しました。しばらく時間をおいてからお試しください。'
+          );
+        } else if (err.name === 'InvalidParameterException') {
+          setGeneralError(
+            '無効なパラメータです。メールアドレスを確認してください。'
+          );
+        } else {
+          setGeneralError('パスワードリセットのリクエストに失敗しました。');
+        }
+      } else {
+        setGeneralError('パスワードリセットのリクエストに失敗しました。');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // ステップ2: 確認コードと新パスワードで確定
+  const handleConfirmSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGeneralError(null);
+
+    // バリデーション
+    let hasError = false;
+
+    if (!confirmationCode.trim()) {
+      setCodeError('確認コードを入力してください。');
+      hasError = true;
+    } else if (!/^\d{6}$/.test(confirmationCode.trim())) {
+      setCodeError('確認コードは6桁の数字で入力してください。');
+      hasError = true;
+    } else {
+      setCodeError(null);
+    }
+
+    const passwordValidation = validatePassword(newPassword);
+    setPasswordError(passwordValidation);
+    if (passwordValidation) {
+      hasError = true;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setConfirmPasswordError('パスワードが一致しません。');
+      hasError = true;
+    } else {
+      setConfirmPasswordError(null);
+    }
+
+    if (hasError) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // E2Eテスト時はモック動作
+      if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        setStep('success');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Cognitoでパスワードリセットを確定
+      await confirmResetPassword({
+        username: email,
+        confirmationCode: confirmationCode.trim(),
+        newPassword,
+      });
+
+      setStep('success');
+    } catch (err) {
+      console.error('パスワードリセット確定エラー:', err);
+
+      if (err instanceof Error) {
+        if (err.name === 'CodeMismatchException') {
+          setGeneralError('確認コードが正しくありません。');
+        } else if (err.name === 'ExpiredCodeException') {
+          setGeneralError(
+            '確認コードの有効期限が切れました。最初からやり直してください。'
+          );
+        } else if (err.name === 'InvalidPasswordException') {
+          setGeneralError(
+            'パスワードが要件を満たしていません。8文字以上で、大文字・小文字・数字を含めてください。'
+          );
+        } else if (err.name === 'LimitExceededException') {
+          setGeneralError(
+            'リクエスト回数の上限に達しました。しばらく時間をおいてからお試しください。'
+          );
+        } else {
+          setGeneralError('パスワードのリセットに失敗しました。');
+        }
+      } else {
+        setGeneralError('パスワードのリセットに失敗しました。');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -41,6 +167,160 @@ const ForgotPasswordPage = () => {
   const handleBackToLogin = () => {
     navigate('/login');
   };
+
+  const handleBackToEmail = () => {
+    setStep('email');
+    setConfirmationCode('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setCodeError(null);
+    setPasswordError(null);
+    setConfirmPasswordError(null);
+    setGeneralError(null);
+  };
+
+  const renderEmailStep = () => (
+    <form onSubmit={handleEmailSubmit}>
+      <p className="forgot-subtitle">
+        登録されているメールアドレスを入力してください。
+        <br />
+        パスワードリセット用の確認コードを送信します。
+      </p>
+
+      {generalError && <div className="forgot-error">{generalError}</div>}
+      {emailError && <div className="forgot-error">{emailError}</div>}
+
+      <div className="forgot-field">
+        <label htmlFor="email" className="forgot-label">
+          メールアドレス
+        </label>
+        <input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className={`forgot-input ${emailError ? 'error' : ''}`}
+          disabled={isSubmitting}
+          autoComplete="email"
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="forgot-btn-primary"
+      >
+        {isSubmitting ? '送信中...' : '確認コードを送信'}
+      </button>
+
+      <button
+        type="button"
+        onClick={handleBackToLogin}
+        className="forgot-btn-link"
+      >
+        ログインページに戻る
+      </button>
+    </form>
+  );
+
+  const renderConfirmStep = () => (
+    <form onSubmit={handleConfirmSubmit}>
+      <p className="forgot-subtitle">
+        {email} に確認コードを送信しました。
+        <br />
+        確認コードと新しいパスワードを入力してください。
+      </p>
+
+      {generalError && <div className="forgot-error">{generalError}</div>}
+
+      <div className="forgot-field">
+        <label htmlFor="confirmationCode" className="forgot-label">
+          確認コード（6桁）
+        </label>
+        <input
+          id="confirmationCode"
+          type="text"
+          value={confirmationCode}
+          onChange={(e) => setConfirmationCode(e.target.value)}
+          className={`forgot-input ${codeError ? 'error' : ''}`}
+          disabled={isSubmitting}
+          maxLength={6}
+          placeholder="123456"
+          autoComplete="one-time-code"
+        />
+        {codeError && <div className="forgot-field-error">{codeError}</div>}
+      </div>
+
+      <div className="forgot-field">
+        <label htmlFor="newPassword" className="forgot-label">
+          新しいパスワード
+        </label>
+        <input
+          id="newPassword"
+          type="password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          className={`forgot-input ${passwordError ? 'error' : ''}`}
+          disabled={isSubmitting}
+          autoComplete="new-password"
+        />
+        {passwordError && (
+          <div className="forgot-field-error">{passwordError}</div>
+        )}
+      </div>
+
+      <div className="forgot-field">
+        <label htmlFor="confirmPassword" className="forgot-label">
+          新しいパスワード（確認）
+        </label>
+        <input
+          id="confirmPassword"
+          type="password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          className={`forgot-input ${confirmPasswordError ? 'error' : ''}`}
+          disabled={isSubmitting}
+          autoComplete="new-password"
+        />
+        {confirmPasswordError && (
+          <div className="forgot-field-error">{confirmPasswordError}</div>
+        )}
+      </div>
+
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="forgot-btn-primary"
+      >
+        {isSubmitting ? 'リセット中...' : 'パスワードをリセット'}
+      </button>
+
+      <button
+        type="button"
+        onClick={handleBackToEmail}
+        className="forgot-btn-link"
+      >
+        メールアドレスを変更する
+      </button>
+    </form>
+  );
+
+  const renderSuccessStep = () => (
+    <div>
+      <div className="forgot-success">
+        パスワードのリセットが完了しました。
+        <br />
+        新しいパスワードでログインしてください。
+      </div>
+      <button
+        type="button"
+        onClick={handleBackToLogin}
+        className="forgot-btn-primary"
+      >
+        ログインページに戻る
+      </button>
+    </div>
+  );
 
   return (
     <>
@@ -60,58 +340,9 @@ const ForgotPasswordPage = () => {
             </div>
             <h1 className="forgot-title">パスワードリセット</h1>
 
-            {successMessage ? (
-              <div>
-                <div className="forgot-success">{successMessage}</div>
-                <button
-                  type="button"
-                  onClick={handleBackToLogin}
-                  className="forgot-btn-primary"
-                >
-                  ログインページに戻る
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit}>
-                <p className="forgot-subtitle">
-                  登録されているメールアドレスを入力してください。
-                  <br />
-                  パスワードリセット用のリンクを送信します。
-                </p>
-
-                {emailError && <div className="forgot-error">{emailError}</div>}
-
-                <div className="forgot-field">
-                  <label htmlFor="email" className="forgot-label">
-                    メールアドレス
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className={`forgot-input ${emailError ? 'error' : ''}`}
-                    disabled={isSubmitting}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="forgot-btn-primary"
-                >
-                  {isSubmitting ? '送信中...' : 'リセットリンクを送信'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleBackToLogin}
-                  className="forgot-btn-link"
-                >
-                  ログインページに戻る
-                </button>
-              </form>
-            )}
+            {step === 'email' && renderEmailStep()}
+            {step === 'confirm' && renderConfirmStep()}
+            {step === 'success' && renderSuccessStep()}
           </div>
         </div>
       </div>
@@ -241,6 +472,12 @@ const ForgotPasswordPage = () => {
           font-size: 0.875rem;
         }
 
+        .forgot-field-error {
+          color: #dc2626;
+          font-size: 0.8rem;
+          margin-top: 6px;
+        }
+
         .forgot-success {
           background: #f0fdf4;
           border: 1px solid #bbf7d0;
@@ -250,6 +487,7 @@ const ForgotPasswordPage = () => {
           margin-bottom: 20px;
           font-size: 0.95rem;
           text-align: center;
+          line-height: 1.6;
         }
 
         .forgot-btn-primary {
