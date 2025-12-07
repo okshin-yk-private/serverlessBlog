@@ -15,7 +15,9 @@ import PostEditPage from './pages/PostEditPage';
 
 function App() {
   return (
-    <Router>
+    // CloudFrontで /admin/ パスで配信されるため、basename を設定
+    // import.meta.env.BASE_URL は vite.config.ts の base 設定値が自動的に入る
+    <Router basename={import.meta.env.BASE_URL}>
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
