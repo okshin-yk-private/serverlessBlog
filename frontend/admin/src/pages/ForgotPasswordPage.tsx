@@ -50,10 +50,11 @@ const ForgotPasswordPage = () => {
             <div className="forgot-header">
               <Link to="/" className="forgot-logo">
                 <img
-                  src="/logo_name.png"
-                  alt="Polylex"
+                  src="/fallacy.png"
+                  alt="Logo"
                   className="forgot-logo-image"
                 />
+                <span className="forgot-site-title">Bone of my fallacy</span>
               </Link>
               <span className="forgot-badge">Admin</span>
             </div>
@@ -152,12 +153,21 @@ const ForgotPasswordPage = () => {
         }
 
         .forgot-logo-image {
-          height: 48px;
+          height: 40px;
           width: auto;
+          margin-right: 12px;
+        }
+
+        .forgot-site-title {
+          font-family: 'Caveat', cursive;
+          font-size: 1.5rem;
+          font-weight: 600;
+          color: #1f2937;
+          letter-spacing: 0.02em;
         }
 
         .forgot-badge {
-          background: #111827;
+          background: #2D2A5A;
           color: white;
           padding: 4px 10px;
           border-radius: 6px;
@@ -170,7 +180,7 @@ const ForgotPasswordPage = () => {
         .forgot-title {
           font-size: 1.5rem;
           font-weight: 700;
-          color: #111827;
+          color: #2D2A5A;
           text-align: center;
           margin: 0 0 16px 0;
         }
@@ -245,7 +255,7 @@ const ForgotPasswordPage = () => {
         .forgot-btn-primary {
           width: 100%;
           padding: 12px 20px;
-          background: #111827;
+          background: #2D2A5A;
           color: white;
           border: none;
           border-radius: 10px;
@@ -257,7 +267,7 @@ const ForgotPasswordPage = () => {
         }
 
         .forgot-btn-primary:hover {
-          background: #374151;
+          background: #3d3a6a;
         }
 
         .forgot-btn-primary:disabled {
@@ -277,7 +287,7 @@ const ForgotPasswordPage = () => {
         }
 
         .forgot-btn-link:hover {
-          color: #111827;
+          color: #2D2A5A;
         }
 
         @media (max-width: 480px) {

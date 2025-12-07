@@ -21,7 +21,12 @@ describe('ForgotPasswordPage', () => {
   describe('レンダリング', () => {
     it('ロゴが表示される', () => {
       renderForgotPasswordPage();
-      expect(screen.getByAltText('Polylex')).toBeInTheDocument();
+      expect(screen.getByAltText('Logo')).toBeInTheDocument();
+    });
+
+    it('サイトタイトルが表示される', () => {
+      renderForgotPasswordPage();
+      expect(screen.getByText('Bone of my fallacy')).toBeInTheDocument();
     });
 
     it('Adminバッジが表示される', () => {
@@ -244,7 +249,9 @@ describe('ForgotPasswordPage', () => {
   describe('ロゴリンク', () => {
     it('ロゴがルートへのリンクを持つ', () => {
       renderForgotPasswordPage();
-      const logoLink = screen.getByRole('link', { name: /Polylex/i });
+      const logoLink = screen.getByRole('link', {
+        name: /Bone of my fallacy/i,
+      });
       expect(logoLink).toHaveAttribute('href', '/');
     });
   });
