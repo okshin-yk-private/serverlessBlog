@@ -62,10 +62,11 @@ const LoginPage = () => {
             <div className="login-header">
               <Link to="/" className="login-logo">
                 <img
-                  src="/logo_name.png"
-                  alt="Polylex"
+                  src="/fallacy.png"
+                  alt="Logo"
                   className="login-logo-image"
                 />
+                <span className="login-site-title">Bone of my fallacy</span>
               </Link>
               <span className="login-badge">Admin</span>
             </div>
@@ -117,12 +118,21 @@ const LoginPage = () => {
         }
 
         .login-logo-image {
-          height: 48px;
+          height: 40px;
           width: auto;
+          margin-right: 12px;
+        }
+
+        .login-site-title {
+          font-family: 'Caveat', cursive;
+          font-size: 1.5rem;
+          font-weight: 600;
+          color: #1f2937;
+          letter-spacing: 0.02em;
         }
 
         .login-badge {
-          background: #111827;
+          background: #2D2A5A;
           color: white;
           padding: 4px 10px;
           border-radius: 6px;
@@ -135,7 +145,7 @@ const LoginPage = () => {
         .login-title {
           font-size: 1.5rem;
           font-weight: 700;
-          color: #111827;
+          color: #2D2A5A;
           text-align: center;
           margin: 0 0 8px 0;
         }
@@ -172,7 +182,7 @@ const LoginPage = () => {
         .login-card button[type="submit"] {
           width: 100%;
           padding: 12px 20px;
-          background: #111827;
+          background: #2D2A5A;
           color: white;
           border: none;
           border-radius: 10px;
@@ -183,7 +193,7 @@ const LoginPage = () => {
         }
 
         .login-card button[type="submit"]:hover {
-          background: #374151;
+          background: #3d3a6a;
         }
 
         .login-card button[type="submit"]:disabled {
@@ -201,7 +211,7 @@ const LoginPage = () => {
 
         .login-card a:hover,
         .login-card button:not([type="submit"]):hover {
-          color: #111827;
+          color: #2D2A5A;
         }
 
         .login-card label {
