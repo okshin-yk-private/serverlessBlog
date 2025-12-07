@@ -314,7 +314,7 @@ const PostListPage: React.FC = () => {
           color: #111827;
           margin: 0 0 24px 0;
           letter-spacing: 0.02em;
-          font-family: 'Patrick Hand', cursive;
+          font-family: 'Caveat', cursive;
         }
 
         .hero-subtitle {
@@ -324,7 +324,7 @@ const PostListPage: React.FC = () => {
           max-width: 700px;
           margin: 0 auto;
           line-height: 1.8;
-          font-family: 'Patrick Hand', cursive;
+          font-family: 'Caveat', cursive;
           font-weight: 400;
         }
 

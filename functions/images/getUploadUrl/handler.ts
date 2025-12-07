@@ -157,11 +157,13 @@ export const handler = async (
 
     // S3キーの生成（UUID + 拡張子）
     // セキュリティ: UUIDを使用してファイル名を推測不可能にする
+    // 注意: CloudFrontで /images/* パスにルーティングされ、/images が削除されるため
+    //       S3キーには images/ プレフィックスを含めない
     const extension = fileName
       .substring(fileName.lastIndexOf('.'))
       .toLowerCase();
     const uuid = randomUUID();
-    const key = `images/${userId}/${uuid}${extension}`;
+    const key = `${userId}/${uuid}${extension}`;
 
     logger.info('Pre-signed URL生成中', { key, contentType });
 
@@ -178,8 +180,9 @@ export const handler = async (
     });
 
     // CloudFront URL（アップロード後にアクセスするURL）
+    // CloudFront経由の場合は /images/ パスを使用（CloudFrontが /images を削除してS3にルーティング）
     const imageUrl = cloudFrontDomain
-      ? `${cloudFrontDomain}/${key}`
+      ? `${cloudFrontDomain}/images/${key}`
       : `https://${bucketName}.s3.amazonaws.com/${key}`;
 
     logger.info('Pre-signed URL生成が完了しました', { key, imageUrl });

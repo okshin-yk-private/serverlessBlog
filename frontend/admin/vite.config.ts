@@ -3,8 +3,12 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/postcss';
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
+  // CloudFrontで /admin/ パスで配信するため、本番ビルド時のみ base を設定
+  // 開発サーバー(dev)では / を使用（localhost:3001でアクセスするため）
+  // Public Siteと同じ動作パターン
+  base: command === 'build' ? '/admin/' : '/',
   css: {
     postcss: {
       plugins: [tailwindcss()],
@@ -33,4 +37,4 @@ export default defineConfig({
         "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;",
     },
   },
-});
+}));

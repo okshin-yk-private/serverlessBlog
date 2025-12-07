@@ -603,8 +603,9 @@ describe('getUploadUrl Lambda Handler - Unit Tests', () => {
       const body = JSON.parse(result.body);
 
       // S3の直接URLが使用されることを確認
+      // 注意: S3キーには images/ プレフィックスを含めない（CloudFrontが /images を削除するため）
       expect(body.imageUrl).toMatch(
-        /^https:\/\/test-bucket\.s3\.amazonaws\.com\/images\//
+        /^https:\/\/test-bucket\.s3\.amazonaws\.com\/user-123\//
       );
       expect(body.imageUrl).not.toContain('cloudfront.net');
 
