@@ -14,7 +14,7 @@ const Header: React.FC = () => {
         <div className="header-container">
           <Link to="/" className="site-logo">
             <img src="/fallacy.png" alt="Logo" className="logo-image" />
-            <span className="site-title">体は誤謬で出来ている</span>
+            <span className="site-title">Bone of my fallacy</span>
           </Link>
           <nav className="site-nav">
             <Link to="/" className="nav-link">
@@ -88,11 +88,11 @@ const Header: React.FC = () => {
         }
 
         .site-title {
-          font-family: 'Shippori Mincho', 'Noto Serif JP', 'Yu Mincho', serif;
-          font-size: 1.4rem;
+          font-family: 'Caveat', cursive;
+          font-size: 1.6rem;
           font-weight: 600;
           color: #1f2937;
-          letter-spacing: 0.05em;
+          letter-spacing: 0.02em;
         }
 
         .site-nav {
@@ -161,7 +161,7 @@ const Header: React.FC = () => {
           }
 
           .site-title {
-            font-size: 1rem;
+            font-size: 1.2rem;
           }
 
           .site-nav {
