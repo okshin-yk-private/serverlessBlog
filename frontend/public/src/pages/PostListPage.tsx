@@ -110,7 +110,7 @@ const PostListPage: React.FC = () => {
     if (tags) {
       return `${tags} タグの記事一覧`;
     }
-    return 'ブログ記事一覧';
+    return 'bone of my fallacy';
   };
 
   const generateSEODescription = (): string => {
