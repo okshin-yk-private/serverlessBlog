@@ -15,7 +15,7 @@ export class LayersStack extends cdk.Stack {
       code: lambda.Code.fromAsset(
         path.join(__dirname, '../../layers/powertools')
       ),
-      compatibleRuntimes: [lambda.Runtime.NODEJS_22_X],
+      compatibleRuntimes: [lambda.Runtime.NODEJS_24_X],
       description:
         'AWS Lambda Powertools for TypeScript - Logger, Tracer, Metrics, Parameters',
       layerVersionName: 'serverless-blog-powertools',
@@ -24,7 +24,7 @@ export class LayersStack extends cdk.Stack {
     // Common Utilities Layer
     this.commonLayer = new lambda.LayerVersion(this, 'CommonLayer', {
       code: lambda.Code.fromAsset(path.join(__dirname, '../../layers/common')),
-      compatibleRuntimes: [lambda.Runtime.NODEJS_22_X],
+      compatibleRuntimes: [lambda.Runtime.NODEJS_24_X],
       description:
         'Common utilities - Markdown conversion, S3 presigned URLs, DynamoDB helpers',
       layerVersionName: 'serverless-blog-common',
