@@ -1,6 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PostEditor, type PostData } from '../components/PostEditor';
+import {
+  PostEditor,
+  type PostData,
+  type PostEditorHandle,
+} from '../components/PostEditor';
 import { ImageUploader } from '../components/ImageUploader';
 import { getPost, updatePost, uploadImage } from '../api/posts';
 import AdminLayout from '../components/AdminLayout';
@@ -11,6 +15,8 @@ const PostEditPage = () => {
   const [initialData, setInitialData] = useState<PostData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const editorRef = useRef<PostEditorHandle>(null);
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -57,11 +63,25 @@ const PostEditPage = () => {
     navigate('/posts');
   };
 
+  // ImageUploaderからの画像アップロード完了時
   const handleImageUpload = (imageUrl: string) => {
-    navigator.clipboard.writeText(`![image](${imageUrl})`);
-    alert(
-      `画像がアップロードされました。Markdown形式でクリップボードにコピーされました:\n![image](${imageUrl})`
-    );
+    const markdownImage = `![image](${imageUrl})`;
+    editorRef.current?.insertAtCursor(markdownImage);
+  };
+
+  // ペーストによる画像アップロード
+  const handleImagePaste = async (file: File) => {
+    setIsUploading(true);
+    try {
+      const imageUrl = await uploadImage(file);
+      const markdownImage = `![image](${imageUrl})`;
+      editorRef.current?.insertAtCursor(markdownImage);
+    } catch (err) {
+      console.error('Image paste upload failed:', err);
+      setError('画像のアップロードに失敗しました');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   if (loading) {
@@ -95,9 +115,12 @@ const PostEditPage = () => {
       <div className="admin-card">
         {initialData && (
           <PostEditor
+            ref={editorRef}
             onSave={handleSave}
             onCancel={handleCancel}
             initialData={initialData}
+            onImagePaste={handleImagePaste}
+            isUploading={isUploading}
           />
         )}
       </div>

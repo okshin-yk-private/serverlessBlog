@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PostEditor } from '../components/PostEditor';
+import { PostEditor, type PostEditorHandle } from '../components/PostEditor';
 import { ImageUploader } from '../components/ImageUploader';
 import { createPost, uploadImage } from '../api/posts';
 import AdminLayout from '../components/AdminLayout';
@@ -8,6 +8,8 @@ import AdminLayout from '../components/AdminLayout';
 const PostCreatePage = () => {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const editorRef = useRef<PostEditorHandle>(null);
 
   const handleSave = async (data: {
     title: string;
@@ -30,12 +32,25 @@ const PostCreatePage = () => {
     navigate('/posts');
   };
 
+  // ImageUploaderからの画像アップロード完了時
   const handleImageUpload = (imageUrl: string) => {
-    // 画像URLをクリップボードにコピー（オプション）
-    navigator.clipboard.writeText(`![image](${imageUrl})`);
-    alert(
-      `画像がアップロードされました。Markdown形式でクリップボードにコピーされました:\n![image](${imageUrl})`
-    );
+    const markdownImage = `![image](${imageUrl})`;
+    editorRef.current?.insertAtCursor(markdownImage);
+  };
+
+  // ペーストによる画像アップロード
+  const handleImagePaste = async (file: File) => {
+    setIsUploading(true);
+    try {
+      const imageUrl = await uploadImage(file);
+      const markdownImage = `![image](${imageUrl})`;
+      editorRef.current?.insertAtCursor(markdownImage);
+    } catch (err) {
+      console.error('Image paste upload failed:', err);
+      setError('画像のアップロードに失敗しました');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -58,7 +73,13 @@ const PostCreatePage = () => {
       </div>
 
       <div className="admin-card">
-        <PostEditor onSave={handleSave} onCancel={handleCancel} />
+        <PostEditor
+          ref={editorRef}
+          onSave={handleSave}
+          onCancel={handleCancel}
+          onImagePaste={handleImagePaste}
+          isUploading={isUploading}
+        />
       </div>
     </AdminLayout>
   );

@@ -36,7 +36,9 @@
         "--context",
         "ide-assistant",
         "--project",
-        "/Users/shin/practice/serverless_blog"
+        "/home/okshin/src/github.com/okshin-yk-private/serverlessBlog",
+        "--enable-web-dashboard",
+        "false"
       ],
       "env": {}
     },
@@ -47,8 +49,10 @@
     "aws-mcp": {
       "command": "uvx",
       "args": [
-        "mcp-proxy-for-aws@v1.1.2",
-        "https://aws-mcp.us-east-1.api.aws/mcp"
+        "mcp-proxy-for-aws@latest",
+        "https://aws-mcp.us-east-1.api.aws/mcp",
+        "--metadata",
+        "AWS_REGION=us-west-2"
       ]
     }
   }

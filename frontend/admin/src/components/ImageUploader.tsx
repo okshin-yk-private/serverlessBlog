@@ -6,7 +6,7 @@ interface ImageUploaderProps {
   uploadFunction?: (file: File) => Promise<string>;
 }
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export const ImageUploader: React.FC<ImageUploaderProps> = ({
   onUploadComplete,
@@ -35,7 +35,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
 
     // ファイルサイズチェック
     if (file.size > MAX_FILE_SIZE) {
-      setError('ファイルサイズは5MB以下にしてください');
+      setError('ファイルサイズは10MB以下にしてください');
       setSelectedFile(null);
       setPreviewUrl(null);
       return;

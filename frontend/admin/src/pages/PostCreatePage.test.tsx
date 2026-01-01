@@ -218,16 +218,8 @@ describe('PostCreatePage', () => {
   });
 
   // 画像アップロード統合
-  it('画像アップロード成功時にMarkdown形式でアラートが表示される', async () => {
+  it('画像アップロード成功時にエディタにMarkdown形式で挿入される', async () => {
     const user = userEvent.setup();
-    const mockAlert = vi.spyOn(window, 'alert').mockImplementation(() => {});
-    const mockClipboard = {
-      writeText: vi.fn().mockResolvedValue(undefined),
-    };
-    Object.defineProperty(navigator, 'clipboard', {
-      value: mockClipboard,
-      writable: true,
-    });
 
     vi.mocked(postsApi.uploadImage).mockResolvedValue(
       'https://example.com/image.png'
@@ -263,24 +255,18 @@ describe('PostCreatePage', () => {
 
     await waitFor(() => {
       expect(postsApi.uploadImage).toHaveBeenCalledWith(file);
-      expect(mockClipboard.writeText).toHaveBeenCalledWith(
+      // エディタにMarkdown形式で画像が挿入されることを確認
+      const textarea = screen.getByTestId(
+        'post-content-editor'
+      ) as HTMLTextAreaElement;
+      expect(textarea.value).toContain(
         '![image](https://example.com/image.png)'
       );
-      expect(mockAlert).toHaveBeenCalledWith(
-        expect.stringContaining('画像がアップロードされました')
-      );
     });
-
-    mockAlert.mockRestore();
   });
 
   it('画像アップロード後もエディタは操作可能', async () => {
     const user = userEvent.setup();
-    vi.spyOn(window, 'alert').mockImplementation(() => {});
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText: vi.fn().mockResolvedValue(undefined) },
-      writable: true,
-    });
 
     vi.mocked(postsApi.uploadImage).mockResolvedValue(
       'https://example.com/image.png'

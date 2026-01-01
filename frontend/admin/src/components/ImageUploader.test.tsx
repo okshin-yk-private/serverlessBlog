@@ -59,11 +59,11 @@ describe('ImageUploader', () => {
     expect(mockOnUploadComplete).not.toHaveBeenCalled();
   });
 
-  it('ファイルサイズが5MBを超える場合はエラーが表示される', async () => {
+  it('ファイルサイズが10MBを超える場合はエラーが表示される', async () => {
     render(<ImageUploader onUploadComplete={mockOnUploadComplete} />);
 
     const largeFile = new File(
-      [new ArrayBuffer(6 * 1024 * 1024)],
+      [new ArrayBuffer(11 * 1024 * 1024)],
       'large-image.png',
       { type: 'image/png' }
     );
@@ -77,7 +77,7 @@ describe('ImageUploader', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/ファイルサイズは5MB以下にしてください/i)
+        screen.getByText(/ファイルサイズは10MB以下にしてください/i)
       ).toBeInTheDocument();
     });
 
@@ -275,7 +275,7 @@ describe('ImageUploader', () => {
       screen.queryByText(/画像ファイルを選択してください/i)
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByText(/ファイルサイズは5MB以下にしてください/i)
+      screen.queryByText(/ファイルサイズは10MB以下にしてください/i)
     ).not.toBeInTheDocument();
   });
 
