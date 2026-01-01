@@ -82,7 +82,7 @@ export const getUploadUrl = async (
 ): Promise<{ uploadUrl: string; imageUrl: string }> => {
   const token = getAuthToken();
   const response = await axios.post(
-    `${API_URL}/admin/upload-url`,
+    `${API_URL}/admin/images/upload-url`,
     { filename, contentType },
     {
       headers: {
