@@ -116,7 +116,7 @@ jobs:
 
       - name: Install infrastructure dependencies
         working-directory: infrastructure
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Run ESLint
         run: bun run lint
@@ -130,7 +130,7 @@ jobs:
 
       - name: Lint infrastructure
         working-directory: infrastructure
-        run: npm run lint || echo "Infrastructure linting may have issues - continuing..."
+        run: bun run lint || echo "Infrastructure linting may have issues - continuing..."
 
   # =======================================
   # Job 2: Backend Unit Tests (conditional)
