@@ -30,17 +30,15 @@ export class LayersStack extends cdk.Stack {
       layerVersionName: 'serverless-blog-common',
     });
 
-    // Export Layer ARNs for use in other stacks
+    // Output Layer ARNs (no export to avoid cross-stack update issues)
     new cdk.CfnOutput(this, 'PowertoolsLayerVersionArn', {
       value: this.powertoolsLayer.layerVersionArn,
       description: 'ARN of the Powertools Layer',
-      exportName: 'PowertoolsLayerVersionArn',
     });
 
     new cdk.CfnOutput(this, 'CommonLayerVersionArn', {
       value: this.commonLayer.layerVersionArn,
       description: 'ARN of the Common Layer',
-      exportName: 'CommonLayerVersionArn',
     });
   }
 }

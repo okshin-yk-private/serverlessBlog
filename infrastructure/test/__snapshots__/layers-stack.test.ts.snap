@@ -5,18 +5,12 @@ exports[`LayersStack Snapshot test 1`] = `
   "Outputs": {
     "CommonLayerVersionArn": {
       "Description": "ARN of the Common Layer",
-      "Export": {
-        "Name": "CommonLayerVersionArn",
-      },
       "Value": {
         "Ref": "CommonLayer306767A0",
       },
     },
     "PowertoolsLayerVersionArn": {
       "Description": "ARN of the Powertools Layer",
-      "Export": {
-        "Name": "PowertoolsLayerVersionArn",
-      },
       "Value": {
         "Ref": "PowertoolsLayer17979D4B",
       },
