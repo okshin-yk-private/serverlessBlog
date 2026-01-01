@@ -46,7 +46,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Set environment stage
         id: env
@@ -60,19 +64,19 @@ jobs:
           fi
 
       - name: Install root dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Install infrastructure dependencies
         working-directory: infrastructure
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Install Lambda Layer dependencies (Common)
         working-directory: layers/common/nodejs
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Install Lambda Layer dependencies (Powertools)
         working-directory: layers/powertools/nodejs
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -122,7 +126,7 @@ jobs:
           echo ""
 
           # Bootstrap実行
-          if npx cdk bootstrap aws://${{ steps.aws-account.outputs.account-id }}/${{ vars.AWS_REGION }}; then
+          if bunx cdk bootstrap aws://${{ steps.aws-account.outputs.account-id }}/${{ vars.AWS_REGION }}; then
             echo "✓ CDK Bootstrap successful"
           else
             EXIT_CODE=$?
@@ -148,7 +152,7 @@ jobs:
             echo "⚠️  Deploying to PRODUCTION"
             echo ""
           fi
-          npx cdk deploy --all --require-approval never --context stage=${{ steps.env.outputs.stage }} --ci --outputs-file cdk-outputs.json
+          bunx cdk deploy --all --require-approval never --context stage=${{ steps.env.outputs.stage }} --ci --outputs-file cdk-outputs.json
           echo "✓ CDK Deployment completed successfully"
 
       - name: Upload CDK Outputs
@@ -198,7 +202,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Set environment stage
         id: env
@@ -252,11 +260,11 @@ jobs:
 
       - name: Install Public Site dependencies
         working-directory: frontend/public
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Build Public Site
         working-directory: frontend/public
-        run: npm run build
+        run: bun run build
         env:
           VITE_API_ENDPOINT: ${{ steps.outputs.outputs.api-endpoint }}
           VITE_COGNITO_USER_POOL_ID: ${{ steps.outputs.outputs.user-pool-id }}
@@ -321,7 +329,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Set environment stage
         id: env
@@ -377,11 +389,11 @@ jobs:
 
       - name: Install Admin Site dependencies
         working-directory: frontend/admin
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Build Admin Site
         working-directory: frontend/admin
-        run: npm run build
+        run: bun run build
         env:
           VITE_API_URL: ${{ steps.outputs.outputs.api-endpoint }}
           VITE_COGNITO_USER_POOL_ID: ${{ steps.outputs.outputs.user-pool-id }}

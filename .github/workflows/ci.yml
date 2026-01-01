@@ -101,28 +101,32 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install root dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Install frontend dependencies
         working-directory: frontend/admin
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Install infrastructure dependencies
         working-directory: infrastructure
         run: npm ci
 
       - name: Run ESLint
-        run: npm run lint
+        run: bun run lint
 
       - name: Run Prettier check
-        run: npm run format:check
+        run: bun run format:check
 
       - name: Lint frontend
         working-directory: frontend/admin
-        run: npm run lint
+        run: bun run lint
 
       - name: Lint infrastructure
         working-directory: infrastructure
@@ -147,13 +151,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Run unit tests with coverage
-        run: npm run test:coverage
+        run: bun run test:coverage
         env:
           CI: true
 
@@ -189,40 +197,40 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install root dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Install infrastructure dependencies
-        run: |
-          cd infrastructure
-          npm ci
+        working-directory: infrastructure
+        run: bun install --frozen-lockfile
 
       - name: Install Lambda Layer dependencies (Common)
-        run: |
-          cd layers/common/nodejs
-          npm ci
+        working-directory: layers/common/nodejs
+        run: bun install --frozen-lockfile
 
       - name: Install Lambda Layer dependencies (Powertools)
-        run: |
-          cd layers/powertools/nodejs
-          npm ci
+        working-directory: layers/powertools/nodejs
+        run: bun install --frozen-lockfile
 
       - name: Run infrastructure tests with coverage
-        run: |
-          cd infrastructure
-          npm run test:coverage
+        working-directory: infrastructure
+        run: bun run test:coverage
         env:
           CI: true
 
       - name: Run CDK Nag security checks
+        working-directory: infrastructure
         run: |
-          cd infrastructure
           echo "========================================="
           echo "CDK Nag Security Validation"
           echo "========================================="
-          npm run cdk:synth
+          bun run cdk:synth
           echo ""
           echo "✓ CDK Nag checks passed"
         env:
@@ -258,25 +266,26 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install root dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Install infrastructure dependencies
-        run: |
-          cd infrastructure
-          npm ci
+        working-directory: infrastructure
+        run: bun install --frozen-lockfile
 
       - name: Install Lambda Layer dependencies (Common)
-        run: |
-          cd layers/common/nodejs
-          npm ci
+        working-directory: layers/common/nodejs
+        run: bun install --frozen-lockfile
 
       - name: Install Lambda Layer dependencies (Powertools)
-        run: |
-          cd layers/powertools/nodejs
-          npm ci
+        working-directory: layers/powertools/nodejs
+        run: bun install --frozen-lockfile
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -309,7 +318,7 @@ jobs:
           echo ""
           echo "Comparing against DEV environment stack..."
           echo ""
-          npx cdk diff --all --context stage=dev
+          bunx cdk diff --all --context stage=dev
           echo ""
           echo "========================================="
           echo "ℹ️  CDK Diff completed successfully"
@@ -337,20 +346,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install root dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Install frontend (public) dependencies
-        run: |
-          cd frontend/public
-          npm ci
+        working-directory: frontend/public
+        run: bun install --frozen-lockfile
 
       - name: Run frontend (public) tests with coverage
-        run: |
-          cd frontend/public
-          npm run test:coverage
+        working-directory: frontend/public
+        run: bun run test:coverage
         env:
           CI: true
 
@@ -379,20 +390,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install root dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Install frontend (admin) dependencies
-        run: |
-          cd frontend/admin
-          npm ci
+        working-directory: frontend/admin
+        run: bun install --frozen-lockfile
 
       - name: Run frontend (admin) tests with coverage
-        run: |
-          cd frontend/admin
-          npm run test:coverage
+        working-directory: frontend/admin
+        run: bun run test:coverage
         env:
           CI: true
 
@@ -423,18 +436,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-            frontend/public/package-lock.json
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Install frontend (public) dependencies
-        run: |
-          cd frontend/public
-          npm ci
+        working-directory: frontend/public
+        run: bun install --frozen-lockfile
 
       - name: Get Playwright version
         id: playwright-version
@@ -453,7 +466,7 @@ jobs:
 
       - name: Install Playwright browsers and dependencies
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
+        run: bunx playwright install --with-deps chromium
 
       - name: Install Playwright system dependencies only
         if: steps.playwright-cache.outputs.cache-hit == 'true'
@@ -461,10 +474,10 @@ jobs:
           # Disable Microsoft package repositories that may cause 403 errors
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list || true
           sudo rm -f /etc/apt/sources.list.d/azure-cli.list || true
-          npx playwright install-deps chromium
+          bunx playwright install-deps chromium
 
       - name: Run E2E tests (Public Site) - Chromium only
-        run: npm run test:e2e -- --project=chromium --workers=1
+        run: bun run test:e2e -- --project=chromium --workers=1
         env:
           CI: true
 
@@ -495,18 +508,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-            frontend/admin/package-lock.json
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Install frontend (admin) dependencies
-        run: |
-          cd frontend/admin
-          npm ci
+        working-directory: frontend/admin
+        run: bun install --frozen-lockfile
 
       - name: Get Playwright version
         id: playwright-version
@@ -525,7 +538,7 @@ jobs:
 
       - name: Install Playwright browsers and dependencies
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
+        run: bunx playwright install --with-deps chromium
 
       - name: Install Playwright system dependencies only
         if: steps.playwright-cache.outputs.cache-hit == 'true'
@@ -533,10 +546,10 @@ jobs:
           # Disable Microsoft package repositories that may cause 403 errors
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list || true
           sudo rm -f /etc/apt/sources.list.d/azure-cli.list || true
-          npx playwright install-deps chromium
+          bunx playwright install-deps chromium
 
       - name: Run E2E tests (Admin - Auth & Security) - Chromium only
-        run: npm run test:e2e:admin -- tests/e2e/specs/admin-auth.spec.ts tests/e2e/specs/admin-unauthorized-access.spec.ts --project=chromium --workers=1
+        run: bun run test:e2e:admin -- tests/e2e/specs/admin-auth.spec.ts tests/e2e/specs/admin-unauthorized-access.spec.ts --project=chromium --workers=1
         env:
           CI: true
 
@@ -602,10 +615,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Reorganize coverage files
         run: |
@@ -616,7 +633,7 @@ jobs:
           cp -r coverage-frontend-admin/* frontend/admin/coverage/ || true
 
       - name: Generate coverage badges
-        run: npm run coverage:badges
+        run: bun run coverage:badges
 
       - name: Upload coverage badges
         uses: actions/upload-artifact@v4
