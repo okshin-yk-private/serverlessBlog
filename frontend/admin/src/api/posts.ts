@@ -83,7 +83,7 @@ export const getUploadUrl = async (
   const token = getAuthToken();
   const response = await axios.post(
     `${API_URL}/admin/images/upload-url`,
-    { filename, contentType },
+    { fileName: filename, contentType },
     {
       headers: {
         Authorization: `Bearer ${token}`,
