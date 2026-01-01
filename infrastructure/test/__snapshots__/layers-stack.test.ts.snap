@@ -33,7 +33,7 @@ exports[`LayersStack Snapshot test 1`] = `
     "CommonLayer306767A0": {
       "Properties": {
         "CompatibleRuntimes": [
-          "nodejs22.x",
+          "nodejs24.x",
         ],
         "Content": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
@@ -47,7 +47,7 @@ exports[`LayersStack Snapshot test 1`] = `
     "PowertoolsLayer17979D4B": {
       "Properties": {
         "CompatibleRuntimes": [
-          "nodejs22.x",
+          "nodejs24.x",
         ],
         "Content": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",

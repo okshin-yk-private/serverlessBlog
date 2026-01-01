@@ -28,7 +28,7 @@ describe('LayersStack', () => {
 
   test('Powertools Layer should have correct runtime', () => {
     template.hasResourceProperties('AWS::Lambda::LayerVersion', {
-      CompatibleRuntimes: Match.arrayWith(['nodejs22.x']),
+      CompatibleRuntimes: Match.arrayWith(['nodejs24.x']),
     });
   });
 
