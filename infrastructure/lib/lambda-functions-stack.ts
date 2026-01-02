@@ -41,6 +41,7 @@ export class LambdaFunctionsStack extends cdk.Stack {
     // 共通のLambda関数設定
     const commonFunctionProps = {
       runtime: lambda.Runtime.NODEJS_24_X,
+      architecture: lambda.Architecture.ARM_64,
       layers: [powertoolsLayer, commonLayer],
       environment: {
         TABLE_NAME: blogPostsTable.tableName,

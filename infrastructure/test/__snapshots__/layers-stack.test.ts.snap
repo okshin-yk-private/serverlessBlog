@@ -26,6 +26,9 @@ exports[`LayersStack Snapshot test 1`] = `
   "Resources": {
     "CommonLayer306767A0": {
       "Properties": {
+        "CompatibleArchitectures": [
+          "arm64",
+        ],
         "CompatibleRuntimes": [
           "nodejs24.x",
         ],
@@ -40,6 +43,9 @@ exports[`LayersStack Snapshot test 1`] = `
     },
     "PowertoolsLayer17979D4B": {
       "Properties": {
+        "CompatibleArchitectures": [
+          "arm64",
+        ],
         "CompatibleRuntimes": [
           "nodejs24.x",
         ],
