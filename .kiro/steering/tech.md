@@ -40,7 +40,7 @@
 - **CDK Nag**: セキュリティとベストプラクティスの検証
 
 ### ランタイム
-- **Node.js 22.x**: 最新のLTS版を使用（Node.js 20系はEOL間近のため移行）
+- **Node.js 24.x**: 最新版を使用（AWS Lambda NODEJS_24_X対応）
 - **TypeScript**: 型安全な開発
 
 ### データベース
@@ -59,7 +59,11 @@
 
 ### コンピューティング
 - **AWS Lambda**:
-  - Node.js 22.x ランタイム
+  - Node.js 24.x ランタイム（NODEJS_24_X）
+  - **ARM64アーキテクチャ（Graviton2）**: コスト削減とパフォーマンス向上
+    - 全Lambda関数でarm64を使用（x86_64からの移行完了）
+    - 約20%のコスト削減、約34%のパフォーマンス向上
+    - Node.js 24.x、AWS SDK v3、Lambda PowertoolsはARM64完全対応
   - Lambda Layers（Powertools、共通ライブラリ）
   - 環境変数による設定管理
   - VPC不使用（レイテンシ最適化）
@@ -94,9 +98,8 @@
 
 ### CI/CD
 - **GitHub Actions**:
-  - 自動テスト実行
-  - CDKデプロイ
-  - 環境別デプロイ（dev/prd）
+  - ci.yml: 自動テスト実行（lint、unit、integration、e2e）
+  - deploy.yml: CDKデプロイ（dev/prd環境別）
 - **OIDC認証**: AWS認証情報の安全な管理
 
 ## データモデル設計
@@ -185,6 +188,7 @@
 ## パフォーマンス最適化
 
 ### 1. Lambda最適化
+- ARM64（Graviton2）アーキテクチャ採用
 - 適切なメモリサイズ設定
 - Provisioned Concurrency（必要に応じて）
 - Lambda Layersによるコード共有
@@ -300,7 +304,7 @@
 ### 定期的なメンテナンス
 1. 依存パッケージの更新
 2. CDKバージョンのアップグレード
-3. Node.jsランタイムの更新（現在: Node.js 22.x、Node.js 20系は2026年4月にEOL）
+3. Node.jsランタイムの更新（現在: Node.js 24.x）
 4. セキュリティパッチの適用
 
 ### コード品質
