@@ -60,6 +60,14 @@ export class StorageStack extends cdk.Stack {
       enforceSSL: true,
       serverAccessLogsBucket: this.accessLogsBucket,
       serverAccessLogsPrefix: enableAccessLogs ? 'image-bucket/' : undefined,
+      // CORS設定: ブラウザからのPre-signed URLアップロードを許可
+      cors: [
+        {
+          allowedMethods: [s3.HttpMethods.PUT],
+          allowedOrigins: ['*'],
+          allowedHeaders: ['*'],
+        },
+      ],
     });
 
     // Bucket policy will be added by CdnStack with specific distribution ARN

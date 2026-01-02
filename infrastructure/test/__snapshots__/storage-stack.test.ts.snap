@@ -184,6 +184,21 @@ exports[`StorageStack Snapshot test 1`] = `
             ],
           ],
         },
+        "CorsConfiguration": {
+          "CorsRules": [
+            {
+              "AllowedHeaders": [
+                "*",
+              ],
+              "AllowedMethods": [
+                "PUT",
+              ],
+              "AllowedOrigins": [
+                "*",
+              ],
+            },
+          ],
+        },
         "LifecycleConfiguration": {
           "Rules": [
             {
