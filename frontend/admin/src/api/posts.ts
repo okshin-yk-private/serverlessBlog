@@ -169,3 +169,34 @@ export const deletePost = async (id: string): Promise<void> => {
     },
   });
 };
+
+/**
+ * 画像URLからS3キーを抽出
+ * CloudFront URL形式: https://xxxxx.cloudfront.net/{userId}/{filename}
+ */
+export const extractImageKey = (imageUrl: string): string => {
+  try {
+    const url = new URL(imageUrl);
+    // パスの先頭の"/"を除去してキーを取得
+    return url.pathname.slice(1);
+  } catch {
+    // URLパースに失敗した場合はそのまま返す（すでにキー形式の場合）
+    return imageUrl;
+  }
+};
+
+/**
+ * 画像を削除
+ * @param imageUrl CloudFront形式の画像URL（例: https://xxxxx.cloudfront.net/user-id/image.jpg）
+ */
+export const deleteImage = async (imageUrl: string): Promise<void> => {
+  const token = getAuthToken();
+  const key = extractImageKey(imageUrl);
+  const encodedKey = encodeURIComponent(key);
+
+  await axios.delete(`${API_URL}/admin/images/${encodedKey}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+};
