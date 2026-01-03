@@ -109,12 +109,12 @@
   - _Requirements: 6.2_
 
 - [ ] 8. 動作検証とプレビュー機能確認
-- [ ] 8.1 CloudFront URL生成の動作確認
+- [x] 8.1 CloudFront URL生成の動作確認
   - 画像アップロード後にCloudFront形式のURLが返却されることを確認
   - S3バケット名がURLに露出しないことを確認
   - _Requirements: 1.1, 1.2, 1.4_
 
-- [ ] 8.2 Markdownプレビューでの画像表示確認
+- [x] 8.2 Markdownプレビューでの画像表示確認
   - アップロード後の画像がプレビューペインに表示されることを確認
   - CloudFront URLからの画像取得が成功することを確認
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
