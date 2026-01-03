@@ -172,13 +172,22 @@ export const deletePost = async (id: string): Promise<void> => {
 
 /**
  * 画像URLからS3キーを抽出
- * CloudFront URL形式: https://xxxxx.cloudfront.net/{userId}/{filename}
+ * CloudFront URL形式: https://xxxxx.cloudfront.net/images/{userId}/{filename}
+ * S3キー形式: {userId}/{filename}
+ *
+ * CloudFrontは /images/* パスを S3 にルーティングする際に /images を削除するため、
+ * フロントエンドでも /images/ プレフィックスを除去する必要がある
  */
 export const extractImageKey = (imageUrl: string): string => {
   try {
     const url = new URL(imageUrl);
     // パスの先頭の"/"を除去してキーを取得
-    return url.pathname.slice(1);
+    let key = url.pathname.slice(1);
+    // CloudFront URLの場合、/images/ プレフィックスを除去
+    if (key.startsWith('images/')) {
+      key = key.slice('images/'.length);
+    }
+    return key;
   } catch {
     // URLパースに失敗した場合はそのまま返す（すでにキー形式の場合）
     return imageUrl;
