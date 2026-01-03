@@ -6,7 +6,7 @@ import {
   type PostEditorHandle,
 } from '../components/PostEditor';
 import { ImageUploader } from '../components/ImageUploader';
-import { getPost, updatePost, uploadImage } from '../api/posts';
+import { getPost, updatePost, uploadImage, deleteImage } from '../api/posts';
 import AdminLayout from '../components/AdminLayout';
 
 const PostEditPage = () => {
@@ -16,6 +16,7 @@ const PostEditPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const editorRef = useRef<PostEditorHandle>(null);
 
   useEffect(() => {
@@ -65,8 +66,15 @@ const PostEditPage = () => {
 
   // ImageUploaderからの画像アップロード完了時
   const handleImageUpload = (imageUrl: string) => {
+    setUploadedImages((prev) => [...prev, imageUrl]);
     const markdownImage = `![image](${imageUrl})`;
     editorRef.current?.insertAtCursor(markdownImage);
+  };
+
+  // 画像削除ハンドラー
+  const handleImageDelete = async (imageUrl: string) => {
+    await deleteImage(imageUrl);
+    setUploadedImages((prev) => prev.filter((url) => url !== imageUrl));
   };
 
   // ペーストによる画像アップロード
@@ -74,6 +82,7 @@ const PostEditPage = () => {
     setIsUploading(true);
     try {
       const imageUrl = await uploadImage(file);
+      setUploadedImages((prev) => [...prev, imageUrl]);
       const markdownImage = `![image](${imageUrl})`;
       editorRef.current?.insertAtCursor(markdownImage);
     } catch (err) {
@@ -109,6 +118,8 @@ const PostEditPage = () => {
         <ImageUploader
           onUploadComplete={handleImageUpload}
           uploadFunction={uploadImage}
+          uploadedImages={uploadedImages}
+          onDelete={handleImageDelete}
         />
       </div>
 
