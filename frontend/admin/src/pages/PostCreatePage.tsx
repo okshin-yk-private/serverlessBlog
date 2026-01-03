@@ -44,6 +44,8 @@ const PostCreatePage = () => {
   const handleImageDelete = async (imageUrl: string) => {
     await deleteImage(imageUrl);
     setUploadedImages((prev) => prev.filter((url) => url !== imageUrl));
+    // エディタからも画像タグを削除
+    editorRef.current?.removeImageUrl(imageUrl);
   };
 
   // ペーストによる画像アップロード

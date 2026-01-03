@@ -24,6 +24,7 @@ export interface PostData {
 
 export interface PostEditorHandle {
   insertAtCursor: (text: string) => void;
+  removeImageUrl: (imageUrl: string) => void;
 }
 
 interface PostEditorProps {
@@ -67,7 +68,7 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
 
     const [isSaving, setIsSaving] = useState(false);
 
-    // ref経由でinsertAtCursorメソッドを公開
+    // ref経由でinsertAtCursor, removeImageUrlメソッドを公開
     useImperativeHandle(ref, () => ({
       insertAtCursor: (text: string) => {
         const textarea = textareaRef.current;
@@ -86,6 +87,17 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
           textarea.selectionStart = textarea.selectionEnd = start + text.length;
           textarea.focus();
         });
+      },
+      removeImageUrl: (imageUrl: string) => {
+        // Markdown画像タグを削除: ![alt](url) または ![](url) 形式
+        // URLをエスケープして正規表現で安全に使用
+        const escapedUrl = imageUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const imagePattern = new RegExp(
+          `!\\[[^\\]]*\\]\\(${escapedUrl}\\)\\n?`,
+          'g'
+        );
+        const newContent = contentMarkdown.replace(imagePattern, '');
+        setContentMarkdown(newContent);
       },
     }));
 
