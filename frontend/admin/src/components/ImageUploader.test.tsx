@@ -5,9 +5,11 @@ import { ImageUploader } from './ImageUploader';
 
 describe('ImageUploader', () => {
   const mockOnUploadComplete = vi.fn();
+  const mockOnDelete = vi.fn();
 
   beforeEach(() => {
     mockOnUploadComplete.mockReset();
+    mockOnDelete.mockReset();
   });
 
   it('ファイル選択ボタンが表示される', () => {
@@ -322,5 +324,208 @@ describe('ImageUploader', () => {
       screen.queryByRole('button', { name: /アップロード/i })
     ).not.toBeInTheDocument();
     expect(mockUploadFn).not.toHaveBeenCalled();
+  });
+
+  describe('画像削除機能', () => {
+    const uploadedImages = [
+      'https://example.cloudfront.net/user-123/image1.jpg',
+      'https://example.cloudfront.net/user-123/image2.png',
+    ];
+
+    it('uploadedImagesを渡すとアップロード済み画像が表示される', () => {
+      render(
+        <ImageUploader
+          onUploadComplete={mockOnUploadComplete}
+          uploadedImages={uploadedImages}
+        />
+      );
+
+      expect(screen.getByTestId('uploaded-images-grid')).toBeInTheDocument();
+      expect(screen.getAllByTestId('uploaded-image')).toHaveLength(2);
+    });
+
+    it('onDeleteを渡すと削除ボタンが表示される', () => {
+      render(
+        <ImageUploader
+          onUploadComplete={mockOnUploadComplete}
+          uploadedImages={uploadedImages}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      expect(screen.getAllByTestId('delete-image-button')).toHaveLength(2);
+    });
+
+    it('onDeleteを渡さない場合、削除ボタンは表示されない', () => {
+      render(
+        <ImageUploader
+          onUploadComplete={mockOnUploadComplete}
+          uploadedImages={uploadedImages}
+        />
+      );
+
+      expect(
+        screen.queryByTestId('delete-image-button')
+      ).not.toBeInTheDocument();
+    });
+
+    it('削除ボタンをクリックすると確認ダイアログが表示される', async () => {
+      const user = userEvent.setup();
+      render(
+        <ImageUploader
+          onUploadComplete={mockOnUploadComplete}
+          uploadedImages={uploadedImages}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      const deleteButtons = screen.getAllByTestId('delete-image-button');
+      await user.click(deleteButtons[0]);
+
+      expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+      expect(screen.getByText(/この画像を削除しますか/i)).toBeInTheDocument();
+    });
+
+    it('確認ダイアログで「はい」をクリックするとonDeleteが呼ばれる', async () => {
+      const user = userEvent.setup();
+      mockOnDelete.mockResolvedValue(undefined);
+
+      render(
+        <ImageUploader
+          onUploadComplete={mockOnUploadComplete}
+          uploadedImages={uploadedImages}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      const deleteButtons = screen.getAllByTestId('delete-image-button');
+      await user.click(deleteButtons[0]);
+
+      const confirmButton = screen.getByTestId('confirm-yes');
+      await user.click(confirmButton);
+
+      await waitFor(() => {
+        expect(mockOnDelete).toHaveBeenCalledWith(uploadedImages[0]);
+      });
+    });
+
+    it('確認ダイアログで「いいえ」をクリックするとダイアログが閉じる', async () => {
+      const user = userEvent.setup();
+      render(
+        <ImageUploader
+          onUploadComplete={mockOnUploadComplete}
+          uploadedImages={uploadedImages}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      const deleteButtons = screen.getAllByTestId('delete-image-button');
+      await user.click(deleteButtons[0]);
+
+      expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+
+      const cancelButton = screen.getByTestId('confirm-no');
+      await user.click(cancelButton);
+
+      expect(screen.queryByTestId('confirm-dialog')).not.toBeInTheDocument();
+      expect(mockOnDelete).not.toHaveBeenCalled();
+    });
+
+    it('削除が失敗した場合、エラーメッセージが表示される', async () => {
+      const user = userEvent.setup();
+      mockOnDelete.mockRejectedValue(new Error('Delete failed'));
+
+      render(
+        <ImageUploader
+          onUploadComplete={mockOnUploadComplete}
+          uploadedImages={uploadedImages}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      const deleteButtons = screen.getAllByTestId('delete-image-button');
+      await user.click(deleteButtons[0]);
+
+      const confirmButton = screen.getByTestId('confirm-yes');
+      await user.click(confirmButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('delete-error-message')).toBeInTheDocument();
+        expect(
+          screen.getByText(/画像の削除に失敗しました/i)
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('削除成功後、確認ダイアログが閉じる', async () => {
+      const user = userEvent.setup();
+      mockOnDelete.mockResolvedValue(undefined);
+
+      render(
+        <ImageUploader
+          onUploadComplete={mockOnUploadComplete}
+          uploadedImages={uploadedImages}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      const deleteButtons = screen.getAllByTestId('delete-image-button');
+      await user.click(deleteButtons[0]);
+
+      expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+
+      const confirmButton = screen.getByTestId('confirm-yes');
+      await user.click(confirmButton);
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('confirm-dialog')).not.toBeInTheDocument();
+      });
+    });
+
+    it('uploadedImagesが空の場合、画像一覧は表示されない', () => {
+      render(
+        <ImageUploader
+          onUploadComplete={mockOnUploadComplete}
+          uploadedImages={[]}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      expect(
+        screen.queryByTestId('uploaded-images-grid')
+      ).not.toBeInTheDocument();
+    });
+
+    it('削除ボタンクリック時に以前のエラーがクリアされる', async () => {
+      const user = userEvent.setup();
+      mockOnDelete
+        .mockRejectedValueOnce(new Error('First delete failed'))
+        .mockResolvedValueOnce(undefined);
+
+      render(
+        <ImageUploader
+          onUploadComplete={mockOnUploadComplete}
+          uploadedImages={uploadedImages}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      // 最初の削除を失敗させる
+      const deleteButtons = screen.getAllByTestId('delete-image-button');
+      await user.click(deleteButtons[0]);
+      await user.click(screen.getByTestId('confirm-yes'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('delete-error-message')).toBeInTheDocument();
+      });
+
+      // 2回目の削除を試みる（エラーがクリアされることを確認）
+      await user.click(deleteButtons[1]);
+
+      // エラーメッセージがクリアされていることを確認
+      expect(
+        screen.queryByTestId('delete-error-message')
+      ).not.toBeInTheDocument();
+    });
   });
 });

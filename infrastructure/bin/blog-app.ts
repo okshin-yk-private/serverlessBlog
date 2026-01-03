@@ -81,6 +81,7 @@ const lambdaFunctionsStack = new LambdaFunctionsStack(
     imagesBucket: storageStack.imageBucket,
     restApi: apiStack.restApi,
     authorizer: apiStack.authorizer,
+    cloudFrontDomainName: cdnStack.distribution.distributionDomainName,
   }
 );
 

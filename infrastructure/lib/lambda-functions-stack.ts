@@ -15,6 +15,7 @@ export interface LambdaFunctionsStackProps extends cdk.StackProps {
   imagesBucket: s3.IBucket;
   restApi: apigateway.IRestApi;
   authorizer: apigateway.IAuthorizer;
+  cloudFrontDomainName: string;
 }
 
 export class LambdaFunctionsStack extends cdk.Stack {
@@ -25,6 +26,7 @@ export class LambdaFunctionsStack extends cdk.Stack {
   public readonly deletePostFunction: NodejsFunction;
   public readonly listPostsFunction: NodejsFunction;
   public readonly uploadUrlFunction: NodejsFunction;
+  public readonly deleteImageFunction: NodejsFunction;
 
   constructor(scope: Construct, id: string, props: LambdaFunctionsStackProps) {
     super(scope, id, props);
@@ -36,6 +38,7 @@ export class LambdaFunctionsStack extends cdk.Stack {
       imagesBucket,
       restApi,
       authorizer,
+      cloudFrontDomainName,
     } = props;
 
     // 共通のLambda関数設定
@@ -46,6 +49,7 @@ export class LambdaFunctionsStack extends cdk.Stack {
       environment: {
         TABLE_NAME: blogPostsTable.tableName,
         BUCKET_NAME: imagesBucket.bucketName,
+        CLOUDFRONT_DOMAIN: `https://${cloudFrontDomainName}`,
         POWERTOOLS_SERVICE_NAME: 'blog-platform',
         POWERTOOLS_METRICS_NAMESPACE: 'BlogPlatform',
         LOG_LEVEL: 'INFO',
@@ -206,6 +210,28 @@ export class LambdaFunctionsStack extends cdk.Stack {
     // S3への書き込み権限を付与
     imagesBucket.grantPut(this.uploadUrlFunction);
 
+    // DELETE /admin/images/{key+} - 画像削除
+    this.deleteImageFunction = new NodejsFunction(this, 'DeleteImageFunction', {
+      ...commonFunctionProps,
+      functionName: 'blog-delete-image',
+      entry: path.join(
+        __dirname,
+        '../../functions/images/deleteImage/handler.ts'
+      ),
+      handler: 'handler',
+      description: 'Delete image from S3',
+      bundling: {
+        externalModules: [
+          '@aws-lambda-powertools/logger',
+          '@aws-lambda-powertools/tracer',
+          '@aws-lambda-powertools/metrics',
+        ],
+      },
+    });
+
+    // S3からの削除権限を付与
+    imagesBucket.grantDelete(this.deleteImageFunction);
+
     // API Gatewayとの統合
 
     // /admin/posts リソース取得
@@ -282,6 +308,17 @@ export class LambdaFunctionsStack extends cdk.Stack {
       }
     );
 
+    // DELETE /admin/images/{key+} - 画像削除
+    const deleteImageResource = adminImagesResource.addResource('{key+}');
+    deleteImageResource.addMethod(
+      'DELETE',
+      new apigateway.LambdaIntegration(this.deleteImageFunction),
+      {
+        authorizer,
+        authorizationType: apigateway.AuthorizationType.COGNITO,
+      }
+    );
+
     // 公開API: /posts リソース取得
     const postsResource = restApi.root.getResource('posts');
     if (!postsResource) {
@@ -336,6 +373,7 @@ export class LambdaFunctionsStack extends cdk.Stack {
       this.listPostsFunction,
       this.getPublicPostFunction,
       this.uploadUrlFunction,
+      this.deleteImageFunction,
     ];
 
     lambdaFunctions.forEach((fn) => {
@@ -353,11 +391,12 @@ export class LambdaFunctionsStack extends cdk.Stack {
           {
             id: 'AwsSolutions-IAM5',
             reason:
-              'Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. These are minimal required permissions for the functions to operate.',
+              'Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.',
             appliesTo: [
               'Resource::*',
               'Resource::<BlogPostsTable95467250.Arn>/index/*',
               'Action::s3:Abort*',
+              'Action::s3:DeleteObject*',
               'Resource::<ImageBucket97210811.Arn>/*',
             ],
           },
@@ -409,6 +448,11 @@ export class LambdaFunctionsStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'UploadUrlFunctionArn', {
       value: this.uploadUrlFunction.functionArn,
       description: 'Upload URL Lambda Function ARN',
+    });
+
+    new cdk.CfnOutput(this, 'DeleteImageFunctionArn', {
+      value: this.deleteImageFunction.functionArn,
+      description: 'Delete Image Lambda Function ARN',
     });
   }
 }
