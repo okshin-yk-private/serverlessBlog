@@ -69,37 +69,43 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
     const [isSaving, setIsSaving] = useState(false);
 
     // ref経由でinsertAtCursor, removeImageUrlメソッドを公開
-    useImperativeHandle(ref, () => ({
-      insertAtCursor: (text: string) => {
-        const textarea = textareaRef.current;
-        if (!textarea) return;
+    // contentMarkdownを依存配列に含めることで、最新の値を参照できるようにする
+    useImperativeHandle(
+      ref,
+      () => ({
+        insertAtCursor: (text: string) => {
+          const textarea = textareaRef.current;
+          if (!textarea) return;
 
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const before = contentMarkdown.substring(0, start);
-        const after = contentMarkdown.substring(end);
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const before = contentMarkdown.substring(0, start);
+          const after = contentMarkdown.substring(end);
 
-        const newContent = before + text + after;
-        setContentMarkdown(newContent);
+          const newContent = before + text + after;
+          setContentMarkdown(newContent);
 
-        // カーソル位置を挿入テキストの末尾に移動
-        requestAnimationFrame(() => {
-          textarea.selectionStart = textarea.selectionEnd = start + text.length;
-          textarea.focus();
-        });
-      },
-      removeImageUrl: (imageUrl: string) => {
-        // Markdown画像タグを削除: ![alt](url) または ![](url) 形式
-        // URLをエスケープして正規表現で安全に使用
-        const escapedUrl = imageUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const imagePattern = new RegExp(
-          `!\\[[^\\]]*\\]\\(${escapedUrl}\\)\\n?`,
-          'g'
-        );
-        const newContent = contentMarkdown.replace(imagePattern, '');
-        setContentMarkdown(newContent);
-      },
-    }));
+          // カーソル位置を挿入テキストの末尾に移動
+          requestAnimationFrame(() => {
+            textarea.selectionStart = textarea.selectionEnd =
+              start + text.length;
+            textarea.focus();
+          });
+        },
+        removeImageUrl: (imageUrl: string) => {
+          // Markdown画像タグを削除: ![alt](url) または ![](url) 形式
+          // URLをエスケープして正規表現で安全に使用
+          const escapedUrl = imageUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const imagePattern = new RegExp(
+            `!\\[[^\\]]*\\]\\(${escapedUrl}\\)\\n?`,
+            'g'
+          );
+          const newContent = contentMarkdown.replace(imagePattern, '');
+          setContentMarkdown(newContent);
+        },
+      }),
+      [contentMarkdown]
+    );
 
     // 画像ペーストハンドラ
     const handlePaste = async (e: ClipboardEvent<HTMLTextAreaElement>) => {
