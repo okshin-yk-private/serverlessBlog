@@ -111,3 +111,9 @@ codegen-units = 1
 panic = "abort"
 strip = true
 
+# CI/CD optimized profile: faster builds with acceptable binary size
+[profile.release-fast]
+inherits = "release"
+lto = "thin"           # Faster than full LTO, slightly larger binaries
+codegen-units = 16     # Parallel compilation
+
