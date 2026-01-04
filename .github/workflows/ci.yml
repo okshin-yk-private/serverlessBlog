@@ -206,12 +206,25 @@ jobs:
           toolchain: "1.92"
           components: rustfmt, clippy
 
-      - name: Cache Cargo dependencies
+      # Hybrid Cache Strategy (matches deploy.yml)
+      - name: Cache Cargo registry and git
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-deps-${{ hashFiles('rust-functions/Cargo.lock') }}
+          restore-keys: |
+            cargo-deps-
+
+      - name: Cache Cargo build artifacts
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "rust-functions -> target"
-          shared-key: "rust-lambda-deps"
+          prefix-key: "v1-rust"
+          shared-key: "ci-lint"
           cache-on-failure: true
+          cache-all-crates: "true"
 
       - name: Check formatting
         working-directory: rust-functions
@@ -241,12 +254,25 @@ jobs:
         with:
           toolchain: "1.92"
 
-      - name: Cache Cargo dependencies
+      # Hybrid Cache Strategy (matches deploy.yml)
+      - name: Cache Cargo registry and git
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-deps-${{ hashFiles('rust-functions/Cargo.lock') }}
+          restore-keys: |
+            cargo-deps-
+
+      - name: Cache Cargo build artifacts
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "rust-functions -> target"
-          shared-key: "rust-lambda-deps"
+          prefix-key: "v1-rust"
+          shared-key: "ci-tests"
           cache-on-failure: true
+          cache-all-crates: "true"
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
