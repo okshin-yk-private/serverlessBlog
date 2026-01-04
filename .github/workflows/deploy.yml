@@ -104,31 +104,19 @@ jobs:
           cache-on-failure: true
 
       # =======================================
-      # Rust Lambda Pre-build (individual builds for correct output structure)
+      # Rust Lambda Pre-build (parallel builds for speed)
       # =======================================
       - name: Build all Rust Lambdas
         working-directory: rust-functions
         run: |
-          echo "Building all Rust Lambda functions..."
-          # Build each Lambda individually to ensure correct output structure
+          echo "Building all Rust Lambda functions in parallel..."
+          # Build each Lambda individually but in parallel (4 concurrent builds)
           # Each package creates target/lambda/<package-name>/bootstrap
-          PACKAGES=(
-            "create_post"
-            "get_post"
-            "get_public_post"
-            "list_posts"
-            "update_post"
-            "delete_post"
-            "get_upload_url"
-            "delete_image"
-            "login"
-            "logout"
-            "refresh"
-          )
-          for pkg in "${PACKAGES[@]}"; do
-            echo "Building $pkg..."
-            cargo lambda build --profile release-fast --arm64 --package "$pkg"
-          done
+          printf '%s\n' \
+            create_post get_post get_public_post list_posts \
+            update_post delete_post get_upload_url delete_image \
+            login logout refresh \
+          | xargs -P 4 -I {} sh -c 'echo "Building {}..." && cargo lambda build --profile release-fast --arm64 --package {}'
           echo "✓ All Rust Lambdas built"
           ls -la target/lambda/
 
