@@ -209,7 +209,8 @@ jobs:
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: rust-functions
+          workspaces: "rust-functions -> target"
+          shared-key: "rust-lambda-deps"
           cache-on-failure: true
 
       - name: Check formatting
@@ -243,7 +244,8 @@ jobs:
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: rust-functions
+          workspaces: "rust-functions -> target"
+          shared-key: "rust-lambda-deps"
           cache-on-failure: true
 
       - name: Install cargo-nextest

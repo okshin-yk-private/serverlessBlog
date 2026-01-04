@@ -10,8 +10,7 @@
 # - PRでCI実行（ci.yml）
 # - developまたはmainへのマージ後にデプロイ実行（このワークフロー）
 #
-# DRY原則に基づき、単一のdeployジョブで全環境に対応
-# 各ブランチのEnvironment Secretsに AWS_ROLE_ARN を設定
+# 最適化: sccache + Matrix並列ビルドで高速化
 
 name: Deploy to AWS
 
@@ -20,23 +19,123 @@ on:
     branches:
       - develop
       - main
+  workflow_dispatch:
+    inputs:
+      force_rust_rebuild:
+        description: 'Force rebuild all Rust Lambdas (ignore cache)'
+        required: false
+        default: false
+        type: boolean
 
 # AWS OIDC認証のための権限設定
 permissions:
   id-token: write  # OIDCトークン取得に必要
   contents: read   # リポジトリの読み取りに必要
+  actions: read    # sccache用
 
 jobs:
+  # =======================================
+  # Build Rust Lambdas Job (Matrix Parallel)
+  # =======================================
+  build-rust-lambdas:
+    name: Build ${{ matrix.lambda }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Posts domain
+          - lambda: create_post
+            path: posts/create_post
+          - lambda: get_post
+            path: posts/get_post
+          - lambda: get_public_post
+            path: posts/get_public_post
+          - lambda: list_posts
+            path: posts/list_posts
+          - lambda: update_post
+            path: posts/update_post
+          - lambda: delete_post
+            path: posts/delete_post
+          # Auth domain
+          - lambda: login
+            path: auth/login
+          - lambda: logout
+            path: auth/logout
+          - lambda: refresh
+            path: auth/refresh
+          # Images domain
+          - lambda: get_upload_url
+            path: images/get_upload_url
+          - lambda: delete_image
+            path: images/delete_image
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.92"
+          targets: aarch64-unknown-linux-gnu
+
+      - name: Install Cargo Lambda
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-lambda
+
+      - name: Install Zig (cross-compilation for ARM64)
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
+      # sccache for shared compilation cache across matrix jobs
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.7
+
+      - name: Configure sccache
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+
+      - name: Build Lambda ${{ matrix.lambda }}
+        working-directory: rust-functions
+        run: |
+          echo "========================================="
+          echo "Building Lambda: ${{ matrix.lambda }}"
+          echo "========================================="
+
+          cargo lambda build --profile release-fast --arm64 --package ${{ matrix.lambda }}
+
+          # Rename binary to "bootstrap" as required by Lambda runtime
+          if [ -f "target/lambda/${{ matrix.lambda }}/${{ matrix.lambda }}" ]; then
+            mv "target/lambda/${{ matrix.lambda }}/${{ matrix.lambda }}" "target/lambda/${{ matrix.lambda }}/bootstrap"
+          fi
+
+          echo "✓ Build complete"
+          ls -la target/lambda/${{ matrix.lambda }}/
+
+      - name: Show sccache stats
+        run: sccache --show-stats
+
+      - name: Upload Lambda artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda-${{ matrix.lambda }}
+          path: rust-functions/target/lambda/${{ matrix.lambda }}/bootstrap
+          retention-days: 1
+          if-no-files-found: error
+
   # =======================================
   # Deploy Infrastructure Job
   # =======================================
   deploy-infrastructure:
     name: Deploy Infrastructure to ${{ github.ref == 'refs/heads/main' && 'Production' || 'Development' }}
     runs-on: ubuntu-latest
+    needs: build-rust-lambdas
     environment:
-      # ブランチ名から環境名を動的に決定: develop → dev, main → prod
       name: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
-      # CloudFront URLはデプロイ後のサマリーで表示されます
 
     steps:
       - name: Checkout code
@@ -79,58 +178,45 @@ jobs:
         run: bun install --frozen-lockfile
 
       # =======================================
-      # Rust Lambda Build Setup
+      # Download Pre-built Lambda Artifacts
       # =======================================
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
+      - name: Download all Lambda artifacts
+        uses: actions/download-artifact@v4
         with:
-          toolchain: "1.92"
-          targets: aarch64-unknown-linux-gnu
+          path: rust-functions/target/lambda
+          pattern: lambda-*
+          merge-multiple: false
 
-      - name: Install Cargo Lambda
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-lambda
-
-      - name: Install Zig (cross-compilation for ARM64)
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.14.0
-
-      - name: Cache Cargo dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust-functions
-          cache-on-failure: true
-
-      # =======================================
-      # Rust Lambda Pre-build (workspace parallel build)
-      # =======================================
-      - name: Build all Rust Lambdas
-        working-directory: rust-functions
+      - name: Organize Lambda binaries
         run: |
-          echo "Building all Rust Lambda functions in parallel..."
-          # Use cargo's internal parallelism for fast compilation
-          # Each package now has a unique binary name (no collision)
-          cargo lambda build --profile release-fast --arm64 --workspace
+          echo "========================================="
+          echo "Organizing Lambda binaries"
+          echo "========================================="
 
-          # Rename binaries to "bootstrap" as required by Lambda runtime
-          echo "Renaming binaries to bootstrap..."
-          for dir in target/lambda/*/; do
-            pkg=$(basename "$dir")
-            if [ -f "$dir/$pkg" ]; then
-              mv "$dir/$pkg" "$dir/bootstrap"
-              echo "  $pkg -> bootstrap"
+          cd rust-functions/target/lambda
+
+          # Move binaries from artifact directories to expected structure
+          for dir in lambda-*/; do
+            lambda_name="${dir#lambda-}"
+            lambda_name="${lambda_name%/}"
+
+            if [ -f "$dir/bootstrap" ]; then
+              mkdir -p "$lambda_name"
+              mv "$dir/bootstrap" "$lambda_name/bootstrap"
+              echo "✓ $lambda_name"
             fi
           done
 
-          echo "✓ All Rust Lambdas built"
-          ls -la target/lambda/
+          # Clean up artifact directories
+          rm -rf lambda-*/
+
+          echo ""
+          echo "Lambda binaries ready:"
+          ls -la */
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          # 各環境のEnvironment SecretからAWS_ROLE_ARNを取得
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
           role-session-name: GitHubActions-Deploy-${{ steps.env.outputs.stage }}
@@ -163,7 +249,6 @@ jobs:
       - name: CDK Bootstrap (if needed)
         working-directory: infrastructure
         env:
-          # DEV環境Basic認証用の環境変数（Parameter Storeから取得）
           BASIC_AUTH_USERNAME: ${{ steps.basic-auth.outputs.username }}
           BASIC_AUTH_PASSWORD: ${{ steps.basic-auth.outputs.password }}
         run: |
@@ -174,7 +259,6 @@ jobs:
           echo "Region: ${{ vars.AWS_REGION }}"
           echo ""
 
-          # Bootstrap実行
           if bunx cdk bootstrap aws://${{ steps.aws-account.outputs.account-id }}/${{ vars.AWS_REGION }}; then
             echo "✓ CDK Bootstrap successful"
           else
@@ -190,7 +274,6 @@ jobs:
       - name: CDK Deploy
         working-directory: infrastructure
         env:
-          # DEV環境Basic認証用の環境変数（Parameter Storeから取得）
           BASIC_AUTH_USERNAME: ${{ steps.basic-auth.outputs.username }}
           BASIC_AUTH_PASSWORD: ${{ steps.basic-auth.outputs.password }}
         run: |
@@ -277,17 +360,10 @@ jobs:
       - name: Extract Stack Outputs
         id: outputs
         run: |
-          # Storage Stack outputs
           PUBLIC_BUCKET=$(jq -r '.ServerlessBlogStorageStack.PublicSiteBucketName' cdk-outputs.json)
-
-          # CDN Stack outputs
           PUBLIC_DIST_ID=$(jq -r '.ServerlessBlogCdnStack.PublicSiteDistributionId' cdk-outputs.json)
           PUBLIC_DIST_DOMAIN=$(jq -r '.ServerlessBlogCdnStack.PublicSiteDistributionDomainName' cdk-outputs.json)
-
-          # API Stack outputs
           API_ENDPOINT=$(jq -r '.ServerlessBlogApiStack.ApiEndpoint' cdk-outputs.json)
-
-          # Auth Stack outputs
           USER_POOL_ID=$(jq -r '.ServerlessBlogAuthStack.UserPoolId' cdk-outputs.json)
 
           echo "public-bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
@@ -323,13 +399,11 @@ jobs:
           echo "========================================="
           echo "Deploying Public Site to S3"
           echo "========================================="
-          # 静的アセット（JS/CSS/画像）を1年キャッシュ
           aws s3 sync frontend/public/dist/ s3://${{ steps.outputs.outputs.public-bucket }}/ \
             --delete \
             --cache-control "public,max-age=31536000,immutable" \
             --exclude "index.html" \
             --exclude "*.map"
-          # index.htmlは即時更新
           aws s3 cp frontend/public/dist/index.html s3://${{ steps.outputs.outputs.public-bucket }}/ \
             --cache-control "public,max-age=0,must-revalidate"
           echo "✓ Public Site deployed to S3"
@@ -404,17 +478,10 @@ jobs:
       - name: Extract Stack Outputs
         id: outputs
         run: |
-          # Storage Stack outputs
           ADMIN_BUCKET=$(jq -r '.ServerlessBlogStorageStack.AdminSiteBucketName' cdk-outputs.json)
-
-          # CDN Stack outputs
           ADMIN_DIST_ID=$(jq -r '.ServerlessBlogCdnStack.AdminSiteDistributionId' cdk-outputs.json)
           ADMIN_DIST_DOMAIN=$(jq -r '.ServerlessBlogCdnStack.AdminSiteDistributionDomainName' cdk-outputs.json)
-
-          # API Stack outputs
           API_ENDPOINT=$(jq -r '.ServerlessBlogApiStack.ApiEndpoint' cdk-outputs.json)
-
-          # Auth Stack outputs
           USER_POOL_ID=$(jq -r '.ServerlessBlogAuthStack.UserPoolId' cdk-outputs.json)
           USER_POOL_CLIENT_ID=$(jq -r '.ServerlessBlogAuthStack.UserPoolClientId' cdk-outputs.json)
 
@@ -453,13 +520,11 @@ jobs:
           echo "========================================="
           echo "Deploying Admin Site to S3"
           echo "========================================="
-          # 静的アセット（JS/CSS/画像）を1年キャッシュ
           aws s3 sync frontend/admin/dist/ s3://${{ steps.outputs.outputs.admin-bucket }}/ \
             --delete \
             --cache-control "public,max-age=31536000,immutable" \
             --exclude "index.html" \
             --exclude "*.map"
-          # index.htmlは即時更新
           aws s3 cp frontend/admin/dist/index.html s3://${{ steps.outputs.outputs.admin-bucket }}/ \
             --cache-control "public,max-age=0,must-revalidate"
           echo "✓ Admin Site deployed to S3"
