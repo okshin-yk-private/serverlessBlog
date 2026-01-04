@@ -8,7 +8,7 @@ rust-version.workspace = true
 description = "Lambda function for retrieving a public blog post"
 
 [[bin]]
-name = "bootstrap"
+name = "get_public_post"
 path = "src/main.rs"
 
 [dependencies]

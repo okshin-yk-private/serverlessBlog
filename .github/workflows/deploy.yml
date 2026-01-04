@@ -104,19 +104,26 @@ jobs:
           cache-on-failure: true
 
       # =======================================
-      # Rust Lambda Pre-build (parallel builds for speed)
+      # Rust Lambda Pre-build (workspace parallel build)
       # =======================================
       - name: Build all Rust Lambdas
         working-directory: rust-functions
         run: |
           echo "Building all Rust Lambda functions in parallel..."
-          # Build each Lambda individually but in parallel (4 concurrent builds)
-          # Each package creates target/lambda/<package-name>/bootstrap
-          printf '%s\n' \
-            create_post get_post get_public_post list_posts \
-            update_post delete_post get_upload_url delete_image \
-            login logout refresh \
-          | xargs -P 4 -I {} sh -c 'echo "Building {}..." && cargo lambda build --profile release-fast --arm64 --package {}'
+          # Use cargo's internal parallelism for fast compilation
+          # Each package now has a unique binary name (no collision)
+          cargo lambda build --profile release-fast --arm64 --workspace
+
+          # Rename binaries to "bootstrap" as required by Lambda runtime
+          echo "Renaming binaries to bootstrap..."
+          for dir in target/lambda/*/; do
+            pkg=$(basename "$dir")
+            if [ -f "$dir/$pkg" ]; then
+              mv "$dir/$pkg" "$dir/bootstrap"
+              echo "  $pkg -> bootstrap"
+            fi
+          done
+
           echo "✓ All Rust Lambdas built"
           ls -la target/lambda/
 

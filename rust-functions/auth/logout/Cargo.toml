@@ -8,7 +8,7 @@ rust-version.workspace = true
 description = "Lambda function for user logout (global sign out)"
 
 [[bin]]
-name = "bootstrap"
+name = "logout"
 path = "src/main.rs"
 
 [dependencies]

@@ -8,7 +8,7 @@ rust-version.workspace = true
 description = "Lambda function for generating S3 pre-signed upload URLs"
 
 [[bin]]
-name = "bootstrap"
+name = "get_upload_url"
 path = "src/main.rs"
 
 [dependencies]

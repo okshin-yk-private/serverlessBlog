@@ -8,7 +8,7 @@ rust-version.workspace = true
 description = "Lambda function for deleting images from S3"
 
 [[bin]]
-name = "bootstrap"
+name = "delete_image"
 path = "src/main.rs"
 
 [dependencies]

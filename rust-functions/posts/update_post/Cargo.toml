@@ -8,7 +8,7 @@ rust-version.workspace = true
 description = "Lambda function for updating a blog post"
 
 [[bin]]
-name = "bootstrap"
+name = "update_post"
 path = "src/main.rs"
 
 [dependencies]

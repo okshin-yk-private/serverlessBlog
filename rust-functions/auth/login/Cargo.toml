@@ -8,7 +8,7 @@ rust-version.workspace = true
 description = "Lambda function for user authentication"
 
 [[bin]]
-name = "bootstrap"
+name = "login"
 path = "src/main.rs"
 
 [dependencies]

@@ -8,7 +8,7 @@ rust-version.workspace = true
 description = "Lambda function for deleting a blog post and its images"
 
 [[bin]]
-name = "bootstrap"
+name = "delete_post"
 path = "src/main.rs"
 
 [dependencies]

@@ -8,7 +8,7 @@ rust-version.workspace = true
 description = "Lambda function for refreshing authentication tokens"
 
 [[bin]]
-name = "bootstrap"
+name = "refresh"
 path = "src/main.rs"
 
 [dependencies]
