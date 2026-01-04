@@ -11,6 +11,7 @@ import { ApiStack } from '../lib/api-stack';
 import { CdnStack } from '../lib/cdn-stack';
 import { LambdaFunctionsStack } from '../lib/lambda-functions-stack';
 import { RustLambdaStack } from '../lib/rust-lambda-stack';
+import { ApiIntegrationsStack } from '../lib/api-integrations-stack';
 import { MonitoringStack } from '../lib/monitoring-stack';
 
 /**
@@ -79,8 +80,7 @@ const cdnStack = new CdnStack(app, 'ServerlessBlogCdnStack', {
 });
 
 // Lambda Functions Stack (Node.js)
-// Note: Always keep createApiIntegrations: true to avoid CloudFormation export deletion errors
-// The API Gateway integrations will be switched to Rust in a future migration step
+// API integrations are handled by ApiIntegrationsStack
 const lambdaFunctionsStack = new LambdaFunctionsStack(
   app,
   'ServerlessBlogLambdaFunctionsStack',
@@ -93,13 +93,12 @@ const lambdaFunctionsStack = new LambdaFunctionsStack(
     restApi: apiStack.restApi,
     authorizer: apiStack.authorizer,
     cloudFrontDomainName: cdnStack.distribution.distributionDomainName,
-    createApiIntegrations: true, // Keep Node.js API integrations active
+    createApiIntegrations: false, // API integrations handled by ApiIntegrationsStack
   }
 );
 
-// Rust Lambda Functions Stack (optional, based on rustTrafficPercent)
-// Deploy Rust functions without API integrations for now
-// API traffic routing will be handled separately
+// Rust Lambda Functions Stack (always deployed when rustTrafficPercent > 0)
+// API integrations are handled by ApiIntegrationsStack
 let rustLambdaStack: RustLambdaStack | undefined;
 if (useRustLambda) {
   rustLambdaStack = new RustLambdaStack(app, 'ServerlessBlogRustLambdaStack', {
@@ -111,9 +110,50 @@ if (useRustLambda) {
     userPoolId: authStack.userPool.userPoolId,
     userPoolClientId: authStack.userPoolClient.userPoolClientId,
     cloudFrontDomainName: cdnStack.distribution.distributionDomainName,
-    createApiIntegrations: false, // Don't create API integrations (Node.js handles API for now)
+    createApiIntegrations: false, // API integrations handled by ApiIntegrationsStack
   });
 }
+
+// API Integrations Stack
+// This stack handles all API Gateway method integrations
+// It selects between Node.js and Rust Lambda functions based on useRustLambda
+const apiIntegrationsStack = new ApiIntegrationsStack(
+  app,
+  'ServerlessBlogApiIntegrationsStack',
+  {
+    env,
+    restApi: apiStack.restApi,
+    authorizer: apiStack.authorizer,
+    lambdaFunctions:
+      useRustLambda && rustLambdaStack
+        ? {
+            // Use Rust Lambda functions
+            createPostFunction: rustLambdaStack.createPostRustFunction,
+            getPostFunction: rustLambdaStack.getPostRustFunction,
+            getPublicPostFunction: rustLambdaStack.getPublicPostRustFunction,
+            listPostsFunction: rustLambdaStack.listPostsRustFunction,
+            updatePostFunction: rustLambdaStack.updatePostRustFunction,
+            deletePostFunction: rustLambdaStack.deletePostRustFunction,
+            uploadUrlFunction: rustLambdaStack.getUploadUrlRustFunction,
+            deleteImageFunction: rustLambdaStack.deleteImageRustFunction,
+            loginFunction: rustLambdaStack.loginRustFunction,
+            logoutFunction: rustLambdaStack.logoutRustFunction,
+            refreshFunction: rustLambdaStack.refreshRustFunction,
+          }
+        : {
+            // Use Node.js Lambda functions
+            createPostFunction: lambdaFunctionsStack.createPostFunction,
+            getPostFunction: lambdaFunctionsStack.getPostFunction,
+            getPublicPostFunction: lambdaFunctionsStack.getPublicPostFunction,
+            listPostsFunction: lambdaFunctionsStack.listPostsFunction,
+            updatePostFunction: lambdaFunctionsStack.updatePostFunction,
+            deletePostFunction: lambdaFunctionsStack.deletePostFunction,
+            uploadUrlFunction: lambdaFunctionsStack.uploadUrlFunction,
+            deleteImageFunction: lambdaFunctionsStack.deleteImageFunction,
+          },
+    implementationLabel: useRustLambda ? 'Rust' : 'Node.js',
+  }
+);
 
 // Collect Lambda functions for monitoring
 // Include both Node.js functions (always) and Rust functions (when enabled)

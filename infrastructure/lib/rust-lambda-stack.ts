@@ -7,6 +7,23 @@ import { Construct } from 'constructs';
 import { NagSuppressions } from 'cdk-nag';
 import { RustFunction } from 'cargo-lambda-cdk';
 import * as path from 'path';
+import * as fs from 'fs';
+
+// Pre-built Lambda binaries path
+const lambdaTargetPath = path.join(
+  __dirname,
+  '../../rust-functions/target/lambda'
+);
+
+/**
+ * Check if pre-built binaries should be used:
+ * - CI environment (GitHub Actions sets CI=true)
+ * - AND target/lambda directory exists (built by cargo lambda build --workspace)
+ *
+ * This allows tests to run before Rust build in CI pipeline.
+ */
+const usePrebuiltBinaries =
+  process.env.CI === 'true' && fs.existsSync(lambdaTargetPath);
 
 /**
  * RustLambdaStack - Rust Lambda Functions for Serverless Blog
@@ -73,7 +90,7 @@ export class RustLambdaStack extends cdk.Stack {
       RUST_LOG: 'info',
     };
 
-    // Common bundling configuration for ARM64
+    // Common bundling configuration for ARM64 (used in local development)
     const commonBundling = {
       architecture: lambda.Architecture.ARM_64,
       cargoLambdaFlags: ['--release'],
@@ -82,103 +99,127 @@ export class RustLambdaStack extends cdk.Stack {
     // Rust functions base path
     const rustFunctionsPath = path.join(__dirname, '../../rust-functions');
 
+    /**
+     * Helper function to create Rust Lambda functions
+     * - CI (after build): Uses pre-built binaries from cargo lambda build --workspace
+     * - Local/CI (before build): Uses cargo-lambda-cdk RustFunction for on-demand building
+     */
+    const createRustLambda = (
+      id: string,
+      binaryName: string,
+      manifestSubPath: string,
+      options: {
+        functionName: string;
+        description: string;
+        memorySize?: number;
+        timeout?: cdk.Duration;
+      }
+    ): lambda.IFunction => {
+      /* istanbul ignore if -- @preserve CI deployment path tested via E2E, requires pre-built binaries */
+      if (usePrebuiltBinaries) {
+        // CI: Use pre-built binaries for faster deployment
+        return new lambda.Function(this, id, {
+          runtime: lambda.Runtime.PROVIDED_AL2023,
+          architecture: lambda.Architecture.ARM_64,
+          handler: 'bootstrap',
+          code: lambda.Code.fromAsset(path.join(lambdaTargetPath, binaryName)),
+          functionName: options.functionName,
+          description: options.description,
+          memorySize: options.memorySize ?? 128,
+          timeout: options.timeout ?? cdk.Duration.seconds(30),
+          tracing: lambda.Tracing.ACTIVE,
+          environment: commonEnvironment,
+        });
+      } else {
+        // Local: Use cargo-lambda-cdk for on-demand building
+        return new RustFunction(this, id, {
+          manifestPath: path.join(rustFunctionsPath, manifestSubPath),
+          bundling: commonBundling,
+          functionName: options.functionName,
+          description: options.description,
+          memorySize: options.memorySize ?? 128,
+          timeout: options.timeout ?? cdk.Duration.seconds(30),
+          tracing: lambda.Tracing.ACTIVE,
+          environment: commonEnvironment,
+        });
+      }
+    };
+
     // ===================
     // Posts Domain Functions
     // ===================
 
     // POST /admin/posts - Create Post (Rust)
-    this.createPostRustFunction = new RustFunction(this, 'CreatePostRust', {
-      manifestPath: path.join(rustFunctionsPath, 'posts/create_post'),
-      bundling: commonBundling,
-      functionName: 'blog-create-post-rust',
-      description:
-        'Create new blog post with Markdown to HTML conversion (Rust)',
-      memorySize: 128,
-      timeout: cdk.Duration.seconds(30),
-      tracing: lambda.Tracing.ACTIVE,
-      environment: commonEnvironment,
-    });
-
-    // Grant DynamoDB write permissions
+    this.createPostRustFunction = createRustLambda(
+      'CreatePostRust',
+      'create_post',
+      'posts/create_post',
+      {
+        functionName: 'blog-create-post-rust',
+        description:
+          'Create new blog post with Markdown to HTML conversion (Rust)',
+      }
+    );
     blogPostsTable.grantWriteData(this.createPostRustFunction);
 
     // GET /admin/posts/{id} - Get Post (Rust)
-    this.getPostRustFunction = new RustFunction(this, 'GetPostRust', {
-      manifestPath: path.join(rustFunctionsPath, 'posts/get_post'),
-      bundling: commonBundling,
-      functionName: 'blog-get-post-rust',
-      description: 'Get blog post by ID (admin, includes markdown) (Rust)',
-      memorySize: 128,
-      timeout: cdk.Duration.seconds(30),
-      tracing: lambda.Tracing.ACTIVE,
-      environment: commonEnvironment,
-    });
-
-    // Grant DynamoDB read permissions
+    this.getPostRustFunction = createRustLambda(
+      'GetPostRust',
+      'get_post',
+      'posts/get_post',
+      {
+        functionName: 'blog-get-post-rust',
+        description: 'Get blog post by ID (admin, includes markdown) (Rust)',
+      }
+    );
     blogPostsTable.grantReadData(this.getPostRustFunction);
 
     // GET /posts/{id} - Get Public Post (Rust)
-    this.getPublicPostRustFunction = new RustFunction(
-      this,
+    this.getPublicPostRustFunction = createRustLambda(
       'GetPublicPostRust',
+      'get_public_post',
+      'posts/get_public_post',
       {
-        manifestPath: path.join(rustFunctionsPath, 'posts/get_public_post'),
-        bundling: commonBundling,
         functionName: 'blog-get-public-post-rust',
         description: 'Get published blog post by ID (public, HTML only) (Rust)',
-        memorySize: 128,
-        timeout: cdk.Duration.seconds(30),
-        tracing: lambda.Tracing.ACTIVE,
-        environment: commonEnvironment,
       }
     );
-
-    // Grant DynamoDB read permissions
     blogPostsTable.grantReadData(this.getPublicPostRustFunction);
 
     // GET /posts - List Posts (Rust)
-    this.listPostsRustFunction = new RustFunction(this, 'ListPostsRust', {
-      manifestPath: path.join(rustFunctionsPath, 'posts/list_posts'),
-      bundling: commonBundling,
-      functionName: 'blog-list-posts-rust',
-      description: 'List published blog posts (Rust)',
-      memorySize: 128,
-      timeout: cdk.Duration.seconds(30),
-      tracing: lambda.Tracing.ACTIVE,
-      environment: commonEnvironment,
-    });
-
-    // Grant DynamoDB read permissions
+    this.listPostsRustFunction = createRustLambda(
+      'ListPostsRust',
+      'list_posts',
+      'posts/list_posts',
+      {
+        functionName: 'blog-list-posts-rust',
+        description: 'List published blog posts (Rust)',
+      }
+    );
     blogPostsTable.grantReadData(this.listPostsRustFunction);
 
     // PUT /admin/posts/{id} - Update Post (Rust)
-    this.updatePostRustFunction = new RustFunction(this, 'UpdatePostRust', {
-      manifestPath: path.join(rustFunctionsPath, 'posts/update_post'),
-      bundling: commonBundling,
-      functionName: 'blog-update-post-rust',
-      description: 'Update existing blog post (Rust)',
-      memorySize: 128,
-      timeout: cdk.Duration.seconds(30),
-      tracing: lambda.Tracing.ACTIVE,
-      environment: commonEnvironment,
-    });
-
-    // Grant DynamoDB read/write permissions
+    this.updatePostRustFunction = createRustLambda(
+      'UpdatePostRust',
+      'update_post',
+      'posts/update_post',
+      {
+        functionName: 'blog-update-post-rust',
+        description: 'Update existing blog post (Rust)',
+      }
+    );
     blogPostsTable.grantReadWriteData(this.updatePostRustFunction);
 
     // DELETE /admin/posts/{id} - Delete Post (Rust)
-    this.deletePostRustFunction = new RustFunction(this, 'DeletePostRust', {
-      manifestPath: path.join(rustFunctionsPath, 'posts/delete_post'),
-      bundling: commonBundling,
-      functionName: 'blog-delete-post-rust',
-      description: 'Delete blog post (Rust)',
-      memorySize: 128,
-      timeout: cdk.Duration.seconds(30),
-      tracing: lambda.Tracing.ACTIVE,
-      environment: commonEnvironment,
-    });
-
-    // Grant DynamoDB read/write and S3 delete permissions
+    this.deletePostRustFunction = createRustLambda(
+      'DeletePostRust',
+      'delete_post',
+      'posts/delete_post',
+      {
+        functionName: 'blog-delete-post-rust',
+        description: 'Delete blog post (Rust)',
+      }
+    );
     blogPostsTable.grantReadWriteData(this.deletePostRustFunction);
     imagesBucket.grantDelete(this.deletePostRustFunction);
 
@@ -187,73 +228,64 @@ export class RustLambdaStack extends cdk.Stack {
     // ===================
 
     // POST /auth/login - Login (Rust)
-    this.loginRustFunction = new RustFunction(this, 'LoginRust', {
-      manifestPath: path.join(rustFunctionsPath, 'auth/login'),
-      bundling: commonBundling,
-      functionName: 'blog-login-rust',
-      description: 'User authentication (Rust)',
-      memorySize: 128,
-      timeout: cdk.Duration.seconds(30),
-      tracing: lambda.Tracing.ACTIVE,
-      environment: commonEnvironment,
-    });
+    this.loginRustFunction = createRustLambda(
+      'LoginRust',
+      'login',
+      'auth/login',
+      {
+        functionName: 'blog-login-rust',
+        description: 'User authentication (Rust)',
+      }
+    );
 
     // POST /auth/logout - Logout (Rust)
-    this.logoutRustFunction = new RustFunction(this, 'LogoutRust', {
-      manifestPath: path.join(rustFunctionsPath, 'auth/logout'),
-      bundling: commonBundling,
-      functionName: 'blog-logout-rust',
-      description: 'User logout (Rust)',
-      memorySize: 128,
-      timeout: cdk.Duration.seconds(30),
-      tracing: lambda.Tracing.ACTIVE,
-      environment: commonEnvironment,
-    });
+    this.logoutRustFunction = createRustLambda(
+      'LogoutRust',
+      'logout',
+      'auth/logout',
+      {
+        functionName: 'blog-logout-rust',
+        description: 'User logout (Rust)',
+      }
+    );
 
     // POST /auth/refresh - Refresh Token (Rust)
-    this.refreshRustFunction = new RustFunction(this, 'RefreshRust', {
-      manifestPath: path.join(rustFunctionsPath, 'auth/refresh'),
-      bundling: commonBundling,
-      functionName: 'blog-refresh-rust',
-      description: 'Token refresh (Rust)',
-      memorySize: 128,
-      timeout: cdk.Duration.seconds(30),
-      tracing: lambda.Tracing.ACTIVE,
-      environment: commonEnvironment,
-    });
+    this.refreshRustFunction = createRustLambda(
+      'RefreshRust',
+      'refresh',
+      'auth/refresh',
+      {
+        functionName: 'blog-refresh-rust',
+        description: 'Token refresh (Rust)',
+      }
+    );
 
     // ===================
     // Images Domain Functions
     // ===================
 
     // POST /admin/images/upload-url - Get Upload URL (Rust)
-    this.getUploadUrlRustFunction = new RustFunction(this, 'GetUploadUrlRust', {
-      manifestPath: path.join(rustFunctionsPath, 'images/get_upload_url'),
-      bundling: commonBundling,
-      functionName: 'blog-upload-url-rust',
-      description: 'Generate pre-signed URL for image upload (Rust)',
-      memorySize: 128,
-      timeout: cdk.Duration.seconds(30),
-      tracing: lambda.Tracing.ACTIVE,
-      environment: commonEnvironment,
-    });
-
-    // Grant S3 put permissions
+    this.getUploadUrlRustFunction = createRustLambda(
+      'GetUploadUrlRust',
+      'get_upload_url',
+      'images/get_upload_url',
+      {
+        functionName: 'blog-upload-url-rust',
+        description: 'Generate pre-signed URL for image upload (Rust)',
+      }
+    );
     imagesBucket.grantPut(this.getUploadUrlRustFunction);
 
     // DELETE /admin/images/{key+} - Delete Image (Rust)
-    this.deleteImageRustFunction = new RustFunction(this, 'DeleteImageRust', {
-      manifestPath: path.join(rustFunctionsPath, 'images/delete_image'),
-      bundling: commonBundling,
-      functionName: 'blog-delete-image-rust',
-      description: 'Delete image from S3 (Rust)',
-      memorySize: 128,
-      timeout: cdk.Duration.seconds(30),
-      tracing: lambda.Tracing.ACTIVE,
-      environment: commonEnvironment,
-    });
-
-    // Grant S3 delete permissions
+    this.deleteImageRustFunction = createRustLambda(
+      'DeleteImageRust',
+      'delete_image',
+      'images/delete_image',
+      {
+        functionName: 'blog-delete-image-rust',
+        description: 'Delete image from S3 (Rust)',
+      }
+    );
     imagesBucket.grantDelete(this.deleteImageRustFunction);
 
     // ===================
