@@ -29,9 +29,9 @@ on:
 
 # AWS OIDC認証のための権限設定
 permissions:
-  id-token: write  # OIDCトークン取得に必要
-  contents: read   # リポジトリの読み取りに必要
-  actions: read    # sccache用
+  id-token: write # OIDCトークン取得に必要
+  contents: read # リポジトリの読み取りに必要
+  actions: read # sccache用
 
 jobs:
   # =======================================
@@ -77,7 +77,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.92"
+          toolchain: '1.92'
           targets: aarch64-unknown-linux-gnu
 
       - name: Install Cargo Lambda
@@ -90,14 +90,30 @@ jobs:
         with:
           version: 0.14.0
 
-      # sccache for shared compilation cache across matrix jobs
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+      # Cargo dependency cache (always used)
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'rust-functions -> target'
+          shared-key: 'rust-lambda-${{ matrix.lambda }}'
+          cache-on-failure: true
 
-      - name: Configure sccache
+      # sccache for shared compilation cache across matrix jobs (optional)
+      - name: Setup sccache
+        id: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+        continue-on-error: true
+
+      - name: Configure sccache (if available)
+        if: steps.sccache.outcome == 'success'
         run: |
           echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
           echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+          echo "::notice::sccache enabled"
+
+      - name: Notice sccache unavailable
+        if: steps.sccache.outcome != 'success'
+        run: echo "::warning::sccache unavailable, using standard Cargo cache"
 
       - name: Build Lambda ${{ matrix.lambda }}
         working-directory: rust-functions
@@ -117,6 +133,7 @@ jobs:
           ls -la target/lambda/${{ matrix.lambda }}/
 
       - name: Show sccache stats
+        if: steps.sccache.outcome == 'success'
         run: sccache --show-stats
 
       - name: Upload Lambda artifact
