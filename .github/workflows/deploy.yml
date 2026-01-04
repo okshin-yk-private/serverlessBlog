@@ -97,17 +97,11 @@ jobs:
         with:
           version: 0.14.0
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
-
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust-functions
           cache-on-failure: true
-        env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -175,9 +169,6 @@ jobs:
           # DEV環境Basic認証用の環境変数（Parameter Storeから取得）
           BASIC_AUTH_USERNAME: ${{ steps.basic-auth.outputs.username }}
           BASIC_AUTH_PASSWORD: ${{ steps.basic-auth.outputs.password }}
-          # sccache for faster Rust compilation
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
         run: |
           echo "========================================="
           echo "CDK Deploy - ${{ steps.env.outputs.env_name }} Environment"
@@ -188,9 +179,6 @@ jobs:
           fi
           bunx cdk deploy --all --require-approval never --context stage=${{ steps.env.outputs.stage }} --context rustTrafficPercent=100 --ci --outputs-file cdk-outputs.json
           echo "✓ CDK Deployment completed successfully"
-          echo ""
-          echo "sccache stats:"
-          sccache --show-stats || true
 
       - name: Upload CDK Outputs
         uses: actions/upload-artifact@v4
