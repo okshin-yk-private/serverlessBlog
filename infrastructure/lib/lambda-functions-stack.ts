@@ -16,6 +16,12 @@ export interface LambdaFunctionsStackProps extends cdk.StackProps {
   restApi: apigateway.IRestApi;
   authorizer: apigateway.IAuthorizer;
   cloudFrontDomainName: string;
+  /**
+   * When true, skip API Gateway integrations (Rust stack handles them)
+   * Traffic routing: 0 = Node.js only (createApiIntegrations=true)
+   * Any non-zero value = Rust handles API (createApiIntegrations=false)
+   */
+  createApiIntegrations?: boolean;
 }
 
 export class LambdaFunctionsStack extends cdk.Stack {
@@ -39,6 +45,7 @@ export class LambdaFunctionsStack extends cdk.Stack {
       restApi,
       authorizer,
       cloudFrontDomainName,
+      createApiIntegrations = true,
     } = props;
 
     // 共通のLambda関数設定
@@ -233,136 +240,136 @@ export class LambdaFunctionsStack extends cdk.Stack {
     imagesBucket.grantDelete(this.deleteImageFunction);
 
     // API Gatewayとの統合
-
-    // /admin/posts リソース取得
-    const adminResource = restApi.root.getResource('admin');
-    if (!adminResource) {
-      throw new Error('Admin resource not found');
-    }
-    const adminPostsResource = adminResource.addResource('posts');
-
-    // POST /admin/posts - 記事作成
-    adminPostsResource.addMethod(
-      'POST',
-      new apigateway.LambdaIntegration(this.createPostFunction),
-      {
-        authorizer,
-        authorizationType: apigateway.AuthorizationType.COGNITO,
+    // When Rust Lambda is enabled, skip API Gateway integrations (Rust stack handles them)
+    if (createApiIntegrations) {
+      // /admin/posts リソース取得
+      const adminResource = restApi.root.getResource('admin');
+      if (!adminResource) {
+        throw new Error('Admin resource not found');
       }
-    );
+      const adminPostsResource = adminResource.addResource('posts');
 
-    // GET /admin/posts - 記事一覧取得（管理用、認証必須）
-    adminPostsResource.addMethod(
-      'GET',
-      new apigateway.LambdaIntegration(this.listPostsFunction),
-      {
-        authorizer,
-        authorizationType: apigateway.AuthorizationType.COGNITO,
-      }
-    );
-
-    // /admin/posts/{id}
-    const adminPostByIdResource = adminPostsResource.addResource('{id}');
-
-    // GET /admin/posts/{id} - 記事取得
-    adminPostByIdResource.addMethod(
-      'GET',
-      new apigateway.LambdaIntegration(this.getPostFunction),
-      {
-        authorizer,
-        authorizationType: apigateway.AuthorizationType.COGNITO,
-      }
-    );
-
-    // PUT /admin/posts/{id} - 記事更新
-    adminPostByIdResource.addMethod(
-      'PUT',
-      new apigateway.LambdaIntegration(this.updatePostFunction),
-      {
-        authorizer,
-        authorizationType: apigateway.AuthorizationType.COGNITO,
-      }
-    );
-
-    // DELETE /admin/posts/{id} - 記事削除
-    adminPostByIdResource.addMethod(
-      'DELETE',
-      new apigateway.LambdaIntegration(this.deletePostFunction),
-      {
-        authorizer,
-        authorizationType: apigateway.AuthorizationType.COGNITO,
-      }
-    );
-
-    // /admin/images
-    const adminImagesResource = adminResource.addResource('images');
-
-    // POST /admin/images/upload-url - 画像アップロードURL生成
-    const uploadUrlResource = adminImagesResource.addResource('upload-url');
-    uploadUrlResource.addMethod(
-      'POST',
-      new apigateway.LambdaIntegration(this.uploadUrlFunction),
-      {
-        authorizer,
-        authorizationType: apigateway.AuthorizationType.COGNITO,
-      }
-    );
-
-    // DELETE /admin/images/{key+} - 画像削除
-    const deleteImageResource = adminImagesResource.addResource('{key+}');
-    deleteImageResource.addMethod(
-      'DELETE',
-      new apigateway.LambdaIntegration(this.deleteImageFunction),
-      {
-        authorizer,
-        authorizationType: apigateway.AuthorizationType.COGNITO,
-      }
-    );
-
-    // 公開API: /posts リソース取得
-    const postsResource = restApi.root.getResource('posts');
-    if (!postsResource) {
-      throw new Error('Posts resource not found');
-    }
-
-    // GET /posts - 記事一覧取得（認証不要）
-    postsResource.addMethod(
-      'GET',
-      new apigateway.LambdaIntegration(this.listPostsFunction),
-      {
-        authorizationType: apigateway.AuthorizationType.NONE,
-      }
-    );
-
-    // GET /posts/{id} - 記事詳細取得（認証不要）
-    const publicPostByIdResource = postsResource.addResource('{id}');
-    publicPostByIdResource.addMethod(
-      'GET',
-      new apigateway.LambdaIntegration(this.getPublicPostFunction),
-      {
-        authorizationType: apigateway.AuthorizationType.NONE,
-      }
-    );
-
-    // CDK Nag Suppressions
-
-    // Public API endpoints - intentionally without authentication
-    NagSuppressions.addResourceSuppressions(
-      postsResource,
-      [
+      // POST /admin/posts - 記事作成
+      adminPostsResource.addMethod(
+        'POST',
+        new apigateway.LambdaIntegration(this.createPostFunction),
         {
-          id: 'AwsSolutions-APIG4',
-          reason:
-            'Public API endpoints (GET /posts and GET /posts/{id}) are intentionally designed without authentication to allow public access to published blog posts.',
-        },
+          authorizer,
+          authorizationType: apigateway.AuthorizationType.COGNITO,
+        }
+      );
+
+      // GET /admin/posts - 記事一覧取得（管理用、認証必須）
+      adminPostsResource.addMethod(
+        'GET',
+        new apigateway.LambdaIntegration(this.listPostsFunction),
         {
-          id: 'AwsSolutions-COG4',
-          reason:
-            'Public API endpoints (GET /posts and GET /posts/{id}) do not require Cognito authorization as they serve public content.',
-        },
-      ],
-      true
-    );
+          authorizer,
+          authorizationType: apigateway.AuthorizationType.COGNITO,
+        }
+      );
+
+      // /admin/posts/{id}
+      const adminPostByIdResource = adminPostsResource.addResource('{id}');
+
+      // GET /admin/posts/{id} - 記事取得
+      adminPostByIdResource.addMethod(
+        'GET',
+        new apigateway.LambdaIntegration(this.getPostFunction),
+        {
+          authorizer,
+          authorizationType: apigateway.AuthorizationType.COGNITO,
+        }
+      );
+
+      // PUT /admin/posts/{id} - 記事更新
+      adminPostByIdResource.addMethod(
+        'PUT',
+        new apigateway.LambdaIntegration(this.updatePostFunction),
+        {
+          authorizer,
+          authorizationType: apigateway.AuthorizationType.COGNITO,
+        }
+      );
+
+      // DELETE /admin/posts/{id} - 記事削除
+      adminPostByIdResource.addMethod(
+        'DELETE',
+        new apigateway.LambdaIntegration(this.deletePostFunction),
+        {
+          authorizer,
+          authorizationType: apigateway.AuthorizationType.COGNITO,
+        }
+      );
+
+      // /admin/images
+      const adminImagesResource = adminResource.addResource('images');
+
+      // POST /admin/images/upload-url - 画像アップロードURL生成
+      const uploadUrlResource = adminImagesResource.addResource('upload-url');
+      uploadUrlResource.addMethod(
+        'POST',
+        new apigateway.LambdaIntegration(this.uploadUrlFunction),
+        {
+          authorizer,
+          authorizationType: apigateway.AuthorizationType.COGNITO,
+        }
+      );
+
+      // DELETE /admin/images/{key+} - 画像削除
+      const deleteImageResource = adminImagesResource.addResource('{key+}');
+      deleteImageResource.addMethod(
+        'DELETE',
+        new apigateway.LambdaIntegration(this.deleteImageFunction),
+        {
+          authorizer,
+          authorizationType: apigateway.AuthorizationType.COGNITO,
+        }
+      );
+
+      // 公開API: /posts リソース取得
+      const postsResource = restApi.root.getResource('posts');
+      if (!postsResource) {
+        throw new Error('Posts resource not found');
+      }
+
+      // GET /posts - 記事一覧取得（認証不要）
+      postsResource.addMethod(
+        'GET',
+        new apigateway.LambdaIntegration(this.listPostsFunction),
+        {
+          authorizationType: apigateway.AuthorizationType.NONE,
+        }
+      );
+
+      // GET /posts/{id} - 記事詳細取得（認証不要）
+      const publicPostByIdResource = postsResource.addResource('{id}');
+      publicPostByIdResource.addMethod(
+        'GET',
+        new apigateway.LambdaIntegration(this.getPublicPostFunction),
+        {
+          authorizationType: apigateway.AuthorizationType.NONE,
+        }
+      );
+
+      // CDK Nag Suppressions - Public API endpoints
+      NagSuppressions.addResourceSuppressions(
+        postsResource,
+        [
+          {
+            id: 'AwsSolutions-APIG4',
+            reason:
+              'Public API endpoints (GET /posts and GET /posts/{id}) are intentionally designed without authentication to allow public access to published blog posts.',
+          },
+          {
+            id: 'AwsSolutions-COG4',
+            reason:
+              'Public API endpoints (GET /posts and GET /posts/{id}) do not require Cognito authorization as they serve public content.',
+          },
+        ],
+        true
+      );
+    } // End of createApiIntegrations conditional
 
     // Lambda IAM - All functions use AWSLambdaBasicExecutionRole
     const lambdaFunctions = [

@@ -1,0 +1,39 @@
+{
+  "version": "2.0",
+  "routeKey": "PUT /admin/posts/{id}",
+  "rawPath": "/admin/posts/550e8400-e29b-41d4-a716-446655440000",
+  "rawQueryString": "",
+  "headers": {
+    "content-type": "application/json",
+    "accept": "application/json"
+  },
+  "pathParameters": {
+    "id": "550e8400-e29b-41d4-a716-446655440000"
+  },
+  "requestContext": {
+    "accountId": "123456789012",
+    "apiId": "api-id",
+    "authorizer": {
+      "claims": {
+        "sub": "test-user-123",
+        "email": "test@example.com"
+      }
+    },
+    "domainName": "api.example.com",
+    "domainPrefix": "api",
+    "http": {
+      "method": "PUT",
+      "path": "/admin/posts/550e8400-e29b-41d4-a716-446655440000",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "127.0.0.1",
+      "userAgent": "cargo-lambda"
+    },
+    "requestId": "request-id-123",
+    "routeKey": "PUT /admin/posts/{id}",
+    "stage": "dev",
+    "time": "03/Jan/2026:12:00:00 +0000",
+    "timeEpoch": 1767434400000
+  },
+  "body": "{\"title\":\"Updated Post Title\",\"content_markdown\":\"# Updated Content\\n\\nThis post has been updated.\",\"category\":\"tech\",\"tags\":[\"rust\",\"lambda\",\"updated\"],\"publish_status\":\"published\"}",
+  "isBase64Encoded": false
+}

@@ -164,6 +164,7 @@
 
 ### 画像API
 - `POST /images/upload-url` - Pre-signed URL取得（認証必須）
+- `DELETE /images/{key+}` - 画像削除（認証必須、ユーザー所有の画像のみ）
 
 ## セキュリティ対策
 

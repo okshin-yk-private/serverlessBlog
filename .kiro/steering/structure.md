@@ -2,7 +2,7 @@
 
 ## 現在の実装状況
 
-**Last Updated**: 2026-01-02 (Steering Sync)
+**Last Updated**: 2026-01-03 (Steering Sync)
 
 ### ✅ 実装完了
 - **Task 1.1**: CDKプロジェクトの初期化とディレクトリ構造の作成
@@ -412,8 +412,17 @@
   - **Note**: 残りのテスト失敗は、テストケースの期待値調整で解決可能
   - **Requirements R43, R44達成**: E2Eテスト環境、フロントエンド-MSW統合
 
+### 🚧 進行中のスペック
+- **image-upload-enhancement**: 画像アップロード機能の強化（実装フェーズ）
+  - `functions/images/deleteImage/handler.ts` - 画像削除Lambda関数（新規追加）
+  - 認可チェック（ユーザーIDベースのパスプレフィックス）
+  - パストラバーサル攻撃対策
+  - S3 DeleteObjectCommand実装
+  - Lambda Powertools統合（Logger, Tracer, Metrics）
+
 ### 🚧 次のタスク
 - **Task 8.5**: クロスブラウザ・エラーハンドリングE2Eテスト（テスト期待値の調整が必要）
+- **image-upload-enhancement**: 残りの実装タスク（`.kiro/specs/image-upload-enhancement/tasks.md`を参照）
 
 ### 📋 未実装
 - E2Eテスト（Task 8.5: テスト期待値の調整）
@@ -482,8 +491,10 @@ serverless_blog/
 │   │   ├── logout/
 │   │   └── refresh/
 │   ├── images/
-│   │   └── getUploadUrl/
-│   │       ├── index.ts
+│   │   ├── getUploadUrl/
+│   │   │   ├── index.ts
+│   │   │   └── handler.ts
+│   │   └── deleteImage/   # 新規追加（image-upload-enhancement）
 │   │       └── handler.ts
 │   └── shared/            # 共有コード
 │       ├── types.ts
