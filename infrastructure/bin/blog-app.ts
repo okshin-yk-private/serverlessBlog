@@ -79,7 +79,8 @@ const cdnStack = new CdnStack(app, 'ServerlessBlogCdnStack', {
 });
 
 // Lambda Functions Stack (Node.js)
-// When Rust is enabled (rustTrafficPercent > 0), skip API Gateway integrations
+// Note: Always keep createApiIntegrations: true to avoid CloudFormation export deletion errors
+// The API Gateway integrations will be switched to Rust in a future migration step
 const lambdaFunctionsStack = new LambdaFunctionsStack(
   app,
   'ServerlessBlogLambdaFunctionsStack',
@@ -92,12 +93,13 @@ const lambdaFunctionsStack = new LambdaFunctionsStack(
     restApi: apiStack.restApi,
     authorizer: apiStack.authorizer,
     cloudFrontDomainName: cdnStack.distribution.distributionDomainName,
-    createApiIntegrations: !useRustLambda, // Node.js handles API when Rust is disabled
+    createApiIntegrations: true, // Keep Node.js API integrations active
   }
 );
 
 // Rust Lambda Functions Stack (optional, based on rustTrafficPercent)
-// Only instantiate when Rust migration is enabled
+// Deploy Rust functions without API integrations for now
+// API traffic routing will be handled separately
 let rustLambdaStack: RustLambdaStack | undefined;
 if (useRustLambda) {
   rustLambdaStack = new RustLambdaStack(app, 'ServerlessBlogRustLambdaStack', {
@@ -109,7 +111,7 @@ if (useRustLambda) {
     userPoolId: authStack.userPool.userPoolId,
     userPoolClientId: authStack.userPoolClient.userPoolClientId,
     cloudFrontDomainName: cdnStack.distribution.distributionDomainName,
-    createApiIntegrations: true, // Rust handles API when enabled
+    createApiIntegrations: false, // Don't create API integrations (Node.js handles API for now)
   });
 }
 
