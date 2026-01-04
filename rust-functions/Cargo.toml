@@ -54,7 +54,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["ServerlessBlog Team"]
 license = "MIT"
-rust-version = "1.83"
+rust-version = "1.85"
 
 [workspace.dependencies]
 # Lambda runtime
