@@ -7,12 +7,23 @@ import { Construct } from 'constructs';
 import { NagSuppressions } from 'cdk-nag';
 import { RustFunction } from 'cargo-lambda-cdk';
 import * as path from 'path';
+import * as fs from 'fs';
+
+// Pre-built Lambda binaries path
+const lambdaTargetPath = path.join(
+  __dirname,
+  '../../rust-functions/target/lambda'
+);
 
 /**
- * Check if running in CI environment (GitHub Actions sets CI=true)
- * In CI, use pre-built binaries for faster deployment
+ * Check if pre-built binaries should be used:
+ * - CI environment (GitHub Actions sets CI=true)
+ * - AND target/lambda directory exists (built by cargo lambda build --workspace)
+ *
+ * This allows tests to run before Rust build in CI pipeline.
  */
-const isCI = process.env.CI === 'true';
+const usePrebuiltBinaries =
+  process.env.CI === 'true' && fs.existsSync(lambdaTargetPath);
 
 /**
  * RustLambdaStack - Rust Lambda Functions for Serverless Blog
@@ -88,16 +99,10 @@ export class RustLambdaStack extends cdk.Stack {
     // Rust functions base path
     const rustFunctionsPath = path.join(__dirname, '../../rust-functions');
 
-    // Pre-built Lambda binaries path (used in CI)
-    const lambdaTargetPath = path.join(
-      __dirname,
-      '../../rust-functions/target/lambda'
-    );
-
     /**
      * Helper function to create Rust Lambda functions
-     * - CI: Uses pre-built binaries from cargo lambda build --workspace
-     * - Local: Uses cargo-lambda-cdk RustFunction for on-demand building
+     * - CI (after build): Uses pre-built binaries from cargo lambda build --workspace
+     * - Local/CI (before build): Uses cargo-lambda-cdk RustFunction for on-demand building
      */
     const createRustLambda = (
       id: string,
@@ -110,7 +115,7 @@ export class RustLambdaStack extends cdk.Stack {
         timeout?: cdk.Duration;
       }
     ): lambda.IFunction => {
-      if (isCI) {
+      if (usePrebuiltBinaries) {
         // CI: Use pre-built binaries for faster deployment
         return new lambda.Function(this, id, {
           runtime: lambda.Runtime.PROVIDED_AL2023,
