@@ -186,7 +186,42 @@ jobs:
           retention-days: 30
 
   # =======================================
-  # Job 2.5: Rust Unit Tests (conditional)
+  # Job 2.5a: Rust Lint (clippy + fmt) - runs in parallel with tests
+  # =======================================
+  rust-lint:
+    needs: [setup-labels]
+    name: Rust Lint (Clippy)
+    runs-on: ubuntu-latest
+    if: |
+      needs.setup-labels.outputs.has-rust == 'true' ||
+      needs.setup-labels.outputs.has-infrastructure == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.92"
+          components: rustfmt, clippy
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-functions
+          cache-on-failure: true
+
+      - name: Check formatting
+        working-directory: rust-functions
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        working-directory: rust-functions
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  # =======================================
+  # Job 2.5b: Rust Tests - runs in parallel with lint
   # =======================================
   rust-tests:
     needs: [setup-labels]
@@ -203,26 +238,20 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          # Use the version specified in rust-functions/rust-toolchain.toml
           toolchain: "1.92"
-          components: rustfmt, clippy
 
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust-functions
+          cache-on-failure: true
 
-      - name: Check formatting
-        working-directory: rust-functions
-        run: cargo fmt --all -- --check
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
 
-      - name: Run Clippy
+      - name: Run Rust tests with nextest
         working-directory: rust-functions
-        run: cargo clippy --all -- -D warnings
-
-      - name: Run Rust tests
-        working-directory: rust-functions
-        run: cargo test --all --release
+        run: cargo nextest run --all
         env:
           CI: true
 
@@ -742,6 +771,7 @@ jobs:
       - setup-labels
       - lint
       - backend-unit-tests
+      - rust-lint
       - rust-tests
       - infrastructure-tests
       - frontend-public-tests
@@ -760,6 +790,7 @@ jobs:
           echo ""
           echo "Lint: ${{ needs.lint.result }}"
           echo "Backend Unit Tests: ${{ needs.backend-unit-tests.result }}"
+          echo "Rust Lint (Clippy): ${{ needs.rust-lint.result }}"
           echo "Rust Unit Tests: ${{ needs.rust-tests.result }}"
           echo "Infrastructure Tests: ${{ needs.infrastructure-tests.result }}"
           echo "Frontend (Public) Tests: ${{ needs.frontend-public-tests.result }}"
@@ -780,6 +811,7 @@ jobs:
 
           # Check if any job failed (excluding skipped jobs)
           if [ "${{ needs.backend-unit-tests.result }}" == "failure" ] || \
+             [ "${{ needs.rust-lint.result }}" == "failure" ] || \
              [ "${{ needs.rust-tests.result }}" == "failure" ] || \
              [ "${{ needs.infrastructure-tests.result }}" == "failure" ] || \
              [ "${{ needs.frontend-public-tests.result }}" == "failure" ] || \
