@@ -259,9 +259,11 @@ export class RustLambdaStack extends cdk.Stack {
     // ===================
     // API Gateway Integrations (when Rust handles traffic)
     // ===================
+    /* istanbul ignore if -- @preserve Integration tested via E2E, unit test causes cyclic deps */
     if (createApiIntegrations) {
       // /admin/posts リソース取得
       const adminResource = restApi.root.getResource('admin');
+      /* istanbul ignore if -- @preserve Defense-in-depth error handling */
       if (!adminResource) {
         throw new Error('Admin resource not found');
       }
@@ -347,6 +349,7 @@ export class RustLambdaStack extends cdk.Stack {
 
       // 公開API: /posts リソース取得
       const postsResource = restApi.root.getResource('posts');
+      /* istanbul ignore if -- @preserve Defense-in-depth error handling */
       if (!postsResource) {
         throw new Error('Posts resource not found');
       }

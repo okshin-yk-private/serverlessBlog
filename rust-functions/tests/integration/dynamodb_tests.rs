@@ -7,8 +7,7 @@ use aws_sdk_dynamodb::types::AttributeValue;
 use std::collections::HashMap;
 
 use super::test_helpers::{
-    cleanup_test_data, create_dynamodb_client, create_test_post_item, generate_test_id,
-    TestConfig,
+    cleanup_test_data, create_dynamodb_client, create_test_post_item, generate_test_id, TestConfig,
 };
 
 /// Test: Create and read a blog post from DynamoDB.
@@ -46,10 +45,7 @@ async fn test_dynamodb_create_and_get_item() {
         item.get("title").unwrap().as_s().unwrap(),
         "Integration Test Post"
     );
-    assert_eq!(
-        item.get("category").unwrap().as_s().unwrap(),
-        "tech"
-    );
+    assert_eq!(item.get("category").unwrap().as_s().unwrap(), "tech");
 
     // Cleanup
     cleanup_test_data(&client, &config.table_name, &[post_id]).await;
@@ -96,10 +92,7 @@ async fn test_dynamodb_update_item() {
         .expect("GetItem should succeed");
 
     let item = get_result.item.expect("Item should exist");
-    assert_eq!(
-        item.get("title").unwrap().as_s().unwrap(),
-        "Updated Title"
-    );
+    assert_eq!(item.get("title").unwrap().as_s().unwrap(), "Updated Title");
     assert_eq!(
         item.get("publishStatus").unwrap().as_s().unwrap(),
         "published"
@@ -206,7 +199,8 @@ async fn test_dynamodb_query_by_publish_status() {
 
     // Create draft posts
     for (i, post_id) in draft_ids.iter().enumerate() {
-        let mut item = create_test_post_item(post_id, &format!("Draft Post {}", i), &unique_tag, "draft");
+        let mut item =
+            create_test_post_item(post_id, &format!("Draft Post {}", i), &unique_tag, "draft");
         client
             .put_item()
             .table_name(&config.table_name)
@@ -218,7 +212,12 @@ async fn test_dynamodb_query_by_publish_status() {
 
     // Create published posts
     for (i, post_id) in published_ids.iter().enumerate() {
-        let item = create_test_post_item(post_id, &format!("Published Post {}", i), &unique_tag, "published");
+        let item = create_test_post_item(
+            post_id,
+            &format!("Published Post {}", i),
+            &unique_tag,
+            "published",
+        );
         client
             .put_item()
             .table_name(&config.table_name)
@@ -252,7 +251,10 @@ async fn test_dynamodb_query_by_publish_status() {
         })
         .collect();
 
-    assert!(our_items.len() >= 3, "Should find at least 3 published items with our tag");
+    assert!(
+        our_items.len() >= 3,
+        "Should find at least 3 published items with our tag"
+    );
 
     // Cleanup
     let mut all_ids = draft_ids;
@@ -303,7 +305,10 @@ async fn test_dynamodb_pagination() {
 
     let first_items = first_page.items.unwrap_or_default();
     assert_eq!(first_items.len(), 2, "First page should have 2 items");
-    assert!(first_page.last_evaluated_key.is_some(), "Should have next page token");
+    assert!(
+        first_page.last_evaluated_key.is_some(),
+        "Should have next page token"
+    );
 
     // Second page
     let second_page = client
@@ -336,8 +341,12 @@ async fn test_dynamodb_scan() {
 
     // Create test items with unique author
     for (i, post_id) in post_ids.iter().enumerate() {
-        let mut item = create_test_post_item(post_id, &format!("Scan Test Post {}", i), "tech", "draft");
-        item.insert("authorId".to_string(), AttributeValue::S(unique_author.clone()));
+        let mut item =
+            create_test_post_item(post_id, &format!("Scan Test Post {}", i), "tech", "draft");
+        item.insert(
+            "authorId".to_string(),
+            AttributeValue::S(unique_author.clone()),
+        );
         client
             .put_item()
             .table_name(&config.table_name)
@@ -392,7 +401,10 @@ async fn test_dynamodb_conditional_write() {
         .send()
         .await;
 
-    assert!(conditional_put.is_err(), "Conditional write should fail for existing item");
+    assert!(
+        conditional_put.is_err(),
+        "Conditional write should fail for existing item"
+    );
 
     // Cleanup
     cleanup_test_data(&client, &config.table_name, &[post_id]).await;
@@ -494,7 +506,10 @@ async fn test_dynamodb_transact_write() {
             .await
             .expect("GetItem should succeed");
 
-        assert!(get_result.item.is_some(), "Item should exist after transaction");
+        assert!(
+            get_result.item.is_some(),
+            "Item should exist after transaction"
+        );
     }
 
     // Cleanup

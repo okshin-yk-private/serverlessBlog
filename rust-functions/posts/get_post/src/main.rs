@@ -8,9 +8,8 @@
 
 use aws_sdk_dynamodb::types::AttributeValue;
 use common::{
-    clients::get_dynamodb_client,
-    constants::cors,
-    init_tracing, BlogPost, DomainError, DynamoDbErrorExt, PublishStatus,
+    clients::get_dynamodb_client, constants::cors, init_tracing, BlogPost, DomainError,
+    DynamoDbErrorExt, PublishStatus,
 };
 use lambda_http::{run, service_fn, Body, Error, Request, RequestExt, Response};
 use std::env;
@@ -23,31 +22,26 @@ async fn main() -> Result<(), Error> {
 
 /// Extracts the post ID from path parameters.
 fn get_post_id(event: &Request) -> Option<String> {
-    event
-        .path_parameters()
-        .first("id")
-        .map(|s| s.to_string())
+    event.path_parameters().first("id").map(|s| s.to_string())
 }
 
 /// Checks if the request has a valid authenticated user.
 fn is_authenticated(event: &Request) -> bool {
     let context = event.request_context();
     match context {
-        lambda_http::request::RequestContext::ApiGatewayV1(ctx) => {
-            ctx.authorizer
-                .fields
-                .get("claims")
-                .and_then(|claims| claims.get("sub"))
-                .and_then(|sub| sub.as_str())
-                .is_some()
-        }
-        lambda_http::request::RequestContext::ApiGatewayV2(ctx) => {
-            ctx.authorizer
-                .as_ref()
-                .and_then(|auth| auth.jwt.as_ref())
-                .and_then(|jwt| jwt.claims.get("sub"))
-                .is_some()
-        }
+        lambda_http::request::RequestContext::ApiGatewayV1(ctx) => ctx
+            .authorizer
+            .fields
+            .get("claims")
+            .and_then(|claims| claims.get("sub"))
+            .and_then(|sub| sub.as_str())
+            .is_some(),
+        lambda_http::request::RequestContext::ApiGatewayV2(ctx) => ctx
+            .authorizer
+            .as_ref()
+            .and_then(|auth| auth.jwt.as_ref())
+            .and_then(|jwt| jwt.claims.get("sub"))
+            .is_some(),
         _ => false,
     }
 }
@@ -159,9 +153,7 @@ async fn handler(event: Request) -> Result<Response<Body>, Error> {
         Some(item) => item,
         None => {
             tracing::warn!(post_id = %post_id, "Post not found");
-            return Ok(
-                DomainError::NotFound("記事が見つかりません".to_string()).into_response(),
-            );
+            return Ok(DomainError::NotFound("記事が見つかりません".to_string()).into_response());
         }
     };
 
@@ -172,9 +164,7 @@ async fn handler(event: Request) -> Result<Response<Body>, Error> {
     // If the post is a draft and user is not authenticated, return 404
     if post.publish_status == PublishStatus::Draft && !authenticated {
         tracing::warn!(post_id = %post_id, "Unauthenticated access to draft post");
-        return Ok(
-            DomainError::NotFound("記事が見つかりません".to_string()).into_response(),
-        );
+        return Ok(DomainError::NotFound("記事が見つかりません".to_string()).into_response());
     }
 
     tracing::info!(post_id = %post_id, publish_status = ?post.publish_status, "Post retrieved successfully");
@@ -431,7 +421,10 @@ mod tests {
             "application/json"
         );
         assert_eq!(
-            response.headers().get("Access-Control-Allow-Origin").unwrap(),
+            response
+                .headers()
+                .get("Access-Control-Allow-Origin")
+                .unwrap(),
             "*"
         );
     }
@@ -455,8 +448,12 @@ mod tests {
 
         let response = build_success_response(&post);
 
-        assert!(response.headers().contains_key("Access-Control-Allow-Methods"));
-        assert!(response.headers().contains_key("Access-Control-Allow-Headers"));
+        assert!(response
+            .headers()
+            .contains_key("Access-Control-Allow-Methods"));
+        assert!(response
+            .headers()
+            .contains_key("Access-Control-Allow-Headers"));
     }
 
     #[test]

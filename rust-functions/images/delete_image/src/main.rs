@@ -87,15 +87,12 @@ fn get_user_id_from_event(event: &Request) -> Option<String> {
 
 /// Extracts the image key from path parameters.
 fn get_key_from_path_params(event: &Request) -> Option<String> {
-    event
-        .path_parameters()
-        .first("key")
-        .map(|key| {
-            // URL decode the key
-            urlencoding::decode(key)
-                .map(|s| s.into_owned())
-                .unwrap_or_else(|_| key.to_string())
-        })
+    event.path_parameters().first("key").map(|key| {
+        // URL decode the key
+        urlencoding::decode(key)
+            .map(|s| s.into_owned())
+            .unwrap_or_else(|_| key.to_string())
+    })
 }
 
 /// Checks for path traversal attempts in the key.
@@ -303,7 +300,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_path_traversal_returns_400() {
-        let request = create_authenticated_request_with_path_params("user123/../other/file.jpg", "user123");
+        let request =
+            create_authenticated_request_with_path_params("user123/../other/file.jpg", "user123");
         let response = handler(request).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -315,7 +313,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_other_user_image_returns_403() {
-        let request = create_authenticated_request_with_path_params("other-user/image.jpg", "user123");
+        let request =
+            create_authenticated_request_with_path_params("other-user/image.jpg", "user123");
         let response = handler(request).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
@@ -385,7 +384,8 @@ mod tests {
     async fn test_successful_deletion_returns_204() {
         env::set_var("BUCKET_NAME", "test-bucket");
 
-        let request = create_authenticated_request_with_path_params("user123/test-image.jpg", "user123");
+        let request =
+            create_authenticated_request_with_path_params("user123/test-image.jpg", "user123");
         let response = handler(request).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
@@ -398,7 +398,8 @@ mod tests {
         env::set_var("BUCKET_NAME", "test-bucket");
 
         // URL encoded key: user123/my%20image.jpg should be decoded to user123/my image.jpg
-        let request = create_authenticated_request_with_path_params("user123/my%20image.jpg", "user123");
+        let request =
+            create_authenticated_request_with_path_params("user123/my%20image.jpg", "user123");
         let response = handler(request).await.unwrap();
 
         // Should process successfully (key gets decoded)

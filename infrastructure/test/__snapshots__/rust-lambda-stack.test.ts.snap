@@ -1,4 +1,4 @@
-// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+// Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`RustLambdaStack Snapshot Snapshot test 1`] = `
 {
@@ -153,7 +153,7 @@ exports[`RustLambdaStack Snapshot Snapshot test 1`] = `
         ],
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "c8593bcc93725399d294718abad346d7990e1679c88711490432b9e9da83ec4d.zip",
+          "S3Key": "[ASSET_HASH].zip",
         },
         "Description": "Create new blog post with Markdown to HTML conversion (Rust)",
         "Environment": {
@@ -363,7 +363,7 @@ exports[`RustLambdaStack Snapshot Snapshot test 1`] = `
         ],
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "01800ac3e0ccf76860f0c4785b96ea938215433d659cd2c9f91c1cfcc40d09b8.zip",
+          "S3Key": "[ASSET_HASH].zip",
         },
         "Description": "Delete image from S3 (Rust)",
         "Environment": {
@@ -575,7 +575,7 @@ exports[`RustLambdaStack Snapshot Snapshot test 1`] = `
         ],
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "7d86f669241e7ac2e64b99a895c6fef2652126b04d00d65d41c42d9d33031c59.zip",
+          "S3Key": "[ASSET_HASH].zip",
         },
         "Description": "Delete blog post (Rust)",
         "Environment": {
@@ -815,7 +815,7 @@ exports[`RustLambdaStack Snapshot Snapshot test 1`] = `
         ],
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "3276df81f39a41b76184a05adbddf9a03b743a4e961a835683c104d765cba864.zip",
+          "S3Key": "[ASSET_HASH].zip",
         },
         "Description": "Get blog post by ID (admin, includes markdown) (Rust)",
         "Environment": {
@@ -1036,7 +1036,7 @@ exports[`RustLambdaStack Snapshot Snapshot test 1`] = `
         ],
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "ca52cd287f3a003c3d2b304032c69ce3461a58bafc869da56fc119ac5ed22aba.zip",
+          "S3Key": "[ASSET_HASH].zip",
         },
         "Description": "Get published blog post by ID (public, HTML only) (Rust)",
         "Environment": {
@@ -1257,7 +1257,7 @@ exports[`RustLambdaStack Snapshot Snapshot test 1`] = `
         ],
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "57b06f8adbe892c97bf1f1464cfa6bdb71da29e388aa9d43dbc7b8231e586516.zip",
+          "S3Key": "[ASSET_HASH].zip",
         },
         "Description": "Generate pre-signed URL for image upload (Rust)",
         "Environment": {
@@ -1476,7 +1476,7 @@ exports[`RustLambdaStack Snapshot Snapshot test 1`] = `
         ],
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "5264e291ea5d19b2b8b0f2173c16893f052b44bd8196d5308969b53d1d534f18.zip",
+          "S3Key": "[ASSET_HASH].zip",
         },
         "Description": "List published blog posts (Rust)",
         "Environment": {
@@ -1697,7 +1697,7 @@ exports[`RustLambdaStack Snapshot Snapshot test 1`] = `
         ],
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "b0646b1ab272560607544e650908fa2fca35c01ffc0ac7e71222c01f3b7c693b.zip",
+          "S3Key": "[ASSET_HASH].zip",
         },
         "Description": "User authentication (Rust)",
         "Environment": {
@@ -1894,7 +1894,7 @@ exports[`RustLambdaStack Snapshot Snapshot test 1`] = `
         ],
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "3976dd6278e85d3d9c47f7aec858b90b843c5202db01267067998180328fca74.zip",
+          "S3Key": "[ASSET_HASH].zip",
         },
         "Description": "User logout (Rust)",
         "Environment": {
@@ -2091,7 +2091,7 @@ exports[`RustLambdaStack Snapshot Snapshot test 1`] = `
         ],
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "bf5ac2e09e77f254d706e7fbdeee207b84ad533a600a835caed604e57516931b.zip",
+          "S3Key": "[ASSET_HASH].zip",
         },
         "Description": "Token refresh (Rust)",
         "Environment": {
@@ -2288,7 +2288,7 @@ exports[`RustLambdaStack Snapshot Snapshot test 1`] = `
         ],
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "a1358e3615e918f69c0a1df32f7ca6426254b8089ef4dc67b43805b1ffb6726b.zip",
+          "S3Key": "[ASSET_HASH].zip",
         },
         "Description": "Update existing blog post (Rust)",
         "Environment": {

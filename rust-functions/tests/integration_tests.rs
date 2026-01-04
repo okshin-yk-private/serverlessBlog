@@ -26,10 +26,10 @@
 //! ```
 
 mod integration {
-    pub mod test_helpers;
+    pub mod cognito_tests;
     pub mod dynamodb_tests;
     pub mod s3_tests;
-    pub mod cognito_tests;
+    pub mod test_helpers;
 }
 
 // Re-export all tests

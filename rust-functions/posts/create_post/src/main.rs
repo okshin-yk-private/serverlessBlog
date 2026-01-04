@@ -6,10 +6,8 @@
 use aws_sdk_dynamodb::types::AttributeValue;
 use chrono::Utc;
 use common::{
-    clients::get_dynamodb_client,
-    constants::cors,
-    init_tracing, markdown_to_safe_html, BlogPost, CreatePostRequest, DomainError,
-    DynamoDbErrorExt, PublishStatus,
+    clients::get_dynamodb_client, constants::cors, init_tracing, markdown_to_safe_html, BlogPost,
+    CreatePostRequest, DomainError, DynamoDbErrorExt, PublishStatus,
 };
 use lambda_http::{run, service_fn, Body, Error, Request, RequestExt, RequestPayloadExt, Response};
 use std::env;
@@ -25,21 +23,19 @@ async fn main() -> Result<(), Error> {
 fn get_author_id(event: &Request) -> Option<String> {
     let context = event.request_context();
     match context {
-        lambda_http::request::RequestContext::ApiGatewayV1(ctx) => {
-            ctx.authorizer
-                .fields
-                .get("claims")
-                .and_then(|claims| claims.get("sub"))
-                .and_then(|sub| sub.as_str())
-                .map(String::from)
-        }
-        lambda_http::request::RequestContext::ApiGatewayV2(ctx) => {
-            ctx.authorizer
-                .as_ref()
-                .and_then(|auth| auth.jwt.as_ref())
-                .and_then(|jwt| jwt.claims.get("sub"))
-                .map(|s| s.to_string())
-        }
+        lambda_http::request::RequestContext::ApiGatewayV1(ctx) => ctx
+            .authorizer
+            .fields
+            .get("claims")
+            .and_then(|claims| claims.get("sub"))
+            .and_then(|sub| sub.as_str())
+            .map(String::from),
+        lambda_http::request::RequestContext::ApiGatewayV2(ctx) => ctx
+            .authorizer
+            .as_ref()
+            .and_then(|auth| auth.jwt.as_ref())
+            .and_then(|jwt| jwt.claims.get("sub"))
+            .map(|s| s.to_string()),
         _ => None,
     }
 }
@@ -99,7 +95,12 @@ fn post_to_dynamodb_item(post: &BlogPost) -> std::collections::HashMap<String, A
     );
     item.insert(
         "tags".to_string(),
-        AttributeValue::L(post.tags.iter().map(|t| AttributeValue::S(t.clone())).collect()),
+        AttributeValue::L(
+            post.tags
+                .iter()
+                .map(|t| AttributeValue::S(t.clone()))
+                .collect(),
+        ),
     );
     item.insert(
         "publishStatus".to_string(),
@@ -151,7 +152,9 @@ async fn handler(event: Request) -> Result<Response<Body>, Error> {
         Ok(Some(req)) => req,
         Ok(None) => {
             tracing::warn!("Request body is empty");
-            return Ok(DomainError::Validation("Request body is required".to_string()).into_response());
+            return Ok(
+                DomainError::Validation("Request body is required".to_string()).into_response(),
+            );
         }
         Err(e) => {
             tracing::warn!(error = %e, "Failed to parse request body");
@@ -349,18 +352,9 @@ mod tests {
 
         let item = post_to_dynamodb_item(&post);
 
-        assert_eq!(
-            item.get("id").unwrap().as_s().unwrap(),
-            "test-id"
-        );
-        assert_eq!(
-            item.get("title").unwrap().as_s().unwrap(),
-            "Test Title"
-        );
-        assert_eq!(
-            item.get("publishStatus").unwrap().as_s().unwrap(),
-            "draft"
-        );
+        assert_eq!(item.get("id").unwrap().as_s().unwrap(), "test-id");
+        assert_eq!(item.get("title").unwrap().as_s().unwrap(), "Test Title");
+        assert_eq!(item.get("publishStatus").unwrap().as_s().unwrap(), "draft");
         assert_eq!(item.get("tags").unwrap().as_l().unwrap().len(), 2);
         assert!(item.get("publishedAt").is_none());
     }
@@ -420,7 +414,10 @@ mod tests {
             "application/json"
         );
         assert_eq!(
-            response.headers().get("Access-Control-Allow-Origin").unwrap(),
+            response
+                .headers()
+                .get("Access-Control-Allow-Origin")
+                .unwrap(),
             "*"
         );
     }
@@ -431,7 +428,11 @@ mod tests {
             title: "Test Title".to_string(),
             content_markdown: "# Hello World".to_string(),
             category: "tech".to_string(),
-            tags: vec!["rust".to_string(), "aws".to_string(), "serverless".to_string()],
+            tags: vec![
+                "rust".to_string(),
+                "aws".to_string(),
+                "serverless".to_string(),
+            ],
             publish_status: Some(PublishStatus::Published),
             image_urls: vec!["https://example.com/img1.png".to_string()],
         };

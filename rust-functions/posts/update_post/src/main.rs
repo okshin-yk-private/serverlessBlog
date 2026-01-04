@@ -13,10 +13,8 @@
 use aws_sdk_dynamodb::types::AttributeValue;
 use chrono::Utc;
 use common::{
-    clients::get_dynamodb_client,
-    constants::cors,
-    init_tracing, markdown_to_safe_html, BlogPost, DomainError, DynamoDbErrorExt, PublishStatus,
-    UpdatePostRequest,
+    clients::get_dynamodb_client, constants::cors, init_tracing, markdown_to_safe_html, BlogPost,
+    DomainError, DynamoDbErrorExt, PublishStatus, UpdatePostRequest,
 };
 use lambda_http::{run, service_fn, Body, Error, Request, RequestExt, RequestPayloadExt, Response};
 use std::env;
@@ -31,31 +29,26 @@ async fn main() -> Result<(), Error> {
 fn get_user_id(event: &Request) -> Option<String> {
     let context = event.request_context();
     match context {
-        lambda_http::request::RequestContext::ApiGatewayV1(ctx) => {
-            ctx.authorizer
-                .fields
-                .get("claims")
-                .and_then(|claims| claims.get("sub"))
-                .and_then(|sub| sub.as_str())
-                .map(String::from)
-        }
-        lambda_http::request::RequestContext::ApiGatewayV2(ctx) => {
-            ctx.authorizer
-                .as_ref()
-                .and_then(|auth| auth.jwt.as_ref())
-                .and_then(|jwt| jwt.claims.get("sub"))
-                .map(|s| s.to_string())
-        }
+        lambda_http::request::RequestContext::ApiGatewayV1(ctx) => ctx
+            .authorizer
+            .fields
+            .get("claims")
+            .and_then(|claims| claims.get("sub"))
+            .and_then(|sub| sub.as_str())
+            .map(String::from),
+        lambda_http::request::RequestContext::ApiGatewayV2(ctx) => ctx
+            .authorizer
+            .as_ref()
+            .and_then(|auth| auth.jwt.as_ref())
+            .and_then(|jwt| jwt.claims.get("sub"))
+            .map(|s| s.to_string()),
         _ => None,
     }
 }
 
 /// Extracts the post ID from path parameters.
 fn get_post_id(event: &Request) -> Option<String> {
-    event
-        .path_parameters()
-        .first("id")
-        .map(|s| s.to_string())
+    event.path_parameters().first("id").map(|s| s.to_string())
 }
 
 /// Validates the update post request.
@@ -63,9 +56,7 @@ fn validate_request(request: &UpdatePostRequest) -> Result<(), DomainError> {
     // If title is provided, it must not be empty
     if let Some(ref title) = request.title {
         if title.trim().is_empty() {
-            return Err(DomainError::Validation(
-                "title cannot be empty".to_string(),
-            ));
+            return Err(DomainError::Validation("title cannot be empty".to_string()));
         }
     }
 
@@ -161,7 +152,12 @@ fn post_to_dynamodb_item(post: &BlogPost) -> std::collections::HashMap<String, A
     );
     item.insert(
         "tags".to_string(),
-        AttributeValue::L(post.tags.iter().map(|t| AttributeValue::S(t.clone())).collect()),
+        AttributeValue::L(
+            post.tags
+                .iter()
+                .map(|t| AttributeValue::S(t.clone()))
+                .collect(),
+        ),
     );
     item.insert(
         "publishStatus".to_string(),
@@ -332,9 +328,7 @@ async fn handler(event: Request) -> Result<Response<Body>, Error> {
         Some(item) => item,
         None => {
             tracing::warn!(post_id = %post_id, "Post not found");
-            return Ok(
-                DomainError::NotFound("記事が見つかりません".to_string()).into_response(),
-            );
+            return Ok(DomainError::NotFound("記事が見つかりません".to_string()).into_response());
         }
     };
 
@@ -528,7 +522,10 @@ mod tests {
         let updated = apply_updates(&existing, &request, "2026-01-03T12:00:00Z");
 
         assert_eq!(updated.publish_status, PublishStatus::Published);
-        assert_eq!(updated.published_at, Some("2026-01-03T12:00:00Z".to_string()));
+        assert_eq!(
+            updated.published_at,
+            Some("2026-01-03T12:00:00Z".to_string())
+        );
     }
 
     #[test]
@@ -549,7 +546,10 @@ mod tests {
         let updated = apply_updates(&existing, &request, "2026-01-03T12:00:00Z");
 
         // publishedAt should not be updated if already set
-        assert_eq!(updated.published_at, Some("2026-01-01T00:00:00Z".to_string()));
+        assert_eq!(
+            updated.published_at,
+            Some("2026-01-01T00:00:00Z".to_string())
+        );
     }
 
     #[test]
@@ -583,7 +583,10 @@ mod tests {
 
         let updated = apply_updates(&existing, &request, "2026-01-03T12:00:00Z");
 
-        assert_eq!(updated.image_urls, vec!["https://example.com/new-image.png"]);
+        assert_eq!(
+            updated.image_urls,
+            vec!["https://example.com/new-image.png"]
+        );
     }
 
     #[test]
@@ -605,7 +608,10 @@ mod tests {
         assert_eq!(updated.category, "new-category");
         assert_eq!(updated.tags, vec!["updated"]);
         assert_eq!(updated.publish_status, PublishStatus::Published);
-        assert_eq!(updated.published_at, Some("2026-01-03T12:00:00Z".to_string()));
+        assert_eq!(
+            updated.published_at,
+            Some("2026-01-03T12:00:00Z".to_string())
+        );
         assert_eq!(updated.image_urls, vec!["https://example.com/img.png"]);
     }
 
@@ -666,8 +672,14 @@ mod tests {
 
         let item = post_to_dynamodb_item(&post);
 
-        assert_eq!(item.get("publishStatus").unwrap().as_s().unwrap(), "published");
-        assert_eq!(item.get("publishedAt").unwrap().as_s().unwrap(), "2026-01-02T00:00:00Z");
+        assert_eq!(
+            item.get("publishStatus").unwrap().as_s().unwrap(),
+            "published"
+        );
+        assert_eq!(
+            item.get("publishedAt").unwrap().as_s().unwrap(),
+            "2026-01-02T00:00:00Z"
+        );
     }
 
     #[test]
@@ -681,7 +693,10 @@ mod tests {
             "application/json"
         );
         assert_eq!(
-            response.headers().get("Access-Control-Allow-Origin").unwrap(),
+            response
+                .headers()
+                .get("Access-Control-Allow-Origin")
+                .unwrap(),
             "*"
         );
     }
@@ -708,10 +723,22 @@ mod tests {
     fn create_test_dynamodb_item() -> std::collections::HashMap<String, AttributeValue> {
         let mut item = std::collections::HashMap::new();
         item.insert("id".to_string(), AttributeValue::S("post-123".to_string()));
-        item.insert("title".to_string(), AttributeValue::S("Test Title".to_string()));
-        item.insert("contentMarkdown".to_string(), AttributeValue::S("# Hello".to_string()));
-        item.insert("contentHtml".to_string(), AttributeValue::S("<h1>Hello</h1>".to_string()));
-        item.insert("category".to_string(), AttributeValue::S("tech".to_string()));
+        item.insert(
+            "title".to_string(),
+            AttributeValue::S("Test Title".to_string()),
+        );
+        item.insert(
+            "contentMarkdown".to_string(),
+            AttributeValue::S("# Hello".to_string()),
+        );
+        item.insert(
+            "contentHtml".to_string(),
+            AttributeValue::S("<h1>Hello</h1>".to_string()),
+        );
+        item.insert(
+            "category".to_string(),
+            AttributeValue::S("tech".to_string()),
+        );
         item.insert(
             "tags".to_string(),
             AttributeValue::L(vec![
@@ -719,10 +746,22 @@ mod tests {
                 AttributeValue::S("aws".to_string()),
             ]),
         );
-        item.insert("publishStatus".to_string(), AttributeValue::S("draft".to_string()));
-        item.insert("authorId".to_string(), AttributeValue::S("user-456".to_string()));
-        item.insert("createdAt".to_string(), AttributeValue::S("2026-01-01T00:00:00Z".to_string()));
-        item.insert("updatedAt".to_string(), AttributeValue::S("2026-01-01T00:00:00Z".to_string()));
+        item.insert(
+            "publishStatus".to_string(),
+            AttributeValue::S("draft".to_string()),
+        );
+        item.insert(
+            "authorId".to_string(),
+            AttributeValue::S("user-456".to_string()),
+        );
+        item.insert(
+            "createdAt".to_string(),
+            AttributeValue::S("2026-01-01T00:00:00Z".to_string()),
+        );
+        item.insert(
+            "updatedAt".to_string(),
+            AttributeValue::S("2026-01-01T00:00:00Z".to_string()),
+        );
         item.insert("imageUrls".to_string(), AttributeValue::L(vec![]));
         item
     }

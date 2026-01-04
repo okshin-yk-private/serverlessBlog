@@ -4,7 +4,9 @@ use serde_json::Value;
 
 /// Verify that a JSON value has the expected camelCase field names.
 pub fn verify_camel_case_fields(value: &Value, expected_fields: &[&str]) -> Result<(), String> {
-    let obj = value.as_object().ok_or_else(|| "Expected JSON object".to_string())?;
+    let obj = value
+        .as_object()
+        .ok_or_else(|| "Expected JSON object".to_string())?;
 
     for field in expected_fields {
         if !obj.contains_key(*field) {
@@ -35,13 +37,16 @@ pub fn verify_blog_post_structure(value: &Value) -> Result<(), String> {
 
 /// Verify that a list posts response has the correct structure.
 pub fn verify_list_posts_response_structure(value: &Value) -> Result<(), String> {
-    let obj = value.as_object().ok_or_else(|| "Expected JSON object".to_string())?;
+    let obj = value
+        .as_object()
+        .ok_or_else(|| "Expected JSON object".to_string())?;
 
     if !obj.contains_key("items") {
         return Err("Missing 'items' field in list response".to_string());
     }
 
-    let items = obj.get("items")
+    let items = obj
+        .get("items")
         .and_then(|v: &Value| v.as_array())
         .ok_or_else(|| "'items' should be an array".to_string())?;
 
@@ -55,7 +60,9 @@ pub fn verify_list_posts_response_structure(value: &Value) -> Result<(), String>
 
 /// Verify that a public post response excludes contentMarkdown.
 pub fn verify_public_post_structure(value: &Value) -> Result<(), String> {
-    let obj = value.as_object().ok_or_else(|| "Expected JSON object".to_string())?;
+    let obj = value
+        .as_object()
+        .ok_or_else(|| "Expected JSON object".to_string())?;
 
     // contentMarkdown should NOT be present in public posts
     if obj.contains_key("contentMarkdown") {
@@ -79,7 +86,9 @@ pub fn verify_public_post_structure(value: &Value) -> Result<(), String> {
 
 /// Verify that an error response has the correct structure.
 pub fn verify_error_response_structure(value: &Value) -> Result<(), String> {
-    let obj = value.as_object().ok_or_else(|| "Expected JSON object".to_string())?;
+    let obj = value
+        .as_object()
+        .ok_or_else(|| "Expected JSON object".to_string())?;
 
     if !obj.contains_key("message") {
         return Err("Error response should have 'message' field".to_string());
@@ -90,22 +99,14 @@ pub fn verify_error_response_structure(value: &Value) -> Result<(), String> {
 
 /// Verify that a token response has the correct structure.
 pub fn verify_token_response_structure(value: &Value) -> Result<(), String> {
-    let expected_fields = [
-        "accessToken",
-        "idToken",
-        "expiresIn",
-    ];
+    let expected_fields = ["accessToken", "idToken", "expiresIn"];
 
     verify_camel_case_fields(value, &expected_fields)
 }
 
 /// Verify that an upload URL response has the correct structure.
 pub fn verify_upload_url_response_structure(value: &Value) -> Result<(), String> {
-    let expected_fields = [
-        "uploadUrl",
-        "fileUrl",
-        "key",
-    ];
+    let expected_fields = ["uploadUrl", "fileUrl", "key"];
 
     verify_camel_case_fields(value, &expected_fields)
 }

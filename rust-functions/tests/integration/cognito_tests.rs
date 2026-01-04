@@ -18,14 +18,24 @@ async fn test_cognito_create_user_pool() {
     let create_result = client
         .create_user_pool()
         .pool_name(&pool_name)
-        .auto_verified_attributes(aws_sdk_cognitoidentityprovider::types::VerifiedAttributeType::Email)
+        .auto_verified_attributes(
+            aws_sdk_cognitoidentityprovider::types::VerifiedAttributeType::Email,
+        )
         .send()
         .await;
 
-    assert!(create_result.is_ok(), "CreateUserPool should succeed: {:?}", create_result.err());
+    assert!(
+        create_result.is_ok(),
+        "CreateUserPool should succeed: {:?}",
+        create_result.err()
+    );
 
     let pool = create_result.unwrap().user_pool.unwrap();
-    assert_eq!(pool.name(), Some(pool_name.as_str()), "Pool name should match");
+    assert_eq!(
+        pool.name(),
+        Some(pool_name.as_str()),
+        "Pool name should match"
+    );
     assert!(pool.id().is_some(), "Pool should have an ID");
 
     // Cleanup
@@ -59,16 +69,31 @@ async fn test_cognito_create_user_pool_client() {
         .create_user_pool_client()
         .user_pool_id(pool_id)
         .client_name(&client_name)
-        .explicit_auth_flows(aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowUserPasswordAuth)
-        .explicit_auth_flows(aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowRefreshTokenAuth)
+        .explicit_auth_flows(
+            aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowUserPasswordAuth,
+        )
+        .explicit_auth_flows(
+            aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowRefreshTokenAuth,
+        )
         .send()
         .await;
 
-    assert!(create_result.is_ok(), "CreateUserPoolClient should succeed: {:?}", create_result.err());
+    assert!(
+        create_result.is_ok(),
+        "CreateUserPoolClient should succeed: {:?}",
+        create_result.err()
+    );
 
     let pool_client = create_result.unwrap().user_pool_client.unwrap();
-    assert_eq!(pool_client.client_name(), Some(client_name.as_str()), "Client name should match");
-    assert!(pool_client.client_id().is_some(), "Client should have an ID");
+    assert_eq!(
+        pool_client.client_name(),
+        Some(client_name.as_str()),
+        "Client name should match"
+    );
+    assert!(
+        pool_client.client_id().is_some(),
+        "Client should have an ID"
+    );
 
     // Cleanup
     let _ = client.delete_user_pool().user_pool_id(pool_id).send().await;
@@ -86,7 +111,9 @@ async fn test_cognito_admin_create_user() {
     let pool = client
         .create_user_pool()
         .pool_name(&pool_name)
-        .auto_verified_attributes(aws_sdk_cognitoidentityprovider::types::VerifiedAttributeType::Email)
+        .auto_verified_attributes(
+            aws_sdk_cognitoidentityprovider::types::VerifiedAttributeType::Email,
+        )
         .send()
         .await
         .expect("CreateUserPool should succeed")
@@ -118,10 +145,18 @@ async fn test_cognito_admin_create_user() {
         .send()
         .await;
 
-    assert!(create_result.is_ok(), "AdminCreateUser should succeed: {:?}", create_result.err());
+    assert!(
+        create_result.is_ok(),
+        "AdminCreateUser should succeed: {:?}",
+        create_result.err()
+    );
 
     let user = create_result.unwrap().user.unwrap();
-    assert_eq!(user.username(), Some(test_email.as_str()), "Username should match");
+    assert_eq!(
+        user.username(),
+        Some(test_email.as_str()),
+        "Username should match"
+    );
 
     // Cleanup
     let _ = client.delete_user_pool().user_pool_id(pool_id).send().await;
@@ -140,7 +175,9 @@ async fn test_cognito_admin_set_user_password() {
     let pool = client
         .create_user_pool()
         .pool_name(&pool_name)
-        .auto_verified_attributes(aws_sdk_cognitoidentityprovider::types::VerifiedAttributeType::Email)
+        .auto_verified_attributes(
+            aws_sdk_cognitoidentityprovider::types::VerifiedAttributeType::Email,
+        )
         .policies(
             aws_sdk_cognitoidentityprovider::types::UserPoolPolicyType::builder()
                 .password_policy(
@@ -189,7 +226,11 @@ async fn test_cognito_admin_set_user_password() {
         .send()
         .await;
 
-    assert!(set_password_result.is_ok(), "AdminSetUserPassword should succeed: {:?}", set_password_result.err());
+    assert!(
+        set_password_result.is_ok(),
+        "AdminSetUserPassword should succeed: {:?}",
+        set_password_result.err()
+    );
 
     // Cleanup
     let _ = client.delete_user_pool().user_pool_id(pool_id).send().await;
@@ -208,7 +249,9 @@ async fn test_cognito_initiate_auth_user_password() {
     let pool = client
         .create_user_pool()
         .pool_name(&pool_name)
-        .auto_verified_attributes(aws_sdk_cognitoidentityprovider::types::VerifiedAttributeType::Email)
+        .auto_verified_attributes(
+            aws_sdk_cognitoidentityprovider::types::VerifiedAttributeType::Email,
+        )
         .policies(
             aws_sdk_cognitoidentityprovider::types::UserPoolPolicyType::builder()
                 .password_policy(
@@ -235,8 +278,12 @@ async fn test_cognito_initiate_auth_user_password() {
         .create_user_pool_client()
         .user_pool_id(pool_id)
         .client_name("test-client")
-        .explicit_auth_flows(aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowUserPasswordAuth)
-        .explicit_auth_flows(aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowRefreshTokenAuth)
+        .explicit_auth_flows(
+            aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowUserPasswordAuth,
+        )
+        .explicit_auth_flows(
+            aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowRefreshTokenAuth,
+        )
         .send()
         .await
         .expect("CreateUserPoolClient should succeed")
@@ -289,13 +336,20 @@ async fn test_cognito_initiate_auth_user_password() {
         .send()
         .await;
 
-    assert!(auth_result.is_ok(), "InitiateAuth should succeed: {:?}", auth_result.err());
+    assert!(
+        auth_result.is_ok(),
+        "InitiateAuth should succeed: {:?}",
+        auth_result.err()
+    );
 
     let auth_response = auth_result.unwrap();
     let tokens = auth_response.authentication_result().unwrap();
     assert!(tokens.access_token().is_some(), "Should have access token");
     assert!(tokens.id_token().is_some(), "Should have ID token");
-    assert!(tokens.refresh_token().is_some(), "Should have refresh token");
+    assert!(
+        tokens.refresh_token().is_some(),
+        "Should have refresh token"
+    );
 
     // Cleanup
     let _ = client.delete_user_pool().user_pool_id(pool_id).send().await;
@@ -340,8 +394,12 @@ async fn test_cognito_refresh_token_auth() {
         .create_user_pool_client()
         .user_pool_id(pool_id)
         .client_name("test-client")
-        .explicit_auth_flows(aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowUserPasswordAuth)
-        .explicit_auth_flows(aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowRefreshTokenAuth)
+        .explicit_auth_flows(
+            aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowUserPasswordAuth,
+        )
+        .explicit_auth_flows(
+            aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowRefreshTokenAuth,
+        )
         .send()
         .await
         .expect("CreateUserPoolClient should succeed")
@@ -404,11 +462,18 @@ async fn test_cognito_refresh_token_auth() {
         .send()
         .await;
 
-    assert!(refresh_result.is_ok(), "RefreshTokenAuth should succeed: {:?}", refresh_result.err());
+    assert!(
+        refresh_result.is_ok(),
+        "RefreshTokenAuth should succeed: {:?}",
+        refresh_result.err()
+    );
 
     let refresh_response = refresh_result.unwrap();
     let new_tokens = refresh_response.authentication_result().unwrap();
-    assert!(new_tokens.access_token().is_some(), "Should have new access token");
+    assert!(
+        new_tokens.access_token().is_some(),
+        "Should have new access token"
+    );
     assert!(new_tokens.id_token().is_some(), "Should have new ID token");
 
     // Cleanup
@@ -453,8 +518,12 @@ async fn test_cognito_global_sign_out() {
         .create_user_pool_client()
         .user_pool_id(pool_id)
         .client_name("test-client")
-        .explicit_auth_flows(aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowUserPasswordAuth)
-        .explicit_auth_flows(aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowRefreshTokenAuth)
+        .explicit_auth_flows(
+            aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowUserPasswordAuth,
+        )
+        .explicit_auth_flows(
+            aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowRefreshTokenAuth,
+        )
         .send()
         .await
         .expect("CreateUserPoolClient should succeed")
@@ -514,7 +583,11 @@ async fn test_cognito_global_sign_out() {
         .send()
         .await;
 
-    assert!(signout_result.is_ok(), "GlobalSignOut should succeed: {:?}", signout_result.err());
+    assert!(
+        signout_result.is_ok(),
+        "GlobalSignOut should succeed: {:?}",
+        signout_result.err()
+    );
 
     // Cleanup
     let _ = client.delete_user_pool().user_pool_id(pool_id).send().await;
@@ -553,7 +626,9 @@ async fn test_cognito_invalid_credentials() {
         .create_user_pool_client()
         .user_pool_id(pool_id)
         .client_name("test-client")
-        .explicit_auth_flows(aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowUserPasswordAuth)
+        .explicit_auth_flows(
+            aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowUserPasswordAuth,
+        )
         .send()
         .await
         .expect("CreateUserPoolClient should succeed")
@@ -599,7 +674,10 @@ async fn test_cognito_invalid_credentials() {
         .send()
         .await;
 
-    assert!(auth_result.is_err(), "Authentication with wrong password should fail");
+    assert!(
+        auth_result.is_err(),
+        "Authentication with wrong password should fail"
+    );
 
     // Cleanup
     let _ = client.delete_user_pool().user_pool_id(pool_id).send().await;
@@ -628,7 +706,9 @@ async fn test_cognito_user_not_found() {
         .create_user_pool_client()
         .user_pool_id(pool_id)
         .client_name("test-client")
-        .explicit_auth_flows(aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowUserPasswordAuth)
+        .explicit_auth_flows(
+            aws_sdk_cognitoidentityprovider::types::ExplicitAuthFlowsType::AllowUserPasswordAuth,
+        )
         .send()
         .await
         .expect("CreateUserPoolClient should succeed")
@@ -647,7 +727,10 @@ async fn test_cognito_user_not_found() {
         .send()
         .await;
 
-    assert!(auth_result.is_err(), "Authentication with non-existent user should fail");
+    assert!(
+        auth_result.is_err(),
+        "Authentication with non-existent user should fail"
+    );
 
     // Cleanup
     let _ = client.delete_user_pool().user_pool_id(pool_id).send().await;

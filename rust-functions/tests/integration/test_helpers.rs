@@ -25,8 +25,7 @@ impl TestConfig {
                 .unwrap_or_else(|_| "http://localhost:4566".to_string()),
             cognito_endpoint: std::env::var("COGNITO_ENDPOINT")
                 .unwrap_or_else(|_| "http://localhost:4566".to_string()),
-            table_name: std::env::var("TABLE_NAME")
-                .unwrap_or_else(|_| "BlogPosts".to_string()),
+            table_name: std::env::var("TABLE_NAME").unwrap_or_else(|_| "BlogPosts".to_string()),
             bucket_name: std::env::var("BUCKET_NAME")
                 .unwrap_or_else(|_| "serverless-blog-images".to_string()),
             user_pool_id: std::env::var("USER_POOL_ID")
@@ -84,18 +83,41 @@ pub fn generate_test_id() -> String {
 }
 
 /// Creates a test blog post item for DynamoDB.
-pub fn create_test_post_item(id: &str, title: &str, category: &str, publish_status: &str) -> HashMap<String, AttributeValue> {
+pub fn create_test_post_item(
+    id: &str,
+    title: &str,
+    category: &str,
+    publish_status: &str,
+) -> HashMap<String, AttributeValue> {
     let now = chrono::Utc::now().to_rfc3339();
     let mut item = HashMap::new();
 
     item.insert("id".to_string(), AttributeValue::S(id.to_string()));
     item.insert("title".to_string(), AttributeValue::S(title.to_string()));
-    item.insert("contentMarkdown".to_string(), AttributeValue::S("# Test Content".to_string()));
-    item.insert("contentHtml".to_string(), AttributeValue::S("<h1>Test Content</h1>".to_string()));
-    item.insert("category".to_string(), AttributeValue::S(category.to_string()));
-    item.insert("tags".to_string(), AttributeValue::L(vec![AttributeValue::S("test".to_string())]));
-    item.insert("publishStatus".to_string(), AttributeValue::S(publish_status.to_string()));
-    item.insert("authorId".to_string(), AttributeValue::S("test-author".to_string()));
+    item.insert(
+        "contentMarkdown".to_string(),
+        AttributeValue::S("# Test Content".to_string()),
+    );
+    item.insert(
+        "contentHtml".to_string(),
+        AttributeValue::S("<h1>Test Content</h1>".to_string()),
+    );
+    item.insert(
+        "category".to_string(),
+        AttributeValue::S(category.to_string()),
+    );
+    item.insert(
+        "tags".to_string(),
+        AttributeValue::L(vec![AttributeValue::S("test".to_string())]),
+    );
+    item.insert(
+        "publishStatus".to_string(),
+        AttributeValue::S(publish_status.to_string()),
+    );
+    item.insert(
+        "authorId".to_string(),
+        AttributeValue::S("test-author".to_string()),
+    );
     item.insert("createdAt".to_string(), AttributeValue::S(now.clone()));
     item.insert("updatedAt".to_string(), AttributeValue::S(now.clone()));
     item.insert("imageUrls".to_string(), AttributeValue::L(vec![]));
@@ -108,7 +130,11 @@ pub fn create_test_post_item(id: &str, title: &str, category: &str, publish_stat
 }
 
 /// Cleans up test data from DynamoDB.
-pub async fn cleanup_test_data(client: &aws_sdk_dynamodb::Client, table_name: &str, ids: &[String]) {
+pub async fn cleanup_test_data(
+    client: &aws_sdk_dynamodb::Client,
+    table_name: &str,
+    ids: &[String],
+) {
     for id in ids {
         let _ = client
             .delete_item()

@@ -89,27 +89,25 @@ fn validate_content_type(content_type: &str) -> bool {
 
 /// Extracts user ID from API Gateway authorizer claims.
 fn get_user_id_from_event(event: &Request) -> Option<String> {
-    event
-        .request_context_ref()
-        .and_then(|ctx| {
-            if let lambda_http::request::RequestContext::ApiGatewayV1(api_ctx) = ctx {
-                api_ctx.authorizer.fields.get("claims").and_then(|claims| {
-                    if let serde_json::Value::Object(claims_map) = claims {
-                        claims_map.get("sub").and_then(|sub| {
-                            if let serde_json::Value::String(s) = sub {
-                                Some(s.clone())
-                            } else {
-                                None
-                            }
-                        })
-                    } else {
-                        None
-                    }
-                })
-            } else {
-                None
-            }
-        })
+    event.request_context_ref().and_then(|ctx| {
+        if let lambda_http::request::RequestContext::ApiGatewayV1(api_ctx) = ctx {
+            api_ctx.authorizer.fields.get("claims").and_then(|claims| {
+                if let serde_json::Value::Object(claims_map) = claims {
+                    claims_map.get("sub").and_then(|sub| {
+                        if let serde_json::Value::String(s) = sub {
+                            Some(s.clone())
+                        } else {
+                            None
+                        }
+                    })
+                } else {
+                    None
+                }
+            })
+        } else {
+            None
+        }
+    })
 }
 
 /// Sanitizes a file name for use in S3 key.
@@ -118,10 +116,7 @@ fn get_user_id_from_event(event: &Request) -> Option<String> {
 #[allow(dead_code)]
 fn sanitize_file_name(file_name: &str) -> String {
     // Extract just the file name without directory path
-    let name = file_name
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or(file_name);
+    let name = file_name.rsplit(['/', '\\']).next().unwrap_or(file_name);
 
     // Remove any characters that could cause issues
     name.chars()
@@ -140,10 +135,7 @@ async fn handler(event: Request) -> Result<Response<Body>, lambda_http::Error> {
         }
         None => {
             tracing::warn!("Authentication required");
-            return Ok(error_response(
-                StatusCode::UNAUTHORIZED,
-                "認証が必要です",
-            ));
+            return Ok(error_response(StatusCode::UNAUTHORIZED, "認証が必要です"));
         }
     };
 
@@ -197,7 +189,10 @@ async fn handler(event: Request) -> Result<Response<Body>, lambda_http::Error> {
         let allowed = ALLOWED_EXTENSIONS.join(", ");
         return Ok(error_response(
             StatusCode::BAD_REQUEST,
-            &format!("許可されていないファイル拡張子です。対応形式: .{}", allowed.replace(", ", ", .")),
+            &format!(
+                "許可されていないファイル拡張子です。対応形式: .{}",
+                allowed.replace(", ", ", .")
+            ),
         ));
     }
 
@@ -355,7 +350,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_missing_authentication_returns_401() {
-        let request = create_request(Some(r#"{"fileName": "test.jpg", "contentType": "image/jpeg"}"#));
+        let request = create_request(Some(
+            r#"{"fileName": "test.jpg", "contentType": "image/jpeg"}"#,
+        ));
         let response = handler(request).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -387,10 +384,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_missing_file_name_returns_400() {
-        let request = create_authenticated_request(
-            Some(r#"{"contentType": "image/jpeg"}"#),
-            "user123",
-        );
+        let request =
+            create_authenticated_request(Some(r#"{"contentType": "image/jpeg"}"#), "user123");
         let response = handler(request).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -403,10 +398,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_missing_content_type_returns_400() {
-        let request = create_authenticated_request(
-            Some(r#"{"fileName": "test.jpg"}"#),
-            "user123",
-        );
+        let request = create_authenticated_request(Some(r#"{"fileName": "test.jpg"}"#), "user123");
         let response = handler(request).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -572,7 +564,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_cors_headers_present() {
-        let request = create_request(Some(r#"{"fileName": "test.jpg", "contentType": "image/jpeg"}"#));
+        let request = create_request(Some(
+            r#"{"fileName": "test.jpg", "contentType": "image/jpeg"}"#,
+        ));
         let response = handler(request).await.unwrap();
 
         assert_eq!(

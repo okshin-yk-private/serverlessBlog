@@ -113,9 +113,7 @@ fn parse_query_params(event: &Request) -> ListPostsParams {
 }
 
 /// Decodes a next_token from base64 to DynamoDB ExclusiveStartKey.
-fn decode_next_token(
-    token: &str,
-) -> Option<std::collections::HashMap<String, AttributeValue>> {
+fn decode_next_token(token: &str) -> Option<std::collections::HashMap<String, AttributeValue>> {
     use base64::{engine::general_purpose::STANDARD, Engine};
 
     let decoded = STANDARD.decode(token).ok()?;
@@ -140,9 +138,7 @@ fn decode_next_token(
 }
 
 /// Encodes DynamoDB LastEvaluatedKey to base64 next_token.
-fn encode_next_token(
-    key: &std::collections::HashMap<String, AttributeValue>,
-) -> String {
+fn encode_next_token(key: &std::collections::HashMap<String, AttributeValue>) -> String {
     use base64::{engine::general_purpose::STANDARD, Engine};
 
     let mut map = serde_json::Map::new();
@@ -255,7 +251,10 @@ async fn handler(event: Request) -> Result<Response<Body>, Error> {
             .key_condition_expression("category = :category")
             .expression_attribute_values(":category", AttributeValue::S(category.clone()))
             .filter_expression("publishStatus = :publishStatus")
-            .expression_attribute_values(":publishStatus", AttributeValue::S(publish_status::PUBLISHED.to_string()))
+            .expression_attribute_values(
+                ":publishStatus",
+                AttributeValue::S(publish_status::PUBLISHED.to_string()),
+            )
             .limit(params.limit)
             .scan_index_forward(false); // Sort by createdAt descending
 
@@ -281,7 +280,10 @@ async fn handler(event: Request) -> Result<Response<Body>, Error> {
             .table_name(&table_name)
             .index_name(dynamodb_indexes::PUBLISH_STATUS_INDEX)
             .key_condition_expression("publishStatus = :publishStatus")
-            .expression_attribute_values(":publishStatus", AttributeValue::S(publish_status::PUBLISHED.to_string()))
+            .expression_attribute_values(
+                ":publishStatus",
+                AttributeValue::S(publish_status::PUBLISHED.to_string()),
+            )
             .limit(params.limit)
             .scan_index_forward(false); // Sort by createdAt descending
 
@@ -304,19 +306,13 @@ async fn handler(event: Request) -> Result<Response<Body>, Error> {
     let items: Vec<PublicBlogPost> = query_result
         .items()
         .iter()
-        .filter_map(|item| {
-            dynamodb_item_to_post(item)
-                .map(PublicBlogPost::from)
-                .ok()
-        })
+        .filter_map(|item| dynamodb_item_to_post(item).map(PublicBlogPost::from).ok())
         .collect();
 
     let count = items.len();
 
     // Generate next token if there are more results
-    let next_token = query_result
-        .last_evaluated_key()
-        .map(encode_next_token);
+    let next_token = query_result.last_evaluated_key().map(encode_next_token);
 
     tracing::info!(
         count = count,
@@ -340,21 +336,49 @@ mod tests {
     use std::collections::HashMap;
 
     // Helper to create a sample DynamoDB item
-    fn create_sample_dynamodb_item(id: &str, title: &str, status: &str) -> HashMap<String, AttributeValue> {
+    fn create_sample_dynamodb_item(
+        id: &str,
+        title: &str,
+        status: &str,
+    ) -> HashMap<String, AttributeValue> {
         let mut item = HashMap::new();
         item.insert("id".to_string(), AttributeValue::S(id.to_string()));
         item.insert("title".to_string(), AttributeValue::S(title.to_string()));
-        item.insert("contentMarkdown".to_string(), AttributeValue::S("# Hello".to_string()));
-        item.insert("contentHtml".to_string(), AttributeValue::S("<h1>Hello</h1>".to_string()));
-        item.insert("category".to_string(), AttributeValue::S("tech".to_string()));
-        item.insert("tags".to_string(), AttributeValue::L(vec![
-            AttributeValue::S("rust".to_string()),
-            AttributeValue::S("aws".to_string()),
-        ]));
-        item.insert("publishStatus".to_string(), AttributeValue::S(status.to_string()));
-        item.insert("authorId".to_string(), AttributeValue::S("user-123".to_string()));
-        item.insert("createdAt".to_string(), AttributeValue::S("2026-01-03T00:00:00Z".to_string()));
-        item.insert("updatedAt".to_string(), AttributeValue::S("2026-01-03T00:00:00Z".to_string()));
+        item.insert(
+            "contentMarkdown".to_string(),
+            AttributeValue::S("# Hello".to_string()),
+        );
+        item.insert(
+            "contentHtml".to_string(),
+            AttributeValue::S("<h1>Hello</h1>".to_string()),
+        );
+        item.insert(
+            "category".to_string(),
+            AttributeValue::S("tech".to_string()),
+        );
+        item.insert(
+            "tags".to_string(),
+            AttributeValue::L(vec![
+                AttributeValue::S("rust".to_string()),
+                AttributeValue::S("aws".to_string()),
+            ]),
+        );
+        item.insert(
+            "publishStatus".to_string(),
+            AttributeValue::S(status.to_string()),
+        );
+        item.insert(
+            "authorId".to_string(),
+            AttributeValue::S("user-123".to_string()),
+        );
+        item.insert(
+            "createdAt".to_string(),
+            AttributeValue::S("2026-01-03T00:00:00Z".to_string()),
+        );
+        item.insert(
+            "updatedAt".to_string(),
+            AttributeValue::S("2026-01-03T00:00:00Z".to_string()),
+        );
         item.insert("imageUrls".to_string(), AttributeValue::L(vec![]));
         item
     }
@@ -404,7 +428,10 @@ mod tests {
     #[test]
     fn test_dynamodb_item_to_post_unknown_publish_status_defaults_to_draft() {
         let mut item = create_sample_dynamodb_item("post-789", "Unknown Status", "unknown");
-        item.insert("publishStatus".to_string(), AttributeValue::S("unknown_status".to_string()));
+        item.insert(
+            "publishStatus".to_string(),
+            AttributeValue::S("unknown_status".to_string()),
+        );
 
         let post = dynamodb_item_to_post(&item).unwrap();
 
@@ -442,16 +469,19 @@ mod tests {
     fn test_encode_decode_next_token_roundtrip() {
         let mut key = HashMap::new();
         key.insert("id".to_string(), AttributeValue::S("post-123".to_string()));
-        key.insert("publishStatus".to_string(), AttributeValue::S("published".to_string()));
-        key.insert("createdAt".to_string(), AttributeValue::S("2026-01-03T00:00:00Z".to_string()));
+        key.insert(
+            "publishStatus".to_string(),
+            AttributeValue::S("published".to_string()),
+        );
+        key.insert(
+            "createdAt".to_string(),
+            AttributeValue::S("2026-01-03T00:00:00Z".to_string()),
+        );
 
         let encoded = encode_next_token(&key);
         let decoded = decode_next_token(&encoded).unwrap();
 
-        assert_eq!(
-            decoded.get("id").unwrap().as_s().unwrap(),
-            "post-123"
-        );
+        assert_eq!(decoded.get("id").unwrap().as_s().unwrap(), "post-123");
         assert_eq!(
             decoded.get("publishStatus").unwrap().as_s().unwrap(),
             "published"
@@ -557,11 +587,18 @@ mod tests {
             "application/json"
         );
         assert_eq!(
-            http_response.headers().get("Access-Control-Allow-Origin").unwrap(),
+            http_response
+                .headers()
+                .get("Access-Control-Allow-Origin")
+                .unwrap(),
             "*"
         );
-        assert!(http_response.headers().contains_key("Access-Control-Allow-Methods"));
-        assert!(http_response.headers().contains_key("Access-Control-Allow-Headers"));
+        assert!(http_response
+            .headers()
+            .contains_key("Access-Control-Allow-Methods"));
+        assert!(http_response
+            .headers()
+            .contains_key("Access-Control-Allow-Headers"));
     }
 
     #[test]

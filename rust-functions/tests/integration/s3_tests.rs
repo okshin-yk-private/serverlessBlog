@@ -27,7 +27,11 @@ async fn test_s3_put_and_get_object() {
         .send()
         .await;
 
-    assert!(put_result.is_ok(), "PutObject should succeed: {:?}", put_result.err());
+    assert!(
+        put_result.is_ok(),
+        "PutObject should succeed: {:?}",
+        put_result.err()
+    );
 
     // Get object
     let get_result = client
@@ -37,7 +41,11 @@ async fn test_s3_put_and_get_object() {
         .send()
         .await;
 
-    assert!(get_result.is_ok(), "GetObject should succeed: {:?}", get_result.err());
+    assert!(
+        get_result.is_ok(),
+        "GetObject should succeed: {:?}",
+        get_result.err()
+    );
 
     let body = get_result.unwrap().body.collect().await.unwrap();
     let body_str = String::from_utf8(body.into_bytes().to_vec()).unwrap();
@@ -88,7 +96,10 @@ async fn test_s3_delete_object() {
         .send()
         .await;
 
-    assert!(get_result.is_err(), "Object should not exist after deletion");
+    assert!(
+        get_result.is_err(),
+        "Object should not exist after deletion"
+    );
 }
 
 /// Test: Generate a pre-signed URL for PUT operation.
@@ -113,12 +124,21 @@ async fn test_s3_presigned_put_url() {
         .presigned(presigning_config)
         .await;
 
-    assert!(presigned_request.is_ok(), "Pre-signed URL generation should succeed");
+    assert!(
+        presigned_request.is_ok(),
+        "Pre-signed URL generation should succeed"
+    );
 
     let url = presigned_request.unwrap().uri().to_string();
-    assert!(url.contains(&config.bucket_name), "URL should contain bucket name");
+    assert!(
+        url.contains(&config.bucket_name),
+        "URL should contain bucket name"
+    );
     assert!(url.contains(&object_key), "URL should contain object key");
-    assert!(url.contains("X-Amz-Signature"), "URL should contain signature");
+    assert!(
+        url.contains("X-Amz-Signature"),
+        "URL should contain signature"
+    );
 
     // Cleanup (object may not exist if not uploaded)
     let _ = client
@@ -160,10 +180,16 @@ async fn test_s3_presigned_get_url() {
         .presigned(presigning_config)
         .await;
 
-    assert!(presigned_request.is_ok(), "Pre-signed GET URL generation should succeed");
+    assert!(
+        presigned_request.is_ok(),
+        "Pre-signed GET URL generation should succeed"
+    );
 
     let url = presigned_request.unwrap().uri().to_string();
-    assert!(url.contains("X-Amz-Expires"), "URL should contain expiry parameter");
+    assert!(
+        url.contains("X-Amz-Expires"),
+        "URL should contain expiry parameter"
+    );
 
     // Cleanup
     let _ = client
@@ -338,8 +364,18 @@ async fn test_s3_copy_object() {
     assert_eq!(body_str, content, "Copied content should match");
 
     // Cleanup
-    let _ = client.delete_object().bucket(&config.bucket_name).key(&source_key).send().await;
-    let _ = client.delete_object().bucket(&config.bucket_name).key(&dest_key).send().await;
+    let _ = client
+        .delete_object()
+        .bucket(&config.bucket_name)
+        .key(&source_key)
+        .send()
+        .await;
+    let _ = client
+        .delete_object()
+        .bucket(&config.bucket_name)
+        .key(&dest_key)
+        .send()
+        .await;
 }
 
 /// Test: Object metadata (content type, custom metadata).
@@ -375,10 +411,19 @@ async fn test_s3_object_metadata() {
     assert!(head_result.is_ok(), "HeadObject should succeed");
 
     let metadata = head_result.unwrap();
-    assert_eq!(metadata.content_type(), Some("image/png"), "Content type should match");
+    assert_eq!(
+        metadata.content_type(),
+        Some("image/png"),
+        "Content type should match"
+    );
 
     // Cleanup
-    let _ = client.delete_object().bucket(&config.bucket_name).key(&object_key).send().await;
+    let _ = client
+        .delete_object()
+        .bucket(&config.bucket_name)
+        .key(&object_key)
+        .send()
+        .await;
 }
 
 /// Test: Pre-signed URL with content length restriction.
@@ -405,7 +450,10 @@ async fn test_s3_presigned_with_content_length() {
         .presigned(presigning_config)
         .await;
 
-    assert!(presigned_request.is_ok(), "Pre-signed URL with content length should succeed");
+    assert!(
+        presigned_request.is_ok(),
+        "Pre-signed URL with content length should succeed"
+    );
 
     let url = presigned_request.unwrap().uri().to_string();
     assert!(!url.is_empty(), "Pre-signed URL should not be empty");

@@ -143,7 +143,10 @@ async fn test_get_public_post_excludes_content_markdown() {
     });
 
     // Should NOT have contentMarkdown
-    assert!(!response_json.as_object().unwrap().contains_key("contentMarkdown"));
+    assert!(!response_json
+        .as_object()
+        .unwrap()
+        .contains_key("contentMarkdown"));
 }
 
 #[tokio::test]

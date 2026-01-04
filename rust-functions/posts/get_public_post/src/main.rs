@@ -6,9 +6,8 @@
 
 use aws_sdk_dynamodb::types::AttributeValue;
 use common::{
-    clients::get_dynamodb_client,
-    constants::cors,
-    init_tracing, DomainError, DynamoDbErrorExt, PublishStatus,
+    clients::get_dynamodb_client, constants::cors, init_tracing, DomainError, DynamoDbErrorExt,
+    PublishStatus,
 };
 use lambda_http::{run, service_fn, Body, Error, Request, RequestExt, Response};
 use serde::Serialize;
@@ -41,10 +40,7 @@ pub struct PublicBlogPost {
 
 /// Extracts the post ID from path parameters.
 fn get_post_id(event: &Request) -> Option<String> {
-    event
-        .path_parameters()
-        .first("id")
-        .map(|s| s.to_string())
+    event.path_parameters().first("id").map(|s| s.to_string())
 }
 
 /// Converts DynamoDB item to PublicBlogPost (without contentMarkdown).
@@ -149,9 +145,7 @@ async fn handler(event: Request) -> Result<Response<Body>, Error> {
         Some(item) => item,
         None => {
             tracing::warn!(post_id = %post_id, "Post not found");
-            return Ok(
-                DomainError::NotFound("記事が見つかりません".to_string()).into_response(),
-            );
+            return Ok(DomainError::NotFound("記事が見つかりません".to_string()).into_response());
         }
     };
 
@@ -161,9 +155,7 @@ async fn handler(event: Request) -> Result<Response<Body>, Error> {
     // Only return published posts
     if post.publish_status == PublishStatus::Draft {
         tracing::warn!(post_id = %post_id, "Access attempt to draft post");
-        return Ok(
-            DomainError::NotFound("記事が見つかりません".to_string()).into_response(),
-        );
+        return Ok(DomainError::NotFound("記事が見つかりません".to_string()).into_response());
     }
 
     tracing::info!(post_id = %post_id, "Public post retrieved successfully");
@@ -318,7 +310,10 @@ mod tests {
             "application/json"
         );
         assert_eq!(
-            response.headers().get("Access-Control-Allow-Origin").unwrap(),
+            response
+                .headers()
+                .get("Access-Control-Allow-Origin")
+                .unwrap(),
             "*"
         );
     }
@@ -341,8 +336,12 @@ mod tests {
 
         let response = build_success_response(&post);
 
-        assert!(response.headers().contains_key("Access-Control-Allow-Methods"));
-        assert!(response.headers().contains_key("Access-Control-Allow-Headers"));
+        assert!(response
+            .headers()
+            .contains_key("Access-Control-Allow-Methods"));
+        assert!(response
+            .headers()
+            .contains_key("Access-Control-Allow-Headers"));
     }
 
     #[test]

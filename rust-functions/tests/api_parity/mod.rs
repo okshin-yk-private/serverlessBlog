@@ -19,7 +19,7 @@
 //! cargo test --test api_parity_tests -- --ignored
 //! ```
 
-pub mod posts_parity;
 pub mod auth_parity;
 pub mod images_parity;
+pub mod posts_parity;
 pub mod test_utils;
