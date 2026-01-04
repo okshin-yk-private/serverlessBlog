@@ -186,7 +186,7 @@ jobs:
             echo "⚠️  Deploying to PRODUCTION"
             echo ""
           fi
-          bunx cdk deploy --all --require-approval never --context stage=${{ steps.env.outputs.stage }} --ci --outputs-file cdk-outputs.json
+          bunx cdk deploy --all --require-approval never --context stage=${{ steps.env.outputs.stage }} --context rustTrafficPercent=100 --ci --outputs-file cdk-outputs.json
           echo "✓ CDK Deployment completed successfully"
           echo ""
           echo "sccache stats:"
