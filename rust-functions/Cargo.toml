@@ -54,7 +54,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["ServerlessBlog Team"]
 license = "MIT"
-rust-version = "1.85"
+rust-version = "1.92"
 
 [workspace.dependencies]
 # Lambda runtime
@@ -62,13 +62,14 @@ lambda_runtime = "0.13"
 lambda_http = "0.13"
 aws_lambda_events = "0.15"
 
-# AWS SDK - pinned to versions compatible with Rust 1.85
-# Note: Newer versions require Rust 1.88+
-aws-config = { version = "=1.5.10", features = ["behavior-version-latest"] }
-aws-sdk-dynamodb = "=1.55.0"
-aws-sdk-s3 = "=1.65.0"
-aws-sdk-cognitoidentityprovider = "=1.52.0"
-aws-sdk-cloudwatch = "=1.55.0"
+# AWS SDK
+aws-config = { version = "1", default-features = false, features = ["behavior-version-latest", "rustls"] }
+aws-sdk-dynamodb = "1"
+aws-sdk-s3 = "1"
+aws-sdk-cognitoidentityprovider = "1"
+aws-sdk-cloudwatch = "1"
+
+# AWS Smithy - locked by cargo update after build
 
 # DynamoDB serde integration
 serde_dynamo = { version = "4", features = ["aws-sdk-dynamodb+1"] }
@@ -109,3 +110,4 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+

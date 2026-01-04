@@ -4,7 +4,6 @@
 //! Run with: `./scripts/run-integration-tests.sh`
 
 use aws_sdk_dynamodb::types::AttributeValue;
-use std::collections::HashMap;
 
 use super::test_helpers::{
     cleanup_test_data, create_dynamodb_client, create_test_post_item, generate_test_id, TestConfig,
@@ -199,7 +198,7 @@ async fn test_dynamodb_query_by_publish_status() {
 
     // Create draft posts
     for (i, post_id) in draft_ids.iter().enumerate() {
-        let mut item =
+        let item =
             create_test_post_item(post_id, &format!("Draft Post {}", i), &unique_tag, "draft");
         client
             .put_item()

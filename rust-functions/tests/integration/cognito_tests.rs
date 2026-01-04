@@ -5,7 +5,7 @@
 
 use aws_sdk_cognitoidentityprovider::types::AuthFlowType;
 
-use super::test_helpers::{create_cognito_client, generate_test_id, TestConfig};
+use super::test_helpers::{create_cognito_client, generate_test_id};
 
 /// Test: Create a user pool.
 #[tokio::test]
