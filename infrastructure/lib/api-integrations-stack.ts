@@ -171,7 +171,7 @@ export class ApiIntegrationsStack extends cdk.Stack {
 
       // POST /admin/auth/login
       const loginResource = adminAuthResource.addResource('login');
-      loginResource.addMethod(
+      const loginMethod = loginResource.addMethod(
         'POST',
         new apigateway.LambdaIntegration(lambdaFunctions.loginFunction),
         {
@@ -192,12 +192,39 @@ export class ApiIntegrationsStack extends cdk.Stack {
 
       // POST /admin/auth/refresh
       const refreshResource = adminAuthResource.addResource('refresh');
-      refreshResource.addMethod(
+      const refreshMethod = refreshResource.addMethod(
         'POST',
         new apigateway.LambdaIntegration(lambdaFunctions.refreshFunction),
         {
           authorizationType: apigateway.AuthorizationType.NONE,
         }
+      );
+
+      // CDK Nag Suppressions for auth endpoints
+      // login and refresh endpoints intentionally do not require authorization
+      // because they are the endpoints that provide authentication tokens
+      const authEndpointSuppression = [
+        {
+          id: 'AwsSolutions-APIG4',
+          reason:
+            'Auth endpoints (login/refresh) intentionally do not require authorization - they provide authentication.',
+        },
+        {
+          id: 'AwsSolutions-COG4',
+          reason:
+            'Auth endpoints (login/refresh) use AuthorizationType.NONE - users authenticate via these endpoints.',
+        },
+      ];
+
+      NagSuppressions.addResourceSuppressions(
+        loginMethod,
+        authEndpointSuppression,
+        true
+      );
+      NagSuppressions.addResourceSuppressions(
+        refreshMethod,
+        authEndpointSuppression,
+        true
       );
     }
 
