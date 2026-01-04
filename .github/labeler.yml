@@ -39,3 +39,12 @@ documentation:
     - any-glob-to-any-file:
       - '**/*.md'
       - 'docs/**'
+
+# Rust Lambda関数変更
+rust:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'rust-functions/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'

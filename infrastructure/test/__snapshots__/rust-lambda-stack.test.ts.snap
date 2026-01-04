@@ -1,0 +1,2503 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`RustLambdaStack Snapshot Snapshot test 1`] = `
+{
+  "Outputs": {
+    "CreatePostRustFunctionArn": {
+      "Description": "Create Post Rust Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "CreatePostRust673E40C2",
+          "Arn",
+        ],
+      },
+    },
+    "DeleteImageRustFunctionArn": {
+      "Description": "Delete Image Rust Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "DeleteImageRust93D688C9",
+          "Arn",
+        ],
+      },
+    },
+    "DeletePostRustFunctionArn": {
+      "Description": "Delete Post Rust Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "DeletePostRust0F71557D",
+          "Arn",
+        ],
+      },
+    },
+    "GetPostRustFunctionArn": {
+      "Description": "Get Post Rust Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "GetPostRustA2B8017B",
+          "Arn",
+        ],
+      },
+    },
+    "GetPublicPostRustFunctionArn": {
+      "Description": "Get Public Post Rust Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "GetPublicPostRust07301F77",
+          "Arn",
+        ],
+      },
+    },
+    "GetUploadUrlRustFunctionArn": {
+      "Description": "Get Upload URL Rust Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "GetUploadUrlRustC4017778",
+          "Arn",
+        ],
+      },
+    },
+    "ListPostsRustFunctionArn": {
+      "Description": "List Posts Rust Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "ListPostsRustF660CAA6",
+          "Arn",
+        ],
+      },
+    },
+    "LoginRustFunctionArn": {
+      "Description": "Login Rust Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "LoginRust9EB14C33",
+          "Arn",
+        ],
+      },
+    },
+    "LogoutRustFunctionArn": {
+      "Description": "Logout Rust Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "LogoutRustBF759097",
+          "Arn",
+        ],
+      },
+    },
+    "RefreshRustFunctionArn": {
+      "Description": "Refresh Rust Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "RefreshRust565C6A06",
+          "Arn",
+        ],
+      },
+    },
+    "UpdatePostRustFunctionArn": {
+      "Description": "Update Post Rust Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "UpdatePostRustACDEB693",
+          "Arn",
+        ],
+      },
+    },
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "CreatePostRust673E40C2": {
+      "DependsOn": [
+        "CreatePostRustServiceRoleDefaultPolicy590B08E4",
+        "CreatePostRustServiceRole37F18719",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "c8593bcc93725399d294718abad346d7990e1679c88711490432b9e9da83ec4d.zip",
+        },
+        "Description": "Create new blog post with Markdown to HTML conversion (Rust)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "RUST_LOG": "info",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-create-post-rust",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "CreatePostRustServiceRole37F18719",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "CreatePostRustServiceRole37F18719": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "CreatePostRustServiceRoleDefaultPolicy590B08E4": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "dynamodb:BatchWriteItem",
+                "dynamodb:PutItem",
+                "dynamodb:UpdateItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:DescribeTable",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "CreatePostRustServiceRoleDefaultPolicy590B08E4",
+        "Roles": [
+          {
+            "Ref": "CreatePostRustServiceRole37F18719",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "DeleteImageRust93D688C9": {
+      "DependsOn": [
+        "DeleteImageRustServiceRoleDefaultPolicyFD0162EE",
+        "DeleteImageRustServiceRoleFD78EE8E",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "01800ac3e0ccf76860f0c4785b96ea938215433d659cd2c9f91c1cfcc40d09b8.zip",
+        },
+        "Description": "Delete image from S3 (Rust)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "RUST_LOG": "info",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-delete-image-rust",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "DeleteImageRustServiceRoleFD78EE8E",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "DeleteImageRustServiceRoleDefaultPolicyFD0162EE": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": "s3:DeleteObject*",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockBucket803559C4ArnD3395704",
+                    },
+                    "/*",
+                  ],
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "DeleteImageRustServiceRoleDefaultPolicyFD0162EE",
+        "Roles": [
+          {
+            "Ref": "DeleteImageRustServiceRoleFD78EE8E",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "DeleteImageRustServiceRoleFD78EE8E": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "DeletePostRust0F71557D": {
+      "DependsOn": [
+        "DeletePostRustServiceRoleDefaultPolicy076EC5D5",
+        "DeletePostRustServiceRole55CB2A9A",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "7d86f669241e7ac2e64b99a895c6fef2652126b04d00d65d41c42d9d33031c59.zip",
+        },
+        "Description": "Delete blog post (Rust)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "RUST_LOG": "info",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-delete-post-rust",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "DeletePostRustServiceRole55CB2A9A",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "DeletePostRustServiceRole55CB2A9A": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "DeletePostRustServiceRoleDefaultPolicy076EC5D5": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:Query",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:PutItem",
+                "dynamodb:UpdateItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:DescribeTable",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+            {
+              "Action": [
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+            {
+              "Action": "s3:DeleteObject*",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockBucket803559C4ArnD3395704",
+                    },
+                    "/*",
+                  ],
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "DeletePostRustServiceRoleDefaultPolicy076EC5D5",
+        "Roles": [
+          {
+            "Ref": "DeletePostRustServiceRole55CB2A9A",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "GetPostRustA2B8017B": {
+      "DependsOn": [
+        "GetPostRustServiceRoleDefaultPolicy20376AC5",
+        "GetPostRustServiceRole9123BB84",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "3276df81f39a41b76184a05adbddf9a03b743a4e961a835683c104d765cba864.zip",
+        },
+        "Description": "Get blog post by ID (admin, includes markdown) (Rust)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "RUST_LOG": "info",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-get-post-rust",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "GetPostRustServiceRole9123BB84",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "GetPostRustServiceRole9123BB84": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "GetPostRustServiceRoleDefaultPolicy20376AC5": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:Query",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:DescribeTable",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+            {
+              "Action": [
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "GetPostRustServiceRoleDefaultPolicy20376AC5",
+        "Roles": [
+          {
+            "Ref": "GetPostRustServiceRole9123BB84",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "GetPublicPostRust07301F77": {
+      "DependsOn": [
+        "GetPublicPostRustServiceRoleDefaultPolicy78A92557",
+        "GetPublicPostRustServiceRoleB5CC92EB",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "ca52cd287f3a003c3d2b304032c69ce3461a58bafc869da56fc119ac5ed22aba.zip",
+        },
+        "Description": "Get published blog post by ID (public, HTML only) (Rust)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "RUST_LOG": "info",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-get-public-post-rust",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "GetPublicPostRustServiceRoleB5CC92EB",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "GetPublicPostRustServiceRoleB5CC92EB": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "GetPublicPostRustServiceRoleDefaultPolicy78A92557": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:Query",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:DescribeTable",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+            {
+              "Action": [
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "GetPublicPostRustServiceRoleDefaultPolicy78A92557",
+        "Roles": [
+          {
+            "Ref": "GetPublicPostRustServiceRoleB5CC92EB",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "GetUploadUrlRustC4017778": {
+      "DependsOn": [
+        "GetUploadUrlRustServiceRoleDefaultPolicy0A28AC2C",
+        "GetUploadUrlRustServiceRole4F81CBA0",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "57b06f8adbe892c97bf1f1464cfa6bdb71da29e388aa9d43dbc7b8231e586516.zip",
+        },
+        "Description": "Generate pre-signed URL for image upload (Rust)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "RUST_LOG": "info",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-upload-url-rust",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "GetUploadUrlRustServiceRole4F81CBA0",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "GetUploadUrlRustServiceRole4F81CBA0": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "GetUploadUrlRustServiceRoleDefaultPolicy0A28AC2C": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "s3:PutObject",
+                "s3:PutObjectLegalHold",
+                "s3:PutObjectRetention",
+                "s3:PutObjectTagging",
+                "s3:PutObjectVersionTagging",
+                "s3:Abort*",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockBucket803559C4ArnD3395704",
+                    },
+                    "/*",
+                  ],
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "GetUploadUrlRustServiceRoleDefaultPolicy0A28AC2C",
+        "Roles": [
+          {
+            "Ref": "GetUploadUrlRustServiceRole4F81CBA0",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "ListPostsRustF660CAA6": {
+      "DependsOn": [
+        "ListPostsRustServiceRoleDefaultPolicyA0980EAF",
+        "ListPostsRustServiceRole54985436",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "5264e291ea5d19b2b8b0f2173c16893f052b44bd8196d5308969b53d1d534f18.zip",
+        },
+        "Description": "List published blog posts (Rust)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "RUST_LOG": "info",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-list-posts-rust",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "ListPostsRustServiceRole54985436",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "ListPostsRustServiceRole54985436": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "ListPostsRustServiceRoleDefaultPolicyA0980EAF": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:Query",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:DescribeTable",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+            {
+              "Action": [
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "ListPostsRustServiceRoleDefaultPolicyA0980EAF",
+        "Roles": [
+          {
+            "Ref": "ListPostsRustServiceRole54985436",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "LoginRust9EB14C33": {
+      "DependsOn": [
+        "LoginRustServiceRoleDefaultPolicyCA0BE9F2",
+        "LoginRustServiceRoleBD189461",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "b0646b1ab272560607544e650908fa2fca35c01ffc0ac7e71222c01f3b7c693b.zip",
+        },
+        "Description": "User authentication (Rust)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "RUST_LOG": "info",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-login-rust",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "LoginRustServiceRoleBD189461",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "LoginRustServiceRoleBD189461": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "LoginRustServiceRoleDefaultPolicyCA0BE9F2": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "LoginRustServiceRoleDefaultPolicyCA0BE9F2",
+        "Roles": [
+          {
+            "Ref": "LoginRustServiceRoleBD189461",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "LogoutRustBF759097": {
+      "DependsOn": [
+        "LogoutRustServiceRoleDefaultPolicy72578EF0",
+        "LogoutRustServiceRoleC5845CBF",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "3976dd6278e85d3d9c47f7aec858b90b843c5202db01267067998180328fca74.zip",
+        },
+        "Description": "User logout (Rust)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "RUST_LOG": "info",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-logout-rust",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "LogoutRustServiceRoleC5845CBF",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "LogoutRustServiceRoleC5845CBF": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "LogoutRustServiceRoleDefaultPolicy72578EF0": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "LogoutRustServiceRoleDefaultPolicy72578EF0",
+        "Roles": [
+          {
+            "Ref": "LogoutRustServiceRoleC5845CBF",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "RefreshRust565C6A06": {
+      "DependsOn": [
+        "RefreshRustServiceRoleDefaultPolicyB79D86B3",
+        "RefreshRustServiceRole09C20F15",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "bf5ac2e09e77f254d706e7fbdeee207b84ad533a600a835caed604e57516931b.zip",
+        },
+        "Description": "Token refresh (Rust)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "RUST_LOG": "info",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-refresh-rust",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "RefreshRustServiceRole09C20F15",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "RefreshRustServiceRole09C20F15": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "RefreshRustServiceRoleDefaultPolicyB79D86B3": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "RefreshRustServiceRoleDefaultPolicyB79D86B3",
+        "Roles": [
+          {
+            "Ref": "RefreshRustServiceRole09C20F15",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "UpdatePostRustACDEB693": {
+      "DependsOn": [
+        "UpdatePostRustServiceRoleDefaultPolicy5ABA4681",
+        "UpdatePostRustServiceRole38615E74",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "a1358e3615e918f69c0a1df32f7ca6426254b8089ef4dc67b43805b1ffb6726b.zip",
+        },
+        "Description": "Update existing blog post (Rust)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "RUST_LOG": "info",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-update-post-rust",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "UpdatePostRustServiceRole38615E74",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "UpdatePostRustServiceRole38615E74": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "UpdatePostRustServiceRoleDefaultPolicy5ABA4681": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:Query",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:PutItem",
+                "dynamodb:UpdateItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:DescribeTable",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+            {
+              "Action": [
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "UpdatePostRustServiceRoleDefaultPolicy5ABA4681",
+        "Roles": [
+          {
+            "Ref": "UpdatePostRustServiceRole38615E74",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;

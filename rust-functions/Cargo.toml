@@ -1,0 +1,110 @@
+[workspace]
+resolver = "2"
+members = [
+    "common",
+    # Posts domain
+    "posts/create_post",
+    "posts/get_post",
+    "posts/get_public_post",
+    "posts/list_posts",
+    "posts/update_post",
+    "posts/delete_post",
+    # Auth domain
+    "auth/login",
+    "auth/logout",
+    "auth/refresh",
+    # Images domain
+    "images/get_upload_url",
+    "images/delete_image",
+]
+
+# Root package for integration tests
+[package]
+name = "rust-functions"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Integration test features
+[features]
+default = []
+integration = []
+
+[[test]]
+name = "integration_tests"
+path = "tests/integration_tests.rs"
+required-features = ["integration"]
+
+[[test]]
+name = "api_parity_tests"
+path = "tests/api_parity_tests.rs"
+
+[dev-dependencies]
+aws-config = { workspace = true }
+aws-sdk-dynamodb = { workspace = true }
+aws-sdk-s3 = { workspace = true }
+aws-sdk-cognitoidentityprovider = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["ServerlessBlog Team"]
+license = "MIT"
+rust-version = "1.83"
+
+[workspace.dependencies]
+# Lambda runtime
+lambda_runtime = "0.13"
+lambda_http = "0.13"
+aws_lambda_events = "0.15"
+
+# AWS SDK
+aws-config = { version = "1", features = ["behavior-version-latest"] }
+aws-sdk-dynamodb = "1"
+aws-sdk-s3 = "1"
+aws-sdk-cognitoidentityprovider = "1"
+aws-sdk-cloudwatch = "1"
+
+# DynamoDB serde integration
+serde_dynamo = { version = "4", features = ["aws-sdk-dynamodb+1"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+
+# Markdown processing
+pulldown-cmark = "0.11"
+ammonia = "4"
+
+# Error handling
+thiserror = "1"
+anyhow = "1"
+
+# Async runtime
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+# Utilities
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Testing
+tokio-test = "0.4"
+
+# Internal crate
+common = { path = "common" }
+
+[profile.release]
+# Optimize for size while maintaining performance
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

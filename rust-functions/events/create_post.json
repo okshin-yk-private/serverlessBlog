@@ -1,0 +1,36 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /admin/posts",
+  "rawPath": "/admin/posts",
+  "rawQueryString": "",
+  "headers": {
+    "content-type": "application/json",
+    "accept": "application/json"
+  },
+  "requestContext": {
+    "accountId": "123456789012",
+    "apiId": "api-id",
+    "authorizer": {
+      "claims": {
+        "sub": "test-user-123",
+        "email": "test@example.com"
+      }
+    },
+    "domainName": "api.example.com",
+    "domainPrefix": "api",
+    "http": {
+      "method": "POST",
+      "path": "/admin/posts",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "127.0.0.1",
+      "userAgent": "cargo-lambda"
+    },
+    "requestId": "request-id-123",
+    "routeKey": "POST /admin/posts",
+    "stage": "dev",
+    "time": "03/Jan/2026:12:00:00 +0000",
+    "timeEpoch": 1767434400000
+  },
+  "body": "{\"title\":\"Test Post\",\"content_markdown\":\"# Hello World\\n\\nThis is a test post.\",\"category\":\"tech\",\"tags\":[\"rust\",\"lambda\"],\"publish_status\":\"draft\"}",
+  "isBase64Encoded": false
+}

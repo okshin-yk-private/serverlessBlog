@@ -1,0 +1,29 @@
+[package]
+name = "delete_post"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Lambda function for deleting a blog post and its images"
+
+[[bin]]
+name = "bootstrap"
+path = "src/main.rs"
+
+[dependencies]
+common = { workspace = true }
+lambda_runtime = { workspace = true }
+lambda_http = { workspace = true }
+aws-sdk-dynamodb = { workspace = true }
+aws-sdk-s3 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_dynamo = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+url = "2.5"
+
+[dev-dependencies]
+tokio-test = { workspace = true }

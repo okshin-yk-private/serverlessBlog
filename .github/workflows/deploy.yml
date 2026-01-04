@@ -78,6 +78,25 @@ jobs:
         working-directory: layers/powertools/nodejs
         run: bun install --frozen-lockfile
 
+      # =======================================
+      # Rust Lambda Build Setup
+      # =======================================
+      - name: Install Rust toolchain and Cargo Lambda
+        uses: moonrepo/setup-rust@v1
+        with:
+          bins: cargo-lambda
+
+      - name: Install Zig (cross-compilation for ARM64)
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-functions
+          cache-on-failure: true
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:

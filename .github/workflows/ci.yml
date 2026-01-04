@@ -32,6 +32,7 @@ jobs:
       has-frontend: ${{ steps.check-labels.outputs.has-frontend }}
       has-tests: ${{ steps.check-labels.outputs.has-tests }}
       has-workflow: ${{ steps.check-labels.outputs.has-workflow }}
+      has-rust: ${{ steps.check-labels.outputs.has-rust }}
     steps:
       - name: Get PR number
         id: get-pr
@@ -81,6 +82,12 @@ jobs:
             echo "has-workflow=true" >> $GITHUB_OUTPUT
           else
             echo "has-workflow=false" >> $GITHUB_OUTPUT
+          fi
+
+          if echo "$LABELS" | grep -q "rust"; then
+            echo "has-rust=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-rust=false" >> $GITHUB_OUTPUT
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -177,6 +184,43 @@ jobs:
           name: backend-coverage
           path: coverage/
           retention-days: 30
+
+  # =======================================
+  # Job 2.5: Rust Unit Tests (conditional)
+  # =======================================
+  rust-tests:
+    needs: [setup-labels]
+    name: Rust Unit Tests
+    runs-on: ubuntu-latest
+    if: |
+      needs.setup-labels.outputs.has-rust == 'true' ||
+      needs.setup-labels.outputs.has-infrastructure == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-functions
+
+      - name: Check formatting
+        working-directory: rust-functions
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        working-directory: rust-functions
+        run: cargo clippy --all -- -D warnings
+
+      - name: Run Rust tests
+        working-directory: rust-functions
+        run: cargo test --all --release
+        env:
+          CI: true
 
   # =======================================
   # Job 3: Infrastructure Tests (conditional)
@@ -694,6 +738,7 @@ jobs:
       - setup-labels
       - lint
       - backend-unit-tests
+      - rust-tests
       - infrastructure-tests
       - frontend-public-tests
       - frontend-admin-tests
@@ -711,6 +756,7 @@ jobs:
           echo ""
           echo "Lint: ${{ needs.lint.result }}"
           echo "Backend Unit Tests: ${{ needs.backend-unit-tests.result }}"
+          echo "Rust Unit Tests: ${{ needs.rust-tests.result }}"
           echo "Infrastructure Tests: ${{ needs.infrastructure-tests.result }}"
           echo "Frontend (Public) Tests: ${{ needs.frontend-public-tests.result }}"
           echo "Frontend (Admin) Tests: ${{ needs.frontend-admin-tests.result }}"
@@ -730,6 +776,7 @@ jobs:
 
           # Check if any job failed (excluding skipped jobs)
           if [ "${{ needs.backend-unit-tests.result }}" == "failure" ] || \
+             [ "${{ needs.rust-tests.result }}" == "failure" ] || \
              [ "${{ needs.infrastructure-tests.result }}" == "failure" ] || \
              [ "${{ needs.frontend-public-tests.result }}" == "failure" ] || \
              [ "${{ needs.frontend-admin-tests.result }}" == "failure" ] || \

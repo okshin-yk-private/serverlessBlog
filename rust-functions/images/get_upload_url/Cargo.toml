@@ -1,0 +1,29 @@
+[package]
+name = "get_upload_url"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Lambda function for generating S3 pre-signed upload URLs"
+
+[[bin]]
+name = "bootstrap"
+path = "src/main.rs"
+
+[dependencies]
+common = { workspace = true }
+lambda_runtime = { workspace = true }
+lambda_http = { workspace = true }
+aws-config = { workspace = true }
+aws-sdk-s3 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }

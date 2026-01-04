@@ -1,0 +1,27 @@
+[package]
+name = "refresh"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Lambda function for refreshing authentication tokens"
+
+[[bin]]
+name = "bootstrap"
+path = "src/main.rs"
+
+[dependencies]
+common = { workspace = true }
+lambda_runtime = { workspace = true }
+lambda_http = { workspace = true }
+aws-config = { workspace = true }
+aws-sdk-cognitoidentityprovider = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
