@@ -103,6 +103,17 @@ jobs:
           workspaces: rust-functions
           cache-on-failure: true
 
+      # =======================================
+      # Rust Lambda Pre-build (workspace batch build)
+      # =======================================
+      - name: Build all Rust Lambdas
+        working-directory: rust-functions
+        run: |
+          echo "Building all Rust Lambda functions..."
+          cargo lambda build --profile release-fast --arm64 --workspace
+          echo "✓ All Rust Lambdas built"
+          ls -la target/lambda/
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
