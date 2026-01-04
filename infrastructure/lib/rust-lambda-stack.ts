@@ -115,6 +115,7 @@ export class RustLambdaStack extends cdk.Stack {
         timeout?: cdk.Duration;
       }
     ): lambda.IFunction => {
+      /* istanbul ignore if -- @preserve CI deployment path tested via E2E, requires pre-built binaries */
       if (usePrebuiltBinaries) {
         // CI: Use pre-built binaries for faster deployment
         return new lambda.Function(this, id, {

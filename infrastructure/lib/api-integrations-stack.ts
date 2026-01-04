@@ -206,7 +206,7 @@ export class ApiIntegrationsStack extends cdk.Stack {
     // =====================
 
     // GET /posts - List posts (public)
-    postsResource.addMethod(
+    const listPostsMethod = postsResource.addMethod(
       'GET',
       new apigateway.LambdaIntegration(lambdaFunctions.listPostsFunction),
       {
@@ -216,12 +216,38 @@ export class ApiIntegrationsStack extends cdk.Stack {
 
     // GET /posts/{id} - Get post (public)
     const publicPostByIdResource = postsResource.addResource('{id}');
-    publicPostByIdResource.addMethod(
+    const getPublicPostMethod = publicPostByIdResource.addMethod(
       'GET',
       new apigateway.LambdaIntegration(lambdaFunctions.getPublicPostFunction),
       {
         authorizationType: apigateway.AuthorizationType.NONE,
       }
+    );
+
+    // CDK Nag Suppressions for public endpoints
+    // These methods intentionally do not require authorization for public blog access
+    const publicEndpointSuppression = [
+      {
+        id: 'AwsSolutions-APIG4',
+        reason:
+          'Public blog endpoints (/posts) intentionally do not require authorization for public access.',
+      },
+      {
+        id: 'AwsSolutions-COG4',
+        reason:
+          'Public blog endpoints (/posts) use AuthorizationType.NONE intentionally for public access.',
+      },
+    ];
+
+    NagSuppressions.addResourceSuppressions(
+      listPostsMethod,
+      publicEndpointSuppression,
+      true
+    );
+    NagSuppressions.addResourceSuppressions(
+      getPublicPostMethod,
+      publicEndpointSuppression,
+      true
     );
 
     // CDK Nag Suppressions
