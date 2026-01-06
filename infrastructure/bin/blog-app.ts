@@ -11,6 +11,7 @@ import { ApiStack } from '../lib/api-stack';
 import { CdnStack } from '../lib/cdn-stack';
 import { LambdaFunctionsStack } from '../lib/lambda-functions-stack';
 import { RustLambdaStack } from '../lib/rust-lambda-stack';
+import { GoLambdaStack } from '../lib/go-lambda-stack';
 import { ApiIntegrationsStack } from '../lib/api-integrations-stack';
 import { MonitoringStack } from '../lib/monitoring-stack';
 
@@ -29,13 +30,18 @@ const app = new cdk.App();
 const stage = app.node.tryGetContext('stage') || 'dev';
 const isProduction = stage === 'prd';
 
-// Rust移行トラフィックルーティング設定
-// rustTrafficPercent: 0 = Node.js only, 100 = Rust only
-// 中間値（10, 50, 90）は Rust 関数を使用（段階的移行）
+// Lambda実装選択設定
+// goTrafficPercent: 0 = 無効, 100 = Go使用
+// rustTrafficPercent: 0 = 無効, 100 = Rust使用
+// 優先順位: Go > Rust > Node.js
+const goTrafficPercent = Number(
+  app.node.tryGetContext('goTrafficPercent') ?? 0
+);
 const rustTrafficPercent = Number(
   app.node.tryGetContext('rustTrafficPercent') ?? 0
 );
-const useRustLambda = rustTrafficPercent > 0;
+const useGoLambda = goTrafficPercent > 0;
+const useRustLambda = rustTrafficPercent > 0 && !useGoLambda;
 
 // 環境設定
 const env = {
@@ -97,7 +103,7 @@ const lambdaFunctionsStack = new LambdaFunctionsStack(
   }
 );
 
-// Rust Lambda Functions Stack (always deployed when rustTrafficPercent > 0)
+// Rust Lambda Functions Stack (deployed when rustTrafficPercent > 0 and goTrafficPercent = 0)
 // API integrations are handled by ApiIntegrationsStack
 let rustLambdaStack: RustLambdaStack | undefined;
 if (useRustLambda) {
@@ -114,9 +120,78 @@ if (useRustLambda) {
   });
 }
 
+// Go Lambda Functions Stack (deployed when goTrafficPercent > 0)
+// API integrations are handled by ApiIntegrationsStack
+let goLambdaStack: GoLambdaStack | undefined;
+if (useGoLambda) {
+  goLambdaStack = new GoLambdaStack(app, 'ServerlessBlogGoLambdaStack', {
+    env,
+    blogPostsTable: databaseStack.blogPostsTable,
+    imagesBucket: storageStack.imageBucket,
+    restApi: apiStack.restApi,
+    authorizer: apiStack.authorizer,
+    userPoolId: authStack.userPool.userPoolId,
+    userPoolClientId: authStack.userPoolClient.userPoolClientId,
+    cloudFrontDomainName: cdnStack.distribution.distributionDomainName,
+    createApiIntegrations: false, // API integrations handled by ApiIntegrationsStack
+  });
+}
+
 // API Integrations Stack
 // This stack handles all API Gateway method integrations
-// It selects between Node.js and Rust Lambda functions based on useRustLambda
+// Priority: Go > Rust > Node.js
+const getImplementationLabel = (): string => {
+  if (useGoLambda) return 'Go';
+  if (useRustLambda) return 'Rust';
+  return 'Node.js';
+};
+
+const getLambdaFunctions = () => {
+  if (useGoLambda && goLambdaStack) {
+    // Use Go Lambda functions
+    return {
+      createPostFunction: goLambdaStack.createPostGoFunction!,
+      getPostFunction: goLambdaStack.getPostGoFunction!,
+      getPublicPostFunction: goLambdaStack.getPublicPostGoFunction!,
+      listPostsFunction: goLambdaStack.listPostsGoFunction!,
+      updatePostFunction: goLambdaStack.updatePostGoFunction!,
+      deletePostFunction: goLambdaStack.deletePostGoFunction!,
+      uploadUrlFunction: goLambdaStack.getUploadUrlGoFunction!,
+      deleteImageFunction: goLambdaStack.deleteImageGoFunction!,
+      loginFunction: goLambdaStack.loginGoFunction!,
+      logoutFunction: goLambdaStack.logoutGoFunction!,
+      refreshFunction: goLambdaStack.refreshGoFunction!,
+    };
+  }
+  if (useRustLambda && rustLambdaStack) {
+    // Use Rust Lambda functions
+    return {
+      createPostFunction: rustLambdaStack.createPostRustFunction,
+      getPostFunction: rustLambdaStack.getPostRustFunction,
+      getPublicPostFunction: rustLambdaStack.getPublicPostRustFunction,
+      listPostsFunction: rustLambdaStack.listPostsRustFunction,
+      updatePostFunction: rustLambdaStack.updatePostRustFunction,
+      deletePostFunction: rustLambdaStack.deletePostRustFunction,
+      uploadUrlFunction: rustLambdaStack.getUploadUrlRustFunction,
+      deleteImageFunction: rustLambdaStack.deleteImageRustFunction,
+      loginFunction: rustLambdaStack.loginRustFunction,
+      logoutFunction: rustLambdaStack.logoutRustFunction,
+      refreshFunction: rustLambdaStack.refreshRustFunction,
+    };
+  }
+  // Use Node.js Lambda functions
+  return {
+    createPostFunction: lambdaFunctionsStack.createPostFunction,
+    getPostFunction: lambdaFunctionsStack.getPostFunction,
+    getPublicPostFunction: lambdaFunctionsStack.getPublicPostFunction,
+    listPostsFunction: lambdaFunctionsStack.listPostsFunction,
+    updatePostFunction: lambdaFunctionsStack.updatePostFunction,
+    deletePostFunction: lambdaFunctionsStack.deletePostFunction,
+    uploadUrlFunction: lambdaFunctionsStack.uploadUrlFunction,
+    deleteImageFunction: lambdaFunctionsStack.deleteImageFunction,
+  };
+};
+
 const apiIntegrationsStack = new ApiIntegrationsStack(
   app,
   'ServerlessBlogApiIntegrationsStack',
@@ -124,34 +199,8 @@ const apiIntegrationsStack = new ApiIntegrationsStack(
     env,
     restApi: apiStack.restApi,
     authorizer: apiStack.authorizer,
-    lambdaFunctions:
-      useRustLambda && rustLambdaStack
-        ? {
-            // Use Rust Lambda functions
-            createPostFunction: rustLambdaStack.createPostRustFunction,
-            getPostFunction: rustLambdaStack.getPostRustFunction,
-            getPublicPostFunction: rustLambdaStack.getPublicPostRustFunction,
-            listPostsFunction: rustLambdaStack.listPostsRustFunction,
-            updatePostFunction: rustLambdaStack.updatePostRustFunction,
-            deletePostFunction: rustLambdaStack.deletePostRustFunction,
-            uploadUrlFunction: rustLambdaStack.getUploadUrlRustFunction,
-            deleteImageFunction: rustLambdaStack.deleteImageRustFunction,
-            loginFunction: rustLambdaStack.loginRustFunction,
-            logoutFunction: rustLambdaStack.logoutRustFunction,
-            refreshFunction: rustLambdaStack.refreshRustFunction,
-          }
-        : {
-            // Use Node.js Lambda functions
-            createPostFunction: lambdaFunctionsStack.createPostFunction,
-            getPostFunction: lambdaFunctionsStack.getPostFunction,
-            getPublicPostFunction: lambdaFunctionsStack.getPublicPostFunction,
-            listPostsFunction: lambdaFunctionsStack.listPostsFunction,
-            updatePostFunction: lambdaFunctionsStack.updatePostFunction,
-            deletePostFunction: lambdaFunctionsStack.deletePostFunction,
-            uploadUrlFunction: lambdaFunctionsStack.uploadUrlFunction,
-            deleteImageFunction: lambdaFunctionsStack.deleteImageFunction,
-          },
-    implementationLabel: useRustLambda ? 'Rust' : 'Node.js',
+    lambdaFunctions: getLambdaFunctions(),
+    implementationLabel: getImplementationLabel(),
   }
 );
 
@@ -179,6 +228,32 @@ if (rustLambdaStack) {
     rustLambdaStack.getPublicPostRustFunction,
     rustLambdaStack.getUploadUrlRustFunction
   );
+}
+
+// Add Go Lambda functions when enabled
+if (goLambdaStack) {
+  if (goLambdaStack.createPostGoFunction)
+    monitoredLambdaFunctions.push(goLambdaStack.createPostGoFunction);
+  if (goLambdaStack.getPostGoFunction)
+    monitoredLambdaFunctions.push(goLambdaStack.getPostGoFunction);
+  if (goLambdaStack.updatePostGoFunction)
+    monitoredLambdaFunctions.push(goLambdaStack.updatePostGoFunction);
+  if (goLambdaStack.deletePostGoFunction)
+    monitoredLambdaFunctions.push(goLambdaStack.deletePostGoFunction);
+  if (goLambdaStack.listPostsGoFunction)
+    monitoredLambdaFunctions.push(goLambdaStack.listPostsGoFunction);
+  if (goLambdaStack.getPublicPostGoFunction)
+    monitoredLambdaFunctions.push(goLambdaStack.getPublicPostGoFunction);
+  if (goLambdaStack.getUploadUrlGoFunction)
+    monitoredLambdaFunctions.push(goLambdaStack.getUploadUrlGoFunction);
+  if (goLambdaStack.loginGoFunction)
+    monitoredLambdaFunctions.push(goLambdaStack.loginGoFunction);
+  if (goLambdaStack.logoutGoFunction)
+    monitoredLambdaFunctions.push(goLambdaStack.logoutGoFunction);
+  if (goLambdaStack.refreshGoFunction)
+    monitoredLambdaFunctions.push(goLambdaStack.refreshGoFunction);
+  if (goLambdaStack.deleteImageGoFunction)
+    monitoredLambdaFunctions.push(goLambdaStack.deleteImageGoFunction);
 }
 
 // Monitoring Stack (CloudWatch)
