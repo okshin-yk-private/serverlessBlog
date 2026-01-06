@@ -216,7 +216,10 @@ jobs:
           go env GOVERSION
           echo ""
           echo "Running Go tests with race detector and coverage..."
-          go test -race -coverprofile=coverage.out -covermode=atomic -v ./...
+          # Exclude benchmark package as it has no statements to cover
+          # (benchmarks only contain test code, causing coverage profile issues in Go 1.25)
+          # See: https://github.com/golang/go/issues/70244
+          go list ./... | grep -v '/tests/benchmark$' | xargs go test -race -coverprofile=coverage.out -covermode=atomic -v
           echo ""
           echo "Verifying coverage file..."
           if [ -f coverage.out ]; then
