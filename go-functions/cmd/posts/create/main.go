@@ -40,9 +40,7 @@ var dynamoClientGetter = func() (DynamoDBClientInterface, error) {
 
 // markdownConverter is a function that converts markdown to HTML
 // This can be overridden in tests
-var markdownConverter = func(md string) (string, error) {
-	return markdown.ConvertToHTML(md)
-}
+var markdownConverter = markdown.ConvertToHTML
 
 // uuidGenerator is a function that generates a new UUID
 // This can be overridden in tests

@@ -133,6 +133,7 @@ func parseLimit(limitParam string) int32 {
 		return DefaultLimit
 	}
 
+	//nolint:gosec // G109: limit is bounded by MaxLimit (100), safe for int32
 	return int32(limit)
 }
 

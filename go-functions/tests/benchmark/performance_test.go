@@ -230,17 +230,17 @@ func TestIndividualBuildTime(t *testing.T) {
 	)
 
 	funcToCmdPath := map[string]string{
-		"posts-create":         "cmd/posts/create",
-		"posts-get":            "cmd/posts/get",
-		"posts-get_public":     "cmd/posts/get_public",
-		"posts-list":           "cmd/posts/list",
-		"posts-update":         "cmd/posts/update",
-		"posts-delete":         "cmd/posts/delete",
-		"auth-login":           "cmd/auth/login",
-		"auth-logout":          "cmd/auth/logout",
-		"auth-refresh":         "cmd/auth/refresh",
+		"posts-create":          "cmd/posts/create",
+		"posts-get":             "cmd/posts/get",
+		"posts-get_public":      "cmd/posts/get_public",
+		"posts-list":            "cmd/posts/list",
+		"posts-update":          "cmd/posts/update",
+		"posts-delete":          "cmd/posts/delete",
+		"auth-login":            "cmd/auth/login",
+		"auth-logout":           "cmd/auth/logout",
+		"auth-refresh":          "cmd/auth/refresh",
 		"images-get_upload_url": "cmd/images/get_upload_url",
-		"images-delete":        "cmd/images/delete",
+		"images-delete":         "cmd/images/delete",
 	}
 
 	var totalBuildTime time.Duration

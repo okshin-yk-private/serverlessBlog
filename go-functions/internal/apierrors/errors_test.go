@@ -372,7 +372,7 @@ func TestWrap(t *testing.T) {
 	if apiErr.Message != "Service unavailable" {
 		t.Errorf("Wrap().Message = %q, want %q", apiErr.Message, "Service unavailable")
 	}
-	if apiErr.Err != originalErr {
+	if !errors.Is(apiErr.Err, originalErr) {
 		t.Errorf("Wrap().Err = %v, want %v", apiErr.Err, originalErr)
 	}
 }

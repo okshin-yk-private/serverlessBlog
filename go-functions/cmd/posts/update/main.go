@@ -41,48 +41,99 @@ var dynamoClientGetter = func() (DynamoDBClientInterface, error) {
 
 // markdownConverter is a function that converts markdown to HTML
 // This can be overridden in tests
-var markdownConverter = func(md string) (string, error) {
-	return markdown.ConvertToHTML(md)
-}
+var markdownConverter = markdown.ConvertToHTML
 
 // Handler handles PUT /posts/:id requests
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	// Validate authentication first
-	userID := getUserIDFromRequest(request)
-	if userID == "" {
-		return errorResponse(401, "unauthorized")
+	// Validate and parse request
+	postID, req, errResp := validateAndParseRequest(request)
+	if errResp != nil {
+		return *errResp, nil
 	}
 
-	// Validate post ID from path parameters
+	// Get DynamoDB client and table name
+	dynamoClient, tableName, errResp := getClientAndTable()
+	if errResp != nil {
+		return *errResp, nil
+	}
+
+	// Get existing post from DynamoDB
+	existingPost, errResp := getExistingPost(ctx, dynamoClient, tableName, postID)
+	if errResp != nil {
+		return *errResp, nil
+	}
+
+	// Validate update fields
+	if validateErr := validateUpdateRequest(req); validateErr != nil {
+		return errorResponse(400, validateErr.Error())
+	}
+
+	// Build updated post
+	updatedPost, errResp := buildUpdatedPost(existingPost, req)
+	if errResp != nil {
+		return *errResp, nil
+	}
+
+	// Save to DynamoDB
+	if errResp := savePost(ctx, dynamoClient, tableName, updatedPost); errResp != nil {
+		return *errResp, nil
+	}
+
+	// Return updated post with 200 status
+	return middleware.JSONResponse(200, updatedPost)
+}
+
+// validateAndParseRequest validates authentication and parses the request body
+func validateAndParseRequest(request events.APIGatewayProxyRequest) (string, *domain.UpdatePostRequest, *events.APIGatewayProxyResponse) {
+	// Validate authentication
+	userID := getUserIDFromRequest(request)
+	if userID == "" {
+		resp, _ := errorResponse(401, "unauthorized")
+		return "", nil, &resp
+	}
+
+	// Validate post ID
 	postID := request.PathParameters["id"]
 	if postID == "" {
-		return errorResponse(400, "post ID is required")
+		resp, _ := errorResponse(400, "post ID is required")
+		return "", nil, &resp
 	}
 
 	// Validate request body is present
 	if request.Body == "" {
-		return errorResponse(400, "request body is required")
+		resp, _ := errorResponse(400, "request body is required")
+		return "", nil, &resp
 	}
 
 	// Parse request body
 	var req domain.UpdatePostRequest
 	if err := json.Unmarshal([]byte(request.Body), &req); err != nil {
-		return errorResponse(400, "invalid JSON format")
+		resp, _ := errorResponse(400, "invalid JSON format")
+		return "", nil, &resp
 	}
 
-	// Check for TABLE_NAME
+	return postID, &req, nil
+}
+
+// getClientAndTable returns the DynamoDB client and table name
+func getClientAndTable() (DynamoDBClientInterface, string, *events.APIGatewayProxyResponse) {
 	tableName := os.Getenv("TABLE_NAME")
 	if tableName == "" {
-		return errorResponse(500, "server configuration error")
+		resp, _ := errorResponse(500, "server configuration error")
+		return nil, "", &resp
 	}
 
-	// Get DynamoDB client
 	dynamoClient, err := dynamoClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		resp, _ := errorResponse(500, "server error")
+		return nil, "", &resp
 	}
 
-	// Get existing post from DynamoDB
+	return dynamoClient, tableName, nil
+}
+
+// getExistingPost retrieves the existing post from DynamoDB
+func getExistingPost(ctx context.Context, client DynamoDBClientInterface, tableName, postID string) (*domain.BlogPost, *events.APIGatewayProxyResponse) {
 	getInput := &dynamodb.GetItemInput{
 		TableName: &tableName,
 		Key: map[string]types.AttributeValue{
@@ -90,45 +141,44 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		},
 	}
 
-	result, err := dynamoClient.GetItem(ctx, getInput)
+	result, err := client.GetItem(ctx, getInput)
 	if err != nil {
-		return errorResponse(500, "failed to retrieve post")
+		resp, _ := errorResponse(500, "failed to retrieve post")
+		return nil, &resp
 	}
 
-	// Check if item was found
 	if len(result.Item) == 0 {
-		return errorResponse(404, "post not found")
+		resp, _ := errorResponse(404, "post not found")
+		return nil, &resp
 	}
 
-	// Unmarshal the existing post
 	var existingPost domain.BlogPost
 	if err := attributevalue.UnmarshalMap(result.Item, &existingPost); err != nil {
-		return errorResponse(500, "failed to parse post data")
+		resp, _ := errorResponse(500, "failed to parse post data")
+		return nil, &resp
 	}
 
-	// Validate update fields
-	if err := validateUpdateRequest(&req); err != nil {
-		return errorResponse(400, err.Error())
-	}
+	return &existingPost, nil
+}
 
-	// Apply updates to the post
-	updatedPost := applyUpdates(&existingPost, &req)
+// buildUpdatedPost applies updates and returns the updated post
+func buildUpdatedPost(existingPost *domain.BlogPost, req *domain.UpdatePostRequest) (*domain.BlogPost, *events.APIGatewayProxyResponse) {
+	updatedPost := applyUpdates(existingPost, req)
 
 	// If contentMarkdown was updated, regenerate contentHtml
 	if req.ContentMarkdown != nil {
 		contentHTML, err := markdownConverter(*req.ContentMarkdown)
 		if err != nil {
-			return errorResponse(500, "failed to convert markdown")
+			resp, _ := errorResponse(500, "failed to convert markdown")
+			return nil, &resp
 		}
 		updatedPost.ContentHTML = contentHTML
 	}
 
 	// Handle publishStatus transition (draft -> published)
-	if req.PublishStatus != nil && *req.PublishStatus == domain.PublishStatusPublished {
-		if existingPost.PublishStatus == domain.PublishStatusDraft && existingPost.PublishedAt == nil {
-			now := time.Now().UTC().Format(time.RFC3339)
-			updatedPost.PublishedAt = &now
-		}
+	if shouldSetPublishedAt(existingPost, req) {
+		now := time.Now().UTC().Format(time.RFC3339)
+		updatedPost.PublishedAt = &now
 	}
 
 	// Update the updatedAt timestamp
@@ -139,25 +189,36 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	updatedPost.AuthorID = existingPost.AuthorID
 	updatedPost.CreatedAt = existingPost.CreatedAt
 
-	// Marshal to DynamoDB attribute value
-	av, err := attributevalue.MarshalMap(updatedPost)
+	return &updatedPost, nil
+}
+
+// shouldSetPublishedAt checks if publishedAt should be set
+func shouldSetPublishedAt(existingPost *domain.BlogPost, req *domain.UpdatePostRequest) bool {
+	isTransitioningToPublished := req.PublishStatus != nil && *req.PublishStatus == domain.PublishStatusPublished
+	isFirstPublish := existingPost.PublishStatus == domain.PublishStatusDraft && existingPost.PublishedAt == nil
+	return isTransitioningToPublished && isFirstPublish
+}
+
+// savePost saves the updated post to DynamoDB
+func savePost(ctx context.Context, client DynamoDBClientInterface, tableName string, post *domain.BlogPost) *events.APIGatewayProxyResponse {
+	av, err := attributevalue.MarshalMap(post)
 	if err != nil {
-		return errorResponse(500, "failed to marshal post")
+		resp, _ := errorResponse(500, "failed to marshal post")
+		return &resp
 	}
 
-	// Save to DynamoDB
 	putInput := &dynamodb.PutItemInput{
 		TableName: &tableName,
 		Item:      av,
 	}
 
-	_, err = dynamoClient.PutItem(ctx, putInput)
+	_, err = client.PutItem(ctx, putInput)
 	if err != nil {
-		return errorResponse(500, "failed to update post")
+		resp, _ := errorResponse(500, "failed to update post")
+		return &resp
 	}
 
-	// Return updated post with 200 status
-	return middleware.JSONResponse(200, updatedPost)
+	return nil
 }
 
 // validateUpdateRequest validates the update request fields

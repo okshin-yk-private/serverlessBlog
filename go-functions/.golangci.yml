@@ -118,11 +118,26 @@ linters:
           - funlen
           - goconst
           - gocyclo
-      # Lambda entry points are simple stubs - exclude common placeholder issues
+          - errcheck       # json.Marshal errors in test setup are acceptable
+          - prealloc       # slice pre-allocation not critical in tests
+          - gosec          # test fixtures may have "hardcoded credentials"
+          - noctx          # exec.Command in benchmark tests
+          - gochecknoinits # benchmark init functions
+          - govet          # variable shadowing in test setup code
+          - gocritic       # style suggestions in test code
+          - unparam        # test helpers may have unused parameters for consistency
+      # Test helper files in tests/ directory
+      - path: tests/
+        linters:
+          - errcheck       # test helpers may ignore errors
+          - govet          # variable shadowing in test setup
+          - gocritic       # style suggestions
+      # Lambda entry points - exclude common handler issues
       - path: cmd/
         linters:
           - funlen
           - revive
+          - errcheck  # errorResponse always returns nil error
 
 issues:
   max-issues-per-linter: 0

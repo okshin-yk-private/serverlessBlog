@@ -405,8 +405,8 @@ func TestHandler(t *testing.T) {
 			},
 		},
 		{
-			name:    "error - presign client initialization error",
-			request: createAuthenticatedRequest(`{"fileName": "test.jpg", "contentType": "image/jpeg"}`),
+			name:             "error - presign client initialization error",
+			request:          createAuthenticatedRequest(`{"fileName": "test.jpg", "contentType": "image/jpeg"}`),
 			bucketName:       "test-bucket",
 			cloudFrontDomain: "",
 			mockPresignClient: func() (S3PresignerInterface, error) {
@@ -425,8 +425,8 @@ func TestHandler(t *testing.T) {
 			},
 		},
 		{
-			name:    "error - presign operation error",
-			request: createAuthenticatedRequest(`{"fileName": "test.jpg", "contentType": "image/jpeg"}`),
+			name:             "error - presign operation error",
+			request:          createAuthenticatedRequest(`{"fileName": "test.jpg", "contentType": "image/jpeg"}`),
 			bucketName:       "test-bucket",
 			cloudFrontDomain: "",
 			mockPresignClient: func() (S3PresignerInterface, error) {
@@ -674,11 +674,11 @@ func TestGenerateS3Key(t *testing.T) {
 // Test generateImageURL function
 func TestGenerateImageURL(t *testing.T) {
 	tests := []struct {
-		name           string
+		name             string
 		cloudFrontDomain string
-		bucketName     string
-		key            string
-		expected       string
+		bucketName       string
+		key              string
+		expected         string
 	}{
 		{
 			name:             "with CloudFront domain",

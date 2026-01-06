@@ -68,7 +68,7 @@ func setupTest(t *testing.T) func() {
 }
 
 // createAuthenticatedRequest creates a request with valid authentication
-func createAuthenticatedRequest(postID string, body string) events.APIGatewayProxyRequest {
+func createAuthenticatedRequest(postID, body string) events.APIGatewayProxyRequest {
 	return events.APIGatewayProxyRequest{
 		PathParameters: map[string]string{
 			"id": postID,
@@ -85,7 +85,7 @@ func createAuthenticatedRequest(postID string, body string) events.APIGatewayPro
 }
 
 // createUnauthenticatedRequest creates a request without authentication
-func createUnauthenticatedRequest(postID string, body string) events.APIGatewayProxyRequest {
+func createUnauthenticatedRequest(postID, body string) events.APIGatewayProxyRequest {
 	return events.APIGatewayProxyRequest{
 		PathParameters: map[string]string{
 			"id": postID,
@@ -924,8 +924,6 @@ func TestHandler_UpdatedAtIsUpdated(t *testing.T) {
 
 // TestHandler_TableDriven_ValidationScenarios tests validation scenarios using table-driven tests
 // Requirements: 7.1, 7.4 - Table-driven tests for comprehensive coverage
-//
-//nolint:funlen // Table-driven tests are inherently long
 func TestHandler_TableDriven_ValidationScenarios(t *testing.T) {
 	tests := []struct {
 		name           string

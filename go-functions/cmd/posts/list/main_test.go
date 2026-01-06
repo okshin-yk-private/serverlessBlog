@@ -54,7 +54,7 @@ func setupTest(t *testing.T) func() {
 }
 
 // createTestPost creates a test post with the given ID and publish status
-func createTestPost(id string, status string, category string, createdAt string) domain.BlogPost {
+func createTestPost(id, status, category, createdAt string) domain.BlogPost {
 	publishedAt := testPublishedAt
 	var publishedAtPtr *string
 	if status == domain.PublishStatusPublished {
@@ -536,27 +536,27 @@ func TestHandler_TableDriven_LimitValidation(t *testing.T) {
 // TestHandler_TableDriven_QueryParameters tests various query parameter combinations
 func TestHandler_TableDriven_QueryParameters(t *testing.T) {
 	tests := []struct {
-		name                  string
-		queryParams           map[string]string
-		expectedIndexName     string
+		name                   string
+		queryParams            map[string]string
+		expectedIndexName      string
 		expectFilterExpression bool
 	}{
 		{
-			name:                  "no category - use PublishStatusIndex",
-			queryParams:           map[string]string{},
-			expectedIndexName:     "PublishStatusIndex",
+			name:                   "no category - use PublishStatusIndex",
+			queryParams:            map[string]string{},
+			expectedIndexName:      "PublishStatusIndex",
 			expectFilterExpression: false,
 		},
 		{
-			name:                  "with category - use CategoryIndex",
-			queryParams:           map[string]string{"category": "technology"},
-			expectedIndexName:     "CategoryIndex",
+			name:                   "with category - use CategoryIndex",
+			queryParams:            map[string]string{"category": "technology"},
+			expectedIndexName:      "CategoryIndex",
 			expectFilterExpression: true,
 		},
 		{
-			name:                  "with category and limit",
-			queryParams:           map[string]string{"category": "lifestyle", "limit": "5"},
-			expectedIndexName:     "CategoryIndex",
+			name:                   "with category and limit",
+			queryParams:            map[string]string{"category": "lifestyle", "limit": "5"},
+			expectedIndexName:      "CategoryIndex",
 			expectFilterExpression: true,
 		},
 	}

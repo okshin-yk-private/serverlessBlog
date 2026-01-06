@@ -98,10 +98,10 @@ func TestBlogPostJSONUnmarshal(t *testing.T) {
 func TestBlogPostPublishedAtOmitEmpty(t *testing.T) {
 	publishedAt := "2026-01-04T01:00:00Z"
 	post := BlogPost{
-		ID:            "test-id",
-		PublishedAt:   &publishedAt,
-		Tags:          []string{},
-		ImageURLs:     []string{},
+		ID:          "test-id",
+		PublishedAt: &publishedAt,
+		Tags:        []string{},
+		ImageURLs:   []string{},
 	}
 
 	data, err := json.Marshal(post)

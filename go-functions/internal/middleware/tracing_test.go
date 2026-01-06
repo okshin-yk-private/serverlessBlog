@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-const defaultServiceName = "unknown"
+// defaultServiceName is defined in metrics.go and used by tests
 
 func TestNewTracer(t *testing.T) {
 	t.Run("creates tracer with service name", func(t *testing.T) {

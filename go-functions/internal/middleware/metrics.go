@@ -20,6 +20,9 @@ import (
 // MaxMetricsPerEMF is the maximum number of metrics allowed per EMF document
 const MaxMetricsPerEMF = 100
 
+// defaultServiceName is the default service name used when not specified
+const defaultServiceName = "unknown"
+
 // MetricUnit represents CloudWatch metric units
 type MetricUnit string
 
@@ -108,7 +111,7 @@ func NewMetricsWithWriter(namespace, serviceName string, w io.Writer) *Metrics {
 		namespace = "Lambda"
 	}
 	if serviceName == "" {
-		serviceName = "unknown"
+		serviceName = defaultServiceName
 	}
 
 	m := &Metrics{
@@ -246,7 +249,7 @@ func EmitMetric(namespace, name string, value float64, unit MetricUnit) {
 
 // EmitMetricWithWriter emits a single metric to the specified writer
 func EmitMetricWithWriter(namespace, name string, value float64, unit MetricUnit, w io.Writer) {
-	m := NewMetricsWithWriter(namespace, "unknown", w)
+	m := NewMetricsWithWriter(namespace, defaultServiceName, w)
 	m.AddMetric(name, value, unit)
 	m.Flush()
 }

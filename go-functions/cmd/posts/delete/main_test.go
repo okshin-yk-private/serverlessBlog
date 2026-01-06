@@ -689,8 +689,6 @@ func TestHandler_CORSHeaders(t *testing.T) {
 
 // TestHandler_TableDriven_AuthenticationScenarios tests authentication scenarios using table-driven tests
 // Requirements: 3.6, 7.1, 7.4 - Authentication validation with table-driven tests
-//
-//nolint:funlen // Table-driven tests are inherently long
 func TestHandler_TableDriven_AuthenticationScenarios(t *testing.T) {
 	tests := []struct {
 		name           string
