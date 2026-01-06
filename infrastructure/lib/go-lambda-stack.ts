@@ -6,11 +6,6 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
 import { NagSuppressions } from 'cdk-nag';
 import * as path from 'path';
-import {
-  FeatureFlagsConfig,
-  isGoEnabled,
-  LambdaFunctionName,
-} from './feature-flags';
 
 // Pre-built Lambda binaries path
 const goLambdaBinPath = path.join(__dirname, '../../go-functions/bin');
@@ -24,7 +19,10 @@ const goLambdaBinPath = path.join(__dirname, '../../go-functions/bin');
  * Go functions are built with:
  * CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -tags=lambda.norpc
  *
- * Requirements: 9.1, 9.2, 9.4, 9.5
+ * Note: Feature flags have been removed (Task 21.4) - Go is now the only implementation.
+ * All Lambda functions are always created.
+ *
+ * Requirements: 9.1, 9.2, 9.4, 9.5, 10.4
  */
 export interface GoLambdaStackProps extends cdk.StackProps {
   blogPostsTable: dynamodb.ITable;
@@ -39,34 +37,25 @@ export interface GoLambdaStackProps extends cdk.StackProps {
    * Traffic routing: goTrafficPercent > 0 = Go handles API
    */
   createApiIntegrations?: boolean;
-  /**
-   * Feature flags for gradual migration between Node.js/Rust and Go.
-   * When provided, only functions with Go enabled in the config will be created.
-   * This allows selective deployment of Go functions for staged rollout.
-   *
-   * Requirements: 9.3 - CDK configuration allows feature flags for switching
-   * between Node.js/Rust and Go implementations per function.
-   */
-  featureFlags?: FeatureFlagsConfig;
 }
 
 export class GoLambdaStack extends cdk.Stack {
-  // Posts domain functions (optional when feature flags are used)
-  public readonly createPostGoFunction?: lambda.Function;
-  public readonly getPostGoFunction?: lambda.Function;
-  public readonly getPublicPostGoFunction?: lambda.Function;
-  public readonly listPostsGoFunction?: lambda.Function;
-  public readonly updatePostGoFunction?: lambda.Function;
-  public readonly deletePostGoFunction?: lambda.Function;
+  // Posts domain functions
+  public readonly createPostGoFunction: lambda.Function;
+  public readonly getPostGoFunction: lambda.Function;
+  public readonly getPublicPostGoFunction: lambda.Function;
+  public readonly listPostsGoFunction: lambda.Function;
+  public readonly updatePostGoFunction: lambda.Function;
+  public readonly deletePostGoFunction: lambda.Function;
 
-  // Auth domain functions (optional when feature flags are used)
-  public readonly loginGoFunction?: lambda.Function;
-  public readonly logoutGoFunction?: lambda.Function;
-  public readonly refreshGoFunction?: lambda.Function;
+  // Auth domain functions
+  public readonly loginGoFunction: lambda.Function;
+  public readonly logoutGoFunction: lambda.Function;
+  public readonly refreshGoFunction: lambda.Function;
 
-  // Images domain functions (optional when feature flags are used)
-  public readonly getUploadUrlGoFunction?: lambda.Function;
-  public readonly deleteImageGoFunction?: lambda.Function;
+  // Images domain functions
+  public readonly getUploadUrlGoFunction: lambda.Function;
+  public readonly deleteImageGoFunction: lambda.Function;
 
   constructor(scope: Construct, id: string, props: GoLambdaStackProps) {
     super(scope, id, props);
@@ -80,19 +69,7 @@ export class GoLambdaStack extends cdk.Stack {
       userPoolClientId,
       cloudFrontDomainName,
       createApiIntegrations = false,
-      featureFlags,
     } = props;
-
-    // Helper function to check if a Go function should be created
-    // When no featureFlags are provided, all functions are created (backward compatibility)
-    const shouldCreateFunction = (
-      functionName: LambdaFunctionName
-    ): boolean => {
-      if (!featureFlags) {
-        return true; // No feature flags = create all functions
-      }
-      return isGoEnabled(functionName, featureFlags);
-    };
 
     // Common environment variables for all Lambda functions
     // Note: AWS_REGION is automatically set by the Lambda runtime
@@ -137,159 +114,105 @@ export class GoLambdaStack extends cdk.Stack {
     // ===================
 
     // POST /admin/posts - Create Post (Go)
-    if (shouldCreateFunction('createPost')) {
-      this.createPostGoFunction = createGoLambda(
-        'CreatePostGo',
-        'posts-create',
-        {
-          functionName: 'blog-create-post-go',
-          description:
-            'Create new blog post with Markdown to HTML conversion (Go)',
-        }
-      );
-      blogPostsTable.grantWriteData(this.createPostGoFunction);
-    }
+    this.createPostGoFunction = createGoLambda('CreatePostGo', 'posts-create', {
+      functionName: 'blog-create-post-go',
+      description: 'Create new blog post with Markdown to HTML conversion (Go)',
+    });
+    blogPostsTable.grantWriteData(this.createPostGoFunction);
 
     // GET /admin/posts/{id} - Get Post (Go)
-    if (shouldCreateFunction('getPost')) {
-      this.getPostGoFunction = createGoLambda('GetPostGo', 'posts-get', {
-        functionName: 'blog-get-post-go',
-        description: 'Get blog post by ID (admin, includes markdown) (Go)',
-      });
-      blogPostsTable.grantReadData(this.getPostGoFunction);
-    }
+    this.getPostGoFunction = createGoLambda('GetPostGo', 'posts-get', {
+      functionName: 'blog-get-post-go',
+      description: 'Get blog post by ID (admin, includes markdown) (Go)',
+    });
+    blogPostsTable.grantReadData(this.getPostGoFunction);
 
     // GET /posts/{id} - Get Public Post (Go)
-    if (shouldCreateFunction('getPublicPost')) {
-      this.getPublicPostGoFunction = createGoLambda(
-        'GetPublicPostGo',
-        'posts-get_public',
-        {
-          functionName: 'blog-get-public-post-go',
-          description: 'Get published blog post by ID (public, HTML only) (Go)',
-        }
-      );
-      blogPostsTable.grantReadData(this.getPublicPostGoFunction);
-    }
+    this.getPublicPostGoFunction = createGoLambda(
+      'GetPublicPostGo',
+      'posts-get_public',
+      {
+        functionName: 'blog-get-public-post-go',
+        description: 'Get published blog post by ID (public, HTML only) (Go)',
+      }
+    );
+    blogPostsTable.grantReadData(this.getPublicPostGoFunction);
 
     // GET /posts - List Posts (Go)
-    if (shouldCreateFunction('listPosts')) {
-      this.listPostsGoFunction = createGoLambda('ListPostsGo', 'posts-list', {
-        functionName: 'blog-list-posts-go',
-        description: 'List published blog posts (Go)',
-      });
-      blogPostsTable.grantReadData(this.listPostsGoFunction);
-    }
+    this.listPostsGoFunction = createGoLambda('ListPostsGo', 'posts-list', {
+      functionName: 'blog-list-posts-go',
+      description: 'List published blog posts (Go)',
+    });
+    blogPostsTable.grantReadData(this.listPostsGoFunction);
 
     // PUT /admin/posts/{id} - Update Post (Go)
-    if (shouldCreateFunction('updatePost')) {
-      this.updatePostGoFunction = createGoLambda(
-        'UpdatePostGo',
-        'posts-update',
-        {
-          functionName: 'blog-update-post-go',
-          description: 'Update existing blog post (Go)',
-        }
-      );
-      blogPostsTable.grantReadWriteData(this.updatePostGoFunction);
-    }
+    this.updatePostGoFunction = createGoLambda('UpdatePostGo', 'posts-update', {
+      functionName: 'blog-update-post-go',
+      description: 'Update existing blog post (Go)',
+    });
+    blogPostsTable.grantReadWriteData(this.updatePostGoFunction);
 
     // DELETE /admin/posts/{id} - Delete Post (Go)
-    if (shouldCreateFunction('deletePost')) {
-      this.deletePostGoFunction = createGoLambda(
-        'DeletePostGo',
-        'posts-delete',
-        {
-          functionName: 'blog-delete-post-go',
-          description: 'Delete blog post (Go)',
-        }
-      );
-      blogPostsTable.grantReadWriteData(this.deletePostGoFunction);
-      imagesBucket.grantDelete(this.deletePostGoFunction);
-    }
+    this.deletePostGoFunction = createGoLambda('DeletePostGo', 'posts-delete', {
+      functionName: 'blog-delete-post-go',
+      description: 'Delete blog post (Go)',
+    });
+    blogPostsTable.grantReadWriteData(this.deletePostGoFunction);
+    imagesBucket.grantDelete(this.deletePostGoFunction);
 
     // ===================
     // Auth Domain Functions
     // ===================
 
     // POST /auth/login - Login (Go)
-    if (shouldCreateFunction('login')) {
-      this.loginGoFunction = createGoLambda('LoginGo', 'auth-login', {
-        functionName: 'blog-login-go',
-        description: 'User authentication (Go)',
-      });
-    }
+    this.loginGoFunction = createGoLambda('LoginGo', 'auth-login', {
+      functionName: 'blog-login-go',
+      description: 'User authentication (Go)',
+    });
 
     // POST /auth/logout - Logout (Go)
-    if (shouldCreateFunction('logout')) {
-      this.logoutGoFunction = createGoLambda('LogoutGo', 'auth-logout', {
-        functionName: 'blog-logout-go',
-        description: 'User logout (Go)',
-      });
-    }
+    this.logoutGoFunction = createGoLambda('LogoutGo', 'auth-logout', {
+      functionName: 'blog-logout-go',
+      description: 'User logout (Go)',
+    });
 
     // POST /auth/refresh - Refresh Token (Go)
-    if (shouldCreateFunction('refresh')) {
-      this.refreshGoFunction = createGoLambda('RefreshGo', 'auth-refresh', {
-        functionName: 'blog-refresh-go',
-        description: 'Token refresh (Go)',
-      });
-    }
+    this.refreshGoFunction = createGoLambda('RefreshGo', 'auth-refresh', {
+      functionName: 'blog-refresh-go',
+      description: 'Token refresh (Go)',
+    });
 
     // ===================
     // Images Domain Functions
     // ===================
 
     // POST /admin/images/upload-url - Get Upload URL (Go)
-    if (shouldCreateFunction('getUploadUrl')) {
-      this.getUploadUrlGoFunction = createGoLambda(
-        'GetUploadUrlGo',
-        'images-get_upload_url',
-        {
-          functionName: 'blog-upload-url-go',
-          description: 'Generate pre-signed URL for image upload (Go)',
-        }
-      );
-      imagesBucket.grantPut(this.getUploadUrlGoFunction);
-    }
+    this.getUploadUrlGoFunction = createGoLambda(
+      'GetUploadUrlGo',
+      'images-get_upload_url',
+      {
+        functionName: 'blog-upload-url-go',
+        description: 'Generate pre-signed URL for image upload (Go)',
+      }
+    );
+    imagesBucket.grantPut(this.getUploadUrlGoFunction);
 
     // DELETE /admin/images/{key+} - Delete Image (Go)
-    if (shouldCreateFunction('deleteImage')) {
-      this.deleteImageGoFunction = createGoLambda(
-        'DeleteImageGo',
-        'images-delete',
-        {
-          functionName: 'blog-delete-image-go',
-          description: 'Delete image from S3 (Go)',
-        }
-      );
-      imagesBucket.grantDelete(this.deleteImageGoFunction);
-    }
+    this.deleteImageGoFunction = createGoLambda(
+      'DeleteImageGo',
+      'images-delete',
+      {
+        functionName: 'blog-delete-image-go',
+        description: 'Delete image from S3 (Go)',
+      }
+    );
+    imagesBucket.grantDelete(this.deleteImageGoFunction);
 
     // ===================
     // API Gateway Integrations (when Go handles traffic)
     // ===================
     /* istanbul ignore if -- @preserve Integration tested via E2E, unit test causes cyclic deps */
     if (createApiIntegrations) {
-      // Verify all required functions are created when API integrations are enabled
-      // These are required for a complete API setup
-      /* istanbul ignore if -- @preserve Defense-in-depth error handling */
-      if (
-        !this.createPostGoFunction ||
-        !this.getPostGoFunction ||
-        !this.getPublicPostGoFunction ||
-        !this.listPostsGoFunction ||
-        !this.updatePostGoFunction ||
-        !this.deletePostGoFunction ||
-        !this.getUploadUrlGoFunction ||
-        !this.deleteImageGoFunction
-      ) {
-        throw new Error(
-          'All Go Lambda functions must be enabled when createApiIntegrations is true. ' +
-            'Ensure featureFlags is not set or all posts/images functions are set to "go".'
-        );
-      }
-
       // /admin/posts リソース取得
       const adminResource = restApi.root.getResource('admin');
       /* istanbul ignore if -- @preserve Defense-in-depth error handling */
@@ -425,7 +348,7 @@ export class GoLambdaStack extends cdk.Stack {
     // CDK Nag Suppressions
     // ===================
 
-    // Collect all created Go functions (filter out undefined)
+    // All Go functions
     const allGoFunctions: lambda.Function[] = [
       this.createPostGoFunction,
       this.getPostGoFunction,
@@ -438,7 +361,7 @@ export class GoLambdaStack extends cdk.Stack {
       this.refreshGoFunction,
       this.getUploadUrlGoFunction,
       this.deleteImageGoFunction,
-    ].filter((fn): fn is lambda.Function => fn !== undefined);
+    ];
 
     allGoFunctions.forEach((fn) => {
       NagSuppressions.addResourceSuppressions(
@@ -478,83 +401,61 @@ export class GoLambdaStack extends cdk.Stack {
     // ===================
 
     // Posts domain outputs
-    if (this.createPostGoFunction) {
-      new cdk.CfnOutput(this, 'CreatePostGoFunctionArn', {
-        value: this.createPostGoFunction.functionArn,
-        description: 'Create Post Go Lambda Function ARN',
-      });
-    }
+    new cdk.CfnOutput(this, 'CreatePostGoFunctionArn', {
+      value: this.createPostGoFunction.functionArn,
+      description: 'Create Post Go Lambda Function ARN',
+    });
 
-    if (this.getPostGoFunction) {
-      new cdk.CfnOutput(this, 'GetPostGoFunctionArn', {
-        value: this.getPostGoFunction.functionArn,
-        description: 'Get Post Go Lambda Function ARN',
-      });
-    }
+    new cdk.CfnOutput(this, 'GetPostGoFunctionArn', {
+      value: this.getPostGoFunction.functionArn,
+      description: 'Get Post Go Lambda Function ARN',
+    });
 
-    if (this.getPublicPostGoFunction) {
-      new cdk.CfnOutput(this, 'GetPublicPostGoFunctionArn', {
-        value: this.getPublicPostGoFunction.functionArn,
-        description: 'Get Public Post Go Lambda Function ARN',
-      });
-    }
+    new cdk.CfnOutput(this, 'GetPublicPostGoFunctionArn', {
+      value: this.getPublicPostGoFunction.functionArn,
+      description: 'Get Public Post Go Lambda Function ARN',
+    });
 
-    if (this.listPostsGoFunction) {
-      new cdk.CfnOutput(this, 'ListPostsGoFunctionArn', {
-        value: this.listPostsGoFunction.functionArn,
-        description: 'List Posts Go Lambda Function ARN',
-      });
-    }
+    new cdk.CfnOutput(this, 'ListPostsGoFunctionArn', {
+      value: this.listPostsGoFunction.functionArn,
+      description: 'List Posts Go Lambda Function ARN',
+    });
 
-    if (this.updatePostGoFunction) {
-      new cdk.CfnOutput(this, 'UpdatePostGoFunctionArn', {
-        value: this.updatePostGoFunction.functionArn,
-        description: 'Update Post Go Lambda Function ARN',
-      });
-    }
+    new cdk.CfnOutput(this, 'UpdatePostGoFunctionArn', {
+      value: this.updatePostGoFunction.functionArn,
+      description: 'Update Post Go Lambda Function ARN',
+    });
 
-    if (this.deletePostGoFunction) {
-      new cdk.CfnOutput(this, 'DeletePostGoFunctionArn', {
-        value: this.deletePostGoFunction.functionArn,
-        description: 'Delete Post Go Lambda Function ARN',
-      });
-    }
+    new cdk.CfnOutput(this, 'DeletePostGoFunctionArn', {
+      value: this.deletePostGoFunction.functionArn,
+      description: 'Delete Post Go Lambda Function ARN',
+    });
 
     // Auth domain outputs
-    if (this.loginGoFunction) {
-      new cdk.CfnOutput(this, 'LoginGoFunctionArn', {
-        value: this.loginGoFunction.functionArn,
-        description: 'Login Go Lambda Function ARN',
-      });
-    }
+    new cdk.CfnOutput(this, 'LoginGoFunctionArn', {
+      value: this.loginGoFunction.functionArn,
+      description: 'Login Go Lambda Function ARN',
+    });
 
-    if (this.logoutGoFunction) {
-      new cdk.CfnOutput(this, 'LogoutGoFunctionArn', {
-        value: this.logoutGoFunction.functionArn,
-        description: 'Logout Go Lambda Function ARN',
-      });
-    }
+    new cdk.CfnOutput(this, 'LogoutGoFunctionArn', {
+      value: this.logoutGoFunction.functionArn,
+      description: 'Logout Go Lambda Function ARN',
+    });
 
-    if (this.refreshGoFunction) {
-      new cdk.CfnOutput(this, 'RefreshGoFunctionArn', {
-        value: this.refreshGoFunction.functionArn,
-        description: 'Refresh Go Lambda Function ARN',
-      });
-    }
+    new cdk.CfnOutput(this, 'RefreshGoFunctionArn', {
+      value: this.refreshGoFunction.functionArn,
+      description: 'Refresh Go Lambda Function ARN',
+    });
 
     // Images domain outputs
-    if (this.getUploadUrlGoFunction) {
-      new cdk.CfnOutput(this, 'GetUploadUrlGoFunctionArn', {
-        value: this.getUploadUrlGoFunction.functionArn,
-        description: 'Get Upload URL Go Lambda Function ARN',
-      });
-    }
+    new cdk.CfnOutput(this, 'GetUploadUrlGoFunctionArn', {
+      value: this.getUploadUrlGoFunction.functionArn,
+      description: 'Get Upload URL Go Lambda Function ARN',
+    });
 
-    if (this.deleteImageGoFunction) {
-      new cdk.CfnOutput(this, 'DeleteImageGoFunctionArn', {
-        value: this.deleteImageGoFunction.functionArn,
-        description: 'Delete Image Go Lambda Function ARN',
-      });
-    }
+    new cdk.CfnOutput(this, 'DeleteImageGoFunctionArn', {
+      value: this.deleteImageGoFunction.functionArn,
+      description: 'Delete Image Go Lambda Function ARN',
+    });
   }
 }
