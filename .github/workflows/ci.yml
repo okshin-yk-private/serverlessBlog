@@ -209,8 +209,25 @@ jobs:
       - name: Run Go tests with race detector and coverage
         working-directory: go-functions
         run: |
+          echo "========================================="
+          echo "Go Environment Info"
+          echo "========================================="
+          go version
+          go env GOVERSION
+          echo ""
           echo "Running Go tests with race detector and coverage..."
-          go test -race -coverprofile=coverage.out -covermode=atomic ./...
+          go test -race -coverprofile=coverage.out -covermode=atomic -v ./...
+          echo ""
+          echo "Verifying coverage file..."
+          if [ -f coverage.out ]; then
+            echo "✓ coverage.out created successfully"
+            ls -la coverage.out
+          else
+            echo "❌ coverage.out was not created"
+            echo "Listing directory contents:"
+            ls -la
+            exit 1
+          fi
         env:
           CI: true
 
