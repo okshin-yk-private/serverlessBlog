@@ -48,3 +48,10 @@ rust:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
+
+# Go Lambda関数変更
+# Requirement 6.4: go-functions/**/*変更時のgoラベル自動付与
+go:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'go-functions/**/*'

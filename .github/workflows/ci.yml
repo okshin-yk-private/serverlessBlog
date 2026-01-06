@@ -33,6 +33,7 @@ jobs:
       has-tests: ${{ steps.check-labels.outputs.has-tests }}
       has-workflow: ${{ steps.check-labels.outputs.has-workflow }}
       has-rust: ${{ steps.check-labels.outputs.has-rust }}
+      has-go: ${{ steps.check-labels.outputs.has-go }}
     steps:
       - name: Get PR number
         id: get-pr
@@ -88,6 +89,12 @@ jobs:
             echo "has-rust=true" >> $GITHUB_OUTPUT
           else
             echo "has-rust=false" >> $GITHUB_OUTPUT
+          fi
+
+          if echo "$LABELS" | grep -q "go"; then
+            echo "has-go=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-go=false" >> $GITHUB_OUTPUT
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -282,6 +289,99 @@ jobs:
         run: cargo nextest run --all
         env:
           CI: true
+
+  # =======================================
+  # Job 2.6a: Go Lint (golangci-lint) - conditional on 'go' label
+  # Requirement 6.1: go-lintジョブ - goラベル付きPRでgolangci-lint実行
+  # Requirement 6.6: Go Lint失敗時のPRマージブロック
+  # =======================================
+  go-lint:
+    needs: [setup-labels]
+    name: Go Lint (golangci-lint)
+    runs-on: ubuntu-latest
+    if: needs.setup-labels.outputs.has-go == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: go-functions/go.sum
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62
+          working-directory: go-functions
+          args: --timeout=5m
+
+  # =======================================
+  # Job 2.6b: Go Tests - conditional on 'go' label
+  # Requirement 6.2: go-testsジョブ - go test -race -coverprofile実行
+  # Requirement 6.3: 100%カバレッジ未満での失敗設定
+  # Requirement 6.6: Go Tests失敗時のPRマージブロック
+  # =======================================
+  go-tests:
+    needs: [setup-labels]
+    name: Go Unit Tests
+    runs-on: ubuntu-latest
+    if: needs.setup-labels.outputs.has-go == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: go-functions/go.sum
+
+      - name: Run Go tests with race detector and coverage
+        working-directory: go-functions
+        run: |
+          echo "Running Go tests with race detector and coverage..."
+          go test -race -coverprofile=coverage.out -covermode=atomic ./...
+        env:
+          CI: true
+
+      - name: Check coverage threshold (100% required)
+        working-directory: go-functions
+        run: |
+          echo "========================================="
+          echo "Go Coverage Report"
+          echo "========================================="
+
+          # Generate coverage report
+          go tool cover -func=coverage.out
+
+          # Extract total coverage percentage
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+
+          echo ""
+          echo "Total Coverage: ${COVERAGE}%"
+          echo ""
+
+          # Check if coverage is 100%
+          # Using bc for floating point comparison
+          if [ "$(echo "$COVERAGE < 100" | bc -l)" -eq 1 ]; then
+            echo "❌ Coverage is below 100%: ${COVERAGE}%"
+            echo "Requirement 6.3: 100%カバレッジ未満での失敗設定"
+            exit 1
+          else
+            echo "✓ Coverage meets 100% requirement"
+          fi
+
+      - name: Upload Go coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: go-coverage
+          path: go-functions/coverage.out
+          retention-days: 30
 
   # =======================================
   # Job 3: Infrastructure Tests (conditional)
@@ -801,6 +901,8 @@ jobs:
       - backend-unit-tests
       - rust-lint
       - rust-tests
+      - go-lint
+      - go-tests
       - infrastructure-tests
       - frontend-public-tests
       - frontend-admin-tests
@@ -820,6 +922,8 @@ jobs:
           echo "Backend Unit Tests: ${{ needs.backend-unit-tests.result }}"
           echo "Rust Lint (Clippy): ${{ needs.rust-lint.result }}"
           echo "Rust Unit Tests: ${{ needs.rust-tests.result }}"
+          echo "Go Lint (golangci-lint): ${{ needs.go-lint.result }}"
+          echo "Go Unit Tests: ${{ needs.go-tests.result }}"
           echo "Infrastructure Tests: ${{ needs.infrastructure-tests.result }}"
           echo "Frontend (Public) Tests: ${{ needs.frontend-public-tests.result }}"
           echo "Frontend (Admin) Tests: ${{ needs.frontend-admin-tests.result }}"
@@ -838,9 +942,12 @@ jobs:
           fi
 
           # Check if any job failed (excluding skipped jobs)
+          # Requirement 6.6: Go Lint/Tests失敗時のPRマージブロック
           if [ "${{ needs.backend-unit-tests.result }}" == "failure" ] || \
              [ "${{ needs.rust-lint.result }}" == "failure" ] || \
              [ "${{ needs.rust-tests.result }}" == "failure" ] || \
+             [ "${{ needs.go-lint.result }}" == "failure" ] || \
+             [ "${{ needs.go-tests.result }}" == "failure" ] || \
              [ "${{ needs.infrastructure-tests.result }}" == "failure" ] || \
              [ "${{ needs.frontend-public-tests.result }}" == "failure" ] || \
              [ "${{ needs.frontend-admin-tests.result }}" == "failure" ] || \

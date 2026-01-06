@@ -1,0 +1,297 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>create: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">serverless-blog/go-functions/cmd/posts/create/main.go (91.5%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">no coverage</span>
+				<span class="cov1">low coverage</span>
+				<span class="cov2">*</span>
+				<span class="cov3">*</span>
+				<span class="cov4">*</span>
+				<span class="cov5">*</span>
+				<span class="cov6">*</span>
+				<span class="cov7">*</span>
+				<span class="cov8">*</span>
+				<span class="cov9">*</span>
+				<span class="cov10">high coverage</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">// Package main provides the CreatePost Lambda function for creating blog posts.
+//
+// Requirement 3.1: 記事作成 (POST /posts)
+//   - 認証付きの有効な記事作成リクエストを受信したとき、CreatePost Lambdaは
+//     生成されたUUIDで新しい記事をDynamoDBに作成する
+//   - リクエストにcontentMarkdownが含まれているとき、markdownパッケージを使用して
+//     contentHtmlに変換する
+//   - 必須フィールド（title、contentMarkdown）が欠けている場合、HTTP 400を返す
+//   - 有効な認証がない場合、HTTP 401を返す
+package main
+
+import (
+        "context"
+        "encoding/json"
+        "os"
+        "time"
+
+        "github.com/aws/aws-lambda-go/events"
+        "github.com/aws/aws-lambda-go/lambda"
+        "github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+        "github.com/aws/aws-sdk-go-v2/service/dynamodb"
+        "github.com/google/uuid"
+
+        "serverless-blog/go-functions/internal/clients"
+        "serverless-blog/go-functions/internal/domain"
+        "serverless-blog/go-functions/internal/markdown"
+        "serverless-blog/go-functions/internal/middleware"
+)
+
+// DynamoDBClientInterface defines the interface for DynamoDB operations (for testing)
+type DynamoDBClientInterface interface {
+        PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
+}
+
+// dynamoClientGetter is a function that returns the DynamoDB client
+// This can be overridden in tests
+var dynamoClientGetter = func() (DynamoDBClientInterface, error) <span class="cov0" title="0">{
+        return clients.GetDynamoDB()
+}</span>
+
+// markdownConverter is a function that converts markdown to HTML
+// This can be overridden in tests
+var markdownConverter = func(md string) (string, error) <span class="cov0" title="0">{
+        return markdown.ConvertToHTML(md)
+}</span>
+
+// uuidGenerator is a function that generates a new UUID
+// This can be overridden in tests
+var uuidGenerator = func() string <span class="cov0" title="0">{
+        return uuid.New().String()
+}</span>
+
+// Handler handles POST /posts requests
+func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) <span class="cov10" title="30">{
+        // Extract author ID from Cognito claims (authentication check)
+        authorID := extractAuthorID(request)
+        if authorID == "" </span><span class="cov5" title="5">{
+                return errorResponse(401, "unauthorized")
+        }</span>
+
+        // Parse request body
+        <span class="cov9" title="25">var req domain.CreatePostRequest
+        if err := json.Unmarshal([]byte(request.Body), &amp;req); err != nil </span><span class="cov2" title="2">{
+                return errorResponse(400, "invalid request body")
+        }</span>
+
+        // Validate required fields
+        <span class="cov9" title="23">if err := req.Validate(); err != nil </span><span class="cov6" title="9">{
+                return errorResponse(400, err.Error())
+        }</span>
+
+        // Check for TABLE_NAME
+        <span class="cov7" title="14">tableName := os.Getenv("TABLE_NAME")
+        if tableName == "" </span><span class="cov1" title="1">{
+                return errorResponse(500, "server configuration error")
+        }</span>
+
+        // Convert Markdown to HTML
+        <span class="cov7" title="13">contentHTML, err := markdownConverter(req.ContentMarkdown)
+        if err != nil </span><span class="cov1" title="1">{
+                return errorResponse(500, "failed to convert markdown")
+        }</span>
+
+        // Get DynamoDB client
+        <span class="cov7" title="12">dynamoClient, err := dynamoClientGetter()
+        if err != nil </span><span class="cov1" title="1">{
+                return errorResponse(500, "server error")
+        }</span>
+
+        // Generate UUID and timestamps
+        <span class="cov7" title="11">postID := uuidGenerator()
+        now := time.Now().UTC().Format(time.RFC3339)
+
+        // Determine publish status and publishedAt
+        publishStatus := domain.PublishStatusDraft
+        var publishedAt *string
+        if req.PublishStatus != nil &amp;&amp; *req.PublishStatus == domain.PublishStatusPublished </span><span class="cov1" title="1">{
+                publishStatus = domain.PublishStatusPublished
+                publishedAt = &amp;now
+        }</span>
+
+        // Ensure tags and imageUrls are not nil (empty arrays for JSON serialization)
+        <span class="cov7" title="11">tags := req.Tags
+        if tags == nil </span><span class="cov5" title="6">{
+                tags = []string{}
+        }</span>
+        <span class="cov7" title="11">imageURLs := req.ImageURLs
+        if imageURLs == nil </span><span class="cov6" title="8">{
+                imageURLs = []string{}
+        }</span>
+
+        // Create post entity
+        <span class="cov7" title="11">post := domain.BlogPost{
+                ID:              postID,
+                Title:           req.Title,
+                ContentMarkdown: req.ContentMarkdown,
+                ContentHTML:     contentHTML,
+                Category:        req.Category,
+                Tags:            tags,
+                PublishStatus:   publishStatus,
+                AuthorID:        authorID,
+                CreatedAt:       now,
+                UpdatedAt:       now,
+                PublishedAt:     publishedAt,
+                ImageURLs:       imageURLs,
+        }
+
+        // Marshal to DynamoDB attribute value
+        av, err := attributevalue.MarshalMap(post)
+        if err != nil </span><span class="cov0" title="0">{
+                return errorResponse(500, "failed to marshal post")
+        }</span>
+
+        // Save to DynamoDB
+        <span class="cov7" title="11">putInput := &amp;dynamodb.PutItemInput{
+                TableName: &amp;tableName,
+                Item:      av,
+        }
+
+        _, err = dynamoClient.PutItem(ctx, putInput)
+        if err != nil </span><span class="cov1" title="1">{
+                return errorResponse(500, "failed to create post")
+        }</span>
+
+        // Return created post with 201 status
+        <span class="cov7" title="10">return middleware.JSONResponse(201, post)</span>
+}
+
+// extractAuthorID extracts the user ID from Cognito authorizer claims
+func extractAuthorID(request events.APIGatewayProxyRequest) string <span class="cov10" title="30">{
+        if request.RequestContext.Authorizer == nil </span><span class="cov1" title="1">{
+                return ""
+        }</span>
+
+        <span class="cov9" title="29">claims, ok := request.RequestContext.Authorizer["claims"]
+        if !ok </span><span class="cov1" title="1">{
+                return ""
+        }</span>
+
+        <span class="cov9" title="28">claimsMap, ok := claims.(map[string]interface{})
+        if !ok </span><span class="cov1" title="1">{
+                return ""
+        }</span>
+
+        <span class="cov9" title="27">sub, ok := claimsMap["sub"]
+        if !ok </span><span class="cov1" title="1">{
+                return ""
+        }</span>
+
+        <span class="cov9" title="26">subStr, ok := sub.(string)
+        if !ok </span><span class="cov1" title="1">{
+                return ""
+        }</span>
+
+        <span class="cov9" title="25">return subStr</span>
+}
+
+// errorResponse creates an error response with CORS headers
+func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) <span class="cov8" title="20">{
+        return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
+}</span>
+
+func main() <span class="cov0" title="0">{
+        lambda.Start(Handler)
+}</span>
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

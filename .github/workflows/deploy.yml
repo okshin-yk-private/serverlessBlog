@@ -1,6 +1,7 @@
 # AWS CDK Deployment Workflow (PR-based)
 # Requirement R31: GitHub Actions CI/CD デプロイワークフロー
 # Requirement R45: 継続的テスト実行（デプロイ前のテスト実行確認）
+# Requirement 6.5: Go Lambdaビルドジョブの追加（Rustビルドと同じパターン）
 #
 # このワークフローはAWS CDKとフロントエンドをデプロイします
 # - develop ブランチ → dev環境へ自動デプロイ
@@ -11,6 +12,8 @@
 # - developまたはmainへのマージ後にデプロイ実行（このワークフロー）
 #
 # 最適化: Matrix並列ビルド + ハイブリッドキャッシュで高速化
+# - Rust: cargo-lambda + Zig cross-compilation
+# - Go: go build direct cross-compilation
 
 name: Deploy to AWS
 
@@ -139,12 +142,93 @@ jobs:
           if-no-files-found: error
 
   # =======================================
+  # Build Go Lambdas Job (Matrix Parallel)
+  # Requirement 6.5: Go Lambdaビルドジョブの追加（Rustビルドと同じパターン）
+  # =======================================
+  build-go-lambdas:
+    name: Build Go ${{ matrix.lambda }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Posts domain
+          - lambda: posts-create
+            path: posts/create
+          - lambda: posts-get
+            path: posts/get
+          - lambda: posts-get_public
+            path: posts/get_public
+          - lambda: posts-list
+            path: posts/list
+          - lambda: posts-update
+            path: posts/update
+          - lambda: posts-delete
+            path: posts/delete
+          # Auth domain
+          - lambda: auth-login
+            path: auth/login
+          - lambda: auth-logout
+            path: auth/logout
+          - lambda: auth-refresh
+            path: auth/refresh
+          # Images domain
+          - lambda: images-get_upload_url
+            path: images/get_upload_url
+          - lambda: images-delete
+            path: images/delete
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: go-functions/go.sum
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-build-${{ hashFiles('go-functions/go.sum') }}-${{ matrix.lambda }}
+          restore-keys: |
+            go-build-${{ hashFiles('go-functions/go.sum') }}-
+            go-build-
+
+      - name: Build Lambda ${{ matrix.lambda }}
+        working-directory: go-functions
+        run: |
+          echo "========================================="
+          echo "Building Go Lambda: ${{ matrix.lambda }}"
+          echo "========================================="
+
+          # ARM64 cross-compilation for Lambda (provided.al2023)
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+            go build -ldflags="-s -w" -tags=lambda.norpc \
+            -o bin/${{ matrix.lambda }}/bootstrap ./cmd/${{ matrix.path }}
+
+          echo "✓ Build complete"
+          ls -la bin/${{ matrix.lambda }}/
+
+      - name: Upload Lambda artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-lambda-${{ matrix.lambda }}
+          path: go-functions/bin/${{ matrix.lambda }}/bootstrap
+          retention-days: 1
+          if-no-files-found: error
+
+  # =======================================
   # Deploy Infrastructure Job
   # =======================================
   deploy-infrastructure:
     name: Deploy Infrastructure to ${{ github.ref == 'refs/heads/main' && 'Production' || 'Development' }}
     runs-on: ubuntu-latest
-    needs: build-rust-lambdas
+    needs: [build-rust-lambdas, build-go-lambdas]
     environment:
       name: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
 
@@ -189,19 +273,19 @@ jobs:
         run: bun install --frozen-lockfile
 
       # =======================================
-      # Download Pre-built Lambda Artifacts
+      # Download Pre-built Lambda Artifacts (Rust)
       # =======================================
-      - name: Download all Lambda artifacts
+      - name: Download all Rust Lambda artifacts
         uses: actions/download-artifact@v4
         with:
           path: rust-functions/target/lambda
           pattern: lambda-*
           merge-multiple: false
 
-      - name: Organize Lambda binaries
+      - name: Organize Rust Lambda binaries
         run: |
           echo "========================================="
-          echo "Organizing Lambda binaries"
+          echo "Organizing Rust Lambda binaries"
           echo "========================================="
 
           cd rust-functions/target/lambda
@@ -214,7 +298,7 @@ jobs:
             if [ -f "$dir/bootstrap" ]; then
               mkdir -p "$lambda_name"
               mv "$dir/bootstrap" "$lambda_name/bootstrap"
-              echo "✓ $lambda_name"
+              echo "✓ Rust: $lambda_name"
             fi
           done
 
@@ -222,7 +306,45 @@ jobs:
           rm -rf lambda-*/
 
           echo ""
-          echo "Lambda binaries ready:"
+          echo "Rust Lambda binaries ready:"
+          ls -la */
+
+      # =======================================
+      # Download Pre-built Lambda Artifacts (Go)
+      # Requirement 6.5: Go Lambdaビルド成果物のダウンロード
+      # =======================================
+      - name: Download all Go Lambda artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: go-functions/bin
+          pattern: go-lambda-*
+          merge-multiple: false
+
+      - name: Organize Go Lambda binaries
+        run: |
+          echo "========================================="
+          echo "Organizing Go Lambda binaries"
+          echo "========================================="
+
+          cd go-functions/bin
+
+          # Move binaries from artifact directories to expected structure
+          for dir in go-lambda-*/; do
+            lambda_name="${dir#go-lambda-}"
+            lambda_name="${lambda_name%/}"
+
+            if [ -f "$dir/bootstrap" ]; then
+              mkdir -p "$lambda_name"
+              mv "$dir/bootstrap" "$lambda_name/bootstrap"
+              echo "✓ Go: $lambda_name"
+            fi
+          done
+
+          # Clean up artifact directories
+          rm -rf go-lambda-*/
+
+          echo ""
+          echo "Go Lambda binaries ready:"
           ls -la */
 
       - name: Configure AWS credentials (OIDC)

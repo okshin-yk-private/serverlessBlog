@@ -1,0 +1,2492 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`GoLambdaStack Snapshot Snapshot test 1`] = `
+{
+  "Outputs": {
+    "CreatePostGoFunctionArn": {
+      "Description": "Create Post Go Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "CreatePostGo6884D753",
+          "Arn",
+        ],
+      },
+    },
+    "DeleteImageGoFunctionArn": {
+      "Description": "Delete Image Go Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "DeleteImageGo8A2A67D9",
+          "Arn",
+        ],
+      },
+    },
+    "DeletePostGoFunctionArn": {
+      "Description": "Delete Post Go Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "DeletePostGo4A1C4D05",
+          "Arn",
+        ],
+      },
+    },
+    "GetPostGoFunctionArn": {
+      "Description": "Get Post Go Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "GetPostGo2517783E",
+          "Arn",
+        ],
+      },
+    },
+    "GetPublicPostGoFunctionArn": {
+      "Description": "Get Public Post Go Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "GetPublicPostGoA3C9BBFC",
+          "Arn",
+        ],
+      },
+    },
+    "GetUploadUrlGoFunctionArn": {
+      "Description": "Get Upload URL Go Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "GetUploadUrlGo2C5130CE",
+          "Arn",
+        ],
+      },
+    },
+    "ListPostsGoFunctionArn": {
+      "Description": "List Posts Go Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "ListPostsGo111218F6",
+          "Arn",
+        ],
+      },
+    },
+    "LoginGoFunctionArn": {
+      "Description": "Login Go Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "LoginGoEE7222D9",
+          "Arn",
+        ],
+      },
+    },
+    "LogoutGoFunctionArn": {
+      "Description": "Logout Go Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "LogoutGo310910CD",
+          "Arn",
+        ],
+      },
+    },
+    "RefreshGoFunctionArn": {
+      "Description": "Refresh Go Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "RefreshGo1E8E0881",
+          "Arn",
+        ],
+      },
+    },
+    "UpdatePostGoFunctionArn": {
+      "Description": "Update Post Go Lambda Function ARN",
+      "Value": {
+        "Fn::GetAtt": [
+          "UpdatePostGo03288160",
+          "Arn",
+        ],
+      },
+    },
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "CreatePostGo6884D753": {
+      "DependsOn": [
+        "CreatePostGoServiceRoleDefaultPolicyA4EA30A7",
+        "CreatePostGoServiceRoleAA1B2252",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "[ASSET_HASH].zip",
+        },
+        "Description": "Create new blog post with Markdown to HTML conversion (Go)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-create-post-go",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "CreatePostGoServiceRoleAA1B2252",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "CreatePostGoServiceRoleAA1B2252": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "CreatePostGoServiceRoleDefaultPolicyA4EA30A7": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "dynamodb:BatchWriteItem",
+                "dynamodb:PutItem",
+                "dynamodb:UpdateItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:DescribeTable",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "CreatePostGoServiceRoleDefaultPolicyA4EA30A7",
+        "Roles": [
+          {
+            "Ref": "CreatePostGoServiceRoleAA1B2252",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "DeleteImageGo8A2A67D9": {
+      "DependsOn": [
+        "DeleteImageGoServiceRoleDefaultPolicyAE79F01C",
+        "DeleteImageGoServiceRoleB03EB58B",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "[ASSET_HASH].zip",
+        },
+        "Description": "Delete image from S3 (Go)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-delete-image-go",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "DeleteImageGoServiceRoleB03EB58B",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "DeleteImageGoServiceRoleB03EB58B": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "DeleteImageGoServiceRoleDefaultPolicyAE79F01C": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": "s3:DeleteObject*",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockBucket803559C4ArnD3395704",
+                    },
+                    "/*",
+                  ],
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "DeleteImageGoServiceRoleDefaultPolicyAE79F01C",
+        "Roles": [
+          {
+            "Ref": "DeleteImageGoServiceRoleB03EB58B",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "DeletePostGo4A1C4D05": {
+      "DependsOn": [
+        "DeletePostGoServiceRoleDefaultPolicy90C9E83D",
+        "DeletePostGoServiceRoleF509BE97",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "[ASSET_HASH].zip",
+        },
+        "Description": "Delete blog post (Go)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-delete-post-go",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "DeletePostGoServiceRoleF509BE97",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "DeletePostGoServiceRoleDefaultPolicy90C9E83D": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:Query",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:PutItem",
+                "dynamodb:UpdateItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:DescribeTable",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+            {
+              "Action": [
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+            {
+              "Action": "s3:DeleteObject*",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockBucket803559C4ArnD3395704",
+                    },
+                    "/*",
+                  ],
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "DeletePostGoServiceRoleDefaultPolicy90C9E83D",
+        "Roles": [
+          {
+            "Ref": "DeletePostGoServiceRoleF509BE97",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "DeletePostGoServiceRoleF509BE97": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "GetPostGo2517783E": {
+      "DependsOn": [
+        "GetPostGoServiceRoleDefaultPolicy935853EA",
+        "GetPostGoServiceRole7C1171E4",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "[ASSET_HASH].zip",
+        },
+        "Description": "Get blog post by ID (admin, includes markdown) (Go)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-get-post-go",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "GetPostGoServiceRole7C1171E4",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "GetPostGoServiceRole7C1171E4": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "GetPostGoServiceRoleDefaultPolicy935853EA": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:Query",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:DescribeTable",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+            {
+              "Action": [
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "GetPostGoServiceRoleDefaultPolicy935853EA",
+        "Roles": [
+          {
+            "Ref": "GetPostGoServiceRole7C1171E4",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "GetPublicPostGoA3C9BBFC": {
+      "DependsOn": [
+        "GetPublicPostGoServiceRoleDefaultPolicy744D464B",
+        "GetPublicPostGoServiceRoleA6C4BDE5",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "[ASSET_HASH].zip",
+        },
+        "Description": "Get published blog post by ID (public, HTML only) (Go)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-get-public-post-go",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "GetPublicPostGoServiceRoleA6C4BDE5",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "GetPublicPostGoServiceRoleA6C4BDE5": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "GetPublicPostGoServiceRoleDefaultPolicy744D464B": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:Query",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:DescribeTable",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+            {
+              "Action": [
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "GetPublicPostGoServiceRoleDefaultPolicy744D464B",
+        "Roles": [
+          {
+            "Ref": "GetPublicPostGoServiceRoleA6C4BDE5",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "GetUploadUrlGo2C5130CE": {
+      "DependsOn": [
+        "GetUploadUrlGoServiceRoleDefaultPolicy9AC3F2BC",
+        "GetUploadUrlGoServiceRole1B1E4D99",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "[ASSET_HASH].zip",
+        },
+        "Description": "Generate pre-signed URL for image upload (Go)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-upload-url-go",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "GetUploadUrlGoServiceRole1B1E4D99",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "GetUploadUrlGoServiceRole1B1E4D99": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "GetUploadUrlGoServiceRoleDefaultPolicy9AC3F2BC": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "s3:PutObject",
+                "s3:PutObjectLegalHold",
+                "s3:PutObjectRetention",
+                "s3:PutObjectTagging",
+                "s3:PutObjectVersionTagging",
+                "s3:Abort*",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockBucket803559C4ArnD3395704",
+                    },
+                    "/*",
+                  ],
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "GetUploadUrlGoServiceRoleDefaultPolicy9AC3F2BC",
+        "Roles": [
+          {
+            "Ref": "GetUploadUrlGoServiceRole1B1E4D99",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "ListPostsGo111218F6": {
+      "DependsOn": [
+        "ListPostsGoServiceRoleDefaultPolicyB10B6D0F",
+        "ListPostsGoServiceRole94BFDDD6",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "[ASSET_HASH].zip",
+        },
+        "Description": "List published blog posts (Go)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-list-posts-go",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "ListPostsGoServiceRole94BFDDD6",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "ListPostsGoServiceRole94BFDDD6": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "ListPostsGoServiceRoleDefaultPolicyB10B6D0F": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:Query",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:DescribeTable",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+            {
+              "Action": [
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "ListPostsGoServiceRoleDefaultPolicyB10B6D0F",
+        "Roles": [
+          {
+            "Ref": "ListPostsGoServiceRole94BFDDD6",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "LoginGoEE7222D9": {
+      "DependsOn": [
+        "LoginGoServiceRoleDefaultPolicyE7904B18",
+        "LoginGoServiceRoleD0120CE3",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "[ASSET_HASH].zip",
+        },
+        "Description": "User authentication (Go)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-login-go",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "LoginGoServiceRoleD0120CE3",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "LoginGoServiceRoleD0120CE3": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "LoginGoServiceRoleDefaultPolicyE7904B18": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "LoginGoServiceRoleDefaultPolicyE7904B18",
+        "Roles": [
+          {
+            "Ref": "LoginGoServiceRoleD0120CE3",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "LogoutGo310910CD": {
+      "DependsOn": [
+        "LogoutGoServiceRoleDefaultPolicy5404B2A5",
+        "LogoutGoServiceRole2A1A790A",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "[ASSET_HASH].zip",
+        },
+        "Description": "User logout (Go)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-logout-go",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "LogoutGoServiceRole2A1A790A",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "LogoutGoServiceRole2A1A790A": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "LogoutGoServiceRoleDefaultPolicy5404B2A5": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "LogoutGoServiceRoleDefaultPolicy5404B2A5",
+        "Roles": [
+          {
+            "Ref": "LogoutGoServiceRole2A1A790A",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "RefreshGo1E8E0881": {
+      "DependsOn": [
+        "RefreshGoServiceRoleDefaultPolicy0FDBAF69",
+        "RefreshGoServiceRoleC618B92C",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "[ASSET_HASH].zip",
+        },
+        "Description": "Token refresh (Go)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-refresh-go",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "RefreshGoServiceRoleC618B92C",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "RefreshGoServiceRoleC618B92C": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "RefreshGoServiceRoleDefaultPolicy0FDBAF69": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "RefreshGoServiceRoleDefaultPolicy0FDBAF69",
+        "Roles": [
+          {
+            "Ref": "RefreshGoServiceRoleC618B92C",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "UpdatePostGo03288160": {
+      "DependsOn": [
+        "UpdatePostGoServiceRoleDefaultPolicy857B3F43",
+        "UpdatePostGoServiceRoleB6260260",
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "[ASSET_HASH].zip",
+        },
+        "Description": "Update existing blog post (Go)",
+        "Environment": {
+          "Variables": {
+            "BUCKET_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockBucket803559C43629AD2C",
+            },
+            "CLOUDFRONT_DOMAIN": "https://dxxxxxxxxxxxx.cloudfront.net",
+            "TABLE_NAME": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockTable956D49B196FBE62E",
+            },
+            "USER_POOL_CLIENT_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPoolMockUserPoolClientA7A03C6E5DBA82CB",
+            },
+            "USER_POOL_ID": {
+              "Fn::ImportValue": "MockStack:ExportsOutputRefMockUserPool86A6B8DD4B6AB3A1",
+            },
+          },
+        },
+        "FunctionName": "blog-update-post-go",
+        "Handler": "bootstrap",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "UpdatePostGoServiceRoleB6260260",
+            "Arn",
+          ],
+        },
+        "Runtime": "provided.al2023",
+        "Timeout": 30,
+        "TracingConfig": {
+          "Mode": "Active",
+        },
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "UpdatePostGoServiceRoleB6260260": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "UpdatePostGoServiceRoleDefaultPolicy857B3F43": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "applies_to": [
+                "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+              "id": "AwsSolutions-IAM4",
+              "reason": "Lambda functions use AWSLambdaBasicExecutionRole which is the AWS recommended managed policy for Lambda execution. It provides minimal permissions for CloudWatch Logs.",
+            },
+            {
+              "applies_to": [
+                "Resource::*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/index\\/\\*$/",
+                },
+                "Action::s3:Abort*",
+                "Action::s3:DeleteObject*",
+                {
+                  "regex": "/^Resource::<.+\\.Arn>\\/\\*$/",
+                },
+                {
+                  "regex": "/^Resource::.+Arn.+\\/\\*$/",
+                },
+              ],
+              "id": "AwsSolutions-IAM5",
+              "reason": "Lambda functions require wildcard permissions for CloudWatch Logs (*) to create log streams and write logs. DynamoDB index access (*/index/*) is necessary for querying GSI. S3 delete and abort permissions are scoped to the images bucket. These are minimal required permissions for the functions to operate.",
+            },
+          ],
+        },
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:Query",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:PutItem",
+                "dynamodb:UpdateItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:DescribeTable",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+            {
+              "Action": [
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "MockStack:ExportsOutputFnGetAttMockTable956D49B1Arn34C42563",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "UpdatePostGoServiceRoleDefaultPolicy857B3F43",
+        "Roles": [
+          {
+            "Ref": "UpdatePostGoServiceRoleB6260260",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;
