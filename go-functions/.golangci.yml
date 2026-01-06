@@ -110,20 +110,20 @@ linters:
       require-explanation: true
       require-specific: true
 
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - dupl
-        - funlen
-        - goconst
-        - gocyclo
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - dupl
+          - funlen
+          - goconst
+          - gocyclo
+      # Lambda entry points are simple stubs - exclude common placeholder issues
+      - path: cmd/
+        linters:
+          - funlen
+          - revive
 
-    # Lambda entry points are simple stubs - exclude common placeholder issues
-    - path: cmd/
-      linters:
-        - funlen
-        - revive
-
+output:
   max-issues-per-linter: 0
   max-same-issues: 0
