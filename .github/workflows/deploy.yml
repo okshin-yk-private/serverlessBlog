@@ -427,7 +427,7 @@ jobs:
             ServerlessBlogCdnStack \
             --require-approval never \
             --context stage=${{ steps.env.outputs.stage }} \
-            --context rustTrafficPercent=100 \
+            --context goTrafficPercent=100 \
             --ci
           echo "✓ Phase 1 complete"
 
@@ -440,13 +440,13 @@ jobs:
           echo "========================================="
           echo "CDK Deploy Phase 2 - Lambda Functions"
           echo "========================================="
-          # Deploy Lambda stacks
+          # Deploy Lambda stacks (Node.js always, Go when goTrafficPercent > 0)
           bunx cdk deploy \
             ServerlessBlogLambdaFunctionsStack \
-            ServerlessBlogRustLambdaStack \
+            ServerlessBlogGoLambdaStack \
             --require-approval never \
             --context stage=${{ steps.env.outputs.stage }} \
-            --context rustTrafficPercent=100 \
+            --context goTrafficPercent=100 \
             --ci
           echo "✓ Phase 2 complete"
 
@@ -465,7 +465,7 @@ jobs:
             ServerlessBlogMonitoringStack \
             --require-approval never \
             --context stage=${{ steps.env.outputs.stage }} \
-            --context rustTrafficPercent=100 \
+            --context goTrafficPercent=100 \
             --ci \
             --outputs-file cdk-outputs.json
           echo "✓ Phase 3 complete"
