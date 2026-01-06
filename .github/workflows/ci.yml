@@ -172,7 +172,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: '1.23'
           cache-dependency-path: go-functions/go.sum
 
       - name: Run golangci-lint
@@ -201,7 +201,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: '1.23'
           cache-dependency-path: go-functions/go.sum
 
       - name: Run Go tests with race detector and coverage
