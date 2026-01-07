@@ -226,3 +226,6 @@ template.packaged.yaml
 # Rust build artifacts
 target/
 **/target/
+
+# Go build artifacts
+go-functions/bin/
