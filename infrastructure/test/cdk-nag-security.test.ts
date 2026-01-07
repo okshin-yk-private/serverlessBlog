@@ -102,6 +102,7 @@ describe('CDK Nag Security Validation', () => {
       const stack = new ApiStack(app, 'TestApiStack', {
         env,
         userPool: authStack.userPool,
+        stage: 'prd',
       });
       cdk.Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
       app.synth();
@@ -187,6 +188,7 @@ describe('CDK Nag Security Validation', () => {
       const stack = new ApiStack(app, 'TestApiStack', {
         env,
         userPool: authStack.userPool,
+        stage: 'prd',
       });
       cdk.Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
       app.synth();
