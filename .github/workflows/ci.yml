@@ -301,14 +301,6 @@ jobs:
         working-directory: infrastructure
         run: bun install --frozen-lockfile
 
-      - name: Install Lambda Layer dependencies (Common)
-        working-directory: layers/common/nodejs
-        run: bun install --frozen-lockfile
-
-      - name: Install Lambda Layer dependencies (Powertools)
-        working-directory: layers/powertools/nodejs
-        run: bun install --frozen-lockfile
-
       - name: Run infrastructure tests with coverage
         working-directory: infrastructure
         run: bun run test:coverage
@@ -368,14 +360,6 @@ jobs:
 
       - name: Install infrastructure dependencies
         working-directory: infrastructure
-        run: bun install --frozen-lockfile
-
-      - name: Install Lambda Layer dependencies (Common)
-        working-directory: layers/common/nodejs
-        run: bun install --frozen-lockfile
-
-      - name: Install Lambda Layer dependencies (Powertools)
-        working-directory: layers/powertools/nodejs
         run: bun install --frozen-lockfile
 
       - name: Configure AWS credentials (OIDC)

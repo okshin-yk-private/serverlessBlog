@@ -159,14 +159,6 @@ jobs:
         working-directory: infrastructure
         run: bun install --frozen-lockfile
 
-      - name: Install Lambda Layer dependencies (Common)
-        working-directory: layers/common/nodejs
-        run: bun install --frozen-lockfile
-
-      - name: Install Lambda Layer dependencies (Powertools)
-        working-directory: layers/powertools/nodejs
-        run: bun install --frozen-lockfile
-
       # =======================================
       # Download Pre-built Lambda Artifacts (Rust) - REMOVED (Task 21.2)
       # Rust implementation has been deleted.
