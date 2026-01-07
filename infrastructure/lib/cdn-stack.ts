@@ -320,7 +320,7 @@ export class CdnStack extends cdk.Stack {
                 ]
               : [
                   {
-                    function: adminSpaFunction,
+                    function: adminSpaFunction!,
                     eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
                   },
                 ],
