@@ -7,6 +7,7 @@ import { NagSuppressions } from 'cdk-nag';
 
 export interface ApiStackProps extends cdk.StackProps {
   userPool: cognito.IUserPool;
+  stage: string;
 }
 
 export class ApiStack extends cdk.Stack {
@@ -16,14 +17,17 @@ export class ApiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    const { userPool } = props;
+    const { userPool, stage } = props;
+    const isProduction = stage === 'prd';
 
-    // CloudWatch Logs for API Gateway Access Logs
-    const apiLogGroup = new logs.LogGroup(this, 'ApiGatewayAccessLogs', {
-      logGroupName: '/aws/apigateway/serverless-blog-api',
-      retention: logs.RetentionDays.ONE_WEEK,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
+    // CloudWatch Logs for API Gateway Access Logs (本番環境のみ使用)
+    const apiLogGroup = isProduction
+      ? new logs.LogGroup(this, 'ApiGatewayAccessLogs', {
+          logGroupName: '/aws/apigateway/serverless-blog-api',
+          retention: logs.RetentionDays.THREE_MONTHS, // prd: 90日
+          removalPolicy: cdk.RemovalPolicy.DESTROY,
+        })
+      : undefined;
 
     // REST API作成
     this.restApi = new apigateway.RestApi(this, 'BlogApi', {
@@ -48,27 +52,34 @@ export class ApiStack extends cdk.Stack {
       },
       // CloudWatchロール自動作成
       cloudWatchRole: true,
-      // デプロイ設定
+      // デプロイ設定（環境別）
       deployOptions: {
-        stageName: 'prod',
-        tracingEnabled: true,
-        metricsEnabled: true,
-        loggingLevel: apigateway.MethodLoggingLevel.INFO,
-        dataTraceEnabled: true,
-        accessLogDestination: new apigateway.LogGroupLogDestination(
-          apiLogGroup
-        ),
-        accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields({
-          caller: true,
-          httpMethod: true,
-          ip: true,
-          protocol: true,
-          requestTime: true,
-          resourcePath: true,
-          responseLength: true,
-          status: true,
-          user: true,
-        }),
+        stageName: isProduction ? 'prod' : 'dev',
+        tracingEnabled: isProduction, // dev:無効, prd:有効
+        metricsEnabled: isProduction, // dev:無効, prd:有効
+        loggingLevel: isProduction
+          ? apigateway.MethodLoggingLevel.INFO
+          : apigateway.MethodLoggingLevel.OFF,
+        dataTraceEnabled: isProduction,
+        ...(isProduction && apiLogGroup
+          ? {
+              accessLogDestination: new apigateway.LogGroupLogDestination(
+                apiLogGroup
+              ),
+              accessLogFormat:
+                apigateway.AccessLogFormat.jsonWithStandardFields({
+                  caller: true,
+                  httpMethod: true,
+                  ip: true,
+                  protocol: true,
+                  requestTime: true,
+                  resourcePath: true,
+                  responseLength: true,
+                  status: true,
+                  user: true,
+                }),
+            }
+          : {}),
       },
     });
 
@@ -129,20 +140,38 @@ export class ApiStack extends cdk.Stack {
     // AwsSolutions-APIG3: AWS WAF integration
     // AwsSolutions-APIG4: API Gatewayの認証が未実装
     // 理由: リソースにメソッドが未統合のため。Lambda統合時に認証を実装予定
+    const baseSuppressions = [
+      {
+        id: 'AwsSolutions-APIG3',
+        reason:
+          'AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.',
+      },
+      {
+        id: 'AwsSolutions-APIG4',
+        reason:
+          'Authorization will be implemented when Lambda functions are integrated with API Gateway methods. Currently resources are created but methods are not yet attached.',
+      },
+    ];
+
+    // dev環境のみ: アクセスログ・CloudWatch logging無効化の抑止
+    const devSuppressions = isProduction
+      ? []
+      : [
+          {
+            id: 'AwsSolutions-APIG1',
+            reason:
+              'Access logging is disabled in development environment to reduce costs. Enabled in production.',
+          },
+          {
+            id: 'AwsSolutions-APIG6',
+            reason:
+              'CloudWatch logging is disabled in development environment to reduce costs. Enabled in production.',
+          },
+        ];
+
     NagSuppressions.addResourceSuppressions(
       this.restApi,
-      [
-        {
-          id: 'AwsSolutions-APIG3',
-          reason:
-            'AWS WAF integration is not required for development environment. Should be enabled in production for DDoS protection and request filtering.',
-        },
-        {
-          id: 'AwsSolutions-APIG4',
-          reason:
-            'Authorization will be implemented when Lambda functions are integrated with API Gateway methods. Currently resources are created but methods are not yet attached.',
-        },
-      ],
+      [...baseSuppressions, ...devSuppressions],
       true
     );
 

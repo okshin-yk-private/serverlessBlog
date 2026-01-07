@@ -67,6 +67,7 @@ const authStack = new AuthStack(app, 'ServerlessBlogAuthStack', { env });
 const apiStack = new ApiStack(app, 'ServerlessBlogApiStack', {
   env,
   userPool: authStack.userPool,
+  stage,
 });
 
 // CDN Stack (CloudFront)
@@ -128,6 +129,7 @@ const apiIntegrationsStack = new ApiIntegrationsStack(
     authorizer: apiStack.authorizer,
     lambdaFunctions: getLambdaFunctions(),
     implementationLabel: getImplementationLabel(),
+    stage,
   }
 );
 
