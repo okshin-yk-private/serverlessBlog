@@ -91,7 +91,11 @@ export const getUploadUrl = async (
       },
     }
   );
-  return response.data;
+  // バックエンドは "url" を返すが、フロントエンドは "imageUrl" を期待するためマッピング
+  return {
+    uploadUrl: response.data.uploadUrl,
+    imageUrl: response.data.url,
+  };
 };
 
 /**
