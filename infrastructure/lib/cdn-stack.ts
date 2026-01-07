@@ -191,11 +191,14 @@ export class CdnStack extends cdk.Stack {
       );
     }
 
-    // CloudFront Function for Admin SPA routing
+    // CloudFront Function for Admin SPA routing (PRD only)
+    // In DEV, AdminCombinedFunction is used instead (includes Basic Auth + SPA routing)
     // Strips /admin prefix and handles SPA routes (paths without extension -> /index.html)
-    const adminSpaFunction = new cloudfront.Function(this, 'AdminSpaFunction', {
-      functionName: `AdminSpaFunction-${stage}`,
-      code: cloudfront.FunctionCode.fromInline(`function handler(event) {
+    let adminSpaFunction: cloudfront.Function | undefined;
+    if (!isDev) {
+      adminSpaFunction = new cloudfront.Function(this, 'AdminSpaFunction', {
+        functionName: `AdminSpaFunction-${stage}`,
+        code: cloudfront.FunctionCode.fromInline(`function handler(event) {
   var request = event.request;
   var uri = request.uri;
 
@@ -213,11 +216,12 @@ export class CdnStack extends cdk.Stack {
   request.uri = uri;
   return request;
 }`),
-      comment:
-        'SPA routing for Admin site - strips /admin prefix and handles SPA routes',
-      runtime: cloudfront.FunctionRuntime.JS_2_0,
-      autoPublish: true,
-    });
+        comment:
+          'SPA routing for Admin site - strips /admin prefix and handles SPA routes',
+        runtime: cloudfront.FunctionRuntime.JS_2_0,
+        autoPublish: true,
+      });
+    }
 
     // CloudFront Function for Images path rewriting
     // Strips /images prefix for origin request
