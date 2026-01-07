@@ -33,6 +33,11 @@ export interface ApiIntegrationsStackProps extends cdk.StackProps {
    * Used for documentation and logging
    */
   implementationLabel?: string;
+  /**
+   * Environment stage (e.g., 'dev' or 'prd')
+   * Used for environment-specific configurations
+   */
+  stage: string;
 }
 
 /**
