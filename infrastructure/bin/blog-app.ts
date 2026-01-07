@@ -3,7 +3,6 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { AwsSolutionsChecks } from 'cdk-nag';
 import { Aspects } from 'aws-cdk-lib';
-import { LayersStack } from '../lib/layers-stack';
 import { DatabaseStack } from '../lib/database-stack';
 import { StorageStack } from '../lib/storage-stack';
 import { AuthStack } from '../lib/auth-stack';
@@ -48,9 +47,6 @@ const env = {
 // CDK Nag: AWS Solutions Checksを適用
 // セキュリティ、信頼性、パフォーマンス、コスト最適化のベストプラクティスをチェック
 Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
-
-// Lambda Layers Stack
-const layersStack = new LayersStack(app, 'ServerlessBlogLayersStack', { env });
 
 // Database Stack
 const databaseStack = new DatabaseStack(app, 'ServerlessBlogDatabaseStack', {
