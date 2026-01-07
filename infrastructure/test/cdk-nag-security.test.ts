@@ -13,21 +13,20 @@
  */
 
 import * as cdk from 'aws-cdk-lib';
-import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Annotations, Match } from 'aws-cdk-lib/assertions';
 import { AwsSolutionsChecks } from 'cdk-nag';
-import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import * as apigateway from 'aws-cdk-lib/aws-apigateway';
-import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { LayersStack } from '../lib/layers-stack';
 import { DatabaseStack } from '../lib/database-stack';
 import { StorageStack } from '../lib/storage-stack';
 import { AuthStack } from '../lib/auth-stack';
-import { LambdaFunctionsStack } from '../lib/lambda-functions-stack';
+// LambdaFunctionsStack import removed - Node.js implementation has been deleted (Task 21.1)
+// import { LambdaFunctionsStack } from '../lib/lambda-functions-stack';
 import { ApiStack } from '../lib/api-stack';
-import { CdnStack } from '../lib/cdn-stack';
-import { MonitoringStack } from '../lib/monitoring-stack';
-import { RustLambdaStack } from '../lib/rust-lambda-stack';
+// CdnStack and MonitoringStack imports removed - not used in tests
+// import { CdnStack } from '../lib/cdn-stack';
+// import { MonitoringStack } from '../lib/monitoring-stack';
+// RustLambdaStack import removed - Rust implementation has been deleted (Task 21.2)
+// import { RustLambdaStack } from '../lib/rust-lambda-stack';
 
 describe('CDK Nag Security Validation', () => {
   const env = {
@@ -140,99 +139,8 @@ describe('CDK Nag Security Validation', () => {
     // 2. OAC（Origin Access Control）の使用（最新のベストプラクティス）
     // 3. HTTPS強制、TLS 1.2以上の使用
 
-    test('RustLambdaStack should pass CDK Nag security checks', () => {
-      const app = new cdk.App({
-        context: {
-          'aws:cdk:bundling-stacks': [], // Skip bundling during tests
-        },
-      });
-
-      // Create mock dependencies in a separate stack
-      const mockStack = new cdk.Stack(app, 'MockDepsStack', { env });
-
-      // Create mock DynamoDB table
-      const mockBlogPostsTable = new dynamodb.Table(mockStack, 'MockTable', {
-        tableName: 'mock-blog-posts',
-        partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
-        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-        removalPolicy: cdk.RemovalPolicy.DESTROY,
-      });
-
-      // Create mock S3 bucket
-      const mockImagesBucket = new s3.Bucket(mockStack, 'MockBucket', {
-        bucketName: 'mock-images-bucket',
-        removalPolicy: cdk.RemovalPolicy.DESTROY,
-      });
-
-      // Create mock Cognito User Pool and Client
-      const mockUserPool = new cognito.UserPool(mockStack, 'MockUserPool', {
-        userPoolName: 'mock-user-pool',
-      });
-
-      const mockUserPoolClient = mockUserPool.addClient('MockUserPoolClient', {
-        userPoolClientName: 'mock-client',
-      });
-
-      // Create mock API Gateway
-      const mockRestApi = new apigateway.RestApi(mockStack, 'MockApi', {
-        restApiName: 'mock-api',
-      });
-
-      // Create mock authorizer and attach it to the API
-      const mockAuthorizer = new apigateway.CognitoUserPoolsAuthorizer(
-        mockStack,
-        'MockAuthorizer',
-        {
-          cognitoUserPools: [mockUserPool],
-        }
-      );
-
-      // Attach authorizer to a method to avoid validation error
-      mockRestApi.root.addMethod(
-        'GET',
-        new apigateway.MockIntegration({
-          integrationResponses: [{ statusCode: '200' }],
-          requestTemplates: { 'application/json': '{"statusCode": 200}' },
-        }),
-        {
-          authorizer: mockAuthorizer,
-          authorizationType: apigateway.AuthorizationType.COGNITO,
-          methodResponses: [{ statusCode: '200' }],
-        }
-      );
-
-      // Create RustLambdaStack
-      const stack = new RustLambdaStack(app, 'TestRustLambdaStack', {
-        env,
-        blogPostsTable: mockBlogPostsTable,
-        imagesBucket: mockImagesBucket,
-        restApi: mockRestApi,
-        authorizer: mockAuthorizer,
-        userPoolId: mockUserPool.userPoolId,
-        userPoolClientId: mockUserPoolClient.userPoolClientId,
-        cloudFrontDomainName: 'dxxxxxxxxxxxx.cloudfront.net',
-      });
-
-      cdk.Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
-      app.synth();
-
-      const errors = Annotations.fromStack(stack).findError(
-        '*',
-        Match.stringLikeRegexp('AwsSolutions-.*')
-      );
-
-      if (errors.length > 0) {
-        console.log(
-          `\n=== RustLambdaStack CDK Nag Errors (${errors.length}) ===`
-        );
-        errors.forEach((error, index) => {
-          console.log(`\nError ${index + 1}:`);
-          console.log(JSON.stringify(error, null, 2));
-        });
-      }
-
-      expect(errors.length).toBe(0);
-    });
+    // RustLambdaStack CDK Nag test removed - Rust implementation has been deleted (Task 21.2)
+    // GoLambdaStack security is validated in go-lambda-stack.test.ts
   });
 
   describe('Data Encryption Verification', () => {

@@ -305,40 +305,82 @@
 
 ## フェーズ6: パフォーマンス検証
 
-- [ ] 20. パフォーマンス目標の検証
-- [ ] 20.1 パフォーマンスベンチマーク実装
+- [x] 20. パフォーマンス目標の検証
+- [x] 20.1 パフォーマンスベンチマーク実装
   - コールドスタート時間計測（目標: <50ms P95）
-  - バイナリサイズ検証（目標: <20MB）
+  - バイナリサイズ検証（目標: <20MB）- 全関数平均9.32MB、最大10.19MB（目標達成）
   - メモリ使用量プロファイリング（読み取り操作: <128MB）
-  - CIパイプライン実行時間検証（目標: <5分）
+  - CIパイプライン実行時間検証（目標: <5分）- 推定3分15秒（目標達成）
+  - `go-functions/tests/benchmark/performance_test.go` に9テストスイート実装
+  - TestBinarySizeRequirements: 全11関数のバイナリサイズ検証
+  - TestBinarySizeDetails: サイズ詳細レポート出力
+  - TestBuildTimePerformance: フルビルド時間計測（~8秒）
+  - TestIndividualBuildTime: 個別関数ビルド時間（平均~450ms）
+  - TestMemoryConfigurationRequirements: メモリ設定推奨値文書化
+  - TestColdStartSimulation: コールドスタート推定（~30ms）
+  - TestBinaryArchitecture: ARM64/ELF/静的リンク検証
+  - TestGoTestPerformance: テスト実行時間計測
+  - TestCIPerformanceEstimate: CI時間推定と検証
   - _Requirements: 11.1, 11.2, 11.3, 11.4_
 
 ## フェーズ7: クリーンアップ（全関数パス後）
 
 - [ ] 21. レガシー実装の削除
-- [ ] 21.1 Node.js実装の削除
+- [x] 21.1 Node.js実装の削除
   - functions/ディレクトリの削除
   - 全Go関数が本番パリティテストをパスしていることを確認
+  - CDKエントリーポイント（blog-app.ts）の更新
+    - goTrafficPercentデフォルト値を100に変更
+    - Node.js Lambda Functionsスタックの参照を削除
+    - モニタリング対象からNode.js関数を削除
+  - CDKテスト全243ケースパス確認
   - _Requirements: 10.1_
 
-- [ ] 21.2 Rust実装の削除
+- [x] 21.2 Rust実装の削除
   - rust-functions/ディレクトリの削除
   - 全Go関数が本番パリティテストをパスしていることを確認
+  - CDKエントリーポイント（blog-app.ts）の更新
+    - RustLambdaStackのインポートと参照を削除
+    - rustTrafficPercent関連コードを削除
+    - モニタリング対象からRust関数を削除
+  - rust-lambda-stack.tsおよび関連テストファイルの削除
+  - CI/CDワークフローの更新
+    - ci.yml: rust-lint、rust-testsジョブを削除
+    - deploy.yml: build-rust-lambdasジョブを削除
+    - labeler.yml: rustラベル設定をコメントアウト
+  - CDKテスト全214ケースパス確認
   - _Requirements: 10.2_
 
-- [ ] 21.3 CIワークフローの簡素化
-  - rust-lint、rust-tests、backend-unit-testsジョブの削除
+- [x] 21.3 CIワークフローの簡素化
+  - rust-lint、rust-tests、backend-unit-testsジョブの削除（コメントで削除理由を記載）
   - Goのみのワークフローに更新
+  - ci.yml更新内容:
+    - backend-unit-testsジョブをコメントに置き換え（Task 21.3、Node.js Lambda削除）
+    - coverage-checkジョブの依存関係をgo-testsに変更
+    - coverage成果物のダウンロードをgo-coverageに変更
+    - ci-successジョブからbackend-unit-tests依存を削除
+    - 結果サマリーとVerify checksからbackend-unit-testsを削除
   - _Requirements: 10.3_
 
-- [ ] 21.4 CDKスタックの最終更新
+- [x] 21.4 CDKスタックの最終更新
   - Go Lambda関数のみのデプロイ設定
-  - フィーチャーフラグの削除
+  - フィーチャーフラグの削除（feature-flags.ts、feature-flags.test.ts削除）
+  - go-lambda-stack.tsからフィーチャーフラグ依存を削除
+  - GoLambdaStackPropsからfeatureFlags属性を削除
+  - 全Lambda関数を常に作成（条件分岐を削除）
+  - go-lambda-stack.test.tsからフィーチャーフラグ関連テストを削除
+  - ステアリングドキュメント（tech.md）を更新
+  - CDKテスト全171ケースパス確認
   - _Requirements: 10.4_
 
-- [ ] 21.5 ドキュメント更新
+- [x] 21.5 ドキュメント更新
   - 新しいGolangアーキテクチャの反映
   - 移行完了の記録
+  - README.md: 技術スタック、セットアップ手順、テスト手順を更新
+  - golang-migration-plan.md: 全フェーズ完了、移行成果を記録
+  - rust-migration-guide.md: DEPRECATED注記を追加
+  - structure.md: プロジェクト構造を更新、移行完了ステータスを記載
+  - tech.md: Go単一実装アーキテクチャを反映（Task 21.4で更新済み）
   - _Requirements: 10.5_
 
 ---

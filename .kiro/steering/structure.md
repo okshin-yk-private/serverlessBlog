@@ -2,7 +2,7 @@
 
 ## 現在の実装状況
 
-**Last Updated**: 2026-01-03 (Steering Sync)
+**Last Updated**: 2026-01-06 (Steering Sync - Go Migration Progress)
 
 ### ✅ 実装完了
 - **Task 1.1**: CDKプロジェクトの初期化とディレクトリ構造の作成
@@ -412,22 +412,34 @@
   - **Note**: 残りのテスト失敗は、テストケースの期待値調整で解決可能
   - **Requirements R43, R44達成**: E2Eテスト環境、フロントエンド-MSW統合
 
-### 🚧 進行中のスペック
-- **image-upload-enhancement**: 画像アップロード機能の強化（実装フェーズ）
-  - `functions/images/deleteImage/handler.ts` - 画像削除Lambda関数（新規追加）
-  - 認可チェック（ユーザーIDベースのパスプレフィックス）
-  - パストラバーサル攻撃対策
-  - S3 DeleteObjectCommand実装
-  - Lambda Powertools統合（Logger, Tracer, Metrics）
+### ✅ Go Lambda移行完了
+- **全11 Lambda関数のGo実装完了**:
+  - Posts: createPost, getPost, getPublicPost, listPosts, updatePost, deletePost
+  - Auth: login, logout, refresh
+  - Images: getUploadUrl, deleteImage
+- **CDKインフラ構築**:
+  - `infrastructure/lib/go-lambda-stack.ts` - Go Lambda関数定義
+  - `infrastructure/lib/feature-flags.ts` - 実装切り替え制御
+  - `infrastructure/lib/api-integrations-stack.ts` - API統合分離
+- **パリティテスト実装**:
+  - `go-functions/tests/parity/` - Node.js/Rust/Go間のAPI互換性テスト
+- **内部パッケージ構成**:
+  - `go-functions/internal/domain/` - 型定義
+  - `go-functions/internal/apierrors/` - エラーハンドリング
+  - `go-functions/internal/markdown/` - Markdown処理
+  - `go-functions/internal/clients/` - AWSクライアント
+  - `go-functions/internal/middleware/` - ロギング、トレーシング、メトリクス
 
-### 🚧 次のタスク
-- **Task 8.5**: クロスブラウザ・エラーハンドリングE2Eテスト（テスト期待値の調整が必要）
-- **image-upload-enhancement**: 残りの実装タスク（`.kiro/specs/image-upload-enhancement/tasks.md`を参照）
+### ✅ Lambda移行完了（2026年1月）
+- **全11 Lambda関数**: Go実装完了
+- **旧実装削除**: Node.js（`functions/`）、Rust（`rust-functions/`）削除済み
+- **CI/CD簡素化**: Go単一ワークフロー化完了
+- **フィーチャーフラグ削除**: Go単一実装化完了
 
-### 📋 未実装
-- E2Eテスト（Task 8.5: テスト期待値の調整）
-- CI/CDパイプライン（Task 9.x）
-- 最終統合とデプロイ準備（Task 10.x）
+### 📋 保守・運用
+- Go Lambda関数の継続的な改善
+- E2Eテスト（テスト期待値の調整）
+- パフォーマンス監視とチューニング
 
 ## プロジェクト構造
 
@@ -457,7 +469,8 @@ serverless_blog/
 │   │   ├── storage-stack.ts
 │   │   ├── auth-stack.ts
 │   │   ├── api-stack.ts
-│   │   ├── lambda-functions-stack.ts
+│   │   ├── go-lambda-stack.ts         # Go Lambda関数定義
+│   │   ├── api-integrations-stack.ts  # API Gateway統合
 │   │   ├── cdn-stack.ts
 │   │   └── monitoring-stack.ts
 │   ├── test/              # CDK テスト
@@ -465,7 +478,7 @@ serverless_blog/
 │   ├── tsconfig.json
 │   ├── cdk.json
 │   └── jest.config.js
-├── layers/                # Lambda Layers
+├── layers/                # Lambda Layers（フロントエンド用）
 │   ├── powertools/        # Lambda Powertools
 │   │   └── nodejs/
 │   │       └── package.json
@@ -476,30 +489,25 @@ serverless_blog/
 │               ├── markdownUtils.ts
 │               ├── s3Utils.ts
 │               └── dynamodbUtils.ts
-├── functions/             # Lambda 関数
-│   ├── posts/
-│   │   ├── createPost/
-│   │   │   ├── index.ts
-│   │   │   └── handler.ts
-│   │   ├── getPost/
-│   │   ├── getPublicPost/
-│   │   ├── updatePost/
-│   │   ├── deletePost/
-│   │   └── listPosts/
-│   ├── auth/
-│   │   ├── login/
-│   │   ├── logout/
-│   │   └── refresh/
-│   ├── images/
-│   │   ├── getUploadUrl/
-│   │   │   ├── index.ts
-│   │   │   └── handler.ts
-│   │   └── deleteImage/   # 新規追加（image-upload-enhancement）
-│   │       └── handler.ts
-│   └── shared/            # 共有コード
-│       ├── types.ts
-│       ├── constants.ts
-│       └── auth-utils.ts
+├── go-functions/          # Go Lambda 関数（唯一のバックエンド実装）
+│   ├── cmd/               # Lambda関数エントリーポイント
+│   │   ├── posts/         # create, get, get_public, list, update, delete
+│   │   ├── auth/          # login, logout, refresh
+│   │   └── images/        # get_upload_url, delete
+│   ├── internal/          # 内部パッケージ
+│   │   ├── domain/        # 型定義
+│   │   ├── apierrors/     # エラーハンドリング
+│   │   ├── markdown/      # Markdown処理
+│   │   ├── clients/       # AWSクライアント
+│   │   └── middleware/    # ロギング、トレーシング、メトリクス
+│   ├── tests/             # テスト
+│   │   ├── parity/        # APIパリティテスト
+│   │   └── benchmark/     # パフォーマンスベンチマーク
+│   ├── bin/               # ビルド済みバイナリ（bootstrap）
+│   ├── go.mod
+│   ├── go.sum
+│   ├── .golangci.yml      # リンター設定
+│   └── Makefile
 ├── frontend/              # フロントエンドアプリケーション
 │   ├── public/            # 公開ブログサイト
 │   │   ├── src/

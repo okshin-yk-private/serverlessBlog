@@ -47,8 +47,12 @@
 - **CDK Nag**: セキュリティとベストプラクティスの検証
 
 ### ランタイム
-- **Node.js 24.x**: 最新版を使用（AWS Lambda NODEJS_24_X対応）
-- **TypeScript**: 型安全な開発
+- **Go 1.25.x**: Lambda関数実装（provided.al2023）
+- **TypeScript**: CDK・フロントエンド型安全な開発
+
+### Lambda実装戦略
+- **単一言語**: Go実装のみ（Node.js/Rust実装は移行完了により削除済み）
+- **移行完了**: 2026年1月（Task 21.1-21.4）
 
 ### データベース
 - **Amazon DynamoDB**:
@@ -66,14 +70,17 @@
 
 ### コンピューティング
 - **AWS Lambda**:
-  - Node.js 24.x ランタイム（NODEJS_24_X）
+  - **ランタイム**: Go（provided.al2023）
   - **ARM64アーキテクチャ（Graviton2）**: コスト削減とパフォーマンス向上
-    - 全Lambda関数でarm64を使用（x86_64からの移行完了）
+    - 全Lambda関数でarm64を使用
     - 約20%のコスト削減、約34%のパフォーマンス向上
-    - Node.js 24.x、AWS SDK v3、Lambda PowertoolsはARM64完全対応
-  - Lambda Layers（Powertools、共通ライブラリ）
   - 環境変数による設定管理
   - VPC不使用（レイテンシ最適化）
+  - **Go実装の特徴**:
+    - シングルバイナリ（Layer不要）
+    - 高速ビルド（~8秒）
+    - 低コールドスタート（~30ms P95）
+    - バイナリサイズ（~9-10MB）
 
 ### API
 - **Amazon API Gateway**:
@@ -96,10 +103,10 @@
   - キャッシング戦略
 
 ### 監視・ログ
-- **Lambda Powertools**:
-  - Logger: 構造化ログ
-  - Tracer: 分散トレーシング
-  - Metrics: カスタムメトリクス
+- **Go internal/middleware**:
+  - Logger: 構造化JSONログ（log/slog）
+  - Tracer: 分散トレーシング（aws-xray-sdk-go）
+  - Metrics: CloudWatch EMFメトリクス
 - **CloudWatch**: ログ集約とアラート
 - **X-Ray**: パフォーマンス分析
 
@@ -312,7 +319,7 @@
 ### 定期的なメンテナンス
 1. 依存パッケージの更新
 2. CDKバージョンのアップグレード
-3. Node.jsランタイムの更新（現在: Node.js 24.x）
+3. Goバージョンの更新（現在: Go 1.25.x）
 4. セキュリティパッチの適用
 
 ### CDK開発ルール

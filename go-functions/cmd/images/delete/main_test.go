@@ -80,8 +80,6 @@ func assertErrorResponse(t *testing.T, response events.APIGatewayProxyResponse, 
 }
 
 // Helper function to create a request with Cognito claims
-//
-//nolint:unparam // userID is variable in TestExtractUserID and TestUserOwnsImage tests
 func createRequestWithClaims(pathParam, userID string) events.APIGatewayProxyRequest {
 	request := events.APIGatewayProxyRequest{
 		PathParameters: map[string]string{

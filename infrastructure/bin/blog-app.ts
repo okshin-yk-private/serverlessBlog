@@ -9,8 +9,10 @@ import { StorageStack } from '../lib/storage-stack';
 import { AuthStack } from '../lib/auth-stack';
 import { ApiStack } from '../lib/api-stack';
 import { CdnStack } from '../lib/cdn-stack';
-import { LambdaFunctionsStack } from '../lib/lambda-functions-stack';
-import { RustLambdaStack } from '../lib/rust-lambda-stack';
+// LambdaFunctionsStack import removed - Node.js implementation has been deleted
+// import { LambdaFunctionsStack } from '../lib/lambda-functions-stack';
+// RustLambdaStack import removed - Rust implementation has been deleted (Task 21.2)
+// import { RustLambdaStack } from '../lib/rust-lambda-stack';
 import { GoLambdaStack } from '../lib/go-lambda-stack';
 import { ApiIntegrationsStack } from '../lib/api-integrations-stack';
 import { MonitoringStack } from '../lib/monitoring-stack';
@@ -31,17 +33,11 @@ const stage = app.node.tryGetContext('stage') || 'dev';
 const isProduction = stage === 'prd';
 
 // Lambda実装選択設定
-// goTrafficPercent: 0 = 無効, 100 = Go使用
-// rustTrafficPercent: 0 = 無効, 100 = Rust使用
-// 優先順位: Go > Rust > Node.js
-const goTrafficPercent = Number(
-  app.node.tryGetContext('goTrafficPercent') ?? 0
-);
-const rustTrafficPercent = Number(
-  app.node.tryGetContext('rustTrafficPercent') ?? 0
-);
-const useGoLambda = goTrafficPercent > 0;
-const useRustLambda = rustTrafficPercent > 0 && !useGoLambda;
+// Go実装のみがサポートされています（Node.jsとRust実装は削除済み）
+// goTrafficPercent: 常に100（Go実装を使用）
+// Note: Node.js実装（Task 21.1）とRust実装（Task 21.2）は削除されました。
+const goTrafficPercent = 100; // Go実装のみサポート
+const useGoLambda = true; // 常にGo実装を使用
 
 // 環境設定
 const env = {
@@ -85,110 +81,45 @@ const cdnStack = new CdnStack(app, 'ServerlessBlogCdnStack', {
   adminSiteBucketName: storageStack.adminSiteBucket.bucketName,
 });
 
-// Lambda Functions Stack (Node.js)
-// API integrations are handled by ApiIntegrationsStack
-const lambdaFunctionsStack = new LambdaFunctionsStack(
-  app,
-  'ServerlessBlogLambdaFunctionsStack',
-  {
-    env,
-    powertoolsLayer: layersStack.powertoolsLayer,
-    commonLayer: layersStack.commonLayer,
-    blogPostsTable: databaseStack.blogPostsTable,
-    imagesBucket: storageStack.imageBucket,
-    restApi: apiStack.restApi,
-    authorizer: apiStack.authorizer,
-    cloudFrontDomainName: cdnStack.distribution.distributionDomainName,
-    createApiIntegrations: false, // API integrations handled by ApiIntegrationsStack
-  }
-);
+// Lambda Functions Stack (Node.js) - REMOVED (Task 21.1)
+// Node.js implementation (functions/ directory) has been deleted.
 
-// Rust Lambda Functions Stack (deployed when rustTrafficPercent > 0 and goTrafficPercent = 0)
-// API integrations are handled by ApiIntegrationsStack
-let rustLambdaStack: RustLambdaStack | undefined;
-if (useRustLambda) {
-  rustLambdaStack = new RustLambdaStack(app, 'ServerlessBlogRustLambdaStack', {
-    env,
-    blogPostsTable: databaseStack.blogPostsTable,
-    imagesBucket: storageStack.imageBucket,
-    restApi: apiStack.restApi,
-    authorizer: apiStack.authorizer,
-    userPoolId: authStack.userPool.userPoolId,
-    userPoolClientId: authStack.userPoolClient.userPoolClientId,
-    cloudFrontDomainName: cdnStack.distribution.distributionDomainName,
-    createApiIntegrations: false, // API integrations handled by ApiIntegrationsStack
-  });
-}
+// Rust Lambda Functions Stack - REMOVED (Task 21.2)
+// Rust implementation (rust-functions/ directory) has been deleted.
 
-// Go Lambda Functions Stack (deployed when goTrafficPercent > 0)
+// Go Lambda Functions Stack (唯一のサポートされている実装)
 // API integrations are handled by ApiIntegrationsStack
-let goLambdaStack: GoLambdaStack | undefined;
-if (useGoLambda) {
-  goLambdaStack = new GoLambdaStack(app, 'ServerlessBlogGoLambdaStack', {
-    env,
-    blogPostsTable: databaseStack.blogPostsTable,
-    imagesBucket: storageStack.imageBucket,
-    restApi: apiStack.restApi,
-    authorizer: apiStack.authorizer,
-    userPoolId: authStack.userPool.userPoolId,
-    userPoolClientId: authStack.userPoolClient.userPoolClientId,
-    cloudFrontDomainName: cdnStack.distribution.distributionDomainName,
-    createApiIntegrations: false, // API integrations handled by ApiIntegrationsStack
-  });
-}
+const goLambdaStack = new GoLambdaStack(app, 'ServerlessBlogGoLambdaStack', {
+  env,
+  blogPostsTable: databaseStack.blogPostsTable,
+  imagesBucket: storageStack.imageBucket,
+  restApi: apiStack.restApi,
+  authorizer: apiStack.authorizer,
+  userPoolId: authStack.userPool.userPoolId,
+  userPoolClientId: authStack.userPoolClient.userPoolClientId,
+  cloudFrontDomainName: cdnStack.distribution.distributionDomainName,
+  createApiIntegrations: false, // API integrations handled by ApiIntegrationsStack
+});
 
 // API Integrations Stack
 // This stack handles all API Gateway method integrations
-// Priority: Go > Rust > Node.js
-const getImplementationLabel = (): string => {
-  if (useGoLambda) return 'Go';
-  if (useRustLambda) return 'Rust';
-  return 'Node.js';
-};
+// Go実装のみサポート（Node.jsとRust実装は削除済み）
+const getImplementationLabel = (): string => 'Go';
 
 const getLambdaFunctions = () => {
-  if (useGoLambda && goLambdaStack) {
-    // Use Go Lambda functions
-    return {
-      createPostFunction: goLambdaStack.createPostGoFunction!,
-      getPostFunction: goLambdaStack.getPostGoFunction!,
-      getPublicPostFunction: goLambdaStack.getPublicPostGoFunction!,
-      listPostsFunction: goLambdaStack.listPostsGoFunction!,
-      updatePostFunction: goLambdaStack.updatePostGoFunction!,
-      deletePostFunction: goLambdaStack.deletePostGoFunction!,
-      uploadUrlFunction: goLambdaStack.getUploadUrlGoFunction!,
-      deleteImageFunction: goLambdaStack.deleteImageGoFunction!,
-      loginFunction: goLambdaStack.loginGoFunction!,
-      logoutFunction: goLambdaStack.logoutGoFunction!,
-      refreshFunction: goLambdaStack.refreshGoFunction!,
-    };
-  }
-  if (useRustLambda && rustLambdaStack) {
-    // Use Rust Lambda functions
-    return {
-      createPostFunction: rustLambdaStack.createPostRustFunction,
-      getPostFunction: rustLambdaStack.getPostRustFunction,
-      getPublicPostFunction: rustLambdaStack.getPublicPostRustFunction,
-      listPostsFunction: rustLambdaStack.listPostsRustFunction,
-      updatePostFunction: rustLambdaStack.updatePostRustFunction,
-      deletePostFunction: rustLambdaStack.deletePostRustFunction,
-      uploadUrlFunction: rustLambdaStack.getUploadUrlRustFunction,
-      deleteImageFunction: rustLambdaStack.deleteImageRustFunction,
-      loginFunction: rustLambdaStack.loginRustFunction,
-      logoutFunction: rustLambdaStack.logoutRustFunction,
-      refreshFunction: rustLambdaStack.refreshRustFunction,
-    };
-  }
-  // Use Node.js Lambda functions
+  // Use Go Lambda functions (唯一のサポートされている実装)
   return {
-    createPostFunction: lambdaFunctionsStack.createPostFunction,
-    getPostFunction: lambdaFunctionsStack.getPostFunction,
-    getPublicPostFunction: lambdaFunctionsStack.getPublicPostFunction,
-    listPostsFunction: lambdaFunctionsStack.listPostsFunction,
-    updatePostFunction: lambdaFunctionsStack.updatePostFunction,
-    deletePostFunction: lambdaFunctionsStack.deletePostFunction,
-    uploadUrlFunction: lambdaFunctionsStack.uploadUrlFunction,
-    deleteImageFunction: lambdaFunctionsStack.deleteImageFunction,
+    createPostFunction: goLambdaStack.createPostGoFunction!,
+    getPostFunction: goLambdaStack.getPostGoFunction!,
+    getPublicPostFunction: goLambdaStack.getPublicPostGoFunction!,
+    listPostsFunction: goLambdaStack.listPostsGoFunction!,
+    updatePostFunction: goLambdaStack.updatePostGoFunction!,
+    deletePostFunction: goLambdaStack.deletePostGoFunction!,
+    uploadUrlFunction: goLambdaStack.getUploadUrlGoFunction!,
+    deleteImageFunction: goLambdaStack.deleteImageGoFunction!,
+    loginFunction: goLambdaStack.loginGoFunction!,
+    logoutFunction: goLambdaStack.logoutGoFunction!,
+    refreshFunction: goLambdaStack.refreshGoFunction!,
   };
 };
 
@@ -205,56 +136,32 @@ const apiIntegrationsStack = new ApiIntegrationsStack(
 );
 
 // Collect Lambda functions for monitoring
-// Include both Node.js functions (always) and Rust functions (when enabled)
-const monitoredLambdaFunctions: cdk.aws_lambda.IFunction[] = [
-  // Node.js Lambda functions
-  lambdaFunctionsStack.createPostFunction,
-  lambdaFunctionsStack.getPostFunction,
-  lambdaFunctionsStack.updatePostFunction,
-  lambdaFunctionsStack.deletePostFunction,
-  lambdaFunctionsStack.listPostsFunction,
-  lambdaFunctionsStack.getPublicPostFunction,
-  lambdaFunctionsStack.uploadUrlFunction,
-];
+// Go Lambda関数のみ監視対象（Node.jsとRust実装は削除済み）
+const monitoredLambdaFunctions: cdk.aws_lambda.IFunction[] = [];
 
-// Add Rust Lambda functions when enabled
-if (rustLambdaStack) {
-  monitoredLambdaFunctions.push(
-    rustLambdaStack.createPostRustFunction,
-    rustLambdaStack.getPostRustFunction,
-    rustLambdaStack.updatePostRustFunction,
-    rustLambdaStack.deletePostRustFunction,
-    rustLambdaStack.listPostsRustFunction,
-    rustLambdaStack.getPublicPostRustFunction,
-    rustLambdaStack.getUploadUrlRustFunction
-  );
-}
-
-// Add Go Lambda functions when enabled
-if (goLambdaStack) {
-  if (goLambdaStack.createPostGoFunction)
-    monitoredLambdaFunctions.push(goLambdaStack.createPostGoFunction);
-  if (goLambdaStack.getPostGoFunction)
-    monitoredLambdaFunctions.push(goLambdaStack.getPostGoFunction);
-  if (goLambdaStack.updatePostGoFunction)
-    monitoredLambdaFunctions.push(goLambdaStack.updatePostGoFunction);
-  if (goLambdaStack.deletePostGoFunction)
-    monitoredLambdaFunctions.push(goLambdaStack.deletePostGoFunction);
-  if (goLambdaStack.listPostsGoFunction)
-    monitoredLambdaFunctions.push(goLambdaStack.listPostsGoFunction);
-  if (goLambdaStack.getPublicPostGoFunction)
-    monitoredLambdaFunctions.push(goLambdaStack.getPublicPostGoFunction);
-  if (goLambdaStack.getUploadUrlGoFunction)
-    monitoredLambdaFunctions.push(goLambdaStack.getUploadUrlGoFunction);
-  if (goLambdaStack.loginGoFunction)
-    monitoredLambdaFunctions.push(goLambdaStack.loginGoFunction);
-  if (goLambdaStack.logoutGoFunction)
-    monitoredLambdaFunctions.push(goLambdaStack.logoutGoFunction);
-  if (goLambdaStack.refreshGoFunction)
-    monitoredLambdaFunctions.push(goLambdaStack.refreshGoFunction);
-  if (goLambdaStack.deleteImageGoFunction)
-    monitoredLambdaFunctions.push(goLambdaStack.deleteImageGoFunction);
-}
+// Add Go Lambda functions for monitoring
+if (goLambdaStack.createPostGoFunction)
+  monitoredLambdaFunctions.push(goLambdaStack.createPostGoFunction);
+if (goLambdaStack.getPostGoFunction)
+  monitoredLambdaFunctions.push(goLambdaStack.getPostGoFunction);
+if (goLambdaStack.updatePostGoFunction)
+  monitoredLambdaFunctions.push(goLambdaStack.updatePostGoFunction);
+if (goLambdaStack.deletePostGoFunction)
+  monitoredLambdaFunctions.push(goLambdaStack.deletePostGoFunction);
+if (goLambdaStack.listPostsGoFunction)
+  monitoredLambdaFunctions.push(goLambdaStack.listPostsGoFunction);
+if (goLambdaStack.getPublicPostGoFunction)
+  monitoredLambdaFunctions.push(goLambdaStack.getPublicPostGoFunction);
+if (goLambdaStack.getUploadUrlGoFunction)
+  monitoredLambdaFunctions.push(goLambdaStack.getUploadUrlGoFunction);
+if (goLambdaStack.loginGoFunction)
+  monitoredLambdaFunctions.push(goLambdaStack.loginGoFunction);
+if (goLambdaStack.logoutGoFunction)
+  monitoredLambdaFunctions.push(goLambdaStack.logoutGoFunction);
+if (goLambdaStack.refreshGoFunction)
+  monitoredLambdaFunctions.push(goLambdaStack.refreshGoFunction);
+if (goLambdaStack.deleteImageGoFunction)
+  monitoredLambdaFunctions.push(goLambdaStack.deleteImageGoFunction);
 
 // Monitoring Stack (CloudWatch)
 const monitoringStack = new MonitoringStack(

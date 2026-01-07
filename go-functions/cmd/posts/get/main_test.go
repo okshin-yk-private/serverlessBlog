@@ -726,8 +726,6 @@ func TestHandler_UnmarshalError(t *testing.T) {
 
 // TestHandler_TableDriven_SuccessScenarios tests successful post retrieval scenarios using table-driven tests
 // Requirements: 7.1, 7.4 - Table-driven tests for comprehensive coverage
-//
-//nolint:funlen // Table-driven tests are inherently long
 func TestHandler_TableDriven_SuccessScenarios(t *testing.T) {
 	publishedAt := testPublishedAt
 
@@ -873,8 +871,6 @@ func TestHandler_TableDriven_SuccessScenarios(t *testing.T) {
 
 // TestHandler_TableDriven_ErrorScenarios tests error scenarios using table-driven tests
 // Requirements: 7.1, 7.4 - Table-driven tests for comprehensive coverage
-//
-//nolint:funlen // Table-driven tests are inherently long
 func TestHandler_TableDriven_ErrorScenarios(t *testing.T) {
 	tests := []struct {
 		name           string

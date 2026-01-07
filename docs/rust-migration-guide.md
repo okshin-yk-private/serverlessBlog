@@ -1,6 +1,14 @@
 # Rust Lambda Migration Guide
 
-## Overview
+> **⚠️ DEPRECATED**: このドキュメントは非推奨です。
+>
+> Rust Lambda実装は2026年1月に削除されました。現在、すべてのLambda関数はGoで実装されています。
+>
+> Go実装の詳細については `.kiro/steering/golang-migration-plan.md` を参照してください。
+
+---
+
+## [ARCHIVED] Overview
 
 This document describes the traffic routing configuration for migrating from Node.js Lambda functions to Rust Lambda functions.
 

@@ -760,13 +760,13 @@ func TestHandler_TableDriven_SuccessScenarios(t *testing.T) {
 // Requirements: 7.1, 7.4 - Table-driven tests for comprehensive coverage
 func TestHandler_TableDriven_ErrorScenarios(t *testing.T) {
 	tests := []struct {
-		name              string
-		postID            string
-		setupMock         func() *MockDynamoDBClient
-		expectedStatus    int
-		expectedError     string
-		skipTableEnv      bool
-		skipClientInit    bool
+		name           string
+		postID         string
+		setupMock      func() *MockDynamoDBClient
+		expectedStatus int
+		expectedError  string
+		skipTableEnv   bool
+		skipClientInit bool
 	}{
 		{
 			name:   "post not found - nil item",
