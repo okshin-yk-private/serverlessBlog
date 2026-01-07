@@ -1,4 +1,4 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
 exports[`ApiStack Snapshot test 1`] = `
 {
@@ -112,7 +112,7 @@ exports[`ApiStack Snapshot test 1`] = `
       "DeletionPolicy": "Delete",
       "Properties": {
         "LogGroupName": "/aws/apigateway/serverless-blog-api",
-        "RetentionInDays": 7,
+        "RetentionInDays": 90,
       },
       "Type": "AWS::Logs::LogGroup",
       "UpdateReplacePolicy": "Delete",

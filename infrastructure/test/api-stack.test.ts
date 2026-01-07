@@ -21,8 +21,10 @@ describe('ApiStack', () => {
     });
 
     // Create ApiStack with reference to AuthStack
+    // Use 'prd' stage to test production configuration (tracing, metrics, logging enabled)
     apiStack = new ApiStack(app, 'TestApiStack', {
       userPool: authStack.userPool,
+      stage: 'prd',
       env: {
         account: '123456789012',
         region: 'ap-northeast-1',
