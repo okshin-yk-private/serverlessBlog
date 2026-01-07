@@ -15,7 +15,8 @@
 import * as cdk from 'aws-cdk-lib';
 import { Annotations, Match } from 'aws-cdk-lib/assertions';
 import { AwsSolutionsChecks } from 'cdk-nag';
-import { LayersStack } from '../lib/layers-stack';
+// LayersStack import removed - Layers implementation has been deleted (Go migration)
+// import { LayersStack } from '../lib/layers-stack';
 import { DatabaseStack } from '../lib/database-stack';
 import { StorageStack } from '../lib/storage-stack';
 import { AuthStack } from '../lib/auth-stack';
@@ -35,18 +36,7 @@ describe('CDK Nag Security Validation', () => {
   };
 
   describe('Individual Stack Security Checks', () => {
-    test('LayersStack should pass CDK Nag security checks', () => {
-      const app = new cdk.App();
-      const stack = new LayersStack(app, 'TestLayersStack', { env });
-      cdk.Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
-      app.synth();
-
-      const errors = Annotations.fromStack(stack).findError(
-        '*',
-        Match.stringLikeRegexp('AwsSolutions-.*')
-      );
-      expect(errors.length).toBe(0);
-    });
+    // LayersStack test removed - Layers implementation has been deleted (Go migration)
 
     test('DatabaseStack should pass CDK Nag security checks', () => {
       const app = new cdk.App();
@@ -213,7 +203,7 @@ describe('CDK Nag Security Validation', () => {
     test('Security validation completes successfully for all critical stacks', () => {
       // 各スタックが独立してセキュリティチェックをパスすることを確認
       const app = new cdk.App();
-      const layersStack = new LayersStack(app, 'TestLayersStack', { env });
+      // LayersStack removed - Layers implementation has been deleted (Go migration)
       const databaseStack = new DatabaseStack(app, 'TestDatabaseStack', {
         env,
       });
