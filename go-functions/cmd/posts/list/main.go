@@ -215,7 +215,7 @@ func parseNextToken(nextToken string) map[string]types.AttributeValue {
 }
 
 // buildQueryInput builds the DynamoDB Query input based on parameters
-func buildQueryInput(tableName string, limit int32, category string, publishStatus string, exclusiveStartKey map[string]types.AttributeValue) *dynamodb.QueryInput {
+func buildQueryInput(tableName string, limit int32, category, publishStatus string, exclusiveStartKey map[string]types.AttributeValue) *dynamodb.QueryInput {
 	queryInput := &dynamodb.QueryInput{
 		TableName:        aws.String(tableName),
 		Limit:            aws.Int32(limit),
@@ -316,7 +316,7 @@ func isAuthenticated(request events.APIGatewayProxyRequest) bool {
 
 // executeCountQuery executes a count query on PublishStatusIndex for the given publishStatus
 // This is used to get the total count of articles for admin dashboard statistics
-func executeCountQuery(ctx context.Context, client DynamoDBClientInterface, tableName string, publishStatus string) (int64, error) {
+func executeCountQuery(ctx context.Context, client DynamoDBClientInterface, tableName, publishStatus string) (int64, error) {
 	queryInput := &dynamodb.QueryInput{
 		TableName:              aws.String(tableName),
 		IndexName:              aws.String("PublishStatusIndex"),
