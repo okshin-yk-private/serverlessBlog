@@ -28,6 +28,9 @@ permissions:
   id-token: write # OIDCトークン取得に必要
   contents: read # リポジトリの読み取りに必要
 
+env:
+  GO_VERSION: '1.25.5'
+
 jobs:
   # =======================================
   # Build Rust Lambdas Job - REMOVED (Task 21.2)
@@ -79,7 +82,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25.5'
+          go-version: ${{ env.GO_VERSION }}
           check-latest: true
           cache-dependency-path: go-functions/go.sum
 

@@ -19,6 +19,9 @@ permissions:
   pull-requests: write  # Required for actions/labeler to add labels
   id-token: write       # Required for AWS OIDC authentication (CDK Diff)
 
+env:
+  GO_VERSION: '1.25.5'
+
 jobs:
   # =======================================
   # Job 0: Setup Labels (Auto-label + Check)
@@ -172,7 +175,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25.5'
+          go-version: ${{ env.GO_VERSION }}
           check-latest: true
           cache-dependency-path: go-functions/go.sum
 
@@ -202,7 +205,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25.5'
+          go-version: ${{ env.GO_VERSION }}
           check-latest: true
           cache-dependency-path: go-functions/go.sum
 
@@ -294,6 +297,36 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build Go Lambda binaries for CDK tests
+        working-directory: go-functions
+        run: |
+          echo "Building Go Lambda binaries for CDK asset validation..."
+          LAMBDAS=(
+            "posts-create:posts/create"
+            "posts-get:posts/get"
+            "posts-get_public:posts/get_public"
+            "posts-list:posts/list"
+            "posts-update:posts/update"
+            "posts-delete:posts/delete"
+            "auth-login:auth/login"
+            "auth-logout:auth/logout"
+            "auth-refresh:auth/refresh"
+            "images-get_upload_url:images/get_upload_url"
+            "images-delete:images/delete"
+          )
+          for item in "${LAMBDAS[@]}"; do
+            name="${item%%:*}"
+            path="${item##*:}"
+            mkdir -p bin/$name
+            GOOS=linux GOARCH=arm64 go build -o bin/$name/bootstrap ./cmd/$path
+          done
+          echo "✓ All Go Lambda binaries built"
+
       - name: Install root dependencies
         run: bun install --frozen-lockfile
 
@@ -354,6 +387,36 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build Go Lambda binaries for CDK diff
+        working-directory: go-functions
+        run: |
+          echo "Building Go Lambda binaries for CDK asset validation..."
+          LAMBDAS=(
+            "posts-create:posts/create"
+            "posts-get:posts/get"
+            "posts-get_public:posts/get_public"
+            "posts-list:posts/list"
+            "posts-update:posts/update"
+            "posts-delete:posts/delete"
+            "auth-login:auth/login"
+            "auth-logout:auth/logout"
+            "auth-refresh:auth/refresh"
+            "images-get_upload_url:images/get_upload_url"
+            "images-delete:images/delete"
+          )
+          for item in "${LAMBDAS[@]}"; do
+            name="${item%%:*}"
+            path="${item##*:}"
+            mkdir -p bin/$name
+            GOOS=linux GOARCH=arm64 go build -o bin/$name/bootstrap ./cmd/$path
+          done
+          echo "✓ All Go Lambda binaries built"
 
       - name: Install root dependencies
         run: bun install --frozen-lockfile
