@@ -1233,6 +1233,593 @@ func TestHandler_ValidBase64InvalidJSONNextToken(t *testing.T) {
 	}
 }
 
+// TestExecuteCountQuery tests the count query execution for admin requests
+func TestExecuteCountQuery(t *testing.T) {
+	tests := []struct {
+		name          string
+		publishStatus string
+		mockCount     int32
+		mockError     error
+		expectError   bool
+		expectedCount int64
+	}{
+		{
+			name:          "successful count for published",
+			publishStatus: "published",
+			mockCount:     42,
+			mockError:     nil,
+			expectError:   false,
+			expectedCount: 42,
+		},
+		{
+			name:          "successful count for draft",
+			publishStatus: "draft",
+			mockCount:     15,
+			mockError:     nil,
+			expectError:   false,
+			expectedCount: 15,
+		},
+		{
+			name:          "zero count",
+			publishStatus: "published",
+			mockCount:     0,
+			mockError:     nil,
+			expectError:   false,
+			expectedCount: 0,
+		},
+		{
+			name:          "query error",
+			publishStatus: "published",
+			mockCount:     0,
+			mockError:     errors.New("DynamoDB error"),
+			expectError:   true,
+			expectedCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &MockDynamoDBClient{
+				QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+					// Verify it's a count query
+					if params.Select != types.SelectCount {
+						t.Errorf("expected Select to be COUNT")
+					}
+
+					// Verify index name
+					if params.IndexName == nil || *params.IndexName != "PublishStatusIndex" {
+						t.Errorf("expected index PublishStatusIndex")
+					}
+
+					// Verify publishStatus value
+					statusVal, ok := params.ExpressionAttributeValues[":publishStatus"]
+					if !ok {
+						t.Errorf("expected :publishStatus in ExpressionAttributeValues")
+					} else if s, ok := statusVal.(*types.AttributeValueMemberS); !ok || s.Value != tt.publishStatus {
+						t.Errorf("expected publishStatus %q", tt.publishStatus)
+					}
+
+					if tt.mockError != nil {
+						return nil, tt.mockError
+					}
+
+					return &dynamodb.QueryOutput{
+						Count: tt.mockCount,
+					}, nil
+				},
+			}
+
+			count, err := executeCountQuery(context.Background(), mockClient, testTableName, tt.publishStatus)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if count != tt.expectedCount {
+					t.Errorf("expected count %d, got %d", tt.expectedCount, count)
+				}
+			}
+		})
+	}
+}
+
+// TestBuildQueryInput_WithPublishStatus tests buildQueryInput with different publishStatus values
+func TestBuildQueryInput_WithPublishStatus(t *testing.T) {
+	tests := []struct {
+		name                   string
+		category               string
+		publishStatus          string
+		expectedIndex          string
+		expectedKeyCondition   string
+		expectedPublishStatus  string
+		expectFilterExpression bool
+	}{
+		{
+			name:                   "published status without category",
+			category:               "",
+			publishStatus:          "published",
+			expectedIndex:          "PublishStatusIndex",
+			expectedKeyCondition:   "publishStatus = :publishStatus",
+			expectedPublishStatus:  "published",
+			expectFilterExpression: false,
+		},
+		{
+			name:                   "draft status without category",
+			category:               "",
+			publishStatus:          "draft",
+			expectedIndex:          "PublishStatusIndex",
+			expectedKeyCondition:   "publishStatus = :publishStatus",
+			expectedPublishStatus:  "draft",
+			expectFilterExpression: false,
+		},
+		{
+			name:                   "published status with category",
+			category:               "technology",
+			publishStatus:          "published",
+			expectedIndex:          "CategoryIndex",
+			expectedKeyCondition:   "category = :category",
+			expectedPublishStatus:  "published",
+			expectFilterExpression: true,
+		},
+		{
+			name:                   "draft status with category",
+			category:               "technology",
+			publishStatus:          "draft",
+			expectedIndex:          "CategoryIndex",
+			expectedKeyCondition:   "category = :category",
+			expectedPublishStatus:  "draft",
+			expectFilterExpression: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			queryInput := buildQueryInput(testTableName, 10, tt.category, tt.publishStatus, nil)
+
+			// Verify index name
+			if queryInput.IndexName == nil || *queryInput.IndexName != tt.expectedIndex {
+				t.Errorf("expected index %q, got %v", tt.expectedIndex, queryInput.IndexName)
+			}
+
+			// Verify key condition expression
+			if queryInput.KeyConditionExpression == nil || *queryInput.KeyConditionExpression != tt.expectedKeyCondition {
+				t.Errorf("expected key condition %q, got %v", tt.expectedKeyCondition, queryInput.KeyConditionExpression)
+			}
+
+			// Verify publishStatus value in ExpressionAttributeValues
+			statusVal, ok := queryInput.ExpressionAttributeValues[":publishStatus"]
+			if !ok {
+				t.Errorf("expected :publishStatus in ExpressionAttributeValues")
+			} else {
+				if s, ok := statusVal.(*types.AttributeValueMemberS); !ok || s.Value != tt.expectedPublishStatus {
+					t.Errorf("expected publishStatus value %q, got %v", tt.expectedPublishStatus, statusVal)
+				}
+			}
+
+			// Verify FilterExpression
+			if tt.expectFilterExpression {
+				if queryInput.FilterExpression == nil {
+					t.Errorf("expected FilterExpression to be set")
+				}
+			} else {
+				if queryInput.FilterExpression != nil {
+					t.Errorf("expected FilterExpression to be nil")
+				}
+			}
+		})
+	}
+}
+
+// TestParsePublishStatus tests the publishStatus parameter parsing and validation
+func TestParsePublishStatus(t *testing.T) {
+	tests := []struct {
+		name           string
+		param          string
+		expectedStatus string
+		expectError    bool
+	}{
+		{
+			name:           "valid published status",
+			param:          "published",
+			expectedStatus: "published",
+			expectError:    false,
+		},
+		{
+			name:           "valid draft status",
+			param:          "draft",
+			expectedStatus: "draft",
+			expectError:    false,
+		},
+		{
+			name:           "empty string defaults to published",
+			param:          "",
+			expectedStatus: "published",
+			expectError:    false,
+		},
+		{
+			name:           "invalid status returns error",
+			param:          "invalid",
+			expectedStatus: "",
+			expectError:    true,
+		},
+		{
+			name:           "unknown status returns error",
+			param:          "pending",
+			expectedStatus: "",
+			expectError:    true,
+		},
+		{
+			name:           "case sensitive - PUBLISHED is invalid",
+			param:          "PUBLISHED",
+			expectedStatus: "",
+			expectError:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status, err := parsePublishStatus(tt.param)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("parsePublishStatus(%q) expected error, got nil", tt.param)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("parsePublishStatus(%q) unexpected error: %v", tt.param, err)
+				}
+				if status != tt.expectedStatus {
+					t.Errorf("parsePublishStatus(%q) = %q, want %q", tt.param, status, tt.expectedStatus)
+				}
+			}
+		})
+	}
+}
+
+// TestIsAuthenticated tests the authentication detection function
+func TestIsAuthenticated(t *testing.T) {
+	tests := []struct {
+		name       string
+		authorizer map[string]interface{}
+		expected   bool
+	}{
+		{
+			name:       "authenticated with valid claims",
+			authorizer: map[string]interface{}{"claims": map[string]interface{}{"sub": "user-123"}},
+			expected:   true,
+		},
+		{
+			name:       "not authenticated - nil authorizer",
+			authorizer: nil,
+			expected:   false,
+		},
+		{
+			name:       "not authenticated - empty authorizer",
+			authorizer: map[string]interface{}{},
+			expected:   false,
+		},
+		{
+			name:       "not authenticated - nil claims",
+			authorizer: map[string]interface{}{"claims": nil},
+			expected:   false,
+		},
+		{
+			name:       "authenticated - empty claims map (still has claims key)",
+			authorizer: map[string]interface{}{"claims": map[string]interface{}{}},
+			expected:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request := events.APIGatewayProxyRequest{
+				RequestContext: events.APIGatewayProxyRequestContext{
+					Authorizer: tt.authorizer,
+				},
+			}
+
+			result := isAuthenticated(request)
+			if result != tt.expected {
+				t.Errorf("isAuthenticated() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestHandler_AdminRequestIncludesCount tests that admin requests include count field
+func TestHandler_AdminRequestIncludesCount(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	posts := []domain.BlogPost{
+		createTestPost("post-1", domain.PublishStatusPublished, "technology", "2024-01-15T12:00:00Z"),
+		createTestPost("post-2", domain.PublishStatusPublished, "technology", "2024-01-14T12:00:00Z"),
+	}
+
+	var items []map[string]types.AttributeValue
+	for _, post := range posts {
+		av, err := attributevalue.MarshalMap(post)
+		if err != nil {
+			t.Fatalf("failed to marshal post: %v", err)
+		}
+		items = append(items, av)
+	}
+
+	queryCallCount := 0
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			queryCallCount++
+			// Check if this is a count query
+			if params.Select == types.SelectCount {
+				return &dynamodb.QueryOutput{
+					Count: 42, // Total count of published articles
+				}, nil
+			}
+			// Regular query
+			return &dynamodb.QueryOutput{
+				Items: items,
+				Count: int32(len(items)),
+			}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	// Admin request with Cognito claims
+	request := events.APIGatewayProxyRequest{
+		QueryStringParameters: map[string]string{
+			"publishStatus": "published",
+		},
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{
+				"claims": map[string]interface{}{"sub": "admin-user-123"},
+			},
+		},
+	}
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	// Parse response
+	var responseMap map[string]interface{}
+	if err := json.Unmarshal([]byte(resp.Body), &responseMap); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	// Count field should be present for admin requests
+	countVal, ok := responseMap["count"]
+	if !ok {
+		t.Fatalf("expected count field to be present for admin request")
+	}
+
+	// Verify count value
+	count := int64(countVal.(float64))
+	if count != 42 {
+		t.Errorf("expected count 42, got %d", count)
+	}
+
+	// Verify count query was executed (should be 2 queries: list + count)
+	if queryCallCount != 2 {
+		t.Errorf("expected 2 queries (list + count), got %d", queryCallCount)
+	}
+}
+
+// TestHandler_PublicRequestExcludesCount tests that public requests do not include count field
+func TestHandler_PublicRequestExcludesCount(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	posts := []domain.BlogPost{
+		createTestPost("post-1", domain.PublishStatusPublished, "technology", "2024-01-15T12:00:00Z"),
+	}
+
+	var items []map[string]types.AttributeValue
+	for _, post := range posts {
+		av, err := attributevalue.MarshalMap(post)
+		if err != nil {
+			t.Fatalf("failed to marshal post: %v", err)
+		}
+		items = append(items, av)
+	}
+
+	queryCallCount := 0
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			queryCallCount++
+			// Should never be a count query for public requests
+			if params.Select == types.SelectCount {
+				t.Errorf("count query should not be executed for public requests")
+			}
+			return &dynamodb.QueryOutput{
+				Items: items,
+				Count: int32(len(items)),
+			}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	// Public request (no Authorizer)
+	request := events.APIGatewayProxyRequest{
+		QueryStringParameters: map[string]string{},
+		// No Authorizer - public request
+	}
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	// Parse response
+	var responseMap map[string]interface{}
+	if err := json.Unmarshal([]byte(resp.Body), &responseMap); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	// Count field should NOT be present for public requests
+	if _, ok := responseMap["count"]; ok {
+		t.Errorf("expected count field to NOT be present for public request")
+	}
+
+	// Only 1 query should be executed (no count query)
+	if queryCallCount != 1 {
+		t.Errorf("expected 1 query (list only), got %d", queryCallCount)
+	}
+}
+
+// TestHandler_AdminDraftRequestIncludesCount tests that admin draft requests include count
+func TestHandler_AdminDraftRequestIncludesCount(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	posts := []domain.BlogPost{
+		createTestPost("draft-1", domain.PublishStatusDraft, "technology", "2024-01-15T12:00:00Z"),
+	}
+
+	var items []map[string]types.AttributeValue
+	for _, post := range posts {
+		av, err := attributevalue.MarshalMap(post)
+		if err != nil {
+			t.Fatalf("failed to marshal post: %v", err)
+		}
+		items = append(items, av)
+	}
+
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			if params.Select == types.SelectCount {
+				// Verify count query uses draft status
+				statusVal := params.ExpressionAttributeValues[":publishStatus"]
+				if s, ok := statusVal.(*types.AttributeValueMemberS); !ok || s.Value != "draft" {
+					t.Errorf("expected count query for draft status")
+				}
+				return &dynamodb.QueryOutput{
+					Count: 5, // Total count of draft articles
+				}, nil
+			}
+			return &dynamodb.QueryOutput{
+				Items: items,
+				Count: int32(len(items)),
+			}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	// Admin request for drafts
+	request := events.APIGatewayProxyRequest{
+		QueryStringParameters: map[string]string{
+			"publishStatus": "draft",
+		},
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{
+				"claims": map[string]interface{}{"sub": "admin-user-123"},
+			},
+		},
+	}
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var responseMap map[string]interface{}
+	if err := json.Unmarshal([]byte(resp.Body), &responseMap); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	// Count should be 5 (draft count)
+	countVal, ok := responseMap["count"]
+	if !ok {
+		t.Fatalf("expected count field for admin request")
+	}
+
+	count := int64(countVal.(float64))
+	if count != 5 {
+		t.Errorf("expected count 5, got %d", count)
+	}
+}
+
+// TestHandler_CountQueryError tests graceful handling of count query errors
+func TestHandler_CountQueryError(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	posts := []domain.BlogPost{
+		createTestPost("post-1", domain.PublishStatusPublished, "technology", "2024-01-15T12:00:00Z"),
+	}
+
+	var items []map[string]types.AttributeValue
+	for _, post := range posts {
+		av, err := attributevalue.MarshalMap(post)
+		if err != nil {
+			t.Fatalf("failed to marshal post: %v", err)
+		}
+		items = append(items, av)
+	}
+
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			// Count query fails, but list query succeeds
+			if params.Select == types.SelectCount {
+				return nil, errors.New("count query failed")
+			}
+			return &dynamodb.QueryOutput{
+				Items: items,
+				Count: int32(len(items)),
+			}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	// Admin request
+	request := events.APIGatewayProxyRequest{
+		QueryStringParameters: map[string]string{},
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{
+				"claims": map[string]interface{}{"sub": "admin-user-123"},
+			},
+		},
+	}
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	// Should return 500 when count query fails for admin request
+	if resp.StatusCode != 500 {
+		t.Errorf("expected status 500 for count query failure, got %d", resp.StatusCode)
+	}
+}
+
 // TestHandler_PostWithNilTags tests that posts with nil tags get empty array
 func TestHandler_PostWithNilTags(t *testing.T) {
 	cleanup := setupTest(t)
