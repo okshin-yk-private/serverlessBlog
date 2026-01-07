@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"os"
 	"strconv"
 
@@ -62,6 +63,7 @@ type ListPostsResponseItem struct {
 // ListPostsResponseBody represents the response body for list posts
 type ListPostsResponseBody struct {
 	Items     []ListPostsResponseItem `json:"items"`
+	Count     *int64                  `json:"count,omitempty"` // Total count (admin only)
 	NextToken *string                 `json:"nextToken,omitempty"`
 }
 
@@ -94,8 +96,23 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// Parse nextToken for pagination
 	exclusiveStartKey := parseNextToken(queryParams["nextToken"])
 
+	// Parse publishStatus (defaults to "published" for backward compatibility)
+	publishStatus := domain.PublishStatusPublished
+	if queryParams["publishStatus"] != "" {
+		var parseErr error
+		publishStatus, parseErr = parsePublishStatus(queryParams["publishStatus"])
+		if parseErr != nil {
+			// Return 400 only for admin requests (authenticated)
+			if isAuthenticated(request) {
+				return errorResponse(400, "invalid publishStatus value")
+			}
+			// For public requests, ignore invalid value and use default
+			publishStatus = domain.PublishStatusPublished
+		}
+	}
+
 	// Build DynamoDB Query input
-	queryInput := buildQueryInput(tableName, limit, category, exclusiveStartKey)
+	queryInput := buildQueryInput(tableName, limit, category, publishStatus, exclusiveStartKey)
 
 	// Execute query
 	result, err := dynamoClient.Query(ctx, queryInput)
@@ -119,6 +136,15 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		NextToken: nextToken,
 	}
 
+	// For authenticated (admin) requests, execute count query and include count in response
+	if isAuthenticated(request) {
+		count, err := executeCountQuery(ctx, dynamoClient, tableName, publishStatus)
+		if err != nil {
+			return errorResponse(500, "failed to retrieve posts")
+		}
+		response.Count = &count
+	}
+
 	return middleware.JSONResponse(200, response)
 }
 
@@ -135,6 +161,24 @@ func parseLimit(limitParam string) int32 {
 
 	//nolint:gosec // G109: limit is bounded by MaxLimit (100), safe for int32
 	return int32(limit)
+}
+
+// ErrInvalidPublishStatus is returned when an invalid publishStatus value is provided
+var ErrInvalidPublishStatus = errors.New("invalid publishStatus value")
+
+// parsePublishStatus parses and validates the publishStatus query parameter
+// Valid values: "published", "draft"
+// Empty string defaults to "published" for backward compatibility
+func parsePublishStatus(param string) (string, error) {
+	if param == "" {
+		return domain.PublishStatusPublished, nil
+	}
+
+	if param == domain.PublishStatusPublished || param == domain.PublishStatusDraft {
+		return param, nil
+	}
+
+	return "", ErrInvalidPublishStatus
 }
 
 // parseNextToken decodes the base64-encoded next token
@@ -171,7 +215,7 @@ func parseNextToken(nextToken string) map[string]types.AttributeValue {
 }
 
 // buildQueryInput builds the DynamoDB Query input based on parameters
-func buildQueryInput(tableName string, limit int32, category string, exclusiveStartKey map[string]types.AttributeValue) *dynamodb.QueryInput {
+func buildQueryInput(tableName string, limit int32, category string, publishStatus string, exclusiveStartKey map[string]types.AttributeValue) *dynamodb.QueryInput {
 	queryInput := &dynamodb.QueryInput{
 		TableName:        aws.String(tableName),
 		Limit:            aws.Int32(limit),
@@ -185,14 +229,14 @@ func buildQueryInput(tableName string, limit int32, category string, exclusiveSt
 		queryInput.FilterExpression = aws.String("publishStatus = :publishStatus")
 		queryInput.ExpressionAttributeValues = map[string]types.AttributeValue{
 			":category":      &types.AttributeValueMemberS{Value: category},
-			":publishStatus": &types.AttributeValueMemberS{Value: domain.PublishStatusPublished},
+			":publishStatus": &types.AttributeValueMemberS{Value: publishStatus},
 		}
 	} else {
-		// Use PublishStatusIndex to get only published posts
+		// Use PublishStatusIndex to query by publishStatus
 		queryInput.IndexName = aws.String("PublishStatusIndex")
 		queryInput.KeyConditionExpression = aws.String("publishStatus = :publishStatus")
 		queryInput.ExpressionAttributeValues = map[string]types.AttributeValue{
-			":publishStatus": &types.AttributeValueMemberS{Value: domain.PublishStatusPublished},
+			":publishStatus": &types.AttributeValueMemberS{Value: publishStatus},
 		}
 	}
 
@@ -258,6 +302,37 @@ func generateNextToken(lastKey map[string]types.AttributeValue) string {
 	}
 
 	return base64.StdEncoding.EncodeToString(jsonBytes)
+}
+
+// isAuthenticated checks if the request has valid Cognito authorization
+// This is used to differentiate between public and admin requests
+func isAuthenticated(request events.APIGatewayProxyRequest) bool {
+	if request.RequestContext.Authorizer == nil {
+		return false
+	}
+	claims, ok := request.RequestContext.Authorizer["claims"]
+	return ok && claims != nil
+}
+
+// executeCountQuery executes a count query on PublishStatusIndex for the given publishStatus
+// This is used to get the total count of articles for admin dashboard statistics
+func executeCountQuery(ctx context.Context, client DynamoDBClientInterface, tableName string, publishStatus string) (int64, error) {
+	queryInput := &dynamodb.QueryInput{
+		TableName:              aws.String(tableName),
+		IndexName:              aws.String("PublishStatusIndex"),
+		KeyConditionExpression: aws.String("publishStatus = :publishStatus"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":publishStatus": &types.AttributeValueMemberS{Value: publishStatus},
+		},
+		Select: types.SelectCount,
+	}
+
+	result, err := client.Query(ctx, queryInput)
+	if err != nil {
+		return 0, err
+	}
+
+	return int64(result.Count), nil
 }
 
 // errorResponse creates an error response with CORS headers
