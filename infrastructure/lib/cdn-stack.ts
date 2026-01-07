@@ -59,6 +59,7 @@ export class CdnStack extends cdk.Stack {
     // Task 4.3.1: CloudFront Functions Basic Authentication implementation
     // Requirement R47: DEV環境Basic認証機能
     let basicAuthFunction: cloudfront.Function | undefined;
+    let adminCombinedFunction: cloudfront.Function | undefined;
 
     if (isDev) {
       // Get Basic Auth credentials from environment variables or AWS Parameter Store
@@ -140,13 +141,64 @@ export class CdnStack extends cdk.Stack {
         runtime: cloudfront.FunctionRuntime.JS_2_0,
         autoPublish: true,
       });
+
+      // Combined Basic Auth + SPA routing for Admin site (DEV)
+      // CloudFront only allows one function per event type, so we combine both functions
+      const adminCombinedCode = `function handler(event) {
+  var request = event.request;
+  var headers = request.headers;
+  var uri = request.uri;
+
+  // Basic Authentication check
+  var authString = 'Basic ' + btoa('${username}:${password}');
+  if (
+    typeof headers.authorization === 'undefined' ||
+    headers.authorization.value !== authString
+  ) {
+    return {
+      statusCode: 401,
+      statusDescription: 'Unauthorized',
+      headers: {
+        'www-authenticate': { value: 'Basic realm="DEV Environment"' },
+      },
+    };
+  }
+
+  // SPA routing: Strip /admin prefix and handle SPA routes
+  if (uri.startsWith('/admin')) {
+    uri = uri.substring(6);
+    if (uri === '' || uri === '/') {
+      uri = '/index.html';
+    } else if (!uri.includes('.')) {
+      uri = '/index.html';
+    }
+  }
+
+  request.uri = uri;
+  return request;
+}`;
+
+      adminCombinedFunction = new cloudfront.Function(
+        this,
+        'AdminCombinedFunction',
+        {
+          functionName: `AdminCombinedFunction-${stage}`,
+          code: cloudfront.FunctionCode.fromInline(adminCombinedCode),
+          comment: 'Basic Auth + SPA routing for Admin site (DEV)',
+          runtime: cloudfront.FunctionRuntime.JS_2_0,
+          autoPublish: true,
+        }
+      );
     }
 
-    // CloudFront Function for Admin SPA routing
+    // CloudFront Function for Admin SPA routing (PRD only)
+    // In DEV, AdminCombinedFunction is used instead (includes Basic Auth + SPA routing)
     // Strips /admin prefix and handles SPA routes (paths without extension -> /index.html)
-    const adminSpaFunction = new cloudfront.Function(this, 'AdminSpaFunction', {
-      functionName: `AdminSpaFunction-${stage}`,
-      code: cloudfront.FunctionCode.fromInline(`function handler(event) {
+    let adminSpaFunction: cloudfront.Function | undefined;
+    if (!isDev) {
+      adminSpaFunction = new cloudfront.Function(this, 'AdminSpaFunction', {
+        functionName: `AdminSpaFunction-${stage}`,
+        code: cloudfront.FunctionCode.fromInline(`function handler(event) {
   var request = event.request;
   var uri = request.uri;
 
@@ -164,11 +216,12 @@ export class CdnStack extends cdk.Stack {
   request.uri = uri;
   return request;
 }`),
-      comment:
-        'SPA routing for Admin site - strips /admin prefix and handles SPA routes',
-      runtime: cloudfront.FunctionRuntime.JS_2_0,
-      autoPublish: true,
-    });
+        comment:
+          'SPA routing for Admin site - strips /admin prefix and handles SPA routes',
+        runtime: cloudfront.FunctionRuntime.JS_2_0,
+        autoPublish: true,
+      });
+    }
 
     // CloudFront Function for Images path rewriting
     // Strips /images prefix for origin request
@@ -256,13 +309,21 @@ export class CdnStack extends cdk.Stack {
             cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
             compress: true,
             cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
-            // Admin SPA function strips /admin prefix and handles SPA routing
-            functionAssociations: [
-              {
-                function: adminSpaFunction,
-                eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
-              },
-            ],
+            // DEV: Combined Basic Auth + SPA routing function
+            // PRD: SPA routing only (no Basic Auth)
+            functionAssociations: adminCombinedFunction
+              ? [
+                  {
+                    function: adminCombinedFunction,
+                    eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+                  },
+                ]
+              : [
+                  {
+                    function: adminSpaFunction!,
+                    eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+                  },
+                ],
           },
           // Images behavior: /images/*
           '/images/*': {
