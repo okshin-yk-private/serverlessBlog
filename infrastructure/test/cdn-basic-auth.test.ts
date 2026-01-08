@@ -658,6 +658,144 @@ describe('CloudFront Functions Basic Authentication', () => {
     });
   });
 
+  describe('REST API ID Configuration', () => {
+    test('should use Fn.importValue when restApiId is not provided', () => {
+      const appImport = new cdk.App({
+        context: {
+          stage: 'prd',
+        },
+      });
+
+      const bucketStack = new cdk.Stack(appImport, 'BucketStackImport', {
+        env: {
+          account: '123456789012',
+          region: 'ap-northeast-1',
+        },
+      });
+
+      const imageBucket = new cdk.aws_s3.Bucket(bucketStack, 'ImageBucket', {
+        bucketName: 'test-image-bucket-import',
+      });
+      const publicBucket = new cdk.aws_s3.Bucket(bucketStack, 'PublicBucket', {
+        bucketName: 'test-public-bucket-import',
+      });
+      const adminBucket = new cdk.aws_s3.Bucket(bucketStack, 'AdminBucket', {
+        bucketName: 'test-admin-bucket-import',
+      });
+
+      // Do NOT provide restApiId to test Fn.importValue branch
+      const props = {
+        env: {
+          account: '123456789012',
+          region: 'ap-northeast-1',
+        },
+        imageBucketName: imageBucket.bucketName,
+        publicSiteBucketName: publicBucket.bucketName,
+        adminSiteBucketName: adminBucket.bucketName,
+        // restApiId is intentionally NOT provided
+      };
+
+      const cdnStackImport = new CdnStack(
+        appImport,
+        'TestCdnStackImport',
+        props
+      );
+      const templateImport = Template.fromStack(cdnStackImport);
+
+      // Verify the stack was created successfully
+      expect(cdnStackImport).toBeDefined();
+
+      // Verify CloudFront Distribution uses the imported API ID
+      // The HttpOrigin should reference the API Gateway domain
+      templateImport.hasResourceProperties('AWS::CloudFront::Distribution', {
+        DistributionConfig: Match.objectLike({
+          Origins: Match.arrayWith([
+            Match.objectLike({
+              DomainName: Match.objectLike({
+                'Fn::Join': Match.arrayWith([
+                  '',
+                  Match.arrayWith([
+                    Match.objectLike({
+                      'Fn::ImportValue': 'BlogRestApiId',
+                    }),
+                  ]),
+                ]),
+              }),
+            }),
+          ]),
+        }),
+      });
+    });
+
+    test('should use AWS.REGION token when env.region is not provided', () => {
+      const appNoRegion = new cdk.App({
+        context: {
+          stage: 'prd',
+        },
+      });
+
+      const bucketStack = new cdk.Stack(appNoRegion, 'BucketStackNoRegion', {
+        env: {
+          account: '123456789012',
+          region: 'ap-northeast-1',
+        },
+      });
+
+      const imageBucket = new cdk.aws_s3.Bucket(bucketStack, 'ImageBucket', {
+        bucketName: 'test-image-bucket-noregion',
+      });
+      const publicBucket = new cdk.aws_s3.Bucket(bucketStack, 'PublicBucket', {
+        bucketName: 'test-public-bucket-noregion',
+      });
+      const adminBucket = new cdk.aws_s3.Bucket(bucketStack, 'AdminBucket', {
+        bucketName: 'test-admin-bucket-noregion',
+      });
+
+      // Do NOT provide env to test cdk.Aws.REGION fallback branch
+      const props = {
+        // env is intentionally NOT provided to test region fallback
+        imageBucketName: imageBucket.bucketName,
+        publicSiteBucketName: publicBucket.bucketName,
+        adminSiteBucketName: adminBucket.bucketName,
+        restApiId: 'test-api-id',
+      };
+
+      const cdnStackNoRegion = new CdnStack(
+        appNoRegion,
+        'TestCdnStackNoRegion',
+        props
+      );
+      const templateNoRegion = Template.fromStack(cdnStackNoRegion);
+
+      // Verify the stack was created successfully
+      expect(cdnStackNoRegion).toBeDefined();
+
+      // Verify CloudFront Distribution is created
+      // When env.region is not provided, cdk.Aws.REGION token is used
+      templateNoRegion.resourceCountIs('AWS::CloudFront::Distribution', 1);
+
+      // Verify the API Gateway origin uses AWS::Region reference
+      templateNoRegion.hasResourceProperties('AWS::CloudFront::Distribution', {
+        DistributionConfig: Match.objectLike({
+          Origins: Match.arrayWith([
+            Match.objectLike({
+              DomainName: Match.objectLike({
+                'Fn::Join': Match.arrayWith([
+                  '',
+                  Match.arrayWith([
+                    Match.objectLike({
+                      Ref: 'AWS::Region',
+                    }),
+                  ]),
+                ]),
+              }),
+            }),
+          ]),
+        }),
+      });
+    });
+  });
+
   describe('Legacy Properties for Backward Compatibility', () => {
     test('should return unified distribution from legacy getter properties', () => {
       // The legacy properties should all return the same unified distribution
