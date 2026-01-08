@@ -34,6 +34,10 @@ export class CdnStack extends cdk.Stack {
     const { imageBucketName, publicSiteBucketName, adminSiteBucketName } =
       props;
 
+    // Import REST API ID from ApiStack to avoid cyclic dependency
+    // ApiStack exports this value with exportName: 'BlogRestApiId'
+    const restApiId = cdk.Fn.importValue('BlogRestApiId');
+
     // Get stage context (dev, prd)
     const stage = this.node.tryGetContext('stage') || 'dev';
     const isDev = stage === 'dev';
@@ -269,6 +273,60 @@ export class CdnStack extends cdk.Stack {
       }
     );
 
+    // API Gateway Origin setup
+    // Construct API Gateway hostname from REST API ID and region
+    // Format: {restApiId}.execute-api.{region}.amazonaws.com
+    const apiGatewayDomain = `${restApiId}.execute-api.${cdk.Aws.REGION}.amazonaws.com`;
+
+    const apiOrigin = new origins.HttpOrigin(apiGatewayDomain, {
+      originPath: `/${stage}`, // API Gateway stage (e.g., /dev)
+      protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
+    });
+
+    // CloudFront Function for API path rewriting
+    // Strips /api prefix for origin request (e.g., /api/posts -> /posts)
+    const apiPathFunction = new cloudfront.Function(this, 'ApiPathFunction', {
+      functionName: `ApiPathFunction-${stage}`,
+      code: cloudfront.FunctionCode.fromInline(`function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+
+  // Strip /api prefix for origin request
+  if (uri.startsWith('/api')) {
+    uri = uri.substring(4); // Remove '/api'
+    if (uri === '') {
+      uri = '/';
+    }
+  }
+
+  request.uri = uri;
+  return request;
+}`),
+      comment: 'Strips /api prefix for API Gateway origin request',
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+      autoPublish: true,
+    });
+
+    // Origin Request Policy for API Gateway
+    // Forward necessary headers and query strings to API Gateway
+    const apiOriginRequestPolicy = new cloudfront.OriginRequestPolicy(
+      this,
+      'ApiOriginRequestPolicy',
+      {
+        originRequestPolicyName: `BlogApiOriginRequestPolicy-${stage}`,
+        comment: 'Origin request policy for API Gateway',
+        headerBehavior: cloudfront.OriginRequestHeaderBehavior.allowList(
+          'Accept',
+          'Accept-Language',
+          'Content-Type',
+          'Origin',
+          'Referer'
+        ),
+        queryStringBehavior: cloudfront.OriginRequestQueryStringBehavior.all(),
+        cookieBehavior: cloudfront.OriginRequestCookieBehavior.none(),
+      }
+    );
+
     // Unified CloudFront Distribution for all sites (public, admin, images)
     // Using Origin Access Control (OAC) - recommended best practice over OAI
     // OAC provides enhanced security with short-term credentials and supports SSE-KMS
@@ -338,6 +396,25 @@ export class CdnStack extends cdk.Stack {
             functionAssociations: [
               {
                 function: imagePathFunction,
+                eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+              },
+            ],
+          },
+          // API Gateway behavior: /api/*
+          // Proxies API requests to API Gateway (public endpoints only)
+          '/api/*': {
+            origin: apiOrigin,
+            viewerProtocolPolicy:
+              cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+            cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
+            compress: true,
+            cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+            originRequestPolicy: apiOriginRequestPolicy,
+            // API path function strips /api prefix
+            functionAssociations: [
+              {
+                function: apiPathFunction,
                 eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
               },
             ],
