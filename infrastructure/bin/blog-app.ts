@@ -71,6 +71,7 @@ const apiStack = new ApiStack(app, 'ServerlessBlogApiStack', {
 });
 
 // CDN Stack (CloudFront)
+// Note: CdnStack imports REST API ID via Fn.importValue to avoid cyclic dependency
 const cdnStack = new CdnStack(app, 'ServerlessBlogCdnStack', {
   env,
   imageBucketName: storageStack.imageBucket.bucketName,

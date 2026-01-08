@@ -70,6 +70,7 @@ secrets.*.json
 coverage/
 .nyc_output/
 *.lcov
+coverage.out
 
 # Jest
 .jest/

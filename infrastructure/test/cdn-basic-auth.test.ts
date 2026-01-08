@@ -49,6 +49,7 @@ describe('CloudFront Functions Basic Authentication', () => {
       imageBucketName: imageBucket.bucketName,
       publicSiteBucketName: publicBucket.bucketName,
       adminSiteBucketName: adminBucket.bucketName,
+      restApiId: 'test-api-id', // Provide dummy REST API ID for testing
     };
 
     // Should not throw error when stage context is missing (defaults to dev)
@@ -99,6 +100,7 @@ describe('CloudFront Functions Basic Authentication', () => {
       imageBucketName: imageBucket.bucketName,
       publicSiteBucketName: publicBucket.bucketName,
       adminSiteBucketName: adminBucket.bucketName,
+      restApiId: 'test-api-id', // Provide dummy REST API ID for testing
     };
 
     stack = new CdnStack(app, 'TestCdnStack', props);
@@ -110,11 +112,12 @@ describe('CloudFront Functions Basic Authentication', () => {
       // When stage context is not 'dev', no Basic Auth function should be created
       const functions = template.findResources('AWS::CloudFront::Function');
 
-      // In non-DEV environment (prd), we expect 2 CloudFront Functions:
+      // In non-DEV environment (prd), we expect 3 CloudFront Functions:
       // - AdminSpaFunction (for /admin/* path rewriting and SPA routing)
       // - ImagePathFunction (for /images/* path rewriting)
+      // - ApiPathFunction (for /api/* path rewriting to API Gateway)
       // But NOT BasicAuthFunction
-      expect(Object.keys(functions)).toHaveLength(2);
+      expect(Object.keys(functions)).toHaveLength(3);
 
       // Verify BasicAuthFunction is NOT present
       const functionNames = Object.values(functions).map(
@@ -176,6 +179,7 @@ describe('CloudFront Functions Basic Authentication', () => {
         imageBucketName: imageBucket.bucketName,
         publicSiteBucketName: publicBucket.bucketName,
         adminSiteBucketName: adminBucket.bucketName,
+        restApiId: 'test-api-id', // Provide dummy REST API ID for testing
       };
 
       stack = new CdnStack(app, 'TestCdnStackStg', props);
@@ -184,11 +188,12 @@ describe('CloudFront Functions Basic Authentication', () => {
 
     test('should create Basic Auth CloudFront Function in DEV environment', () => {
       // Verify CloudFront Functions exist
-      // In DEV environment, we expect 3 CloudFront Functions:
+      // In DEV environment, we expect 4 CloudFront Functions:
       // - BasicAuthFunction
-      // - AdminSpaFunction
+      // - AdminCombinedFunction (Basic Auth + SPA routing for admin)
       // - ImagePathFunction
-      template.resourceCountIs('AWS::CloudFront::Function', 3);
+      // - ApiPathFunction
+      template.resourceCountIs('AWS::CloudFront::Function', 4);
     });
 
     test('should have correct function name', () => {
@@ -291,13 +296,13 @@ describe('CloudFront Functions Basic Authentication', () => {
         unifiedDistribution.Properties.DistributionConfig.Comment
       ).toContain('Unified CDN');
 
-      // Should have CacheBehaviors for /admin/* and /images/*
+      // Should have CacheBehaviors for /admin/*, /images/*, and /api/*
       expect(
         unifiedDistribution.Properties.DistributionConfig.CacheBehaviors
       ).toBeDefined();
       expect(
         unifiedDistribution.Properties.DistributionConfig.CacheBehaviors.length
-      ).toBe(2);
+      ).toBe(3);
     });
 
     test('should NOT apply Basic Auth to /admin/* and /images/* behaviors', () => {
@@ -377,6 +382,7 @@ describe('CloudFront Functions Basic Authentication', () => {
         imageBucketName: imageBucket.bucketName,
         publicSiteBucketName: publicBucket.bucketName,
         adminSiteBucketName: adminBucket.bucketName,
+        restApiId: 'test-api-id', // Provide dummy REST API ID for testing
       };
 
       stack = new CdnStack(app, 'TestCdnStackAuth', props);
@@ -497,6 +503,7 @@ describe('CloudFront Functions Basic Authentication', () => {
         imageBucketName: imageBucket.bucketName,
         publicSiteBucketName: publicBucket.bucketName,
         adminSiteBucketName: adminBucket.bucketName,
+        restApiId: 'test-api-id', // Provide dummy REST API ID for testing
       };
 
       // Should throw error when credentials are empty
@@ -540,6 +547,7 @@ describe('CloudFront Functions Basic Authentication', () => {
         imageBucketName: imageBucket.bucketName,
         publicSiteBucketName: publicBucket.bucketName,
         adminSiteBucketName: adminBucket.bucketName,
+        restApiId: 'test-api-id', // Provide dummy REST API ID for testing
       };
 
       // Should throw error when credentials are not available
@@ -590,6 +598,7 @@ describe('CloudFront Functions Basic Authentication', () => {
         imageBucketName: imageBucket.bucketName,
         publicSiteBucketName: publicBucket.bucketName,
         adminSiteBucketName: adminBucket.bucketName,
+        restApiId: 'test-api-id', // Provide dummy REST API ID for testing
       };
 
       expect(() => {
@@ -638,6 +647,7 @@ describe('CloudFront Functions Basic Authentication', () => {
         imageBucketName: imageBucket.bucketName,
         publicSiteBucketName: publicBucket.bucketName,
         adminSiteBucketName: adminBucket.bucketName,
+        restApiId: 'test-api-id', // Provide dummy REST API ID for testing
       };
 
       expect(() => {
@@ -645,6 +655,144 @@ describe('CloudFront Functions Basic Authentication', () => {
       }).toThrow(
         /Parameter Store values not yet cached|credentials are required/i
       );
+    });
+  });
+
+  describe('REST API ID Configuration', () => {
+    test('should use Fn.importValue when restApiId is not provided', () => {
+      const appImport = new cdk.App({
+        context: {
+          stage: 'prd',
+        },
+      });
+
+      const bucketStack = new cdk.Stack(appImport, 'BucketStackImport', {
+        env: {
+          account: '123456789012',
+          region: 'ap-northeast-1',
+        },
+      });
+
+      const imageBucket = new cdk.aws_s3.Bucket(bucketStack, 'ImageBucket', {
+        bucketName: 'test-image-bucket-import',
+      });
+      const publicBucket = new cdk.aws_s3.Bucket(bucketStack, 'PublicBucket', {
+        bucketName: 'test-public-bucket-import',
+      });
+      const adminBucket = new cdk.aws_s3.Bucket(bucketStack, 'AdminBucket', {
+        bucketName: 'test-admin-bucket-import',
+      });
+
+      // Do NOT provide restApiId to test Fn.importValue branch
+      const props = {
+        env: {
+          account: '123456789012',
+          region: 'ap-northeast-1',
+        },
+        imageBucketName: imageBucket.bucketName,
+        publicSiteBucketName: publicBucket.bucketName,
+        adminSiteBucketName: adminBucket.bucketName,
+        // restApiId is intentionally NOT provided
+      };
+
+      const cdnStackImport = new CdnStack(
+        appImport,
+        'TestCdnStackImport',
+        props
+      );
+      const templateImport = Template.fromStack(cdnStackImport);
+
+      // Verify the stack was created successfully
+      expect(cdnStackImport).toBeDefined();
+
+      // Verify CloudFront Distribution uses the imported API ID
+      // The HttpOrigin should reference the API Gateway domain
+      templateImport.hasResourceProperties('AWS::CloudFront::Distribution', {
+        DistributionConfig: Match.objectLike({
+          Origins: Match.arrayWith([
+            Match.objectLike({
+              DomainName: Match.objectLike({
+                'Fn::Join': Match.arrayWith([
+                  '',
+                  Match.arrayWith([
+                    Match.objectLike({
+                      'Fn::ImportValue': 'BlogRestApiId',
+                    }),
+                  ]),
+                ]),
+              }),
+            }),
+          ]),
+        }),
+      });
+    });
+
+    test('should use AWS.REGION token when env.region is not provided', () => {
+      const appNoRegion = new cdk.App({
+        context: {
+          stage: 'prd',
+        },
+      });
+
+      const bucketStack = new cdk.Stack(appNoRegion, 'BucketStackNoRegion', {
+        env: {
+          account: '123456789012',
+          region: 'ap-northeast-1',
+        },
+      });
+
+      const imageBucket = new cdk.aws_s3.Bucket(bucketStack, 'ImageBucket', {
+        bucketName: 'test-image-bucket-noregion',
+      });
+      const publicBucket = new cdk.aws_s3.Bucket(bucketStack, 'PublicBucket', {
+        bucketName: 'test-public-bucket-noregion',
+      });
+      const adminBucket = new cdk.aws_s3.Bucket(bucketStack, 'AdminBucket', {
+        bucketName: 'test-admin-bucket-noregion',
+      });
+
+      // Do NOT provide env to test cdk.Aws.REGION fallback branch
+      const props = {
+        // env is intentionally NOT provided to test region fallback
+        imageBucketName: imageBucket.bucketName,
+        publicSiteBucketName: publicBucket.bucketName,
+        adminSiteBucketName: adminBucket.bucketName,
+        restApiId: 'test-api-id',
+      };
+
+      const cdnStackNoRegion = new CdnStack(
+        appNoRegion,
+        'TestCdnStackNoRegion',
+        props
+      );
+      const templateNoRegion = Template.fromStack(cdnStackNoRegion);
+
+      // Verify the stack was created successfully
+      expect(cdnStackNoRegion).toBeDefined();
+
+      // Verify CloudFront Distribution is created
+      // When env.region is not provided, cdk.Aws.REGION token is used
+      templateNoRegion.resourceCountIs('AWS::CloudFront::Distribution', 1);
+
+      // Verify the API Gateway origin uses AWS::Region reference
+      templateNoRegion.hasResourceProperties('AWS::CloudFront::Distribution', {
+        DistributionConfig: Match.objectLike({
+          Origins: Match.arrayWith([
+            Match.objectLike({
+              DomainName: Match.objectLike({
+                'Fn::Join': Match.arrayWith([
+                  '',
+                  Match.arrayWith([
+                    Match.objectLike({
+                      Ref: 'AWS::Region',
+                    }),
+                  ]),
+                ]),
+              }),
+            }),
+          ]),
+        }),
+      });
     });
   });
 
