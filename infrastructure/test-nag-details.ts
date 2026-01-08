@@ -43,6 +43,7 @@ const authStack3 = new AuthStack(app3, 'TestAuthStack', {
 const apiStack = new ApiStack(app3, 'TestApiStack', {
   env: { account: '123456789012', region: 'ap-northeast-1' },
   userPool: authStack3.userPool,
+  stage: 'dev',
 });
 cdk.Aspects.of(app3).add(new AwsSolutionsChecks({ verbose: true }));
 app3.synth();

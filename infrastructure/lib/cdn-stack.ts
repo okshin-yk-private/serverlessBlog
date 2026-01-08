@@ -10,6 +10,12 @@ export interface CdnStackProps extends cdk.StackProps {
   imageBucketName: string;
   publicSiteBucketName: string;
   adminSiteBucketName: string;
+  /**
+   * Optional REST API ID for API Gateway proxy.
+   * If not provided, will use Fn.importValue('BlogRestApiId').
+   * This is useful for testing where Fn.importValue cannot be resolved.
+   */
+  restApiId?: string;
 }
 
 export class CdnStack extends cdk.Stack {
@@ -34,9 +40,10 @@ export class CdnStack extends cdk.Stack {
     const { imageBucketName, publicSiteBucketName, adminSiteBucketName } =
       props;
 
-    // Import REST API ID from ApiStack to avoid cyclic dependency
-    // ApiStack exports this value with exportName: 'BlogRestApiId'
-    const restApiId = cdk.Fn.importValue('BlogRestApiId');
+    // Get REST API ID: use props if provided, otherwise import from ApiStack
+    // Using Fn.importValue avoids cyclic dependency (ApiStack exports 'BlogRestApiId')
+    // Props override is useful for testing where Fn.importValue cannot be resolved
+    const restApiId = props.restApiId ?? cdk.Fn.importValue('BlogRestApiId');
 
     // Get stage context (dev, prd)
     const stage = this.node.tryGetContext('stage') || 'dev';
@@ -276,7 +283,9 @@ export class CdnStack extends cdk.Stack {
     // API Gateway Origin setup
     // Construct API Gateway hostname from REST API ID and region
     // Format: {restApiId}.execute-api.{region}.amazonaws.com
-    const apiGatewayDomain = `${restApiId}.execute-api.${cdk.Aws.REGION}.amazonaws.com`;
+    // Use props.env?.region if available (for tests), otherwise use cdk.Aws.REGION token
+    const region = props.env?.region ?? cdk.Aws.REGION;
+    const apiGatewayDomain = `${restApiId}.execute-api.${region}.amazonaws.com`;
 
     const apiOrigin = new origins.HttpOrigin(apiGatewayDomain, {
       originPath: `/${stage}`, // API Gateway stage (e.g., /dev)

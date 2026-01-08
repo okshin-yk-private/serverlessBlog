@@ -49,6 +49,7 @@ describe('CloudFront Functions Basic Authentication', () => {
       imageBucketName: imageBucket.bucketName,
       publicSiteBucketName: publicBucket.bucketName,
       adminSiteBucketName: adminBucket.bucketName,
+      restApiId: 'test-api-id', // Provide dummy REST API ID for testing
     };
 
     // Should not throw error when stage context is missing (defaults to dev)
@@ -99,6 +100,7 @@ describe('CloudFront Functions Basic Authentication', () => {
       imageBucketName: imageBucket.bucketName,
       publicSiteBucketName: publicBucket.bucketName,
       adminSiteBucketName: adminBucket.bucketName,
+      restApiId: 'test-api-id', // Provide dummy REST API ID for testing
     };
 
     stack = new CdnStack(app, 'TestCdnStack', props);
@@ -110,11 +112,12 @@ describe('CloudFront Functions Basic Authentication', () => {
       // When stage context is not 'dev', no Basic Auth function should be created
       const functions = template.findResources('AWS::CloudFront::Function');
 
-      // In non-DEV environment (prd), we expect 2 CloudFront Functions:
+      // In non-DEV environment (prd), we expect 3 CloudFront Functions:
       // - AdminSpaFunction (for /admin/* path rewriting and SPA routing)
       // - ImagePathFunction (for /images/* path rewriting)
+      // - ApiPathFunction (for /api/* path rewriting to API Gateway)
       // But NOT BasicAuthFunction
-      expect(Object.keys(functions)).toHaveLength(2);
+      expect(Object.keys(functions)).toHaveLength(3);
 
       // Verify BasicAuthFunction is NOT present
       const functionNames = Object.values(functions).map(
@@ -176,6 +179,7 @@ describe('CloudFront Functions Basic Authentication', () => {
         imageBucketName: imageBucket.bucketName,
         publicSiteBucketName: publicBucket.bucketName,
         adminSiteBucketName: adminBucket.bucketName,
+        restApiId: 'test-api-id', // Provide dummy REST API ID for testing
       };
 
       stack = new CdnStack(app, 'TestCdnStackStg', props);
@@ -184,11 +188,12 @@ describe('CloudFront Functions Basic Authentication', () => {
 
     test('should create Basic Auth CloudFront Function in DEV environment', () => {
       // Verify CloudFront Functions exist
-      // In DEV environment, we expect 3 CloudFront Functions:
+      // In DEV environment, we expect 4 CloudFront Functions:
       // - BasicAuthFunction
-      // - AdminSpaFunction
+      // - AdminCombinedFunction (Basic Auth + SPA routing for admin)
       // - ImagePathFunction
-      template.resourceCountIs('AWS::CloudFront::Function', 3);
+      // - ApiPathFunction
+      template.resourceCountIs('AWS::CloudFront::Function', 4);
     });
 
     test('should have correct function name', () => {
@@ -291,13 +296,13 @@ describe('CloudFront Functions Basic Authentication', () => {
         unifiedDistribution.Properties.DistributionConfig.Comment
       ).toContain('Unified CDN');
 
-      // Should have CacheBehaviors for /admin/* and /images/*
+      // Should have CacheBehaviors for /admin/*, /images/*, and /api/*
       expect(
         unifiedDistribution.Properties.DistributionConfig.CacheBehaviors
       ).toBeDefined();
       expect(
         unifiedDistribution.Properties.DistributionConfig.CacheBehaviors.length
-      ).toBe(2);
+      ).toBe(3);
     });
 
     test('should NOT apply Basic Auth to /admin/* and /images/* behaviors', () => {
@@ -377,6 +382,7 @@ describe('CloudFront Functions Basic Authentication', () => {
         imageBucketName: imageBucket.bucketName,
         publicSiteBucketName: publicBucket.bucketName,
         adminSiteBucketName: adminBucket.bucketName,
+        restApiId: 'test-api-id', // Provide dummy REST API ID for testing
       };
 
       stack = new CdnStack(app, 'TestCdnStackAuth', props);
@@ -497,6 +503,7 @@ describe('CloudFront Functions Basic Authentication', () => {
         imageBucketName: imageBucket.bucketName,
         publicSiteBucketName: publicBucket.bucketName,
         adminSiteBucketName: adminBucket.bucketName,
+        restApiId: 'test-api-id', // Provide dummy REST API ID for testing
       };
 
       // Should throw error when credentials are empty
@@ -540,6 +547,7 @@ describe('CloudFront Functions Basic Authentication', () => {
         imageBucketName: imageBucket.bucketName,
         publicSiteBucketName: publicBucket.bucketName,
         adminSiteBucketName: adminBucket.bucketName,
+        restApiId: 'test-api-id', // Provide dummy REST API ID for testing
       };
 
       // Should throw error when credentials are not available
@@ -590,6 +598,7 @@ describe('CloudFront Functions Basic Authentication', () => {
         imageBucketName: imageBucket.bucketName,
         publicSiteBucketName: publicBucket.bucketName,
         adminSiteBucketName: adminBucket.bucketName,
+        restApiId: 'test-api-id', // Provide dummy REST API ID for testing
       };
 
       expect(() => {
@@ -638,6 +647,7 @@ describe('CloudFront Functions Basic Authentication', () => {
         imageBucketName: imageBucket.bucketName,
         publicSiteBucketName: publicBucket.bucketName,
         adminSiteBucketName: adminBucket.bucketName,
+        restApiId: 'test-api-id', // Provide dummy REST API ID for testing
       };
 
       expect(() => {
