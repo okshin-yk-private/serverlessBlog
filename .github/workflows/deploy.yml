@@ -1,0 +1,582 @@
+# Unified Deploy Workflow
+# Handles deployment for all components:
+# - Infrastructure (Terraform)
+# - Backend (Go Lambda via Terraform)
+# - Frontend (S3 static sites)
+#
+# Triggers:
+# - develop branch push: Deploy to DEV environment
+# - main branch push: Deploy to PRD environment (with approval)
+# - workflow_dispatch: Manual deployment
+
+name: Deploy
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'terraform/**'
+      - 'go-functions/**'
+      - 'frontend/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prd
+      components:
+        description: 'Components to deploy'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - infrastructure
+          - frontend
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TERRAFORM_VERSION: '1.14.0'
+  GO_VERSION: '1.25.5'
+  AWS_REGION: 'ap-northeast-1'
+
+jobs:
+  # =======================================
+  # Determine what to deploy
+  # =======================================
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      deploy-infrastructure: ${{ steps.changes.outputs.infrastructure }}
+      deploy-frontend: ${{ steps.changes.outputs.frontend }}
+      target-env: ${{ steps.env.outputs.target-env }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed paths
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual dispatch - check components input
+            if [ "${{ github.event.inputs.components }}" == "all" ]; then
+              echo "infrastructure=true" >> $GITHUB_OUTPUT
+              echo "frontend=true" >> $GITHUB_OUTPUT
+            elif [ "${{ github.event.inputs.components }}" == "infrastructure" ]; then
+              echo "infrastructure=true" >> $GITHUB_OUTPUT
+              echo "frontend=false" >> $GITHUB_OUTPUT
+            else
+              echo "infrastructure=false" >> $GITHUB_OUTPUT
+              echo "frontend=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            # Push event - detect from changed files
+            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+
+            if echo "$CHANGED" | grep -qE "^(terraform/|go-functions/)"; then
+              echo "infrastructure=true" >> $GITHUB_OUTPUT
+            else
+              echo "infrastructure=false" >> $GITHUB_OUTPUT
+            fi
+
+            if echo "$CHANGED" | grep -qE "^frontend/"; then
+              echo "frontend=true" >> $GITHUB_OUTPUT
+            else
+              echo "frontend=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Determine target environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "target-env=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "target-env=prd" >> $GITHUB_OUTPUT
+          else
+            echo "target-env=dev" >> $GITHUB_OUTPUT
+          fi
+
+  # =======================================
+  # Build Go Lambda Binaries (Parallel Matrix)
+  # =======================================
+  build-lambdas:
+    name: Build Lambda (${{ matrix.function }})
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.deploy-infrastructure == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - function: posts-create
+            path: posts/create
+          - function: posts-get
+            path: posts/get
+          - function: posts-get_public
+            path: posts/get_public
+          - function: posts-list
+            path: posts/list
+          - function: posts-update
+            path: posts/update
+          - function: posts-delete
+            path: posts/delete
+          - function: auth-login
+            path: auth/login
+          - function: auth-logout
+            path: auth/logout
+          - function: auth-refresh
+            path: auth/refresh
+          - function: images-get_upload_url
+            path: images/get_upload_url
+          - function: images-delete
+            path: images/delete
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+          cache-dependency-path: go-functions/go.sum
+
+      - name: Build Lambda binary
+        working-directory: go-functions
+        run: |
+          mkdir -p bin/${{ matrix.function }}
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+            go build -ldflags="-s -w" -tags="lambda.norpc" \
+            -o bin/${{ matrix.function }}/bootstrap ./cmd/${{ matrix.path }}
+          echo "✓ ${{ matrix.function }} built"
+
+      - name: Upload Lambda binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda-${{ matrix.function }}
+          path: go-functions/bin/${{ matrix.function }}/
+          retention-days: 1
+
+  # =======================================
+  # Merge Lambda Artifacts
+  # =======================================
+  merge-lambda-artifacts:
+    name: Merge Lambda Artifacts
+    runs-on: ubuntu-latest
+    needs: [build-lambdas]
+    if: needs.build-lambdas.result == 'success'
+    steps:
+      - name: Download all Lambda artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: lambda-*
+          path: go-functions/bin/
+          merge-multiple: false
+
+      - name: Reorganize artifacts
+        run: |
+          cd go-functions/bin
+          for dir in lambda-*; do
+            func_name="${dir#lambda-}"
+            if [ -d "$dir" ]; then
+              mkdir -p "$func_name"
+              mv "$dir"/* "$func_name"/ 2>/dev/null || true
+              rmdir "$dir" 2>/dev/null || true
+            fi
+          done
+          echo "✓ Artifacts merged"
+
+      - name: Upload merged Lambda binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda-binaries
+          path: go-functions/bin/
+          retention-days: 1
+
+  # =======================================
+  # Deploy Infrastructure (DEV)
+  # =======================================
+  deploy-infrastructure-dev:
+    name: Deploy Infrastructure (DEV)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, merge-lambda-artifacts]
+    environment: dev
+    if: |
+      always() &&
+      needs.detect-changes.outputs.deploy-infrastructure == 'true' &&
+      needs.detect-changes.outputs.target-env == 'dev' &&
+      needs.merge-lambda-artifacts.result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Lambda binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda-binaries
+          path: go-functions/bin
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-TerraformApply-DEV
+
+      - name: Terraform Init
+        working-directory: terraform/environments/dev
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: terraform/environments/dev
+        run: terraform plan -out=tfplan.binary
+
+      - name: Terraform Apply
+        working-directory: terraform/environments/dev
+        run: |
+          echo "========================================="
+          echo "Deploying to DEV Environment"
+          echo "========================================="
+          terraform apply -auto-approve tfplan.binary
+          echo "✓ DEV deployment complete"
+
+      - name: Get Outputs
+        id: outputs
+        working-directory: terraform/environments/dev
+        run: |
+          echo "cloudfront_domain=$(terraform output -raw cloudfront_domain_name 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+          echo "api_endpoint=$(terraform output -raw api_endpoint 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+
+      - name: Deployment Summary
+        run: |
+          echo "========================================="
+          echo "✓ DEV Infrastructure Deployment Complete"
+          echo "========================================="
+          echo ""
+          echo "CloudFront: ${{ steps.outputs.outputs.cloudfront_domain }}"
+          echo "API: ${{ steps.outputs.outputs.api_endpoint }}"
+
+  # =======================================
+  # Deploy Infrastructure (PRD) - Requires Approval
+  # =======================================
+  deploy-infrastructure-prd:
+    name: Deploy Infrastructure (PRD)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, merge-lambda-artifacts]
+    environment:
+      name: prod
+      # Manual approval configured in GitHub environment settings
+    if: |
+      always() &&
+      needs.detect-changes.outputs.deploy-infrastructure == 'true' &&
+      needs.detect-changes.outputs.target-env == 'prd' &&
+      needs.merge-lambda-artifacts.result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Lambda binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda-binaries
+          path: go-functions/bin
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-TerraformApply-PRD
+
+      - name: Terraform Init
+        working-directory: terraform/environments/prd
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: terraform/environments/prd
+        run: terraform plan -out=tfplan.binary
+
+      - name: Terraform Apply
+        working-directory: terraform/environments/prd
+        run: |
+          echo "========================================="
+          echo "⚠️  Deploying to PRODUCTION Environment"
+          echo "========================================="
+          terraform apply -auto-approve tfplan.binary
+          echo "✓ PRODUCTION deployment complete"
+
+      - name: Get Outputs
+        id: outputs
+        working-directory: terraform/environments/prd
+        run: |
+          echo "cloudfront_domain=$(terraform output -raw cloudfront_domain_name 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+          echo "api_endpoint=$(terraform output -raw api_endpoint 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+
+      - name: Deployment Summary
+        run: |
+          echo "========================================="
+          echo "✓ PRODUCTION Infrastructure Deployment Complete"
+          echo "========================================="
+          echo ""
+          echo "CloudFront: ${{ steps.outputs.outputs.cloudfront_domain }}"
+          echo "API: ${{ steps.outputs.outputs.api_endpoint }}"
+
+  # =======================================
+  # Build Frontend (Public Site)
+  # =======================================
+  build-frontend-public:
+    name: Build Frontend (Public)
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.deploy-frontend == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: frontend/public
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        working-directory: frontend/public
+        run: bun run build
+        env:
+          NODE_ENV: production
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-public-build
+          path: frontend/public/dist/
+          retention-days: 1
+
+  # =======================================
+  # Build Frontend (Admin Site)
+  # =======================================
+  build-frontend-admin:
+    name: Build Frontend (Admin)
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.deploy-frontend == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: frontend/admin
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        working-directory: frontend/admin
+        run: bun run build
+        env:
+          NODE_ENV: production
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-admin-build
+          path: frontend/admin/dist/
+          retention-days: 1
+
+  # =======================================
+  # Deploy Frontend (DEV)
+  # =======================================
+  deploy-frontend-dev:
+    name: Deploy Frontend (DEV)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-frontend-public, build-frontend-admin, deploy-infrastructure-dev]
+    environment: dev
+    if: |
+      always() &&
+      needs.detect-changes.outputs.deploy-frontend == 'true' &&
+      needs.detect-changes.outputs.target-env == 'dev' &&
+      needs.build-frontend-public.result == 'success' &&
+      needs.build-frontend-admin.result == 'success' &&
+      (needs.deploy-infrastructure-dev.result == 'success' || needs.deploy-infrastructure-dev.result == 'skipped')
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-FrontendDeploy-DEV
+
+      - name: Download Public Site build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-public-build
+          path: public-dist/
+
+      - name: Download Admin Site build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-admin-build
+          path: admin-dist/
+
+      - name: Deploy Public Site to S3
+        run: |
+          echo "Deploying Public Site to S3..."
+          aws s3 sync public-dist/ s3://serverless-blog-public-site-dev/ --delete
+          echo "✓ Public site deployed"
+
+      - name: Deploy Admin Site to S3
+        run: |
+          echo "Deploying Admin Site to S3..."
+          aws s3 sync admin-dist/ s3://serverless-blog-admin-site-dev/ --delete
+          echo "✓ Admin site deployed"
+
+      - name: Invalidate CloudFront Cache
+        run: |
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?contains(Origins.Items[].DomainName, 'serverless-blog')].Id" --output text | head -1)
+          if [ -n "$DISTRIBUTION_ID" ]; then
+            aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*"
+            echo "✓ CloudFront cache invalidated"
+          else
+            echo "⚠ CloudFront distribution not found, skipping invalidation"
+          fi
+
+  # =======================================
+  # Deploy Frontend (PRD) - Requires Approval
+  # =======================================
+  deploy-frontend-prd:
+    name: Deploy Frontend (PRD)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-frontend-public, build-frontend-admin, deploy-infrastructure-prd]
+    environment:
+      name: prod
+    if: |
+      always() &&
+      needs.detect-changes.outputs.deploy-frontend == 'true' &&
+      needs.detect-changes.outputs.target-env == 'prd' &&
+      needs.build-frontend-public.result == 'success' &&
+      needs.build-frontend-admin.result == 'success' &&
+      (needs.deploy-infrastructure-prd.result == 'success' || needs.deploy-infrastructure-prd.result == 'skipped')
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-FrontendDeploy-PRD
+
+      - name: Download Public Site build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-public-build
+          path: public-dist/
+
+      - name: Download Admin Site build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-admin-build
+          path: admin-dist/
+
+      - name: Deploy Public Site to S3
+        run: |
+          echo "⚠️ Deploying Public Site to PRODUCTION S3..."
+          aws s3 sync public-dist/ s3://serverless-blog-public-site/ --delete
+          echo "✓ Public site deployed"
+
+      - name: Deploy Admin Site to S3
+        run: |
+          echo "⚠️ Deploying Admin Site to PRODUCTION S3..."
+          aws s3 sync admin-dist/ s3://serverless-blog-admin-site/ --delete
+          echo "✓ Admin site deployed"
+
+      - name: Invalidate CloudFront Cache
+        run: |
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?contains(Origins.Items[].DomainName, 'serverless-blog')].Id" --output text | head -1)
+          if [ -n "$DISTRIBUTION_ID" ]; then
+            aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*"
+            echo "✓ CloudFront cache invalidated"
+          else
+            echo "⚠ CloudFront distribution not found, skipping invalidation"
+          fi
+
+  # =======================================
+  # Deployment Summary
+  # =======================================
+  deploy-summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - deploy-infrastructure-dev
+      - deploy-infrastructure-prd
+      - deploy-frontend-dev
+      - deploy-frontend-prd
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          echo "========================================="
+          echo "Deployment Summary"
+          echo "========================================="
+          echo ""
+          echo "Target Environment: ${{ needs.detect-changes.outputs.target-env }}"
+          echo ""
+          echo "--- Infrastructure ---"
+          echo "  DEV: ${{ needs.deploy-infrastructure-dev.result }}"
+          echo "  PRD: ${{ needs.deploy-infrastructure-prd.result }}"
+          echo ""
+          echo "--- Frontend ---"
+          echo "  DEV: ${{ needs.deploy-frontend-dev.result }}"
+          echo "  PRD: ${{ needs.deploy-frontend-prd.result }}"
+          echo ""
+          echo "========================================="
+
+          # Check for failures
+          if [ "${{ needs.deploy-infrastructure-dev.result }}" == "failure" ] || \
+             [ "${{ needs.deploy-infrastructure-prd.result }}" == "failure" ] || \
+             [ "${{ needs.deploy-frontend-dev.result }}" == "failure" ] || \
+             [ "${{ needs.deploy-frontend-prd.result }}" == "failure" ]; then
+            echo "❌ One or more deployments failed"
+            exit 1
+          fi
+
+          echo "✓ All deployments completed successfully!"

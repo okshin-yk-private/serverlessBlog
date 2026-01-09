@@ -1,5 +1,9 @@
 # Complete Deployment Example
 # This example demonstrates a full deployment of the serverless blog platform
+#
+# Note: Due to circular dependencies (Lambda -> CDN -> API -> Lambda),
+# cloudfront_domain is set after CDN creation. Initial deployment will have
+# empty cloudfront_domain in Lambda functions.
 
 terraform {
   required_version = "~> 1.14"
@@ -78,7 +82,34 @@ module "storage" {
 }
 
 #------------------------------------------------------------------------------
-# Module 4: API Gateway
+# Module 4: Lambda Functions
+# Dependencies: database, storage, auth
+# Note: cloudfront_domain is empty initially (circular dependency)
+#------------------------------------------------------------------------------
+
+module "lambda" {
+  source = "../../modules/lambda"
+
+  environment         = var.environment
+  table_name          = module.database.table_name
+  table_arn           = module.database.table_arn
+  bucket_name         = module.storage.image_bucket_name
+  bucket_arn          = module.storage.image_bucket_arn
+  user_pool_id        = module.auth.user_pool_id
+  user_pool_arn       = module.auth.user_pool_arn
+  user_pool_client_id = module.auth.user_pool_client_id
+  cloudfront_domain   = "" # Set after CDN creation to break circular dependency
+  enable_xray         = var.enable_xray
+  go_binary_path      = var.go_binary_path
+
+  tags = local.common_tags
+
+  depends_on = [module.database, module.storage, module.auth]
+}
+
+#------------------------------------------------------------------------------
+# Module 5: API Gateway
+# Dependencies: auth (for Cognito Authorizer), lambda (for function ARNs)
 #------------------------------------------------------------------------------
 
 module "api" {
@@ -90,13 +121,38 @@ module "api" {
   cognito_user_pool_arn = module.auth.user_pool_arn
   cors_allow_origins    = var.cors_allow_origins
 
+  # Lambda function ARNs
+  lambda_create_post_arn            = module.lambda.function_arns["create_post"]
+  lambda_create_post_invoke_arn     = module.lambda.function_invoke_arns["create_post"]
+  lambda_list_posts_arn             = module.lambda.function_arns["list_posts"]
+  lambda_list_posts_invoke_arn      = module.lambda.function_invoke_arns["list_posts"]
+  lambda_get_post_arn               = module.lambda.function_arns["get_post"]
+  lambda_get_post_invoke_arn        = module.lambda.function_invoke_arns["get_post"]
+  lambda_get_public_post_arn        = module.lambda.function_arns["get_public_post"]
+  lambda_get_public_post_invoke_arn = module.lambda.function_invoke_arns["get_public_post"]
+  lambda_update_post_arn            = module.lambda.function_arns["update_post"]
+  lambda_update_post_invoke_arn     = module.lambda.function_invoke_arns["update_post"]
+  lambda_delete_post_arn            = module.lambda.function_arns["delete_post"]
+  lambda_delete_post_invoke_arn     = module.lambda.function_invoke_arns["delete_post"]
+  lambda_login_arn                  = module.lambda.function_arns["login"]
+  lambda_login_invoke_arn           = module.lambda.function_invoke_arns["login"]
+  lambda_logout_arn                 = module.lambda.function_arns["logout"]
+  lambda_logout_invoke_arn          = module.lambda.function_invoke_arns["logout"]
+  lambda_refresh_arn                = module.lambda.function_arns["refresh"]
+  lambda_refresh_invoke_arn         = module.lambda.function_invoke_arns["refresh"]
+  lambda_get_upload_url_arn         = module.lambda.function_arns["get_upload_url"]
+  lambda_get_upload_url_invoke_arn  = module.lambda.function_invoke_arns["get_upload_url"]
+  lambda_delete_image_arn           = module.lambda.function_arns["delete_image"]
+  lambda_delete_image_invoke_arn    = module.lambda.function_invoke_arns["delete_image"]
+
   tags = local.common_tags
 
-  depends_on = [module.auth]
+  depends_on = [module.auth, module.lambda]
 }
 
 #------------------------------------------------------------------------------
-# Module 5: CDN (CloudFront)
+# Module 6: CDN (CloudFront)
+# Dependencies: storage (for S3 buckets), api (for API Gateway origin)
 #------------------------------------------------------------------------------
 
 module "cdn" {
@@ -199,30 +255,6 @@ resource "aws_s3_bucket_policy" "admin_site_cloudfront" {
   })
 
   depends_on = [module.cdn]
-}
-
-#------------------------------------------------------------------------------
-# Module 6: Lambda Functions
-#------------------------------------------------------------------------------
-
-module "lambda" {
-  source = "../../modules/lambda"
-
-  environment         = var.environment
-  table_name          = module.database.table_name
-  table_arn           = module.database.table_arn
-  bucket_name         = module.storage.image_bucket_name
-  bucket_arn          = module.storage.image_bucket_arn
-  user_pool_id        = module.auth.user_pool_id
-  user_pool_arn       = module.auth.user_pool_arn
-  user_pool_client_id = module.auth.user_pool_client_id
-  cloudfront_domain   = module.cdn.distribution_domain_name
-  enable_xray         = var.enable_xray
-  go_binary_path      = var.go_binary_path
-
-  tags = local.common_tags
-
-  depends_on = [module.database, module.storage, module.auth, module.cdn]
 }
 
 #------------------------------------------------------------------------------

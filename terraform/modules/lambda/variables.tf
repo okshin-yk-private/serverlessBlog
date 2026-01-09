@@ -47,7 +47,8 @@ variable "user_pool_client_id" {
 
 variable "cloudfront_domain" {
   type        = string
-  description = "CloudFront domain name"
+  default     = ""
+  description = "CloudFront domain name (optional, can be updated after initial deployment)"
 }
 
 variable "enable_xray" {
