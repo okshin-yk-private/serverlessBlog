@@ -1,0 +1,238 @@
+# Checkov Configuration for Serverless Blog Infrastructure
+# Requirements: 12.1, 12.3, 12.4
+#
+# This file provides centralized management of Checkov skip rules.
+# All skips must have documented justification.
+#
+# Phase 1: CI Visibility (soft_fail mode)
+# - Enable Checkov with soft_fail: true
+# - Send SARIF to GitHub Security tab
+# - Define baseline skip rules
+#
+# Phase 2: Local Defense (Trivy pre-commit)
+# Phase 3: Integration and Automation (hard_fail mode)
+
+# Terraform framework to scan
+framework:
+  - terraform
+
+# Directory to scan (relative to project root)
+directory:
+  - .
+
+# Output format
+output:
+  - cli
+  - sarif
+
+# Soft fail for Phase 1 (will be changed to hard fail in Phase 3)
+soft-fail: true
+
+# ======================================
+# Skip Rules with Justification
+# ======================================
+#
+# Each skip rule requires:
+# 1. Rule ID (e.g., CKV_AWS_XXX)
+# 2. Justification explaining why this skip is acceptable
+# 3. Alternative mitigation measures (if any)
+
+skip-check:
+  # --------------------------------------
+  # S3 Bucket Rules
+  # --------------------------------------
+
+  # CKV_AWS_18: Ensure the S3 bucket has access logging enabled
+  # Justification: Access logging for Terraform state bucket creates circular
+  # dependency. State bucket cannot log to itself, and creating a separate
+  # logging bucket adds complexity without significant security benefit for
+  # this use case. CloudTrail provides sufficient audit trail for S3 operations.
+  # Mitigation: CloudTrail enabled for all S3 API calls
+  - CKV_AWS_18
+
+  # CKV_AWS_145: Ensure that S3 bucket has cross-region replication enabled
+  # Justification: Cross-region replication is not required for this single-region
+  # blog application. State bucket uses S3 versioning for disaster recovery.
+  # Enabling CRR would double storage costs without matching business requirement.
+  # Mitigation: S3 versioning enabled for point-in-time recovery
+  - CKV_AWS_145
+
+  # CKV2_AWS_62: Ensure S3 bucket has event notifications enabled
+  # Justification: Event notifications are not required for static content
+  # buckets (public-site, admin-site, images). Adding SNS/Lambda triggers
+  # for every object change adds unnecessary cost and complexity.
+  # Mitigation: CloudWatch metrics monitor bucket operations
+  - CKV2_AWS_62
+
+  # CKV2_AWS_61: Ensure that S3 bucket has lifecycle configuration enabled
+  # Justification: Lifecycle policies are intentionally configured only on
+  # specific buckets (images bucket for version cleanup). Static site buckets
+  # retain all versions for rollback capability.
+  # Mitigation: Manual cleanup procedures documented; monitoring in place
+  - CKV2_AWS_61
+
+  # --------------------------------------
+  # DynamoDB Rules
+  # --------------------------------------
+
+  # CKV_AWS_28: Ensure DynamoDB point-in-time recovery is enabled
+  # Note: This check is enabled and should NOT be skipped.
+  # Our DynamoDB module explicitly enables PITR.
+
+  # CKV_AWS_119: Ensure DynamoDB Tables are encrypted using CMK
+  # Justification: AWS-managed keys (default encryption) provide sufficient
+  # protection for blog post data. CMK adds key management overhead and
+  # cost without additional security benefit for non-PII data.
+  # Mitigation: Server-side encryption enabled with AWS-managed keys
+  - CKV_AWS_119
+
+  # --------------------------------------
+  # Lambda Rules
+  # --------------------------------------
+
+  # CKV_AWS_116: Ensure AWS Lambda function is configured for a DLQ
+  # Justification: Synchronous Lambda functions (API Gateway triggers) do not
+  # benefit from DLQs. Failed requests return errors to clients immediately.
+  # Adding DLQ for sync functions adds cost without improving reliability.
+  # Mitigation: CloudWatch alarms monitor error rates; API Gateway logs failures
+  - CKV_AWS_116
+
+  # CKV_AWS_173: Ensure Lambda environment variables are encrypted
+  # Justification: Lambda environment variables contain non-sensitive configuration
+  # (table names, bucket names, CloudFront domains). No secrets are stored in
+  # environment variables. Secrets would use AWS Secrets Manager.
+  # Mitigation: Sensitive values use Secrets Manager; env vars marked non-sensitive
+  - CKV_AWS_173
+
+  # CKV_AWS_115: Ensure AWS Lambda function is configured for ReservedConcurrentExecutions
+  # Justification: Reserved concurrency limits are not set to allow elastic scaling
+  # during traffic spikes. Setting limits could cause throttling during legitimate
+  # high-traffic periods. Cost is controlled through monitoring and alerts.
+  # Mitigation: CloudWatch alarms for concurrency; budget alerts configured
+  - CKV_AWS_115
+
+  # CKV_AWS_272: Ensure Lambda function code signing is enabled
+  # Justification: Code signing adds deployment complexity for this serverless
+  # blog. Lambda code is built and deployed through trusted CI/CD pipeline
+  # with OIDC authentication. Code integrity is verified at commit time.
+  # Mitigation: GitHub branch protection; OIDC-authenticated deployments
+  - CKV_AWS_272
+
+  # --------------------------------------
+  # API Gateway Rules
+  # --------------------------------------
+
+  # CKV_AWS_225: Ensure API Gateway caches encrypted
+  # Justification: API Gateway caching is not enabled for this application.
+  # Lambda functions provide consistent sub-100ms responses. Caching would
+  # add complexity for minimal performance benefit.
+  # Mitigation: CloudFront provides edge caching for static content
+  - CKV_AWS_225
+
+  # CKV_AWS_76: Ensure API Gateway has Access Logging enabled
+  # Note: This check is enabled and should NOT be skipped.
+  # Our API module should configure access logging.
+  # TODO: Implement access logging in modules/api
+
+  # CKV2_AWS_51: Ensure AWS API Gateway endpoints use certificates
+  # Justification: API Gateway is accessed only through CloudFront distribution
+  # which handles TLS termination. Direct API Gateway access is not exposed.
+  # Mitigation: CloudFront enforces HTTPS; API Gateway endpoint is internal
+  - CKV2_AWS_51
+
+  # CKV2_AWS_29: Ensure AWS API Gateway public endpoint is disabled
+  # Justification: API Gateway must be publicly accessible for CloudFront
+  # integration. Access control is enforced through Cognito authorizers.
+  # Mitigation: Cognito authorizers protect sensitive endpoints
+  - CKV2_AWS_29
+
+  # --------------------------------------
+  # CloudFront Rules
+  # --------------------------------------
+
+  # CKV_AWS_174: Ensure CloudFront uses secure ciphers
+  # Note: This check is enabled. CloudFront uses TLSv1.2 minimum.
+  # Our CDN module configures security_policy = "TLSv1.2_2021"
+
+  # CKV_AWS_86: Ensure CloudFront distribution has WAF enabled
+  # Justification: WAF adds cost for this blog application. Rate limiting
+  # is handled at CloudFront level. No sensitive financial or PII data.
+  # Phase 2 consideration for production hardening.
+  # Mitigation: CloudFront geo-restrictions; rate limiting; monitoring
+  - CKV_AWS_86
+
+  # CKV_AWS_68: Ensure CloudFront logging is enabled
+  # Justification: CloudFront access logging adds S3 storage costs.
+  # CloudWatch metrics provide sufficient visibility for traffic patterns.
+  # Access logging will be enabled in production (Phase 3).
+  # Mitigation: CloudWatch metrics; CloudTrail API logging
+  - CKV_AWS_68
+
+  # CKV2_AWS_42: Ensure CloudFront distribution uses response headers policy
+  # Justification: Custom response headers policy is planned for Phase 2.
+  # Current configuration relies on S3 bucket CORS settings.
+  # Mitigation: S3 CORS headers; future implementation planned
+  - CKV2_AWS_42
+
+  # CKV2_AWS_47: Ensure CloudFront distributions associate with origin access identity
+  # Justification: We use Origin Access Control (OAC) instead of OAI.
+  # OAC is the newer, recommended approach by AWS.
+  # This is a false positive; OAC is properly configured.
+  - CKV2_AWS_47
+
+  # --------------------------------------
+  # Cognito Rules
+  # --------------------------------------
+
+  # CKV_AWS_163: Ensure AWS Cognito User Pool has MFA enabled
+  # Note: This check should NOT be skipped for production.
+  # Our auth module configures mfa_configuration = "OPTIONAL"
+  # Consider enabling "ON" for stricter security requirements.
+
+  # CKV_AWS_264: Ensure Cognito User Pool advanced security mode is enabled
+  # Justification: Advanced security mode adds per-authentication cost.
+  # For this blog's admin authentication volume, standard security is sufficient.
+  # Phase 3 consideration for enhanced threat protection.
+  # Mitigation: Strong password policy; MFA optional; account lockout
+  - CKV_AWS_264
+
+  # --------------------------------------
+  # CloudWatch Rules
+  # --------------------------------------
+
+  # CKV_AWS_158: Ensure CloudWatch log groups are encrypted with CMK
+  # Justification: Log group encryption with CMK adds key management overhead.
+  # Log data does not contain sensitive PII. Default encryption is sufficient.
+  # Mitigation: IAM policies restrict log access; log retention configured
+  - CKV_AWS_158
+
+  # --------------------------------------
+  # General/Miscellaneous Rules
+  # --------------------------------------
+
+  # CKV_TF_1: Ensure Terraform module sources use commit hash
+  # Justification: We use version-pinned module sources from Terraform Registry.
+  # Version constraints (e.g., ~> 6.0) provide stability while allowing patches.
+  # Commit hashes would prevent automatic security updates.
+  # Mitigation: Renovate/Dependabot monitors version updates
+  - CKV_TF_1
+
+  # CKV_TF_2: Ensure Terraform module sources use git tag
+  # Justification: Same as CKV_TF_1 - version pinning over commit hashes.
+  - CKV_TF_2
+
+# ======================================
+# External Check Configuration
+# ======================================
+# No external checks required at this time.
+# Custom policies will be added in Phase 3.
+
+# ======================================
+# Compact Output
+# ======================================
+compact: true
+
+# ======================================
+# Download External Checks
+# ======================================
+download-external-modules: false

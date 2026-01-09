@@ -56,3 +56,11 @@ go:
   - changed-files:
     - any-glob-to-any-file:
       - 'go-functions/**/*'
+
+# Terraform IaC変更
+# Requirement 10.1: terraform/**変更時のterraformラベル自動付与
+terraform:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'terraform/**'
+      - '.terraform-version'

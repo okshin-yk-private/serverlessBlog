@@ -4,19 +4,9 @@
       "command": "npx",
       "args": ["mcp-remote", "https://knowledge-mcp.global.api.aws"]
     },
-    "context7": {
-      "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp@latest"]
-    },
     "sequential-thinking": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
-    },
-    "gemini-cli": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["mcp-gemini-cli", "--allow-npx"],
-      "env": {}
     },
     "awslabs.cdk-mcp-server": {
       "command": "uvx",
@@ -24,23 +14,6 @@
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
-    },
-    "serena": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/oraios/serena",
-        "serena",
-        "start-mcp-server",
-        "--context",
-        "ide-assistant",
-        "--project",
-        "/home/okshin/src/github.com/okshin-yk-private/serverlessBlog",
-        "--enable-web-dashboard",
-        "false"
-      ],
-      "env": {}
     },
     "playwright": {
       "command": "npx",
@@ -54,6 +27,15 @@
         "--metadata",
         "AWS_REGION=us-west-2"
       ]
+    },
+    "awslabs.terraform-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.terraform-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
   }
 }

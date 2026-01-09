@@ -1,0 +1,90 @@
+# Pre-commit Configuration
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+
+repos:
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(\.kiro/|\.github/workflows/)
+      - id: end-of-file-fixer
+        exclude: ^(\.kiro/|\.github/workflows/)
+      - id: check-yaml
+        args: ['--allow-multiple-documents']
+      - id: check-json
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Terraform hooks
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.96.3
+    hooks:
+      # Format Terraform files
+      - id: terraform_fmt
+        args:
+          - --args=-recursive
+        files: ^terraform/
+
+      # Validate Terraform configuration
+      - id: terraform_validate
+        args:
+          - --hook-config=--retry-once-with-cleanup=true
+        files: ^terraform/(modules|environments)/
+
+      # Generate documentation for modules
+      - id: terraform_docs
+        args:
+          - --args=--config=.terraform-docs.yaml
+        files: ^terraform/modules/
+
+  # Trivy - Security scanning (Requirements: 12.2, 12.5, 12.10)
+  - repo: https://github.com/aquasecurity/trivy
+    rev: v0.58.1
+    hooks:
+      - id: trivy-config
+        name: trivy-terraform-scan
+        entry: trivy config
+        args:
+          - --severity=HIGH,CRITICAL
+          - --exit-code=1
+          - --ignorefile=.trivyignore
+        files: ^terraform/
+        pass_filenames: true
+        language: system
+
+  # TypeScript/JavaScript hooks (for CDK and frontend)
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.17.0
+    hooks:
+      - id: eslint
+        files: \.(ts|tsx|js|jsx)$
+        exclude: ^(node_modules|dist|build|\.next)/
+        additional_dependencies:
+          - eslint@9
+          - typescript
+
+  # Go hooks (for Lambda functions)
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+        files: ^go-functions/
+      - id: go-vet
+        files: ^go-functions/
+      - id: go-mod-tidy
+        files: ^go-functions/
+
+# CI configuration
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false

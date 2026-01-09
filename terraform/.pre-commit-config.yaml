@@ -1,0 +1,115 @@
+# Pre-commit Configuration for Terraform Infrastructure
+# Requirements: 12.2, 12.5, 11.5
+#
+# This file configures pre-commit hooks for local development:
+# - Terraform formatting and validation
+# - Trivy security scanning (HIGH/CRITICAL severity)
+# - terraform-docs documentation generation
+#
+# Installation:
+#   pip install pre-commit
+#   cd terraform
+#   pre-commit install
+#
+# Manual run:
+#   pre-commit run --all-files
+
+default_stages: [commit]
+
+repos:
+  # ======================================
+  # Terraform Formatting and Validation
+  # ======================================
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.96.2
+    hooks:
+      # Format Terraform files
+      - id: terraform_fmt
+        name: Terraform Format
+        description: Format Terraform configuration files
+
+      # Validate Terraform configuration
+      - id: terraform_validate
+        name: Terraform Validate
+        description: Validate Terraform configuration syntax
+        args:
+          - --hook-config=--retry-once-with-cleanup=true
+
+      # Generate module documentation
+      - id: terraform_docs
+        name: Terraform Docs
+        description: Generate documentation for Terraform modules
+        args:
+          - --hook-config=--path-to-file=README.md
+          - --hook-config=--add-to-existing-file=true
+          - --hook-config=--create-file-if-not-exist=true
+
+  # ======================================
+  # Trivy Security Scanning (Phase 2)
+  # ======================================
+  # Blocks HIGH and CRITICAL severity vulnerabilities
+  # See .trivyignore for exceptions
+  - repo: https://github.com/aquasecurity/trivy
+    rev: v0.58.2
+    hooks:
+      - id: trivy-config
+        name: Trivy IaC Scan
+        description: Scan Terraform configuration for security vulnerabilities
+        entry: trivy config
+        language: system
+        types: [terraform]
+        args:
+          # Scan severity thresholds
+          - --severity=HIGH,CRITICAL
+          # Exit with non-zero code if issues found
+          - --exit-code=1
+          # Use .trivyignore for exceptions
+          - --ignorefile=.trivyignore
+          # Output format
+          - --format=table
+          # Skip non-Terraform files
+          - --skip-dirs=.terraform
+          - --skip-dirs=docs
+          # Scan current directory
+          - .
+        pass_filenames: false
+
+  # ======================================
+  # General Pre-commit Hooks
+  # ======================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Remove trailing whitespace
+      - id: trailing-whitespace
+        name: Trailing Whitespace
+        types: [terraform, markdown, yaml]
+
+      # Ensure files end with newline
+      - id: end-of-file-fixer
+        name: End of File Fixer
+        types: [terraform, markdown, yaml]
+
+      # Check YAML syntax
+      - id: check-yaml
+        name: Check YAML
+        args: [--allow-multiple-documents]
+
+      # Check for large files
+      - id: check-added-large-files
+        name: Check Large Files
+        args: [--maxkb=500]
+
+      # Prevent commits to main/develop branches
+      - id: no-commit-to-branch
+        name: No Commit to Protected Branches
+        args: [--branch=main, --branch=develop]
+
+# ======================================
+# CI/CD Skip Configuration
+# ======================================
+# To skip hooks in CI (if needed):
+#   SKIP=trivy-config git commit -m "message"
+#
+# To run specific hook:
+#   pre-commit run terraform_fmt --all-files
