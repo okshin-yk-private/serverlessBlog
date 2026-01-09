@@ -171,69 +171,80 @@ resource "aws_cloudwatch_log_group" "delete_image" {
 # ======================
 
 data "archive_file" "create_post" {
-  type        = "zip"
-  source_file = "${var.go_binary_path}/${local.lambda_functions.create_post.binary_name}/bootstrap"
-  output_path = "${path.module}/.terraform/tmp/${local.lambda_functions.create_post.binary_name}.zip"
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.create_post.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.create_post.binary_name}.zip"
+  output_file_mode = "0644"
 }
 
 data "archive_file" "get_post" {
-  type        = "zip"
-  source_file = "${var.go_binary_path}/${local.lambda_functions.get_post.binary_name}/bootstrap"
-  output_path = "${path.module}/.terraform/tmp/${local.lambda_functions.get_post.binary_name}.zip"
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.get_post.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.get_post.binary_name}.zip"
+  output_file_mode = "0644"
 }
 
 data "archive_file" "get_public_post" {
-  type        = "zip"
-  source_file = "${var.go_binary_path}/${local.lambda_functions.get_public_post.binary_name}/bootstrap"
-  output_path = "${path.module}/.terraform/tmp/${local.lambda_functions.get_public_post.binary_name}.zip"
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.get_public_post.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.get_public_post.binary_name}.zip"
+  output_file_mode = "0644"
 }
 
 data "archive_file" "list_posts" {
-  type        = "zip"
-  source_file = "${var.go_binary_path}/${local.lambda_functions.list_posts.binary_name}/bootstrap"
-  output_path = "${path.module}/.terraform/tmp/${local.lambda_functions.list_posts.binary_name}.zip"
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.list_posts.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.list_posts.binary_name}.zip"
+  output_file_mode = "0644"
 }
 
 data "archive_file" "update_post" {
-  type        = "zip"
-  source_file = "${var.go_binary_path}/${local.lambda_functions.update_post.binary_name}/bootstrap"
-  output_path = "${path.module}/.terraform/tmp/${local.lambda_functions.update_post.binary_name}.zip"
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.update_post.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.update_post.binary_name}.zip"
+  output_file_mode = "0644"
 }
 
 data "archive_file" "delete_post" {
-  type        = "zip"
-  source_file = "${var.go_binary_path}/${local.lambda_functions.delete_post.binary_name}/bootstrap"
-  output_path = "${path.module}/.terraform/tmp/${local.lambda_functions.delete_post.binary_name}.zip"
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.delete_post.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.delete_post.binary_name}.zip"
+  output_file_mode = "0644"
 }
 
 data "archive_file" "login" {
-  type        = "zip"
-  source_file = "${var.go_binary_path}/${local.lambda_functions.login.binary_name}/bootstrap"
-  output_path = "${path.module}/.terraform/tmp/${local.lambda_functions.login.binary_name}.zip"
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.login.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.login.binary_name}.zip"
+  output_file_mode = "0644"
 }
 
 data "archive_file" "logout" {
-  type        = "zip"
-  source_file = "${var.go_binary_path}/${local.lambda_functions.logout.binary_name}/bootstrap"
-  output_path = "${path.module}/.terraform/tmp/${local.lambda_functions.logout.binary_name}.zip"
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.logout.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.logout.binary_name}.zip"
+  output_file_mode = "0644"
 }
 
 data "archive_file" "refresh" {
-  type        = "zip"
-  source_file = "${var.go_binary_path}/${local.lambda_functions.refresh.binary_name}/bootstrap"
-  output_path = "${path.module}/.terraform/tmp/${local.lambda_functions.refresh.binary_name}.zip"
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.refresh.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.refresh.binary_name}.zip"
+  output_file_mode = "0644"
 }
 
 data "archive_file" "get_upload_url" {
-  type        = "zip"
-  source_file = "${var.go_binary_path}/${local.lambda_functions.get_upload_url.binary_name}/bootstrap"
-  output_path = "${path.module}/.terraform/tmp/${local.lambda_functions.get_upload_url.binary_name}.zip"
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.get_upload_url.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.get_upload_url.binary_name}.zip"
+  output_file_mode = "0644"
 }
 
 data "archive_file" "delete_image" {
-  type        = "zip"
-  source_file = "${var.go_binary_path}/${local.lambda_functions.delete_image.binary_name}/bootstrap"
-  output_path = "${path.module}/.terraform/tmp/${local.lambda_functions.delete_image.binary_name}.zip"
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.delete_image.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.delete_image.binary_name}.zip"
+  output_file_mode = "0644"
 }
 
 # ======================
