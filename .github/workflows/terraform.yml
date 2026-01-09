@@ -371,21 +371,7 @@ jobs:
               statusEmoji = '✅';
             }
 
-            const output = `## ${statusEmoji} Terraform Plan (DEV)
-
-### Summary
-${summary}
-
-<details>
-<summary>Show Plan Details</summary>
-
-\`\`\`hcl
-${plan}
-\`\`\`
-
-</details>
-
-*Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            const output = `## ${statusEmoji} Terraform Plan (DEV)\n\n### Summary\n${summary}\n\n<details>\n<summary>Show Plan Details</summary>\n\n\`\`\`hcl\n${plan}\n\`\`\`\n\n</details>\n\n*Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -516,23 +502,7 @@ ${plan}
               statusEmoji = '✅';
             }
 
-            const output = `## ${statusEmoji} Terraform Plan (PRD) - PRODUCTION
-
-### Summary
-${summary}
-
-> ⚠️ **This plan affects PRODUCTION infrastructure. Review carefully!**
-
-<details>
-<summary>Show Plan Details</summary>
-
-\`\`\`hcl
-${plan}
-\`\`\`
-
-</details>
-
-*Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            const output = `## ${statusEmoji} Terraform Plan (PRD) - PRODUCTION\n\n### Summary\n${summary}\n\n> ⚠️ **This plan affects PRODUCTION infrastructure. Review carefully!**\n\n<details>\n<summary>Show Plan Details</summary>\n\n\`\`\`hcl\n${plan}\n\`\`\`\n\n</details>\n\n*Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,

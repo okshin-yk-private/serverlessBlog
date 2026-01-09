@@ -19,16 +19,15 @@
 # 5. Verify the state matches the actual AWS resource
 # 6. Comment out or remove the import blocks after successful import
 
-# Uncomment the following block to import the existing Cognito User Pool
+# Import blocks moved to environments/dev/import.tf (root module)
 # import {
 #   to = aws_cognito_user_pool.main
-#   id = "ap-northeast-1_XXXXXXXXX"  # Replace with actual User Pool ID from CDK deployment
+#   id = "ap-northeast-1_GWhOM3BpU"
 # }
-
-# Uncomment the following block to import the existing Cognito User Pool Client
+#
 # import {
 #   to = aws_cognito_user_pool_client.main
-#   id = "ap-northeast-1_XXXXXXXXX/YYYYYYYYYYYYYYYYYYYYYYYYY"  # Format: {user_pool_id}/{client_id}
+#   id = "ap-northeast-1_GWhOM3BpU/7mp44ekvp0pgmv20hv1bm10h78"
 # }
 
 # Migration Notes:
