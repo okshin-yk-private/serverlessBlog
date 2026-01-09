@@ -132,6 +132,30 @@ run "api_outputs_for_cdn_and_lambda" {
     environment           = "dev"
     stage_name            = "dev"
     cognito_user_pool_arn = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
+
+    # Lambda function ARNs (required for API Gateway integrations)
+    lambda_create_post_arn            = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-post-go"
+    lambda_create_post_invoke_arn     = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-post-go/invocations"
+    lambda_list_posts_arn             = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-posts-go"
+    lambda_list_posts_invoke_arn      = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-posts-go/invocations"
+    lambda_get_post_arn               = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-post-go"
+    lambda_get_post_invoke_arn        = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-post-go/invocations"
+    lambda_get_public_post_arn        = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-public-post-go"
+    lambda_get_public_post_invoke_arn = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-public-post-go/invocations"
+    lambda_update_post_arn            = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-post-go"
+    lambda_update_post_invoke_arn     = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-post-go/invocations"
+    lambda_delete_post_arn            = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-post-go"
+    lambda_delete_post_invoke_arn     = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-post-go/invocations"
+    lambda_login_arn                  = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go"
+    lambda_login_invoke_arn           = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go/invocations"
+    lambda_logout_arn                 = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-logout-go"
+    lambda_logout_invoke_arn          = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-logout-go/invocations"
+    lambda_refresh_arn                = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-refresh-go"
+    lambda_refresh_invoke_arn         = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-refresh-go/invocations"
+    lambda_get_upload_url_arn         = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-upload-url-go"
+    lambda_get_upload_url_invoke_arn  = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-upload-url-go/invocations"
+    lambda_delete_image_arn           = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-image-go"
+    lambda_delete_image_invoke_arn    = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-image-go/invocations"
   }
 
   # Verify stage_name output matches input (known value)
