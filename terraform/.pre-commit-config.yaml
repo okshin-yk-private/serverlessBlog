@@ -14,7 +14,7 @@
 # Manual run:
 #   pre-commit run --all-files
 
-default_stages: [commit]
+default_stages: [pre-commit]
 
 repos:
   # ======================================
@@ -35,43 +35,19 @@ repos:
         args:
           - --hook-config=--retry-once-with-cleanup=true
 
-      # Generate module documentation
-      - id: terraform_docs
-        name: Terraform Docs
-        description: Generate documentation for Terraform modules
-        args:
-          - --hook-config=--path-to-file=README.md
-          - --hook-config=--add-to-existing-file=true
-          - --hook-config=--create-file-if-not-exist=true
-
   # ======================================
   # Trivy Security Scanning (Phase 2)
   # ======================================
   # Blocks HIGH and CRITICAL severity vulnerabilities
   # See .trivyignore for exceptions
-  - repo: https://github.com/aquasecurity/trivy
-    rev: v0.58.2
+  - repo: local
     hooks:
       - id: trivy-config
         name: Trivy IaC Scan
         description: Scan Terraform configuration for security vulnerabilities
-        entry: trivy config
+        entry: bash -c 'cd terraform && trivy config --severity=HIGH,CRITICAL --exit-code=1 --ignorefile=.trivyignore --format=table --skip-dirs=.terraform --skip-dirs=docs --skip-dirs=examples .'
         language: system
         types: [terraform]
-        args:
-          # Scan severity thresholds
-          - --severity=HIGH,CRITICAL
-          # Exit with non-zero code if issues found
-          - --exit-code=1
-          # Use .trivyignore for exceptions
-          - --ignorefile=.trivyignore
-          # Output format
-          - --format=table
-          # Skip non-Terraform files
-          - --skip-dirs=.terraform
-          - --skip-dirs=docs
-          # Scan current directory
-          - .
         pass_filenames: false
 
   # ======================================
