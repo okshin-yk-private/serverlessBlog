@@ -124,7 +124,10 @@ graph TB
 #### バックエンド技術スタック
 
 | レイヤー | 技術選定 | 根拠 | 検討した代替案 |
-|---------|---------|------|---------------|
+|---------|------最近の下書き
+test記事
+life2026/01/07
+編---|------|---------------|
 | **ランタイム** | Node.js 22.x | 最新LTS、Lambdaネイティブサポート、非同期I/O最適化 | Deno（Lambda非対応）、Bun（安定性未確認） |
 | **言語** | TypeScript (strict mode) | 型安全性、IDE支援、保守性向上 | JavaScript（型安全性なし） |
 | **Infrastructure as Code** | AWS CDK v2 (TypeScript) | 型安全なインフラ定義、再利用可能なコンストラクト | CloudFormation（冗長）、Terraform（AWS統合弱い） |

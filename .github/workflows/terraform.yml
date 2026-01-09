@@ -1,0 +1,607 @@
+# Terraform CI/CD Workflow
+# Requirements: 10.1, 10.2, 10.3, 10.4, 10.5
+# - 10.1: develop branch push triggers terraform fmt, validate, plan
+# - 10.2: main branch merge triggers production deploy with approval
+# - 10.3: OIDC authentication for AWS credentials
+# - 10.4: Terraform plan output stored as artifacts
+# - 10.5: terraform test execution for module validation
+#
+# This workflow runs Terraform operations for infrastructure management
+# - Feature branches/PRs: fmt, validate, plan (preview changes)
+# - develop branch: auto deploy to DEV environment
+# - main branch: deploy to PRD environment with manual approval
+
+name: Terraform CI/CD
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform.yml'
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment (dev/prd)'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prd
+
+# AWS OIDC authentication permissions
+permissions:
+  id-token: write       # Required for OIDC token
+  contents: read        # Required for checkout
+  pull-requests: write  # Required for PR comments
+
+env:
+  TERRAFORM_VERSION: '1.14.0'
+  AWS_REGION: 'ap-northeast-1'
+
+jobs:
+  # =======================================
+  # Job 1: Terraform Format Check
+  # Requirement 10.1: terraform fmt check
+  # =======================================
+  fmt:
+    name: Terraform Format Check
+    runs-on: ubuntu-latest
+    outputs:
+      fmt-outcome: ${{ steps.fmt.outcome }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Format Check
+        id: fmt
+        run: |
+          echo "========================================="
+          echo "Terraform Format Check"
+          echo "========================================="
+          cd terraform
+          terraform fmt -check -recursive -diff
+          echo "✓ All Terraform files are properly formatted"
+
+  # =======================================
+  # Job 2: Terraform Validate
+  # Requirement 10.1: terraform validate
+  # =======================================
+  validate:
+    name: Terraform Validate
+    runs-on: ubuntu-latest
+    needs: [fmt]
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, prd]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Init (backend disabled)
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: |
+          echo "========================================="
+          echo "Terraform Init (${{ matrix.environment }})"
+          echo "========================================="
+          terraform init -backend=false
+          echo "✓ Terraform initialized successfully"
+
+      - name: Terraform Validate
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: |
+          echo "========================================="
+          echo "Terraform Validate (${{ matrix.environment }})"
+          echo "========================================="
+          terraform validate
+          echo "✓ Configuration is valid"
+
+  # =======================================
+  # Job 3: Checkov Security Scan
+  # Requirements: 12.1, 12.4
+  # - 12.1: Integrate Checkov for CI security scanning
+  # - 12.4: Centralized skip rule management via .checkov.yaml
+  # Note: 12.3 (SARIF upload) removed - requires GitHub Advanced Security (paid)
+  # =======================================
+  security-scan:
+    name: Checkov Security Scan
+    runs-on: ubuntu-latest
+    needs: [validate]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Checkov Security Scan
+        id: checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform
+          config_file: terraform/.checkov.yaml
+          # Phase 1: soft_fail mode for visibility (Requirement 12.3)
+          # Will be changed to false in Phase 3 for hard fail
+          soft_fail: true
+          # SARIF output for GitHub Security tab (Requirement 12.1)
+          output_format: cli,sarif
+          output_file_path: console,results.sarif
+          # Download external modules for complete scanning
+          download_external_modules: false
+          # Log level for debugging
+          log_level: WARNING
+
+      # Note: SARIF upload to GitHub Security tab removed
+      # GitHub Advanced Security is required for private repositories (paid feature)
+      # Checkov results are available in the workflow logs instead
+
+      - name: Checkov Summary
+        if: always()
+        run: |
+          echo "========================================="
+          echo "Checkov Security Scan Summary"
+          echo "========================================="
+          echo ""
+          echo "Phase: 1 (CI Visibility - soft_fail mode)"
+          echo "Config: terraform/.checkov.yaml"
+          echo ""
+          echo "Note: Review Checkov results in the workflow logs above"
+          echo ""
+          if [ "${{ steps.checkov.outcome }}" == "success" ]; then
+            echo "✓ No security issues detected (or all within skip rules)"
+          else
+            echo "⚠ Security issues detected - review Checkov output above"
+            echo "This is Phase 1: soft_fail mode - build continues"
+          fi
+
+  # =======================================
+  # Job 4: Terraform Test (Module Validation)
+  # Requirement 10.5: terraform test for module validation
+  # =======================================
+  test:
+    name: Terraform Test
+    runs-on: ubuntu-latest
+    needs: [validate]
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Run Terraform Tests
+        working-directory: terraform
+        run: |
+          echo "========================================="
+          echo "Terraform Module Tests"
+          echo "========================================="
+
+          # Initialize for testing (no backend needed for mock tests)
+          terraform init -backend=false
+
+          # Check if test files exist
+          if find . -name "*.tftest.hcl" -type f | head -1 | grep -q .; then
+            echo "Running terraform test..."
+            terraform test
+            echo "✓ All module tests passed"
+          else
+            echo "ℹ No test files found (.tftest.hcl)"
+            echo "Skipping terraform test execution"
+          fi
+
+  # =======================================
+  # Job 4: Terraform Plan (DEV)
+  # Requirement 10.1, 10.4: terraform plan with artifact
+  # =======================================
+  plan-dev:
+    name: Terraform Plan (DEV)
+    runs-on: ubuntu-latest
+    needs: [validate]
+    environment: dev
+    if: |
+      (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/develop') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+    outputs:
+      plan-exitcode: ${{ steps.plan.outputs.exitcode }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      # Requirement 10.3: OIDC authentication
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-TerraformPlan-DEV
+
+      - name: Terraform Init
+        working-directory: terraform/environments/dev
+        run: |
+          echo "========================================="
+          echo "Terraform Init (DEV)"
+          echo "========================================="
+          terraform init
+          echo "✓ Terraform initialized with remote state"
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: terraform/environments/dev
+        run: |
+          echo "========================================="
+          echo "Terraform Plan (DEV)"
+          echo "========================================="
+          terraform plan -out=tfplan.binary -detailed-exitcode || exitcode=$?
+
+          # Convert binary plan to JSON for review
+          terraform show -json tfplan.binary > tfplan.json
+
+          # Generate human-readable plan
+          terraform show tfplan.binary > tfplan.txt
+
+          echo "exitcode=${exitcode:-0}" >> $GITHUB_OUTPUT
+
+          if [ "${exitcode:-0}" -eq 2 ]; then
+            echo "ℹ Changes detected in plan"
+          elif [ "${exitcode:-0}" -eq 0 ]; then
+            echo "✓ No changes detected"
+          fi
+
+      # Requirement 10.4: Save plan as artifact
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-dev
+          path: |
+            terraform/environments/dev/tfplan.binary
+            terraform/environments/dev/tfplan.json
+            terraform/environments/dev/tfplan.txt
+          retention-days: 7
+
+      - name: Comment Plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const planPath = 'terraform/environments/dev/tfplan.txt';
+            let plan = '';
+
+            if (fs.existsSync(planPath)) {
+              plan = fs.readFileSync(planPath, 'utf8');
+              // Truncate if too long
+              if (plan.length > 60000) {
+                plan = plan.substring(0, 60000) + '\n\n... (truncated)';
+              }
+            }
+
+            const output = `## Terraform Plan (DEV) 📋
+
+            \`\`\`hcl
+            ${plan}
+            \`\`\`
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+  # =======================================
+  # Job 5: Terraform Plan (PRD)
+  # Requirement 10.1, 10.4: terraform plan with artifact
+  # =======================================
+  plan-prd:
+    name: Terraform Plan (PRD)
+    runs-on: ubuntu-latest
+    needs: [validate]
+    environment: prod
+    if: |
+      (github.event_name == 'pull_request' && github.base_ref == 'main') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prd')
+    outputs:
+      plan-exitcode: ${{ steps.plan.outputs.exitcode }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      # Requirement 10.3: OIDC authentication
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-TerraformPlan-PRD
+
+      - name: Terraform Init
+        working-directory: terraform/environments/prd
+        run: |
+          echo "========================================="
+          echo "Terraform Init (PRD)"
+          echo "========================================="
+          terraform init
+          echo "✓ Terraform initialized with remote state"
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: terraform/environments/prd
+        run: |
+          echo "========================================="
+          echo "Terraform Plan (PRD)"
+          echo "========================================="
+          terraform plan -out=tfplan.binary -detailed-exitcode || exitcode=$?
+
+          # Convert binary plan to JSON for review
+          terraform show -json tfplan.binary > tfplan.json
+
+          # Generate human-readable plan
+          terraform show tfplan.binary > tfplan.txt
+
+          echo "exitcode=${exitcode:-0}" >> $GITHUB_OUTPUT
+
+          if [ "${exitcode:-0}" -eq 2 ]; then
+            echo "ℹ Changes detected in plan"
+          elif [ "${exitcode:-0}" -eq 0 ]; then
+            echo "✓ No changes detected"
+          fi
+
+      # Requirement 10.4: Save plan as artifact
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-prd
+          path: |
+            terraform/environments/prd/tfplan.binary
+            terraform/environments/prd/tfplan.json
+            terraform/environments/prd/tfplan.txt
+          retention-days: 7
+
+      - name: Comment Plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const planPath = 'terraform/environments/prd/tfplan.txt';
+            let plan = '';
+
+            if (fs.existsSync(planPath)) {
+              plan = fs.readFileSync(planPath, 'utf8');
+              // Truncate if too long
+              if (plan.length > 60000) {
+                plan = plan.substring(0, 60000) + '\n\n... (truncated)';
+              }
+            }
+
+            const output = `## Terraform Plan (PRD) 📋
+
+            ⚠️ **PRODUCTION CHANGES**
+
+            \`\`\`hcl
+            ${plan}
+            \`\`\`
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+  # =======================================
+  # Job 6: Terraform Apply (DEV) - Auto Deploy
+  # Requirement 10.2: Auto deploy to DEV on develop branch push
+  # =======================================
+  apply-dev:
+    name: Terraform Apply (DEV)
+    runs-on: ubuntu-latest
+    needs: [plan-dev, test]
+    environment: dev
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/develop') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      # Requirement 10.3: OIDC authentication
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-TerraformApply-DEV
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan-dev
+          path: terraform/environments/dev
+
+      - name: Terraform Init
+        working-directory: terraform/environments/dev
+        run: |
+          echo "========================================="
+          echo "Terraform Init (DEV)"
+          echo "========================================="
+          terraform init
+          echo "✓ Terraform initialized"
+
+      - name: Terraform Apply
+        working-directory: terraform/environments/dev
+        run: |
+          echo "========================================="
+          echo "Terraform Apply (DEV)"
+          echo "========================================="
+          terraform apply -auto-approve tfplan.binary
+          echo "✓ Terraform apply completed successfully"
+
+      - name: Deployment Summary
+        if: success()
+        run: |
+          echo "========================================="
+          echo "✓ DEV Infrastructure Deployment Complete!"
+          echo "========================================="
+          echo ""
+          echo "Environment: dev"
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo "Git Branch: ${{ github.ref_name }}"
+          echo "Commit SHA: ${{ github.sha }}"
+
+  # =======================================
+  # Job 7: Terraform Apply (PRD) - Manual Approval
+  # Requirement 10.2: Deploy to PRD with approval on main branch
+  # =======================================
+  apply-prd:
+    name: Terraform Apply (PRD)
+    runs-on: ubuntu-latest
+    needs: [plan-prd, test]
+    environment:
+      name: prod
+      # Manual approval is configured in GitHub environment settings
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prd')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      # Requirement 10.3: OIDC authentication
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-TerraformApply-PRD
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan-prd
+          path: terraform/environments/prd
+
+      - name: Terraform Init
+        working-directory: terraform/environments/prd
+        run: |
+          echo "========================================="
+          echo "Terraform Init (PRD)"
+          echo "========================================="
+          terraform init
+          echo "✓ Terraform initialized"
+
+      - name: Terraform Apply
+        working-directory: terraform/environments/prd
+        run: |
+          echo "========================================="
+          echo "⚠️  Terraform Apply (PRODUCTION)"
+          echo "========================================="
+          terraform apply -auto-approve tfplan.binary
+          echo "✓ Terraform apply completed successfully"
+
+      - name: Deployment Summary
+        if: success()
+        run: |
+          echo "========================================="
+          echo "✓ PRODUCTION Infrastructure Deployment Complete!"
+          echo "========================================="
+          echo ""
+          echo "⚠️  PRODUCTION DEPLOYMENT SUCCESSFUL"
+          echo ""
+          echo "Environment: prd"
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo "Git Branch: ${{ github.ref_name }}"
+          echo "Commit SHA: ${{ github.sha }}"
+
+  # =======================================
+  # Job 9: CI Success Summary
+  # =======================================
+  terraform-ci-success:
+    name: Terraform CI Checks Passed
+    runs-on: ubuntu-latest
+    needs:
+      - fmt
+      - validate
+      - security-scan
+      - test
+    if: always() && github.event_name == 'pull_request'
+    steps:
+      - name: Check job results
+        run: |
+          echo "========================================="
+          echo "Terraform CI Results Summary"
+          echo "========================================="
+          echo ""
+          echo "Format Check: ${{ needs.fmt.result }}"
+          echo "Validate: ${{ needs.validate.result }}"
+          echo "Security Scan: ${{ needs.security-scan.result }}"
+          echo "Test: ${{ needs.test.result }}"
+          echo ""
+
+          # Check if any required job failed
+          # Note: security-scan uses soft_fail, so it won't block the build
+          if [ "${{ needs.fmt.result }}" == "failure" ] || \
+             [ "${{ needs.validate.result }}" == "failure" ] || \
+             [ "${{ needs.test.result }}" == "failure" ]; then
+            echo "❌ One or more Terraform CI checks failed"
+            exit 1
+          fi
+
+          # Report security scan status (informational in Phase 1)
+          if [ "${{ needs.security-scan.result }}" == "failure" ]; then
+            echo "⚠ Security scan detected issues (see GitHub Security tab)"
+            echo "  This is Phase 1: soft_fail mode - build continues"
+          fi
+
+          echo "========================================="
+          echo "✓ All Terraform CI Checks Passed!"
+          echo "========================================="
