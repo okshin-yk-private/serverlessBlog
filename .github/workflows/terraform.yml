@@ -48,6 +48,7 @@ permissions:
 env:
   TERRAFORM_VERSION: '1.14.0'
   AWS_REGION: 'ap-northeast-1'
+  GO_VERSION: '1.25.5'
 
 jobs:
   # =======================================
@@ -77,6 +78,41 @@ jobs:
           cd terraform
           terraform fmt -check -recursive -diff
           echo "✓ All Terraform files are properly formatted"
+
+  # =======================================
+  # Job: Build Go Lambda Binaries
+  # Required for terraform plan (archive_file data sources)
+  # =======================================
+  build-go-lambdas:
+    name: Build Go Lambda Binaries
+    runs-on: ubuntu-latest
+    needs: [fmt]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+          cache-dependency-path: go-functions/go.sum
+
+      - name: Build Lambda binaries
+        working-directory: go-functions
+        run: |
+          echo "========================================="
+          echo "Building Go Lambda Functions"
+          echo "========================================="
+          make build
+          echo "✓ Lambda binaries built successfully"
+
+      - name: Upload Lambda binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda-binaries
+          path: go-functions/bin/
+          retention-days: 1
 
   # =======================================
   # Job 2: Terraform Validate (DEV)
@@ -256,7 +292,7 @@ jobs:
   plan-dev:
     name: Terraform Plan (DEV)
     runs-on: ubuntu-latest
-    needs: [validate-dev]
+    needs: [validate-dev, build-go-lambdas]
     environment: dev
     if: |
       (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
@@ -267,6 +303,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Download Lambda binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda-binaries
+          path: go-functions/bin
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -387,7 +429,7 @@ jobs:
   plan-prd:
     name: Terraform Plan (PRD)
     runs-on: ubuntu-latest
-    needs: [validate-prd]
+    needs: [validate-prd, build-go-lambdas]
     environment: prod
     if: |
       (github.event_name == 'pull_request' && github.base_ref == 'main') ||
@@ -398,6 +440,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Download Lambda binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda-binaries
+          path: go-functions/bin
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
