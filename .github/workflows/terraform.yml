@@ -44,7 +44,6 @@ permissions:
   id-token: write       # Required for OIDC token
   contents: read        # Required for checkout
   pull-requests: write  # Required for PR comments
-  security-events: write # Required for SARIF upload to GitHub Security tab (Requirement 12.1)
 
 env:
   TERRAFORM_VERSION: '1.14.0'
@@ -120,10 +119,10 @@ jobs:
 
   # =======================================
   # Job 3: Checkov Security Scan
-  # Requirements: 12.1, 12.3, 12.4
+  # Requirements: 12.1, 12.4
   # - 12.1: Integrate Checkov for CI security scanning
-  # - 12.3: Send SARIF output to GitHub Security tab
   # - 12.4: Centralized skip rule management via .checkov.yaml
+  # Note: 12.3 (SARIF upload) removed - requires GitHub Advanced Security (paid)
   # =======================================
   security-scan:
     name: Checkov Security Scan
@@ -150,12 +149,9 @@ jobs:
           # Log level for debugging
           log_level: WARNING
 
-      - name: Upload SARIF to GitHub Security tab
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: results.sarif
-          category: checkov-terraform
+      # Note: SARIF upload to GitHub Security tab removed
+      # GitHub Advanced Security is required for private repositories (paid feature)
+      # Checkov results are available in the workflow logs instead
 
       - name: Checkov Summary
         if: always()
@@ -167,13 +163,12 @@ jobs:
           echo "Phase: 1 (CI Visibility - soft_fail mode)"
           echo "Config: terraform/.checkov.yaml"
           echo ""
-          echo "Note: Results are uploaded to GitHub Security tab"
-          echo "Navigate to Security > Code scanning alerts to review"
+          echo "Note: Review Checkov results in the workflow logs above"
           echo ""
           if [ "${{ steps.checkov.outcome }}" == "success" ]; then
             echo "✓ No security issues detected (or all within skip rules)"
           else
-            echo "⚠ Security issues detected - review in GitHub Security tab"
+            echo "⚠ Security issues detected - review Checkov output above"
             echo "This is Phase 1: soft_fail mode - build continues"
           fi
 
