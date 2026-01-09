@@ -202,6 +202,9 @@ jobs:
           echo "Terraform Module Tests"
           echo "========================================="
 
+          # Initialize for testing (no backend needed for mock tests)
+          terraform init -backend=false
+
           # Check if test files exist
           if find . -name "*.tftest.hcl" -type f | head -1 | grep -q .; then
             echo "Running terraform test..."
