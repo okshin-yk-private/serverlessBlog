@@ -15,10 +15,10 @@
 # 4. Verify the state matches the actual AWS resource
 # 5. Comment out or remove the import block after successful import
 
-# Uncomment the following block to import the existing DynamoDB table
+# Import blocks moved to environments/dev/import.tf (root module)
 # import {
 #   to = aws_dynamodb_table.blog_posts
-#   id = "serverless-blog-posts"  # Replace with actual table name from CDK deployment
+#   id = "serverless-blog-posts"
 # }
 
 # Migration Notes:

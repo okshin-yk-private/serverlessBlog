@@ -19,31 +19,8 @@
 # 4. Verify the state matches the actual AWS resource
 # 5. Comment out or remove the import blocks after successful import
 
-# Uncomment the following blocks to import existing S3 buckets
-
-# Image Bucket
-# import {
-#   to = aws_s3_bucket.images
-#   id = "serverless-blog-images-dev-123456789012"  # Replace with actual bucket name
-# }
-
-# Public Site Bucket
-# import {
-#   to = aws_s3_bucket.public_site
-#   id = "serverless-blog-public-site-dev-123456789012"  # Replace with actual bucket name
-# }
-
-# Admin Site Bucket
-# import {
-#   to = aws_s3_bucket.admin_site
-#   id = "serverless-blog-admin-site-dev-123456789012"  # Replace with actual bucket name
-# }
-
-# Access Logs Bucket (only if enable_access_logs = true)
-# import {
-#   to = aws_s3_bucket.access_logs[0]
-#   id = "serverless-blog-access-logs-dev-123456789012"  # Replace with actual bucket name
-# }
+# Import blocks moved to environments/dev/import.tf (root module)
+# See environments/dev/import.tf for active import blocks
 
 # Migration Notes:
 # - CDK bucket naming pattern: serverless-blog-{type}-{stage}-{account_id}

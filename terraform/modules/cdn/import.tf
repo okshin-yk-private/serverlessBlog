@@ -21,69 +21,15 @@
 # 5. Verify the state matches the actual AWS resources
 # 6. Comment out or remove the import blocks after successful import
 
-# ====================
-# Step 1: Import CloudFront Distribution
-# ====================
-
-# Uncomment the following block to import the existing CloudFront Distribution
-# import {
-#   to = aws_cloudfront_distribution.main
-#   id = "EXXXXXXXXXX"  # Replace with actual distribution ID from CDK output
-# }
-
-# ====================
-# Step 2: Import Origin Access Control
-# ====================
-
-# Uncomment the following block to import the existing Origin Access Control
-# import {
-#   to = aws_cloudfront_origin_access_control.s3_oac
-#   id = "EXXXXXXXXXXXXXXX"  # Replace with actual OAC ID
-# }
-
-# ====================
-# Step 3: Import CloudFront Functions
-# ====================
-
-# Note: CloudFront Functions are imported by name
-
-# Uncomment to import Image Path Function
-# import {
-#   to = aws_cloudfront_function.image_path
-#   id = "ImagePathFunction-dev"  # Replace with actual function name
-# }
-
-# Uncomment to import Admin SPA Function
-# import {
-#   to = aws_cloudfront_function.admin_spa
-#   id = "AdminSpaFunction-dev"  # Replace with actual function name
-# }
-
-# Uncomment to import API Path Function
-# import {
-#   to = aws_cloudfront_function.api_path
-#   id = "ApiPathFunction-dev"  # Replace with actual function name
-# }
-
-# ====================
-# Step 4: Import Cache Policies
-# ====================
-
-# Uncomment to import Image Cache Policy
-# import {
-#   to = aws_cloudfront_cache_policy.images
-#   id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # Replace with actual cache policy ID
-# }
-
-# ====================
-# Step 5: Import Origin Request Policies
-# ====================
-
-# Uncomment to import API Origin Request Policy
-# import {
-#   to = aws_cloudfront_origin_request_policy.api
-#   id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # Replace with actual origin request policy ID
-# }
+# Import blocks moved to environments/dev/import.tf (root module)
+# See environments/dev/import.tf for active import blocks
+#
+# Resource IDs for reference:
+# - Distribution: ESRLM0CV5EBG7
+# - OAC: E3HGZ6IT0VJXIP (public-site)
+# - CloudFront Functions: ImagePathFunction-dev, AdminCombinedFunction-dev, ApiPathFunction-dev, BasicAuthFunction-dev
+# - Cache Policy: 073fd421-ac36-448c-a0f8-37033f73e2ee
+# - Origin Request Policy: 49da6566-5d17-4347-aecd-5fca52d2e527
 
 # ====================
 # Migration Notes
