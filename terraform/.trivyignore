@@ -23,9 +23,9 @@ AVD-AWS-0089
 # AVD-AWS-0090: S3 bucket does not have versioning enabled
 # Note: NOT ignored - versioning IS enabled on all buckets
 
-# AVD-AWS-0132: S3 bucket does not have cross-region replication configured
-# Justification: Same as CKV_AWS_145 - single-region application.
-# S3 versioning provides sufficient disaster recovery.
+# AVD-AWS-0132: S3 bucket does not encrypt data with customer managed key
+# Justification: AWS-managed keys (AES256) sufficient for blog content.
+# CMK adds cost and complexity without significant security benefit for non-PII data.
 AVD-AWS-0132
 
 # ======================================
@@ -112,6 +112,15 @@ AVD-AWS-0022
 # Justification: Same as CKV_AWS_158 - no PII in logs.
 # Default encryption is sufficient.
 AVD-AWS-0017
+
+# ======================================
+# SNS Rules
+# ======================================
+
+# AVD-AWS-0095: SNS topic does not have encryption enabled
+# Justification: Alarm notifications contain non-sensitive operational data.
+# CMK encryption adds cost without significant security benefit.
+AVD-AWS-0095
 
 # ======================================
 # General/Terraform Rules

@@ -6,7 +6,19 @@
 echo "=== Running lint-staged (format + lint) ==="
 npx lint-staged || exit 1
 
-# Step 2: Run component-specific tests based on staged files
+# Step 2: Run Terraform pre-commit hooks (trivy, fmt, validate) if terraform files changed
+if git diff --cached --name-only | grep -q '^terraform/'; then
+  echo ""
+  echo "=== Running Terraform pre-commit (trivy, fmt, validate) ==="
+  export PATH="/home/okshin/.local/bin:$PATH"
+  if command -v pre-commit >/dev/null 2>&1; then
+    (cd terraform && pre-commit run --files $(git diff --cached --name-only | grep '^terraform/' | sed 's|^terraform/||')) || exit 1
+  else
+    echo "⚠ pre-commit not installed. Run: uv tool install pre-commit"
+  fi
+fi
+
+# Step 3: Run component-specific tests based on staged files
 echo ""
 echo "=== Running pre-commit tests ==="
 .husky/scripts/pre-commit-tests.sh

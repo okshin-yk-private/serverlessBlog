@@ -79,17 +79,17 @@ jobs:
           echo "✓ All Terraform files are properly formatted"
 
   # =======================================
-  # Job 2: Terraform Validate
+  # Job 2: Terraform Validate (DEV)
   # Requirement 10.1: terraform validate
   # =======================================
-  validate:
-    name: Terraform Validate
+  validate-dev:
+    name: Terraform Validate (DEV)
     runs-on: ubuntu-latest
     needs: [fmt]
-    strategy:
-      fail-fast: false
-      matrix:
-        environment: [dev, prd]
+    if: |
+      (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/develop') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -100,19 +100,58 @@ jobs:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
       - name: Terraform Init (backend disabled)
-        working-directory: terraform/environments/${{ matrix.environment }}
+        working-directory: terraform/environments/dev
         run: |
           echo "========================================="
-          echo "Terraform Init (${{ matrix.environment }})"
+          echo "Terraform Init (dev)"
           echo "========================================="
           terraform init -backend=false
           echo "✓ Terraform initialized successfully"
 
       - name: Terraform Validate
-        working-directory: terraform/environments/${{ matrix.environment }}
+        working-directory: terraform/environments/dev
         run: |
           echo "========================================="
-          echo "Terraform Validate (${{ matrix.environment }})"
+          echo "Terraform Validate (dev)"
+          echo "========================================="
+          terraform validate
+          echo "✓ Configuration is valid"
+
+  # =======================================
+  # Job 2b: Terraform Validate (PRD)
+  # Requirement 10.1: terraform validate
+  # =======================================
+  validate-prd:
+    name: Terraform Validate (PRD)
+    runs-on: ubuntu-latest
+    needs: [fmt]
+    if: |
+      (github.event_name == 'pull_request' && github.base_ref == 'main') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prd')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Init (backend disabled)
+        working-directory: terraform/environments/prd
+        run: |
+          echo "========================================="
+          echo "Terraform Init (prd)"
+          echo "========================================="
+          terraform init -backend=false
+          echo "✓ Terraform initialized successfully"
+
+      - name: Terraform Validate
+        working-directory: terraform/environments/prd
+        run: |
+          echo "========================================="
+          echo "Terraform Validate (prd)"
           echo "========================================="
           terraform validate
           echo "✓ Configuration is valid"
@@ -127,7 +166,7 @@ jobs:
   security-scan:
     name: Checkov Security Scan
     runs-on: ubuntu-latest
-    needs: [validate]
+    needs: [fmt]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -179,7 +218,7 @@ jobs:
   test:
     name: Terraform Test
     runs-on: ubuntu-latest
-    needs: [validate]
+    needs: [fmt]
     if: github.event_name == 'pull_request' || github.event_name == 'push'
     steps:
       - name: Checkout code
@@ -217,7 +256,7 @@ jobs:
   plan-dev:
     name: Terraform Plan (DEV)
     runs-on: ubuntu-latest
-    needs: [validate]
+    needs: [validate-dev]
     environment: dev
     if: |
       (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
@@ -259,14 +298,17 @@ jobs:
           echo "========================================="
           echo "Terraform Plan (DEV)"
           echo "========================================="
-          terraform plan -out=tfplan.binary -detailed-exitcode || exitcode=$?
+          terraform plan -out=tfplan.binary -detailed-exitcode -no-color 2>&1 | tee tfplan_output.txt || exitcode=$?
 
           # Convert binary plan to JSON for review
           terraform show -json tfplan.binary > tfplan.json
 
-          # Generate human-readable plan
-          terraform show tfplan.binary > tfplan.txt
+          # Generate human-readable plan (no color for clean output)
+          terraform show -no-color tfplan.binary > tfplan.txt
 
+          # Extract summary line
+          summary=$(grep -E "^Plan:|^No changes" tfplan.txt || echo "Plan summary not available")
+          echo "summary=${summary}" >> $GITHUB_OUTPUT
           echo "exitcode=${exitcode:-0}" >> $GITHUB_OUTPUT
 
           if [ "${exitcode:-0}" -eq 2 ]; then
@@ -294,22 +336,56 @@ jobs:
             const fs = require('fs');
             const planPath = 'terraform/environments/dev/tfplan.txt';
             let plan = '';
+            let summary = '';
+            let resourceChanges = { add: 0, change: 0, destroy: 0 };
 
             if (fs.existsSync(planPath)) {
               plan = fs.readFileSync(planPath, 'utf8');
-              // Truncate if too long
+
+              // Extract summary from plan
+              const summaryMatch = plan.match(/Plan: (\d+) to add, (\d+) to change, (\d+) to destroy/);
+              if (summaryMatch) {
+                resourceChanges.add = parseInt(summaryMatch[1]);
+                resourceChanges.change = parseInt(summaryMatch[2]);
+                resourceChanges.destroy = parseInt(summaryMatch[3]);
+                summary = `**${resourceChanges.add}** to add, **${resourceChanges.change}** to change, **${resourceChanges.destroy}** to destroy`;
+              } else if (plan.includes('No changes')) {
+                summary = '✅ No changes. Infrastructure is up-to-date.';
+              } else {
+                summary = 'Plan summary not available';
+              }
+
+              // Truncate plan for display (keep it manageable)
               if (plan.length > 60000) {
-                plan = plan.substring(0, 60000) + '\n\n... (truncated)';
+                plan = plan.substring(0, 60000) + '\n\n... (truncated - see artifact for full plan)';
               }
             }
 
-            const output = `## Terraform Plan (DEV) 📋
+            // Build status emoji
+            let statusEmoji = '📋';
+            if (resourceChanges.destroy > 0) {
+              statusEmoji = '⚠️';
+            } else if (resourceChanges.add > 0 || resourceChanges.change > 0) {
+              statusEmoji = '📝';
+            } else {
+              statusEmoji = '✅';
+            }
 
-            \`\`\`hcl
-            ${plan}
-            \`\`\`
+            const output = `## ${statusEmoji} Terraform Plan (DEV)
 
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+### Summary
+${summary}
+
+<details>
+<summary>Show Plan Details</summary>
+
+\`\`\`hcl
+${plan}
+\`\`\`
+
+</details>
+
+*Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -325,7 +401,7 @@ jobs:
   plan-prd:
     name: Terraform Plan (PRD)
     runs-on: ubuntu-latest
-    needs: [validate]
+    needs: [validate-prd]
     environment: prod
     if: |
       (github.event_name == 'pull_request' && github.base_ref == 'main') ||
@@ -367,14 +443,17 @@ jobs:
           echo "========================================="
           echo "Terraform Plan (PRD)"
           echo "========================================="
-          terraform plan -out=tfplan.binary -detailed-exitcode || exitcode=$?
+          terraform plan -out=tfplan.binary -detailed-exitcode -no-color 2>&1 | tee tfplan_output.txt || exitcode=$?
 
           # Convert binary plan to JSON for review
           terraform show -json tfplan.binary > tfplan.json
 
-          # Generate human-readable plan
-          terraform show tfplan.binary > tfplan.txt
+          # Generate human-readable plan (no color for clean output)
+          terraform show -no-color tfplan.binary > tfplan.txt
 
+          # Extract summary line
+          summary=$(grep -E "^Plan:|^No changes" tfplan.txt || echo "Plan summary not available")
+          echo "summary=${summary}" >> $GITHUB_OUTPUT
           echo "exitcode=${exitcode:-0}" >> $GITHUB_OUTPUT
 
           if [ "${exitcode:-0}" -eq 2 ]; then
@@ -402,24 +481,58 @@ jobs:
             const fs = require('fs');
             const planPath = 'terraform/environments/prd/tfplan.txt';
             let plan = '';
+            let summary = '';
+            let resourceChanges = { add: 0, change: 0, destroy: 0 };
 
             if (fs.existsSync(planPath)) {
               plan = fs.readFileSync(planPath, 'utf8');
-              // Truncate if too long
+
+              // Extract summary from plan
+              const summaryMatch = plan.match(/Plan: (\d+) to add, (\d+) to change, (\d+) to destroy/);
+              if (summaryMatch) {
+                resourceChanges.add = parseInt(summaryMatch[1]);
+                resourceChanges.change = parseInt(summaryMatch[2]);
+                resourceChanges.destroy = parseInt(summaryMatch[3]);
+                summary = `**${resourceChanges.add}** to add, **${resourceChanges.change}** to change, **${resourceChanges.destroy}** to destroy`;
+              } else if (plan.includes('No changes')) {
+                summary = '✅ No changes. Infrastructure is up-to-date.';
+              } else {
+                summary = 'Plan summary not available';
+              }
+
+              // Truncate plan for display (keep it manageable)
               if (plan.length > 60000) {
-                plan = plan.substring(0, 60000) + '\n\n... (truncated)';
+                plan = plan.substring(0, 60000) + '\n\n... (truncated - see artifact for full plan)';
               }
             }
 
-            const output = `## Terraform Plan (PRD) 📋
+            // Build status emoji - PRD always shows warning
+            let statusEmoji = '🚨';
+            if (resourceChanges.destroy > 0) {
+              statusEmoji = '🚨';
+            } else if (resourceChanges.add > 0 || resourceChanges.change > 0) {
+              statusEmoji = '⚠️';
+            } else {
+              statusEmoji = '✅';
+            }
 
-            ⚠️ **PRODUCTION CHANGES**
+            const output = `## ${statusEmoji} Terraform Plan (PRD) - PRODUCTION
 
-            \`\`\`hcl
-            ${plan}
-            \`\`\`
+### Summary
+${summary}
 
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+> ⚠️ **This plan affects PRODUCTION infrastructure. Review carefully!**
+
+<details>
+<summary>Show Plan Details</summary>
+
+\`\`\`hcl
+${plan}
+\`\`\`
+
+</details>
+
+*Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -570,7 +683,8 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - fmt
-      - validate
+      - validate-dev
+      - validate-prd
       - security-scan
       - test
     if: always() && github.event_name == 'pull_request'
@@ -582,15 +696,16 @@ jobs:
           echo "========================================="
           echo ""
           echo "Format Check: ${{ needs.fmt.result }}"
-          echo "Validate: ${{ needs.validate.result }}"
+          echo "Validate DEV: ${{ needs.validate-dev.result }}"
+          echo "Validate PRD: ${{ needs.validate-prd.result }}"
           echo "Security Scan: ${{ needs.security-scan.result }}"
           echo "Test: ${{ needs.test.result }}"
           echo ""
 
-          # Check if any required job failed
-          # Note: security-scan uses soft_fail, so it won't block the build
+          # Check if any required job failed (skipped is OK for conditional jobs)
           if [ "${{ needs.fmt.result }}" == "failure" ] || \
-             [ "${{ needs.validate.result }}" == "failure" ] || \
+             [ "${{ needs.validate-dev.result }}" == "failure" ] || \
+             [ "${{ needs.validate-prd.result }}" == "failure" ] || \
              [ "${{ needs.test.result }}" == "failure" ]; then
             echo "❌ One or more Terraform CI checks failed"
             exit 1

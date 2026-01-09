@@ -56,6 +56,47 @@ resource "aws_cloudfront_origin_request_policy" "api" {
   }
 }
 
+# CloudFront Function for Basic Authentication (dev environment only)
+# Matches CDK's BasicAuthFunction-dev
+resource "aws_cloudfront_function" "basic_auth" {
+  count   = var.enable_basic_auth ? 1 : 0
+  name    = "BasicAuthFunction-${var.environment}"
+  runtime = "cloudfront-js-2.0"
+  comment = "Basic Authentication for ${var.environment} environment"
+  publish = true
+  code    = <<-EOF
+function handler(event) {
+  var request = event.request;
+  var headers = request.headers;
+
+  // Expected credentials (embedded at deployment time)
+  var authString = 'Basic ' + btoa('${var.basic_auth_username}:${var.basic_auth_password}');
+
+  // Check if Authorization header exists
+  if (
+    typeof headers.authorization === 'undefined' ||
+    headers.authorization.value !== authString
+  ) {
+    // Return 401 Unauthorized with WWW-Authenticate header
+    return {
+      statusCode: 401,
+      statusDescription: 'Unauthorized',
+      headers: {
+        'www-authenticate': { value: 'Basic realm="DEV Environment"' },
+      },
+    };
+  }
+
+  // Authentication successful - forward request to origin
+  return request;
+}
+EOF
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 # CloudFront Function for Image path rewriting
 # Strips /images prefix for origin request
 resource "aws_cloudfront_function" "image_path" {
@@ -82,9 +123,58 @@ function handler(event) {
 EOF
 }
 
-# CloudFront Function for Admin SPA routing
-# Strips /admin prefix and handles SPA routes
+# CloudFront Function for Admin - Combined Basic Auth + SPA routing
+# Matches CDK's AdminCombinedFunction-dev for dev environment
+resource "aws_cloudfront_function" "admin_combined" {
+  count   = var.enable_basic_auth ? 1 : 0
+  name    = "AdminCombinedFunction-${var.environment}"
+  runtime = "cloudfront-js-2.0"
+  comment = "Combined Basic Auth and SPA routing for Admin site (${var.environment})"
+  publish = true
+  code    = <<-EOF
+function handler(event) {
+  var request = event.request;
+  var headers = request.headers;
+  var uri = request.uri;
+
+  // Basic Authentication check
+  var authString = 'Basic ' + btoa('${var.basic_auth_username}:${var.basic_auth_password}');
+  if (
+    typeof headers.authorization === 'undefined' ||
+    headers.authorization.value !== authString
+  ) {
+    return {
+      statusCode: 401,
+      statusDescription: 'Unauthorized',
+      headers: {
+        'www-authenticate': { value: 'Basic realm="DEV Environment"' },
+      },
+    };
+  }
+
+  // SPA routing: Strip /admin prefix and handle SPA routes
+  if (uri.startsWith('/admin')) {
+    uri = uri.substring(6);
+    if (uri === '' || uri === '/') {
+      uri = '/index.html';
+    } else if (!uri.includes('.')) {
+      uri = '/index.html';
+    }
+  }
+
+  request.uri = uri;
+  return request;
+}
+EOF
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# CloudFront Function for Admin SPA routing (production - no auth)
 resource "aws_cloudfront_function" "admin_spa" {
+  count   = var.enable_basic_auth ? 0 : 1
   name    = "AdminSpaFunction-${var.environment}"
   runtime = "cloudfront-js-2.0"
   comment = "SPA routing for Admin site - strips /admin prefix and handles SPA routes"
@@ -142,7 +232,7 @@ EOF
 resource "aws_cloudfront_distribution" "main" {
   enabled             = true
   is_ipv6_enabled     = true
-  comment             = "Unified CDN for blog (public site, admin dashboard, images, API)"
+  comment             = "Unified CDN for blog (public site, admin dashboard, images)"
   default_root_object = "index.html"
   price_class         = var.price_class
 
@@ -155,6 +245,15 @@ resource "aws_cloudfront_distribution" "main" {
     viewer_protocol_policy = "redirect-to-https"
     compress               = true
     cache_policy_id        = data.aws_cloudfront_cache_policy.caching_optimized.id
+
+    # Basic Auth function for dev environment protection
+    dynamic "function_association" {
+      for_each = var.enable_basic_auth ? [1] : []
+      content {
+        event_type   = "viewer-request"
+        function_arn = aws_cloudfront_function.basic_auth[0].arn
+      }
+    }
   }
 
   # S3 Origin: Public Site
@@ -203,9 +302,10 @@ resource "aws_cloudfront_distribution" "main" {
     compress               = true
     cache_policy_id        = data.aws_cloudfront_cache_policy.caching_optimized.id
 
+    # Use combined function (auth + SPA) for dev, SPA-only for production
     function_association {
       event_type   = "viewer-request"
-      function_arn = aws_cloudfront_function.admin_spa.arn
+      function_arn = var.enable_basic_auth ? aws_cloudfront_function.admin_combined[0].arn : aws_cloudfront_function.admin_spa[0].arn
     }
   }
 

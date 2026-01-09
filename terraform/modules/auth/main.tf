@@ -60,11 +60,12 @@ resource "aws_cognito_user_pool" "main" {
 # Cognito User Pool Client
 # Requirement 4.3: App Client with USER_PASSWORD_AUTH, USER_SRP_AUTH, REFRESH_TOKEN_AUTH
 resource "aws_cognito_user_pool_client" "main" {
-  name         = "${var.user_pool_name}-client"
+  # Note: CDK created client with name "serverless-blog-admin-client"
+  name         = "serverless-blog-admin-client"
   user_pool_id = aws_cognito_user_pool.main.id
 
-  # Do not generate secret (frontend app requirement)
-  generate_secret = false
+  # Note: generate_secret is not specified to avoid forced replacement during import
+  # The CDK-created client does not have a secret (ClientSecret is not returned by API)
 
   # Requirement 4.3: Auth flows
   explicit_auth_flows = [
@@ -74,19 +75,34 @@ resource "aws_cognito_user_pool_client" "main" {
   ]
 
   # Token validity settings (matching CDK configuration)
-  access_token_validity  = 60 # 1 hour in minutes
-  id_token_validity      = 60 # 1 hour in minutes
-  refresh_token_validity = 30 # 30 days
+  access_token_validity  = 60    # 1 hour in minutes
+  id_token_validity      = 60    # 1 hour in minutes
+  refresh_token_validity = 43200 # 30 days in minutes
 
   token_validity_units {
     access_token  = "minutes"
     id_token      = "minutes"
-    refresh_token = "days"
+    refresh_token = "minutes"
   }
 
   # Supported identity providers
   supported_identity_providers = ["COGNITO"]
 
-  # Prevent user existence errors (security best practice)
-  prevent_user_existence_errors = "ENABLED"
+  # OAuth settings (matching CDK configuration)
+  allowed_oauth_flows = ["code", "implicit"]
+  allowed_oauth_scopes = [
+    "aws.cognito.signin.user.admin",
+    "email",
+    "openid",
+    "phone",
+    "profile"
+  ]
+  allowed_oauth_flows_user_pool_client = true
+  callback_urls                        = ["https://example.com"]
+
+  # Token revocation
+  enable_token_revocation = true
+
+  # Session validity
+  auth_session_validity = 3
 }
