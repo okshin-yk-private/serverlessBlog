@@ -33,3 +33,19 @@ variable "alarm_email" {
   sensitive   = true
   default     = ""
 }
+
+# Basic Authentication for dev environment protection
+# These values should match CDK configuration
+variable "basic_auth_username" {
+  type        = string
+  description = "Basic Auth username for dev environment"
+  sensitive   = true
+  default     = ""
+}
+
+variable "basic_auth_password" {
+  type        = string
+  description = "Basic Auth password for dev environment"
+  sensitive   = true
+  default     = ""
+}

@@ -70,3 +70,24 @@ variable "tags" {
   default     = {}
   description = "Additional tags for resources"
 }
+
+# Basic Authentication for dev environment (matching CDK configuration)
+variable "enable_basic_auth" {
+  type        = bool
+  default     = false
+  description = "Enable Basic Authentication for CloudFront (used for dev environment protection)"
+}
+
+variable "basic_auth_username" {
+  type        = string
+  default     = ""
+  description = "Basic Auth username (required if enable_basic_auth is true)"
+  sensitive   = true
+}
+
+variable "basic_auth_password" {
+  type        = string
+  default     = ""
+  description = "Basic Auth password (required if enable_basic_auth is true)"
+  sensitive   = true
+}
