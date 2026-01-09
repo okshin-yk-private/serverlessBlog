@@ -79,17 +79,17 @@ jobs:
           echo "✓ All Terraform files are properly formatted"
 
   # =======================================
-  # Job 2: Terraform Validate
+  # Job 2: Terraform Validate (DEV)
   # Requirement 10.1: terraform validate
   # =======================================
-  validate:
-    name: Terraform Validate
+  validate-dev:
+    name: Terraform Validate (DEV)
     runs-on: ubuntu-latest
     needs: [fmt]
-    strategy:
-      fail-fast: false
-      matrix:
-        environment: [dev, prd]
+    if: |
+      (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/develop') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -100,19 +100,58 @@ jobs:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
       - name: Terraform Init (backend disabled)
-        working-directory: terraform/environments/${{ matrix.environment }}
+        working-directory: terraform/environments/dev
         run: |
           echo "========================================="
-          echo "Terraform Init (${{ matrix.environment }})"
+          echo "Terraform Init (dev)"
           echo "========================================="
           terraform init -backend=false
           echo "✓ Terraform initialized successfully"
 
       - name: Terraform Validate
-        working-directory: terraform/environments/${{ matrix.environment }}
+        working-directory: terraform/environments/dev
         run: |
           echo "========================================="
-          echo "Terraform Validate (${{ matrix.environment }})"
+          echo "Terraform Validate (dev)"
+          echo "========================================="
+          terraform validate
+          echo "✓ Configuration is valid"
+
+  # =======================================
+  # Job 2b: Terraform Validate (PRD)
+  # Requirement 10.1: terraform validate
+  # =======================================
+  validate-prd:
+    name: Terraform Validate (PRD)
+    runs-on: ubuntu-latest
+    needs: [fmt]
+    if: |
+      (github.event_name == 'pull_request' && github.base_ref == 'main') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prd')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Init (backend disabled)
+        working-directory: terraform/environments/prd
+        run: |
+          echo "========================================="
+          echo "Terraform Init (prd)"
+          echo "========================================="
+          terraform init -backend=false
+          echo "✓ Terraform initialized successfully"
+
+      - name: Terraform Validate
+        working-directory: terraform/environments/prd
+        run: |
+          echo "========================================="
+          echo "Terraform Validate (prd)"
           echo "========================================="
           terraform validate
           echo "✓ Configuration is valid"
@@ -127,7 +166,7 @@ jobs:
   security-scan:
     name: Checkov Security Scan
     runs-on: ubuntu-latest
-    needs: [validate]
+    needs: [fmt]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -179,7 +218,7 @@ jobs:
   test:
     name: Terraform Test
     runs-on: ubuntu-latest
-    needs: [validate]
+    needs: [fmt]
     if: github.event_name == 'pull_request' || github.event_name == 'push'
     steps:
       - name: Checkout code
@@ -217,7 +256,7 @@ jobs:
   plan-dev:
     name: Terraform Plan (DEV)
     runs-on: ubuntu-latest
-    needs: [validate]
+    needs: [validate-dev]
     environment: dev
     if: |
       (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
@@ -325,7 +364,7 @@ jobs:
   plan-prd:
     name: Terraform Plan (PRD)
     runs-on: ubuntu-latest
-    needs: [validate]
+    needs: [validate-prd]
     environment: prod
     if: |
       (github.event_name == 'pull_request' && github.base_ref == 'main') ||
@@ -570,7 +609,8 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - fmt
-      - validate
+      - validate-dev
+      - validate-prd
       - security-scan
       - test
     if: always() && github.event_name == 'pull_request'
@@ -582,15 +622,16 @@ jobs:
           echo "========================================="
           echo ""
           echo "Format Check: ${{ needs.fmt.result }}"
-          echo "Validate: ${{ needs.validate.result }}"
+          echo "Validate DEV: ${{ needs.validate-dev.result }}"
+          echo "Validate PRD: ${{ needs.validate-prd.result }}"
           echo "Security Scan: ${{ needs.security-scan.result }}"
           echo "Test: ${{ needs.test.result }}"
           echo ""
 
-          # Check if any required job failed
-          # Note: security-scan uses soft_fail, so it won't block the build
+          # Check if any required job failed (skipped is OK for conditional jobs)
           if [ "${{ needs.fmt.result }}" == "failure" ] || \
-             [ "${{ needs.validate.result }}" == "failure" ] || \
+             [ "${{ needs.validate-dev.result }}" == "failure" ] || \
+             [ "${{ needs.validate-prd.result }}" == "failure" ] || \
              [ "${{ needs.test.result }}" == "failure" ]; then
             echo "❌ One or more Terraform CI checks failed"
             exit 1
