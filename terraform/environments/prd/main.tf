@@ -57,8 +57,57 @@ module "storage" {
 }
 
 #------------------------------------------------------------------------------
+# Data Sources: Lambda Functions (for API Gateway integration)
+# These reference existing Lambda functions to break circular dependency
+#------------------------------------------------------------------------------
+
+data "aws_lambda_function" "create_post" {
+  function_name = "blog-create-post-go"
+}
+
+data "aws_lambda_function" "list_posts" {
+  function_name = "blog-list-posts-go"
+}
+
+data "aws_lambda_function" "get_post" {
+  function_name = "blog-get-post-go"
+}
+
+data "aws_lambda_function" "get_public_post" {
+  function_name = "blog-get-public-post-go"
+}
+
+data "aws_lambda_function" "update_post" {
+  function_name = "blog-update-post-go"
+}
+
+data "aws_lambda_function" "delete_post" {
+  function_name = "blog-delete-post-go"
+}
+
+data "aws_lambda_function" "login" {
+  function_name = "blog-login-go"
+}
+
+data "aws_lambda_function" "logout" {
+  function_name = "blog-logout-go"
+}
+
+data "aws_lambda_function" "refresh" {
+  function_name = "blog-refresh-go"
+}
+
+data "aws_lambda_function" "get_upload_url" {
+  function_name = "blog-upload-url-go"
+}
+
+data "aws_lambda_function" "delete_image" {
+  function_name = "blog-delete-image-go"
+}
+
+#------------------------------------------------------------------------------
 # Module 4: API Gateway
-# Dependencies: auth (for Cognito Authorizer)
+# Dependencies: auth (for Cognito Authorizer), Lambda data sources
 #------------------------------------------------------------------------------
 
 module "api" {
@@ -69,6 +118,30 @@ module "api" {
   stage_name            = var.environment
   cognito_user_pool_arn = module.auth.user_pool_arn
   cors_allow_origins    = ["*"]
+
+  # Lambda function ARNs (from data sources)
+  lambda_create_post_arn            = data.aws_lambda_function.create_post.arn
+  lambda_create_post_invoke_arn     = data.aws_lambda_function.create_post.invoke_arn
+  lambda_list_posts_arn             = data.aws_lambda_function.list_posts.arn
+  lambda_list_posts_invoke_arn      = data.aws_lambda_function.list_posts.invoke_arn
+  lambda_get_post_arn               = data.aws_lambda_function.get_post.arn
+  lambda_get_post_invoke_arn        = data.aws_lambda_function.get_post.invoke_arn
+  lambda_get_public_post_arn        = data.aws_lambda_function.get_public_post.arn
+  lambda_get_public_post_invoke_arn = data.aws_lambda_function.get_public_post.invoke_arn
+  lambda_update_post_arn            = data.aws_lambda_function.update_post.arn
+  lambda_update_post_invoke_arn     = data.aws_lambda_function.update_post.invoke_arn
+  lambda_delete_post_arn            = data.aws_lambda_function.delete_post.arn
+  lambda_delete_post_invoke_arn     = data.aws_lambda_function.delete_post.invoke_arn
+  lambda_login_arn                  = data.aws_lambda_function.login.arn
+  lambda_login_invoke_arn           = data.aws_lambda_function.login.invoke_arn
+  lambda_logout_arn                 = data.aws_lambda_function.logout.arn
+  lambda_logout_invoke_arn          = data.aws_lambda_function.logout.invoke_arn
+  lambda_refresh_arn                = data.aws_lambda_function.refresh.arn
+  lambda_refresh_invoke_arn         = data.aws_lambda_function.refresh.invoke_arn
+  lambda_get_upload_url_arn         = data.aws_lambda_function.get_upload_url.arn
+  lambda_get_upload_url_invoke_arn  = data.aws_lambda_function.get_upload_url.invoke_arn
+  lambda_delete_image_arn           = data.aws_lambda_function.delete_image.arn
+  lambda_delete_image_invoke_arn    = data.aws_lambda_function.delete_image.invoke_arn
 
   tags = local.common_tags
 
