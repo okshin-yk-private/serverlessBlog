@@ -473,6 +473,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-FrontendBuild-Admin
+
+      - name: Get Cognito Config from SSM
+        id: cognito
+        run: |
+          POOL_ID=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/cognito/user-pool-id" --query "Parameter.Value" --output text)
+          CLIENT_ID=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/cognito/user-pool-client-id" --query "Parameter.Value" --output text)
+          echo "user_pool_id=$POOL_ID" >> $GITHUB_OUTPUT
+          echo "client_id=$CLIENT_ID" >> $GITHUB_OUTPUT
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -492,6 +507,8 @@ jobs:
         run: bun run build
         env:
           NODE_ENV: production
+          VITE_COGNITO_USER_POOL_ID: ${{ steps.cognito.outputs.user_pool_id }}
+          VITE_COGNITO_USER_POOL_CLIENT_ID: ${{ steps.cognito.outputs.client_id }}
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
