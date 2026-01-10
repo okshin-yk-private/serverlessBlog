@@ -190,8 +190,22 @@ import {
 # }
 
 #------------------------------------------------------------------------------
-# CDN Module Imports - REMOVED
-# CDK CdnStack was deleted, CDN resources will be recreated by Terraform
+# CDN Module Imports - CloudFront Functions
+# These functions were retained when CDK stack was deleted
 #------------------------------------------------------------------------------
-# All CDN imports have been removed as the resources no longer exist
-# and will be created fresh by Terraform
+import {
+  to = module.cdn.aws_cloudfront_function.image_path
+  id = "ImagePathFunction-dev"
+}
+
+import {
+  to = module.cdn.aws_cloudfront_function.api_path
+  id = "ApiPathFunction-dev"
+}
+
+# Note: admin_spa is conditional (count = var.enable_basic_auth ? 0 : 1)
+# Only import if enable_basic_auth is false
+import {
+  to = module.cdn.aws_cloudfront_function.admin_spa[0]
+  id = "AdminSpaFunction-dev"
+}
