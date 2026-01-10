@@ -262,3 +262,18 @@ target/
 
 # Go build artifacts
 go-functions/bin/
+
+# ===================================
+# Terraform Plan Files
+# ===================================
+**/tfplan
+*.tfplan
+
+# ===================================
+# Root Level Images
+# ===================================
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+!fallacy.png

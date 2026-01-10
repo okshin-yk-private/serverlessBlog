@@ -33,7 +33,6 @@
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "lint:frontend": "cd frontend/admin && eslint . --ext .ts,.tsx",
     "lint:functions": "eslint functions --ext .ts",
-    "lint:infra": "cd infrastructure && eslint . --ext .ts",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "prepare": "husky"
