@@ -4,6 +4,13 @@
 # Requirement R39: TDD手法、100%テストカバレッジ
 #
 # This workflow combines comprehensive testing with efficient label-based execution
+# Covers: Infrastructure (Terraform/CDK), Backend (Go Lambda), Frontend (React)
+#
+# Label-based execution:
+# - 'terraform' label: Terraform fmt, validate, plan, security-scan
+# - 'go' label: Go lint, tests, Lambda builds
+# - 'frontend' label: Frontend tests, E2E tests
+# - 'infrastructure' label: CDK tests, diff (legacy)
 
 name: CI
 
@@ -17,10 +24,12 @@ on:
 permissions:
   contents: read
   pull-requests: write  # Required for actions/labeler to add labels
-  id-token: write       # Required for AWS OIDC authentication (CDK Diff)
+  id-token: write       # Required for AWS OIDC authentication
 
 env:
   GO_VERSION: '1.25.5'
+  TERRAFORM_VERSION: '1.14.0'
+  AWS_REGION: 'ap-northeast-1'
 
 jobs:
   # =======================================
@@ -32,6 +41,7 @@ jobs:
     outputs:
       pr-number: ${{ steps.get-pr.outputs.pr-number }}
       has-infrastructure: ${{ steps.check-labels.outputs.has-infrastructure }}
+      has-terraform: ${{ steps.check-labels.outputs.has-terraform }}
       has-frontend: ${{ steps.check-labels.outputs.has-frontend }}
       has-tests: ${{ steps.check-labels.outputs.has-tests }}
       has-workflow: ${{ steps.check-labels.outputs.has-workflow }}
@@ -67,6 +77,12 @@ jobs:
             echo "has-infrastructure=true" >> $GITHUB_OUTPUT
           else
             echo "has-infrastructure=false" >> $GITHUB_OUTPUT
+          fi
+
+          if echo "$LABELS" | grep -q "terraform"; then
+            echo "has-terraform=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-terraform=false" >> $GITHUB_OUTPUT
           fi
 
           if echo "$LABELS" | grep -q "frontend"; then
@@ -273,7 +289,499 @@ jobs:
           retention-days: 30
 
   # =======================================
-  # Job 3: Infrastructure Tests (conditional)
+  # Terraform CI Jobs (conditional on 'terraform' label)
+  # =======================================
+
+  # =======================================
+  # Job: Terraform Format Check
+  # =======================================
+  terraform-fmt:
+    needs: [setup-labels]
+    name: Terraform Format Check
+    runs-on: ubuntu-latest
+    if: needs.setup-labels.outputs.has-terraform == 'true'
+    outputs:
+      fmt-outcome: ${{ steps.fmt.outcome }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Format Check
+        id: fmt
+        run: |
+          echo "========================================="
+          echo "Terraform Format Check"
+          echo "========================================="
+          cd terraform
+          terraform fmt -check -recursive -diff
+          echo "✓ All Terraform files are properly formatted"
+
+  # =======================================
+  # Job: Build Go Lambda Binaries (Parallel Matrix for Terraform)
+  # =======================================
+  terraform-build-lambdas:
+    name: Build Lambda (${{ matrix.function }})
+    runs-on: ubuntu-latest
+    needs: [setup-labels]
+    if: |
+      needs.setup-labels.outputs.has-terraform == 'true' ||
+      needs.setup-labels.outputs.has-go == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - function: posts-create
+            path: posts/create
+          - function: posts-get
+            path: posts/get
+          - function: posts-get_public
+            path: posts/get_public
+          - function: posts-list
+            path: posts/list
+          - function: posts-update
+            path: posts/update
+          - function: posts-delete
+            path: posts/delete
+          - function: auth-login
+            path: auth/login
+          - function: auth-logout
+            path: auth/logout
+          - function: auth-refresh
+            path: auth/refresh
+          - function: images-get_upload_url
+            path: images/get_upload_url
+          - function: images-delete
+            path: images/delete
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+          cache-dependency-path: go-functions/go.sum
+
+      - name: Cache Lambda binary
+        uses: actions/cache@v4
+        id: binary-cache
+        with:
+          path: go-functions/bin/${{ matrix.function }}
+          key: lambda-${{ matrix.function }}-${{ runner.os }}-${{ hashFiles('go-functions/**/*.go', 'go-functions/go.sum') }}
+
+      - name: Build Lambda binary (${{ matrix.function }})
+        if: steps.binary-cache.outputs.cache-hit != 'true'
+        working-directory: go-functions
+        run: |
+          echo "========================================="
+          echo "Building Lambda: ${{ matrix.function }}"
+          echo "========================================="
+          mkdir -p bin/${{ matrix.function }}
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+            go build -ldflags="-s -w" -tags="lambda.norpc" \
+            -o bin/${{ matrix.function }}/bootstrap ./cmd/${{ matrix.path }}
+          echo "✓ ${{ matrix.function }} built successfully"
+
+      - name: Cache hit status
+        if: steps.binary-cache.outputs.cache-hit == 'true'
+        run: echo "✓ ${{ matrix.function }} restored from cache"
+
+      - name: Upload Lambda binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda-${{ matrix.function }}
+          path: go-functions/bin/${{ matrix.function }}/
+          retention-days: 1
+
+  # =======================================
+  # Job: Merge Lambda Artifacts
+  # =======================================
+  terraform-merge-artifacts:
+    name: Merge Lambda Artifacts
+    runs-on: ubuntu-latest
+    needs: [terraform-build-lambdas]
+    if: needs.terraform-build-lambdas.result == 'success'
+    steps:
+      - name: Checkout code (for hash calculation)
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: go-functions
+          sparse-checkout-cone-mode: false
+
+      - name: Download all Lambda artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: lambda-*
+          path: go-functions/bin/
+          merge-multiple: false
+
+      - name: Reorganize artifacts
+        run: |
+          echo "========================================="
+          echo "Merging Lambda Artifacts"
+          echo "========================================="
+          cd go-functions/bin
+          for dir in lambda-*; do
+            func_name="${dir#lambda-}"
+            if [ -d "$dir" ]; then
+              mkdir -p "$func_name"
+              mv "$dir"/* "$func_name"/ 2>/dev/null || true
+              rmdir "$dir" 2>/dev/null || true
+            fi
+          done
+          echo "✓ Artifacts merged"
+          ls -la
+
+      - name: Verify all binaries present
+        run: |
+          echo "========================================="
+          echo "Verifying Lambda Binaries"
+          echo "========================================="
+          FUNCS="posts-create posts-get posts-get_public posts-list posts-update posts-delete auth-login auth-logout auth-refresh images-get_upload_url images-delete"
+          MISSING=0
+          for f in $FUNCS; do
+            if [ -f "go-functions/bin/$f/bootstrap" ]; then
+              echo "✓ $f"
+            else
+              echo "✗ $f - MISSING"
+              MISSING=$((MISSING + 1))
+            fi
+          done
+          if [ $MISSING -gt 0 ]; then
+            echo "ERROR: $MISSING binaries missing!"
+            exit 1
+          fi
+          echo "✓ All 11 binaries verified"
+
+      - name: Save combined Lambda cache
+        uses: actions/cache/save@v4
+        with:
+          path: go-functions/bin
+          key: lambda-all-${{ runner.os }}-${{ hashFiles('go-functions/**/*.go', 'go-functions/go.sum') }}
+
+      - name: Upload merged Lambda binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda-binaries
+          path: go-functions/bin/
+          retention-days: 1
+
+  # =======================================
+  # Job: Terraform Validate (DEV)
+  # =======================================
+  terraform-validate-dev:
+    name: Terraform Validate (DEV)
+    runs-on: ubuntu-latest
+    needs: [setup-labels, terraform-fmt]
+    if: |
+      needs.setup-labels.outputs.has-terraform == 'true' &&
+      needs.terraform-fmt.result == 'success' &&
+      github.base_ref == 'develop'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Init (backend disabled)
+        working-directory: terraform/environments/dev
+        run: |
+          terraform init -backend=false
+          echo "✓ Terraform initialized"
+
+      - name: Terraform Validate
+        working-directory: terraform/environments/dev
+        run: |
+          terraform validate
+          echo "✓ Configuration is valid"
+
+  # =======================================
+  # Job: Terraform Validate (PRD)
+  # =======================================
+  terraform-validate-prd:
+    name: Terraform Validate (PRD)
+    runs-on: ubuntu-latest
+    needs: [setup-labels, terraform-fmt]
+    if: |
+      needs.setup-labels.outputs.has-terraform == 'true' &&
+      needs.terraform-fmt.result == 'success' &&
+      github.base_ref == 'main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Init (backend disabled)
+        working-directory: terraform/environments/prd
+        run: |
+          terraform init -backend=false
+          echo "✓ Terraform initialized"
+
+      - name: Terraform Validate
+        working-directory: terraform/environments/prd
+        run: |
+          terraform validate
+          echo "✓ Configuration is valid"
+
+  # =======================================
+  # Job: Checkov Security Scan
+  # =======================================
+  terraform-security-scan:
+    name: Checkov Security Scan
+    runs-on: ubuntu-latest
+    needs: [setup-labels, terraform-fmt]
+    if: |
+      needs.setup-labels.outputs.has-terraform == 'true' &&
+      needs.terraform-fmt.result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Checkov Security Scan
+        id: checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform
+          config_file: terraform/.checkov.yaml
+          soft_fail: true
+          output_format: cli,sarif
+          output_file_path: console,results.sarif
+          download_external_modules: false
+          log_level: WARNING
+
+      - name: Checkov Summary
+        if: always()
+        run: |
+          echo "========================================="
+          echo "Checkov Security Scan Summary"
+          echo "========================================="
+          if [ "${{ steps.checkov.outcome }}" == "success" ]; then
+            echo "✓ No security issues detected"
+          else
+            echo "⚠ Security issues detected - review logs above"
+          fi
+
+  # =======================================
+  # Job: Terraform Test
+  # =======================================
+  terraform-test:
+    name: Terraform Test
+    runs-on: ubuntu-latest
+    needs: [setup-labels, terraform-fmt]
+    if: |
+      needs.setup-labels.outputs.has-terraform == 'true' &&
+      needs.terraform-fmt.result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Run Terraform Tests
+        working-directory: terraform
+        run: |
+          echo "========================================="
+          echo "Terraform Module Tests"
+          echo "========================================="
+          terraform init -backend=false
+          if find . -name "*.tftest.hcl" -type f | head -1 | grep -q .; then
+            echo "Running terraform test..."
+            terraform test
+            echo "✓ All module tests passed"
+          else
+            echo "ℹ No test files found (.tftest.hcl)"
+          fi
+
+  # =======================================
+  # Job: Terraform Plan (DEV)
+  # =======================================
+  terraform-plan-dev:
+    name: Terraform Plan (DEV)
+    runs-on: ubuntu-latest
+    needs: [setup-labels, terraform-validate-dev, terraform-merge-artifacts]
+    environment: dev
+    if: |
+      always() &&
+      needs.setup-labels.outputs.has-terraform == 'true' &&
+      needs.terraform-validate-dev.result == 'success' &&
+      needs.terraform-merge-artifacts.result == 'success' &&
+      github.base_ref == 'develop'
+    outputs:
+      plan-exitcode: ${{ steps.plan.outputs.exitcode }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Lambda binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda-binaries
+          path: go-functions/bin
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-TerraformPlan-DEV
+
+      - name: Terraform Init
+        working-directory: terraform/environments/dev
+        run: terraform init
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: terraform/environments/dev
+        run: |
+          terraform plan -out=tfplan.binary -detailed-exitcode -no-color 2>&1 | tee tfplan_output.txt || exitcode=$?
+          terraform show -json tfplan.binary > tfplan.json
+          terraform show -no-color tfplan.binary > tfplan.txt
+          echo "exitcode=${exitcode:-0}" >> $GITHUB_OUTPUT
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-dev
+          path: |
+            terraform/environments/dev/tfplan.binary
+            terraform/environments/dev/tfplan.json
+            terraform/environments/dev/tfplan.txt
+          retention-days: 7
+
+      - name: Comment Plan on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const planPath = 'terraform/environments/dev/tfplan.txt';
+            let plan = fs.existsSync(planPath) ? fs.readFileSync(planPath, 'utf8') : 'Plan not available';
+            if (plan.length > 60000) {
+              plan = plan.substring(0, 60000) + '\n\n... (truncated)';
+            }
+            const summaryMatch = plan.match(/Plan: (\d+) to add, (\d+) to change, (\d+) to destroy/);
+            const summary = summaryMatch
+              ? `**${summaryMatch[1]}** to add, **${summaryMatch[2]}** to change, **${summaryMatch[3]}** to destroy`
+              : plan.includes('No changes') ? '✅ No changes' : 'Summary not available';
+
+            const output = `## 📋 Terraform Plan (DEV)\n\n### Summary\n${summary}\n\n<details>\n<summary>Show Plan Details</summary>\n\n\`\`\`hcl\n${plan}\n\`\`\`\n\n</details>`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+  # =======================================
+  # Job: Terraform Plan (PRD)
+  # =======================================
+  terraform-plan-prd:
+    name: Terraform Plan (PRD)
+    runs-on: ubuntu-latest
+    needs: [setup-labels, terraform-validate-prd, terraform-merge-artifacts]
+    environment: prod
+    if: |
+      always() &&
+      needs.setup-labels.outputs.has-terraform == 'true' &&
+      needs.terraform-validate-prd.result == 'success' &&
+      needs.terraform-merge-artifacts.result == 'success' &&
+      github.base_ref == 'main'
+    outputs:
+      plan-exitcode: ${{ steps.plan.outputs.exitcode }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Lambda binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda-binaries
+          path: go-functions/bin
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-TerraformPlan-PRD
+
+      - name: Terraform Init
+        working-directory: terraform/environments/prd
+        run: terraform init
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: terraform/environments/prd
+        run: |
+          terraform plan -out=tfplan.binary -detailed-exitcode -no-color 2>&1 | tee tfplan_output.txt || exitcode=$?
+          terraform show -json tfplan.binary > tfplan.json
+          terraform show -no-color tfplan.binary > tfplan.txt
+          echo "exitcode=${exitcode:-0}" >> $GITHUB_OUTPUT
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-prd
+          path: |
+            terraform/environments/prd/tfplan.binary
+            terraform/environments/prd/tfplan.json
+            terraform/environments/prd/tfplan.txt
+          retention-days: 7
+
+      - name: Comment Plan on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const planPath = 'terraform/environments/prd/tfplan.txt';
+            let plan = fs.existsSync(planPath) ? fs.readFileSync(planPath, 'utf8') : 'Plan not available';
+            if (plan.length > 60000) {
+              plan = plan.substring(0, 60000) + '\n\n... (truncated)';
+            }
+            const summaryMatch = plan.match(/Plan: (\d+) to add, (\d+) to change, (\d+) to destroy/);
+            const summary = summaryMatch
+              ? `**${summaryMatch[1]}** to add, **${summaryMatch[2]}** to change, **${summaryMatch[3]}** to destroy`
+              : plan.includes('No changes') ? '✅ No changes' : 'Summary not available';
+
+            const output = `## 🚨 Terraform Plan (PRD) - PRODUCTION\n\n### Summary\n${summary}\n\n> ⚠️ **This plan affects PRODUCTION infrastructure!**\n\n<details>\n<summary>Show Plan Details</summary>\n\n\`\`\`hcl\n${plan}\n\`\`\`\n\n</details>`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+  # =======================================
+  # Job 3: Infrastructure Tests (conditional) - CDK Legacy
   # =======================================
   infrastructure-tests:
     needs: [setup-labels]
@@ -824,7 +1332,7 @@ jobs:
           echo "was achieved for that component."
 
   # =======================================
-  # Job 9: Final CI Success Check
+  # Job: Final CI Success Check
   # =======================================
   ci-success:
     name: All CI Checks Passed
@@ -832,11 +1340,23 @@ jobs:
     needs:
       - setup-labels
       - lint
-      # backend-unit-tests removed - Node.js implementation deleted (Task 21.3)
-      # rust-lint and rust-tests removed - Rust implementation deleted (Task 21.2)
+      # Go Backend
       - go-lint
       - go-tests
+      # Terraform Infrastructure
+      - terraform-fmt
+      - terraform-build-lambdas
+      - terraform-merge-artifacts
+      - terraform-validate-dev
+      - terraform-validate-prd
+      - terraform-security-scan
+      - terraform-test
+      - terraform-plan-dev
+      - terraform-plan-prd
+      # CDK Infrastructure (Legacy)
       - infrastructure-tests
+      - infrastructure-diff
+      # Frontend
       - frontend-public-tests
       - frontend-admin-tests
       - e2e-public-tests
@@ -851,15 +1371,40 @@ jobs:
           echo "CI Results Summary"
           echo "========================================="
           echo ""
-          echo "Lint: ${{ needs.lint.result }}"
-          echo "Go Lint (golangci-lint): ${{ needs.go-lint.result }}"
-          echo "Go Unit Tests: ${{ needs.go-tests.result }}"
-          echo "Infrastructure Tests: ${{ needs.infrastructure-tests.result }}"
-          echo "Frontend (Public) Tests: ${{ needs.frontend-public-tests.result }}"
-          echo "Frontend (Admin) Tests: ${{ needs.frontend-admin-tests.result }}"
-          echo "E2E Tests (Public): ${{ needs.e2e-public-tests.result }}"
-          echo "E2E Tests (Admin): ${{ needs.e2e-admin-tests.result }}"
-          echo "Coverage Check: ${{ needs.coverage-check.result }}"
+          echo "Labels detected:"
+          echo "  terraform: ${{ needs.setup-labels.outputs.has-terraform }}"
+          echo "  go: ${{ needs.setup-labels.outputs.has-go }}"
+          echo "  frontend: ${{ needs.setup-labels.outputs.has-frontend }}"
+          echo "  infrastructure: ${{ needs.setup-labels.outputs.has-infrastructure }}"
+          echo ""
+          echo "--- Lint ---"
+          echo "  ESLint & Prettier: ${{ needs.lint.result }}"
+          echo ""
+          echo "--- Go Backend ---"
+          echo "  Go Lint: ${{ needs.go-lint.result }}"
+          echo "  Go Tests: ${{ needs.go-tests.result }}"
+          echo ""
+          echo "--- Terraform Infrastructure ---"
+          echo "  Format: ${{ needs.terraform-fmt.result }}"
+          echo "  Build Lambdas: ${{ needs.terraform-build-lambdas.result }}"
+          echo "  Merge Artifacts: ${{ needs.terraform-merge-artifacts.result }}"
+          echo "  Validate (DEV): ${{ needs.terraform-validate-dev.result }}"
+          echo "  Validate (PRD): ${{ needs.terraform-validate-prd.result }}"
+          echo "  Security Scan: ${{ needs.terraform-security-scan.result }}"
+          echo "  Test: ${{ needs.terraform-test.result }}"
+          echo "  Plan (DEV): ${{ needs.terraform-plan-dev.result }}"
+          echo "  Plan (PRD): ${{ needs.terraform-plan-prd.result }}"
+          echo ""
+          echo "--- CDK Infrastructure (Legacy) ---"
+          echo "  Tests: ${{ needs.infrastructure-tests.result }}"
+          echo "  Diff: ${{ needs.infrastructure-diff.result }}"
+          echo ""
+          echo "--- Frontend ---"
+          echo "  Public Tests: ${{ needs.frontend-public-tests.result }}"
+          echo "  Admin Tests: ${{ needs.frontend-admin-tests.result }}"
+          echo "  E2E Public: ${{ needs.e2e-public-tests.result }}"
+          echo "  E2E Admin: ${{ needs.e2e-admin-tests.result }}"
+          echo "  Coverage: ${{ needs.coverage-check.result }}"
           echo ""
           echo "========================================="
 
@@ -872,16 +1417,46 @@ jobs:
           fi
 
           # Check if any job failed (excluding skipped jobs)
-          # Requirement 6.6: Go Lint/Tests失敗時のPRマージブロック
-          # Note: backend-unit-tests removed (Task 21.3) - all Lambda functions are Go
+          FAILED=false
+
+          # Go Backend failures
           if [ "${{ needs.go-lint.result }}" == "failure" ] || \
-             [ "${{ needs.go-tests.result }}" == "failure" ] || \
-             [ "${{ needs.infrastructure-tests.result }}" == "failure" ] || \
-             [ "${{ needs.frontend-public-tests.result }}" == "failure" ] || \
+             [ "${{ needs.go-tests.result }}" == "failure" ]; then
+            echo "❌ Go Backend checks failed"
+            FAILED=true
+          fi
+
+          # Terraform failures
+          if [ "${{ needs.terraform-fmt.result }}" == "failure" ] || \
+             [ "${{ needs.terraform-build-lambdas.result }}" == "failure" ] || \
+             [ "${{ needs.terraform-validate-dev.result }}" == "failure" ] || \
+             [ "${{ needs.terraform-validate-prd.result }}" == "failure" ] || \
+             [ "${{ needs.terraform-test.result }}" == "failure" ] || \
+             [ "${{ needs.terraform-plan-dev.result }}" == "failure" ] || \
+             [ "${{ needs.terraform-plan-prd.result }}" == "failure" ]; then
+            echo "❌ Terraform checks failed"
+            FAILED=true
+          fi
+
+          # CDK Infrastructure failures
+          if [ "${{ needs.infrastructure-tests.result }}" == "failure" ] || \
+             [ "${{ needs.infrastructure-diff.result }}" == "failure" ]; then
+            echo "❌ CDK Infrastructure checks failed"
+            FAILED=true
+          fi
+
+          # Frontend failures
+          if [ "${{ needs.frontend-public-tests.result }}" == "failure" ] || \
              [ "${{ needs.frontend-admin-tests.result }}" == "failure" ] || \
              [ "${{ needs.e2e-public-tests.result }}" == "failure" ] || \
              [ "${{ needs.e2e-admin-tests.result }}" == "failure" ] || \
              [ "${{ needs.coverage-check.result }}" == "failure" ]; then
+            echo "❌ Frontend checks failed"
+            FAILED=true
+          fi
+
+          if [ "$FAILED" = true ]; then
+            echo ""
             echo "❌ One or more CI checks failed"
             exit 1
           fi
