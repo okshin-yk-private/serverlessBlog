@@ -1,6 +1,13 @@
 # CDN Module - CloudFront Distribution
 # Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6
 
+# AWS managed cache policy IDs (hardcoded to avoid Terraform provider bug)
+# See: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
+locals {
+  cache_policy_caching_optimized = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+  cache_policy_caching_disabled  = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+}
+
 # Origin Access Control for S3 buckets
 # Requirement 7.1: Create distribution with OAC for S3 origin
 resource "aws_cloudfront_origin_access_control" "s3_oac" {
@@ -244,7 +251,7 @@ resource "aws_cloudfront_distribution" "main" {
     target_origin_id       = "public-site"
     viewer_protocol_policy = "redirect-to-https"
     compress               = true
-    cache_policy_id        = data.aws_cloudfront_cache_policy.caching_optimized.id
+    cache_policy_id        = local.cache_policy_caching_optimized
 
     # Basic Auth function for dev environment protection
     dynamic "function_association" {
@@ -300,7 +307,7 @@ resource "aws_cloudfront_distribution" "main" {
     target_origin_id       = "admin-site"
     viewer_protocol_policy = "redirect-to-https"
     compress               = true
-    cache_policy_id        = data.aws_cloudfront_cache_policy.caching_optimized.id
+    cache_policy_id        = local.cache_policy_caching_optimized
 
     # Use combined function (auth + SPA) for dev, SPA-only for production
     function_association {
@@ -335,7 +342,7 @@ resource "aws_cloudfront_distribution" "main" {
     target_origin_id         = "api-gateway"
     viewer_protocol_policy   = "redirect-to-https"
     compress                 = true
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
+    cache_policy_id          = local.cache_policy_caching_disabled
     origin_request_policy_id = aws_cloudfront_origin_request_policy.api.id
 
     function_association {
@@ -383,11 +390,3 @@ resource "aws_cloudfront_distribution" "main" {
   )
 }
 
-# Data sources for managed cache policies
-data "aws_cloudfront_cache_policy" "caching_optimized" {
-  name = "Managed-CachingOptimized"
-}
-
-data "aws_cloudfront_cache_policy" "caching_disabled" {
-  name = "Managed-CachingDisabled"
-}

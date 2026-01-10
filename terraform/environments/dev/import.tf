@@ -203,9 +203,8 @@ import {
   id = "ApiPathFunction-dev"
 }
 
-# Note: admin_spa is conditional (count = var.enable_basic_auth ? 0 : 1)
-# Only import if enable_basic_auth is false
-import {
-  to = module.cdn.aws_cloudfront_function.admin_spa[0]
-  id = "AdminSpaFunction-dev"
-}
+# Note: With enable_basic_auth = true:
+# - admin_spa (count=0) is NOT created
+# - basic_auth (count=1) IS created
+# - admin_combined (count=1) IS created
+# Existing AdminSpaFunction-dev in AWS must be deleted manually before apply

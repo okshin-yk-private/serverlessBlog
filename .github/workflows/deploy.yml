@@ -310,6 +310,15 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: GitHubActions-TerraformApply-DEV
 
+      - name: Get Basic Auth Credentials from SSM
+        run: |
+          USERNAME=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --query "Parameter.Value" --output text)
+          PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --query "Parameter.Value" --output text)
+          echo "::add-mask::$USERNAME"
+          echo "::add-mask::$PASSWORD"
+          echo "TF_VAR_basic_auth_username=$USERNAME" >> $GITHUB_ENV
+          echo "TF_VAR_basic_auth_password=$PASSWORD" >> $GITHUB_ENV
+
       - name: Terraform Init
         working-directory: terraform/environments/dev
         run: terraform init
