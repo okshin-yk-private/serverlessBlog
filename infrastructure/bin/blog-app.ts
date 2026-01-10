@@ -87,6 +87,9 @@ const cdnStack = new CdnStack(app, 'ServerlessBlogCdnStack', {
 
 // Go Lambda Functions Stack (唯一のサポートされている実装)
 // API integrations are handled by ApiIntegrationsStack
+// NOTE: CloudFront domain is HARDCODED to break circular dependency for stack deletion
+// This domain is managed by Terraform (distribution ESRLM0CV5EBG7)
+const HARDCODED_CLOUDFRONT_DOMAIN = 'db0rcxmu4fmis.cloudfront.net';
 const goLambdaStack = new GoLambdaStack(app, 'ServerlessBlogGoLambdaStack', {
   env,
   blogPostsTable: databaseStack.blogPostsTable,
@@ -95,7 +98,7 @@ const goLambdaStack = new GoLambdaStack(app, 'ServerlessBlogGoLambdaStack', {
   authorizer: apiStack.authorizer,
   userPoolId: authStack.userPool.userPoolId,
   userPoolClientId: authStack.userPoolClient.userPoolClientId,
-  cloudFrontDomainName: cdnStack.distribution.distributionDomainName,
+  cloudFrontDomainName: HARDCODED_CLOUDFRONT_DOMAIN,
   createApiIntegrations: false, // API integrations handled by ApiIntegrationsStack
 });
 

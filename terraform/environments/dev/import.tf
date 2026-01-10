@@ -190,44 +190,8 @@ import {
 # }
 
 #------------------------------------------------------------------------------
-# CDN Module Imports
+# CDN Module Imports - REMOVED
+# CDK CdnStack was deleted, CDN resources will be recreated by Terraform
 #------------------------------------------------------------------------------
-import {
-  to = module.cdn.aws_cloudfront_distribution.main
-  id = "ESRLM0CV5EBG7"
-}
-
-import {
-  to = module.cdn.aws_cloudfront_origin_access_control.s3_oac
-  id = "E3HGZ6IT0VJXIP"
-}
-
-import {
-  to = module.cdn.aws_cloudfront_function.image_path
-  id = "ImagePathFunction-dev"
-}
-
-import {
-  to = module.cdn.aws_cloudfront_function.admin_combined[0]
-  id = "AdminCombinedFunction-dev"
-}
-
-import {
-  to = module.cdn.aws_cloudfront_function.api_path
-  id = "ApiPathFunction-dev"
-}
-
-import {
-  to = module.cdn.aws_cloudfront_function.basic_auth[0]
-  id = "BasicAuthFunction-dev"
-}
-
-import {
-  to = module.cdn.aws_cloudfront_cache_policy.images
-  id = "073fd421-ac36-448c-a0f8-37033f73e2ee"
-}
-
-import {
-  to = module.cdn.aws_cloudfront_origin_request_policy.api
-  id = "49da6566-5d17-4347-aecd-5fca52d2e527"
-}
+# All CDN imports have been removed as the resources no longer exist
+# and will be created fresh by Terraform
