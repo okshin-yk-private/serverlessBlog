@@ -152,6 +152,7 @@ export class CdnStack extends cdk.Stack {
         runtime: cloudfront.FunctionRuntime.JS_2_0,
         autoPublish: true,
       });
+      basicAuthFunction.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
 
       // Combined Basic Auth + SPA routing for Admin site (DEV)
       // CloudFront only allows one function per event type, so we combine both functions
@@ -200,6 +201,7 @@ export class CdnStack extends cdk.Stack {
           autoPublish: true,
         }
       );
+      adminCombinedFunction.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
     }
 
     // CloudFront Function for Admin SPA routing (PRD only)
@@ -232,6 +234,7 @@ export class CdnStack extends cdk.Stack {
         runtime: cloudfront.FunctionRuntime.JS_2_0,
         autoPublish: true,
       });
+      adminSpaFunction.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
     }
 
     // CloudFront Function for Images path rewriting
@@ -261,6 +264,7 @@ export class CdnStack extends cdk.Stack {
         autoPublish: true,
       }
     );
+    imagePathFunction.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
 
     // Cache policy for images with long TTL
     const imageCachePolicy = new cloudfront.CachePolicy(
@@ -279,6 +283,7 @@ export class CdnStack extends cdk.Stack {
         cookieBehavior: cloudfront.CacheCookieBehavior.none(),
       }
     );
+    imageCachePolicy.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
 
     // API Gateway Origin setup
     // Construct API Gateway hostname from REST API ID and region
@@ -315,6 +320,7 @@ export class CdnStack extends cdk.Stack {
       runtime: cloudfront.FunctionRuntime.JS_2_0,
       autoPublish: true,
     });
+    apiPathFunction.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
 
     // Origin Request Policy for API Gateway
     // Forward necessary headers and query strings to API Gateway
@@ -335,6 +341,7 @@ export class CdnStack extends cdk.Stack {
         cookieBehavior: cloudfront.OriginRequestCookieBehavior.none(),
       }
     );
+    apiOriginRequestPolicy.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
 
     // Unified CloudFront Distribution for all sites (public, admin, images)
     // Using Origin Access Control (OAC) - recommended best practice over OAI
@@ -450,6 +457,10 @@ export class CdnStack extends cdk.Stack {
         minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
       }
     );
+
+    // Apply RETAIN policy for safe CloudFormation stack deletion
+    // This ensures CloudFront resources remain when stack is deleted (Terraform manages them)
+    this.distribution.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
 
     // CDK Nag suppressions for Unified Distribution
     NagSuppressions.addResourceSuppressions(
