@@ -225,7 +225,7 @@ jobs:
         run: |
           mkdir -p bin/${{ matrix.function }}
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
-            go build -ldflags="-s -w" -tags="lambda.norpc" \
+            go build -trimpath -ldflags="-s -w" -tags="lambda.norpc" \
             -o bin/${{ matrix.function }}/bootstrap ./cmd/${{ matrix.path }}
           echo "✓ ${{ matrix.function }} built"
 
