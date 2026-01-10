@@ -368,7 +368,15 @@ jobs:
           check-latest: true
           cache-dependency-path: go-functions/go.sum
 
+      - name: Cache Lambda binary
+        uses: actions/cache@v4
+        id: binary-cache
+        with:
+          path: go-functions/bin/${{ matrix.function }}
+          key: lambda-${{ matrix.function }}-${{ runner.os }}-${{ hashFiles('go-functions/**/*.go', 'go-functions/go.sum') }}
+
       - name: Build Lambda binary (${{ matrix.function }})
+        if: steps.binary-cache.outputs.cache-hit != 'true'
         working-directory: go-functions
         run: |
           echo "========================================="
@@ -379,6 +387,10 @@ jobs:
             go build -ldflags="-s -w" -tags="lambda.norpc" \
             -o bin/${{ matrix.function }}/bootstrap ./cmd/${{ matrix.path }}
           echo "✓ ${{ matrix.function }} built successfully"
+
+      - name: Cache hit status
+        if: steps.binary-cache.outputs.cache-hit == 'true'
+        run: echo "✓ ${{ matrix.function }} restored from cache"
 
       - name: Upload Lambda binary
         uses: actions/upload-artifact@v4
@@ -396,6 +408,12 @@ jobs:
     needs: [terraform-build-lambdas]
     if: needs.terraform-build-lambdas.result == 'success'
     steps:
+      - name: Checkout code (for hash calculation)
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: go-functions
+          sparse-checkout-cone-mode: false
+
       - name: Download all Lambda artifacts
         uses: actions/download-artifact@v4
         with:
@@ -419,6 +437,33 @@ jobs:
           done
           echo "✓ Artifacts merged"
           ls -la
+
+      - name: Verify all binaries present
+        run: |
+          echo "========================================="
+          echo "Verifying Lambda Binaries"
+          echo "========================================="
+          FUNCS="posts-create posts-get posts-get_public posts-list posts-update posts-delete auth-login auth-logout auth-refresh images-get_upload_url images-delete"
+          MISSING=0
+          for f in $FUNCS; do
+            if [ -f "go-functions/bin/$f/bootstrap" ]; then
+              echo "✓ $f"
+            else
+              echo "✗ $f - MISSING"
+              MISSING=$((MISSING + 1))
+            fi
+          done
+          if [ $MISSING -gt 0 ]; then
+            echo "ERROR: $MISSING binaries missing!"
+            exit 1
+          fi
+          echo "✓ All 11 binaries verified"
+
+      - name: Save combined Lambda cache
+        uses: actions/cache/save@v4
+        with:
+          path: go-functions/bin
+          key: lambda-all-${{ runner.os }}-${{ hashFiles('go-functions/**/*.go', 'go-functions/go.sum') }}
 
       - name: Upload merged Lambda binaries
         uses: actions/upload-artifact@v4

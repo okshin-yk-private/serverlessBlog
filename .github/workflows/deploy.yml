@@ -111,13 +111,78 @@ jobs:
           fi
 
   # =======================================
-  # Build Go Lambda Binaries (Parallel Matrix)
+  # Restore Lambda Binaries from Cache
+  # =======================================
+  restore-lambda-binaries:
+    name: Restore Lambda Binaries
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.deploy-infrastructure == 'true'
+    outputs:
+      cache-hit: ${{ steps.verify.outputs.cache-hit }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: go-functions
+          sparse-checkout-cone-mode: false
+
+      - name: Restore Lambda cache
+        uses: actions/cache/restore@v4
+        id: cache
+        with:
+          path: go-functions/bin
+          key: lambda-all-${{ runner.os }}-${{ hashFiles('go-functions/**/*.go', 'go-functions/go.sum') }}
+          restore-keys: |
+            lambda-all-${{ runner.os }}-
+
+      - name: Verify binaries
+        id: verify
+        run: |
+          echo "========================================="
+          echo "Checking Lambda Binaries from Cache"
+          echo "========================================="
+          if [ "${{ steps.cache.outputs.cache-hit }}" != "true" ]; then
+            echo "Cache miss - will build binaries"
+            echo "cache-hit=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          FUNCS="posts-create posts-get posts-get_public posts-list posts-update posts-delete auth-login auth-logout auth-refresh images-get_upload_url images-delete"
+          COUNT=0
+          for f in $FUNCS; do
+            if [ -f "go-functions/bin/$f/bootstrap" ]; then
+              echo "✓ $f"
+              COUNT=$((COUNT + 1))
+            else
+              echo "✗ $f - MISSING"
+            fi
+          done
+          if [ $COUNT -eq 11 ]; then
+            echo "✓ All 11 binaries restored from cache"
+            echo "cache-hit=true" >> $GITHUB_OUTPUT
+          else
+            echo "Only $COUNT of 11 binaries found - will rebuild"
+            echo "cache-hit=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload cached binaries as artifact
+        if: steps.verify.outputs.cache-hit == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda-binaries
+          path: go-functions/bin/
+          retention-days: 1
+
+  # =======================================
+  # Build Go Lambda Binaries (Parallel Matrix) - Only on cache miss
   # =======================================
   build-lambdas:
     name: Build Lambda (${{ matrix.function }})
     runs-on: ubuntu-latest
-    needs: [detect-changes]
-    if: needs.detect-changes.outputs.deploy-infrastructure == 'true'
+    needs: [detect-changes, restore-lambda-binaries]
+    if: |
+      needs.detect-changes.outputs.deploy-infrastructure == 'true' &&
+      needs.restore-lambda-binaries.outputs.cache-hit != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -172,13 +237,16 @@ jobs:
           retention-days: 1
 
   # =======================================
-  # Merge Lambda Artifacts
+  # Merge Lambda Artifacts (only when built, not from cache)
   # =======================================
   merge-lambda-artifacts:
     name: Merge Lambda Artifacts
     runs-on: ubuntu-latest
-    needs: [build-lambdas]
-    if: needs.build-lambdas.result == 'success'
+    needs: [restore-lambda-binaries, build-lambdas]
+    if: |
+      always() &&
+      needs.restore-lambda-binaries.outputs.cache-hit != 'true' &&
+      needs.build-lambdas.result == 'success'
     steps:
       - name: Download all Lambda artifacts
         uses: actions/download-artifact@v4
@@ -213,13 +281,13 @@ jobs:
   deploy-infrastructure-dev:
     name: Deploy Infrastructure (DEV)
     runs-on: ubuntu-latest
-    needs: [detect-changes, merge-lambda-artifacts]
+    needs: [detect-changes, restore-lambda-binaries, merge-lambda-artifacts]
     environment: dev
     if: |
       always() &&
       needs.detect-changes.outputs.deploy-infrastructure == 'true' &&
       needs.detect-changes.outputs.target-env == 'dev' &&
-      needs.merge-lambda-artifacts.result == 'success'
+      (needs.restore-lambda-binaries.outputs.cache-hit == 'true' || needs.merge-lambda-artifacts.result == 'success')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -281,7 +349,7 @@ jobs:
   deploy-infrastructure-prd:
     name: Deploy Infrastructure (PRD)
     runs-on: ubuntu-latest
-    needs: [detect-changes, merge-lambda-artifacts]
+    needs: [detect-changes, restore-lambda-binaries, merge-lambda-artifacts]
     environment:
       name: prod
       # Manual approval configured in GitHub environment settings
@@ -289,7 +357,7 @@ jobs:
       always() &&
       needs.detect-changes.outputs.deploy-infrastructure == 'true' &&
       needs.detect-changes.outputs.target-env == 'prd' &&
-      needs.merge-lambda-artifacts.result == 'success'
+      (needs.restore-lambda-binaries.outputs.cache-hit == 'true' || needs.merge-lambda-artifacts.result == 'success')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
