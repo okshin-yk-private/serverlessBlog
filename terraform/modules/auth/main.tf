@@ -106,3 +106,23 @@ resource "aws_cognito_user_pool_client" "main" {
   # Session validity
   auth_session_validity = 3
 }
+
+# SSM Parameters for Cognito configuration (used by frontend build)
+# These parameters are managed by Terraform and read by CI/CD pipeline
+resource "aws_ssm_parameter" "user_pool_id" {
+  name        = "/serverless-blog/${var.environment}/cognito/user-pool-id"
+  description = "Cognito User Pool ID for ${var.environment} environment"
+  type        = "String"
+  value       = aws_cognito_user_pool.main.id
+
+  tags = local.tags
+}
+
+resource "aws_ssm_parameter" "user_pool_client_id" {
+  name        = "/serverless-blog/${var.environment}/cognito/user-pool-client-id"
+  description = "Cognito User Pool Client ID for ${var.environment} environment"
+  type        = "String"
+  value       = aws_cognito_user_pool_client.main.id
+
+  tags = local.tags
+}
