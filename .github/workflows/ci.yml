@@ -781,202 +781,13 @@ jobs:
             });
 
   # =======================================
-  # Job 3: Infrastructure Tests (conditional) - CDK Legacy
+  # CDK Infrastructure Jobs - REMOVED
+  # CDK to Terraform migration completed. All infrastructure is now managed by Terraform.
+  # Former jobs: infrastructure-tests, infrastructure-diff
   # =======================================
-  infrastructure-tests:
-    needs: [setup-labels]
-    name: Infrastructure Tests (CDK)
-    runs-on: ubuntu-latest
-    if: |
-      needs.setup-labels.outputs.has-infrastructure == 'true' ||
-      needs.setup-labels.outputs.has-workflow == 'true'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Build Go Lambda binaries for CDK tests
-        working-directory: go-functions
-        run: |
-          echo "Building Go Lambda binaries for CDK asset validation..."
-          LAMBDAS=(
-            "posts-create:posts/create"
-            "posts-get:posts/get"
-            "posts-get_public:posts/get_public"
-            "posts-list:posts/list"
-            "posts-update:posts/update"
-            "posts-delete:posts/delete"
-            "auth-login:auth/login"
-            "auth-logout:auth/logout"
-            "auth-refresh:auth/refresh"
-            "images-get_upload_url:images/get_upload_url"
-            "images-delete:images/delete"
-          )
-          for item in "${LAMBDAS[@]}"; do
-            name="${item%%:*}"
-            path="${item##*:}"
-            mkdir -p bin/$name
-            GOOS=linux GOARCH=arm64 go build -o bin/$name/bootstrap ./cmd/$path
-          done
-          echo "✓ All Go Lambda binaries built"
-
-      - name: Install root dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Install infrastructure dependencies
-        working-directory: infrastructure
-        run: bun install --frozen-lockfile
-
-      - name: Run infrastructure tests with coverage
-        working-directory: infrastructure
-        run: bun run test:coverage
-        env:
-          CI: true
-
-      - name: Run CDK Nag security checks
-        working-directory: infrastructure
-        run: |
-          echo "========================================="
-          echo "CDK Nag Security Validation"
-          echo "========================================="
-          bun run cdk:synth
-          echo ""
-          echo "✓ CDK Nag checks passed"
-        env:
-          CI: true
-          # Mock credentials for CDK synth (DEV environment Basic Auth)
-          # These are only used during synthesis and are not deployed
-          BASIC_AUTH_USERNAME: ci-mock-user
-          BASIC_AUTH_PASSWORD: ci-mock-password
-
-      - name: Upload infrastructure coverage reports
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: infrastructure-coverage
-          path: infrastructure/coverage/
-          retention-days: 30
 
   # =======================================
-  # Job 3.5: Infrastructure CDK Diff (conditional, parallel)
-  # =======================================
-  infrastructure-diff:
-    needs: [setup-labels]
-    name: Infrastructure CDK Diff (Preview Changes)
-    runs-on: ubuntu-latest
-    environment: dev  # Use DEV environment secrets (AWS_ROLE_ARN, AWS_REGION)
-    if: needs.setup-labels.outputs.has-infrastructure == 'true'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Build Go Lambda binaries for CDK diff
-        working-directory: go-functions
-        run: |
-          echo "Building Go Lambda binaries for CDK asset validation..."
-          LAMBDAS=(
-            "posts-create:posts/create"
-            "posts-get:posts/get"
-            "posts-get_public:posts/get_public"
-            "posts-list:posts/list"
-            "posts-update:posts/update"
-            "posts-delete:posts/delete"
-            "auth-login:auth/login"
-            "auth-logout:auth/logout"
-            "auth-refresh:auth/refresh"
-            "images-get_upload_url:images/get_upload_url"
-            "images-delete:images/delete"
-          )
-          for item in "${LAMBDAS[@]}"; do
-            name="${item%%:*}"
-            path="${item##*:}"
-            mkdir -p bin/$name
-            GOOS=linux GOARCH=arm64 go build -o bin/$name/bootstrap ./cmd/$path
-          done
-          echo "✓ All Go Lambda binaries built"
-
-      - name: Install root dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Install infrastructure dependencies
-        working-directory: infrastructure
-        run: bun install --frozen-lockfile
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
-          role-session-name: GitHubActions-CDKDiff-CI
-
-      - name: Get Basic Auth Credentials from Parameter Store (DEV)
-        id: basic-auth
-        run: |
-          echo "Retrieving Basic Auth credentials from Parameter Store..."
-          USERNAME=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --region ${{ vars.AWS_REGION }} --query "Parameter.Value" --output text)
-          PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --region ${{ vars.AWS_REGION }} --query "Parameter.Value" --output text)
-
-          echo "::add-mask::$USERNAME"
-          echo "::add-mask::$PASSWORD"
-          echo "username=$USERNAME" >> $GITHUB_OUTPUT
-          echo "password=$PASSWORD" >> $GITHUB_OUTPUT
-
-      - name: Run CDK Diff (Preview Infrastructure Changes)
-        working-directory: infrastructure
-        env:
-          BASIC_AUTH_USERNAME: ${{ steps.basic-auth.outputs.username }}
-          BASIC_AUTH_PASSWORD: ${{ steps.basic-auth.outputs.password }}
-        run: |
-          echo "========================================="
-          echo "CDK Diff - Infrastructure Change Preview"
-          echo "========================================="
-          echo ""
-          echo "Comparing against DEV environment stack..."
-          echo ""
-          bunx cdk diff --all --context stage=dev
-          echo ""
-          echo "========================================="
-          echo "ℹ️  CDK Diff completed successfully"
-          echo "========================================="
-          echo ""
-          echo "This preview shows infrastructure changes that will be"
-          echo "deployed after merging to develop/main branch."
-          echo ""
-          echo "Review the changes carefully before approving the PR."
-
-  # =======================================
-  # Job 4: Frontend Tests - Public (conditional)
+  # Job 3: Frontend Tests - Public (conditional)
   # =======================================
   frontend-public-tests:
     needs: [setup-labels]
@@ -1208,21 +1019,20 @@ jobs:
           retention-days: 30
 
   # =======================================
-  # Job 8: Coverage Summary and Enforcement (runs when any test ran)
+  # Job 7: Coverage Summary and Enforcement (runs when any test ran)
   # Note: backend-unit-tests removed (Task 21.3) - Node.js Lambda deleted
+  # Note: infrastructure-tests removed - CDK to Terraform migration completed
   # =======================================
   coverage-check:
     name: Coverage Summary & Enforcement
     runs-on: ubuntu-latest
     needs:
       - go-tests
-      - infrastructure-tests
       - frontend-public-tests
       - frontend-admin-tests
     if: |
       !cancelled() &&
       (needs.go-tests.result == 'success' ||
-       needs.infrastructure-tests.result == 'success' ||
        needs.frontend-public-tests.result == 'success' ||
        needs.frontend-admin-tests.result == 'success')
 
@@ -1236,13 +1046,6 @@ jobs:
         with:
           name: go-coverage
           path: coverage-go/
-
-      - name: Download infrastructure coverage
-        if: needs.infrastructure-tests.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: infrastructure-coverage
-          path: coverage-infrastructure/
 
       - name: Download frontend (public) coverage
         if: needs.frontend-public-tests.result == 'success'
@@ -1273,9 +1076,8 @@ jobs:
 
       - name: Reorganize coverage files
         run: |
-          mkdir -p go-functions infrastructure/coverage frontend/public/coverage frontend/admin/coverage
+          mkdir -p go-functions frontend/public/coverage frontend/admin/coverage
           cp -r coverage-go/* go-functions/ || true
-          cp -r coverage-infrastructure/* infrastructure/coverage/ || true
           cp -r coverage-frontend-public/* frontend/public/coverage/ || true
           cp -r coverage-frontend-admin/* frontend/admin/coverage/ || true
 
@@ -1317,7 +1119,6 @@ jobs:
           }
 
           check_coverage "Go Lambda" "coverage-go"
-          check_coverage "Infrastructure" "coverage-infrastructure"
           check_coverage "Frontend (Public)" "coverage-frontend-public"
           check_coverage "Frontend (Admin)" "coverage-frontend-admin"
 
@@ -1353,9 +1154,6 @@ jobs:
       - terraform-test
       - terraform-plan-dev
       - terraform-plan-prd
-      # CDK Infrastructure (Legacy)
-      - infrastructure-tests
-      - infrastructure-diff
       # Frontend
       - frontend-public-tests
       - frontend-admin-tests
@@ -1395,10 +1193,6 @@ jobs:
           echo "  Plan (DEV): ${{ needs.terraform-plan-dev.result }}"
           echo "  Plan (PRD): ${{ needs.terraform-plan-prd.result }}"
           echo ""
-          echo "--- CDK Infrastructure (Legacy) ---"
-          echo "  Tests: ${{ needs.infrastructure-tests.result }}"
-          echo "  Diff: ${{ needs.infrastructure-diff.result }}"
-          echo ""
           echo "--- Frontend ---"
           echo "  Public Tests: ${{ needs.frontend-public-tests.result }}"
           echo "  Admin Tests: ${{ needs.frontend-admin-tests.result }}"
@@ -1435,13 +1229,6 @@ jobs:
              [ "${{ needs.terraform-plan-dev.result }}" == "failure" ] || \
              [ "${{ needs.terraform-plan-prd.result }}" == "failure" ]; then
             echo "❌ Terraform checks failed"
-            FAILED=true
-          fi
-
-          # CDK Infrastructure failures
-          if [ "${{ needs.infrastructure-tests.result }}" == "failure" ] || \
-             [ "${{ needs.infrastructure-diff.result }}" == "failure" ]; then
-            echo "❌ CDK Infrastructure checks failed"
             FAILED=true
           fi
 
