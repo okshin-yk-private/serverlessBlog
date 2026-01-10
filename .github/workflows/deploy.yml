@@ -541,6 +541,15 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: GitHubActions-FrontendDeploy-DEV
 
+      - name: Get bucket names from SSM
+        id: buckets
+        run: |
+          PUBLIC_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/public-site-bucket-name" --query "Parameter.Value" --output text)
+          ADMIN_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/admin-site-bucket-name" --query "Parameter.Value" --output text)
+          echo "public_bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
+          echo "admin_bucket=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
+          echo "✓ Retrieved bucket names from SSM"
+
       - name: Download Public Site build
         uses: actions/download-artifact@v4
         with:
@@ -556,14 +565,14 @@ jobs:
       - name: Deploy Public Site to S3
         run: |
           echo "Deploying Public Site to S3..."
-          aws s3 sync public-dist/ s3://serverless-blog-public-site-dev/ --delete
-          echo "✓ Public site deployed"
+          aws s3 sync public-dist/ s3://${{ steps.buckets.outputs.public_bucket }}/ --delete
+          echo "✓ Public site deployed to ${{ steps.buckets.outputs.public_bucket }}"
 
       - name: Deploy Admin Site to S3
         run: |
           echo "Deploying Admin Site to S3..."
-          aws s3 sync admin-dist/ s3://serverless-blog-admin-site-dev/ --delete
-          echo "✓ Admin site deployed"
+          aws s3 sync admin-dist/ s3://${{ steps.buckets.outputs.admin_bucket }}/ --delete
+          echo "✓ Admin site deployed to ${{ steps.buckets.outputs.admin_bucket }}"
 
       - name: Invalidate CloudFront Cache
         run: |
@@ -599,6 +608,15 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: GitHubActions-FrontendDeploy-PRD
 
+      - name: Get bucket names from SSM
+        id: buckets
+        run: |
+          PUBLIC_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/public-site-bucket-name" --query "Parameter.Value" --output text)
+          ADMIN_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/admin-site-bucket-name" --query "Parameter.Value" --output text)
+          echo "public_bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
+          echo "admin_bucket=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
+          echo "✓ Retrieved bucket names from SSM"
+
       - name: Download Public Site build
         uses: actions/download-artifact@v4
         with:
@@ -614,14 +632,14 @@ jobs:
       - name: Deploy Public Site to S3
         run: |
           echo "⚠️ Deploying Public Site to PRODUCTION S3..."
-          aws s3 sync public-dist/ s3://serverless-blog-public-site/ --delete
-          echo "✓ Public site deployed"
+          aws s3 sync public-dist/ s3://${{ steps.buckets.outputs.public_bucket }}/ --delete
+          echo "✓ Public site deployed to ${{ steps.buckets.outputs.public_bucket }}"
 
       - name: Deploy Admin Site to S3
         run: |
           echo "⚠️ Deploying Admin Site to PRODUCTION S3..."
-          aws s3 sync admin-dist/ s3://serverless-blog-admin-site/ --delete
-          echo "✓ Admin site deployed"
+          aws s3 sync admin-dist/ s3://${{ steps.buckets.outputs.admin_bucket }}/ --delete
+          echo "✓ Admin site deployed to ${{ steps.buckets.outputs.admin_bucket }}"
 
       - name: Invalidate CloudFront Cache
         run: |
