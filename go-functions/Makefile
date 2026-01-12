@@ -27,7 +27,9 @@ FUNCTIONS := \
 	images/delete \
 	categories/list \
 	categories/create \
-	categories/update
+	categories/update \
+	categories/bulk_sort \
+	categories/delete
 
 .PHONY: all build clean test lint fmt help
 
