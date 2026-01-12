@@ -1,0 +1,21 @@
+{
+  "description": "Generate comprehensive requirements for a specification",
+  "argumentHint": "<feature-name>",
+  "allowedTools": [
+    "Bash",
+    "Glob",
+    "Grep",
+    "LS",
+    "Read",
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "Update",
+    "WebSearch",
+    "WebFetch"
+  ],
+  "codexFormat": "meta",
+  "codexArguments": {
+    "feature-name": "$1"
+  }
+}

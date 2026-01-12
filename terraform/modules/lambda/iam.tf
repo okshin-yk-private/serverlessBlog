@@ -184,3 +184,69 @@ resource "aws_iam_role_policy" "lambda_images_s3" {
     ]
   })
 }
+
+# ======================
+# Categories Domain IAM Role
+# Requirement 2.2: Lambda function IAM role with Categories table Scan permission
+# ======================
+
+resource "aws_iam_role" "lambda_categories" {
+  name               = "blog-lambda-categories-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+  tags               = local.common_tags
+}
+
+# Basic execution policy for CloudWatch Logs
+resource "aws_iam_role_policy_attachment" "lambda_categories_basic_execution" {
+  role       = aws_iam_role.lambda_categories.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+# X-Ray policy (prd only)
+resource "aws_iam_role_policy_attachment" "lambda_categories_xray" {
+  count      = var.enable_xray ? 1 : 0
+  role       = aws_iam_role.lambda_categories.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
+# DynamoDB access policy for Categories domain
+# Requirement 2.2, 3.2, 4.2, 5.2: Scan, PutItem, GetItem, UpdateItem, DeleteItem, Query permissions for Categories table
+# Requirement 4.2, 5.2: Query, UpdateItem permissions for BlogPosts table (for category slug update cascade and delete validation)
+resource "aws_iam_role_policy" "lambda_categories_dynamodb" {
+  name = "blog-lambda-categories-dynamodb-policy"
+  role = aws_iam_role.lambda_categories.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DynamoDBCategoriesTableAccess"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:Scan",
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query"
+        ]
+        Resource = [
+          var.categories_table_arn,
+          "${var.categories_table_arn}/index/*"
+        ]
+      },
+      {
+        Sid    = "DynamoDBBlogPostsTableAccess"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:Query",
+          "dynamodb:UpdateItem"
+        ]
+        Resource = [
+          var.table_arn,
+          "${var.table_arn}/index/*"
+        ]
+      }
+    ]
+  })
+}

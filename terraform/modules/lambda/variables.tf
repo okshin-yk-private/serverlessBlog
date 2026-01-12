@@ -68,3 +68,19 @@ variable "tags" {
   default     = {}
   description = "Additional tags for resources"
 }
+
+# ======================
+# Categories Domain Variables
+# ======================
+
+variable "categories_table_name" {
+  type        = string
+  default     = ""
+  description = "Categories DynamoDB table name"
+}
+
+variable "categories_table_arn" {
+  type        = string
+  default     = ""
+  description = "Categories DynamoDB table ARN"
+}

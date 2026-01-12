@@ -831,6 +831,363 @@ resource "aws_api_gateway_integration_response" "posts_id_options" {
 }
 
 # ======================
+# Categories API Resource Paths
+# Requirement 2: Category List API
+# ======================
+
+# /categories resource (public)
+# Requirement 2.3: Publicly accessible without authentication
+resource "aws_api_gateway_resource" "categories" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_rest_api.main.root_resource_id
+  path_part   = "categories"
+}
+
+# --- GET /categories (No auth - public) ---
+# Requirement 2.1: Return all categories sorted by sortOrder ascending
+# Requirement 2.3: Publicly accessible without authentication
+# Requirement 2.5: CORS headers
+resource "aws_api_gateway_method" "categories_get" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.categories.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "categories_get" {
+  rest_api_id             = aws_api_gateway_rest_api.main.id
+  resource_id             = aws_api_gateway_resource.categories.id
+  http_method             = aws_api_gateway_method.categories_get.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.lambda_list_categories_invoke_arn
+}
+
+# --- OPTIONS /categories (CORS) ---
+# Requirement 2.5: CORS headers
+resource "aws_api_gateway_method" "categories_options" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.categories.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "categories_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.categories.id
+  http_method = aws_api_gateway_method.categories_options.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "categories_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.categories.id
+  http_method = aws_api_gateway_method.categories_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+resource "aws_api_gateway_integration_response" "categories_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.categories.id
+  http_method = aws_api_gateway_method.categories_options.http_method
+  status_code = aws_api_gateway_method_response.categories_options.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+# ======================
+# Admin Categories API Resource Path
+# Requirement 3: Category Creation API
+# ======================
+
+# /admin/categories resource
+# Requirement 3.2: Cognito Authorizer for create endpoint
+resource "aws_api_gateway_resource" "admin_categories" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin.id
+  path_part   = "categories"
+}
+
+# --- POST /admin/categories (Cognito auth) ---
+# Requirement 3.1: Create new category
+# Requirement 3.2: Cognito Authorizer
+resource "aws_api_gateway_method" "admin_categories_post" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_categories.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "admin_categories_post" {
+  rest_api_id             = aws_api_gateway_rest_api.main.id
+  resource_id             = aws_api_gateway_resource.admin_categories.id
+  http_method             = aws_api_gateway_method.admin_categories_post.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.lambda_create_category_invoke_arn
+}
+
+# --- OPTIONS /admin/categories (CORS) ---
+resource "aws_api_gateway_method" "admin_categories_options" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_categories.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "admin_categories_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_categories.id
+  http_method = aws_api_gateway_method.admin_categories_options.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "admin_categories_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_categories.id
+  http_method = aws_api_gateway_method.admin_categories_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+resource "aws_api_gateway_integration_response" "admin_categories_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_categories.id
+  http_method = aws_api_gateway_method.admin_categories_options.http_method
+  status_code = aws_api_gateway_method_response.admin_categories_options.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+# ======================
+# Admin Categories ID API Resource Path
+# Requirement 4: Category Update API
+# ======================
+
+# /admin/categories/{id} resource
+# Requirement 4.2: PUT endpoint for category update
+resource "aws_api_gateway_resource" "admin_categories_id" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_categories.id
+  path_part   = "{id}"
+}
+
+# --- PUT /admin/categories/{id} (Cognito auth) ---
+# Requirement 4.1: Update existing category
+# Requirement 4.2: Cognito Authorizer
+resource "aws_api_gateway_method" "admin_categories_id_put" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_categories_id.id
+  http_method   = "PUT"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+
+  request_parameters = {
+    "method.request.path.id" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "admin_categories_id_put" {
+  rest_api_id             = aws_api_gateway_rest_api.main.id
+  resource_id             = aws_api_gateway_resource.admin_categories_id.id
+  http_method             = aws_api_gateway_method.admin_categories_id_put.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.lambda_update_category_invoke_arn
+}
+
+# --- DELETE /admin/categories/{id} (Cognito auth) ---
+# Requirement 5.1: Delete existing category
+# Requirement 5.2: Cognito Authorizer
+resource "aws_api_gateway_method" "admin_categories_id_delete" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_categories_id.id
+  http_method   = "DELETE"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+
+  request_parameters = {
+    "method.request.path.id" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "admin_categories_id_delete" {
+  rest_api_id             = aws_api_gateway_rest_api.main.id
+  resource_id             = aws_api_gateway_resource.admin_categories_id.id
+  http_method             = aws_api_gateway_method.admin_categories_id_delete.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.lambda_delete_category_invoke_arn
+}
+
+# --- OPTIONS /admin/categories/{id} (CORS) ---
+resource "aws_api_gateway_method" "admin_categories_id_options" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_categories_id.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "admin_categories_id_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_categories_id.id
+  http_method = aws_api_gateway_method.admin_categories_id_options.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "admin_categories_id_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_categories_id.id
+  http_method = aws_api_gateway_method.admin_categories_id_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+resource "aws_api_gateway_integration_response" "admin_categories_id_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_categories_id.id
+  http_method = aws_api_gateway_method.admin_categories_id_options.http_method
+  status_code = aws_api_gateway_method_response.admin_categories_id_options.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'PUT,DELETE,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+# ======================
+# Admin Categories Sort API Resource Path
+# Requirement 4B: Category Sort Order Bulk Update API
+# ======================
+
+# /admin/categories/sort resource
+# Requirement 4B.2: PATCH endpoint for bulk sort order update
+resource "aws_api_gateway_resource" "admin_categories_sort" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_categories.id
+  path_part   = "sort"
+}
+
+# --- PATCH /admin/categories/sort (Cognito auth) ---
+# Requirement 4B.1: Bulk update sortOrder
+# Requirement 4B.2: Cognito Authorizer
+resource "aws_api_gateway_method" "admin_categories_sort_patch" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_categories_sort.id
+  http_method   = "PATCH"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "admin_categories_sort_patch" {
+  rest_api_id             = aws_api_gateway_rest_api.main.id
+  resource_id             = aws_api_gateway_resource.admin_categories_sort.id
+  http_method             = aws_api_gateway_method.admin_categories_sort_patch.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.lambda_update_categories_sort_order_invoke_arn
+}
+
+# --- OPTIONS /admin/categories/sort (CORS) ---
+resource "aws_api_gateway_method" "admin_categories_sort_options" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.admin_categories_sort.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "admin_categories_sort_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_categories_sort.id
+  http_method = aws_api_gateway_method.admin_categories_sort_options.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "admin_categories_sort_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_categories_sort.id
+  http_method = aws_api_gateway_method.admin_categories_sort_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+resource "aws_api_gateway_integration_response" "admin_categories_sort_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_categories_sort.id
+  http_method = aws_api_gateway_method.admin_categories_sort_options.http_method
+  status_code = aws_api_gateway_method_response.admin_categories_sort_options.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'PATCH,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+# ======================
 # Gateway Responses (CORS)
 # ======================
 
@@ -906,6 +1263,10 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.admin_auth_login.id,
       aws_api_gateway_resource.admin_auth_logout.id,
       aws_api_gateway_resource.admin_auth_refresh.id,
+      aws_api_gateway_resource.categories.id,
+      aws_api_gateway_resource.admin_categories.id,
+      aws_api_gateway_resource.admin_categories_id.id,
+      aws_api_gateway_resource.admin_categories_sort.id,
       # Authorizer
       aws_api_gateway_authorizer.cognito.id,
       # Gateway Responses
@@ -924,6 +1285,11 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_method.admin_auth_refresh_post.id,
       aws_api_gateway_method.posts_get.id,
       aws_api_gateway_method.posts_id_get.id,
+      aws_api_gateway_method.categories_get.id,
+      aws_api_gateway_method.admin_categories_post.id,
+      aws_api_gateway_method.admin_categories_id_put.id,
+      aws_api_gateway_method.admin_categories_id_delete.id,
+      aws_api_gateway_method.admin_categories_sort_patch.id,
       # Integrations
       aws_api_gateway_integration.admin_posts_post.id,
       aws_api_gateway_integration.admin_posts_get.id,
@@ -937,6 +1303,11 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_integration.admin_auth_refresh_post.id,
       aws_api_gateway_integration.posts_get.id,
       aws_api_gateway_integration.posts_id_get.id,
+      aws_api_gateway_integration.categories_get.id,
+      aws_api_gateway_integration.admin_categories_post.id,
+      aws_api_gateway_integration.admin_categories_id_put.id,
+      aws_api_gateway_integration.admin_categories_id_delete.id,
+      aws_api_gateway_integration.admin_categories_sort_patch.id,
     ]))
   }
 
@@ -957,6 +1328,11 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.admin_auth_refresh_post,
     aws_api_gateway_integration.posts_get,
     aws_api_gateway_integration.posts_id_get,
+    aws_api_gateway_integration.categories_get,
+    aws_api_gateway_integration.admin_categories_post,
+    aws_api_gateway_integration.admin_categories_id_put,
+    aws_api_gateway_integration.admin_categories_id_delete,
+    aws_api_gateway_integration.admin_categories_sort_patch,
   ]
 }
 
@@ -1140,6 +1516,50 @@ resource "aws_lambda_permission" "delete_image" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = var.lambda_delete_image_arn
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
+}
+
+# ======================
+# Categories Lambda Permissions
+# ======================
+
+resource "aws_lambda_permission" "list_categories" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = var.lambda_list_categories_arn
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "create_category" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = var.lambda_create_category_arn
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "update_category" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = var.lambda_update_category_arn
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "update_categories_sort_order" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = var.lambda_update_categories_sort_order_arn
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "delete_category" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = var.lambda_delete_category_arn
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
 }

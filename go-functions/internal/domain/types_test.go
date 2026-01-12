@@ -565,3 +565,602 @@ func TestAllowedContentTypes(t *testing.T) {
 func strPtr(s string) *string {
 	return &s
 }
+
+// intPtr is a helper to create *int
+func intPtr(i int) *int {
+	return &i
+}
+
+//------------------------------------------------------------------------------
+// Category Management Types Tests
+//------------------------------------------------------------------------------
+
+// TestCreateCategoryRequestValidation tests CreateCategoryRequest validation
+// Requirement 3.3: Return 400 if name is missing or empty
+// Requirement 9.3: Return 400 if name exceeds 100 characters
+// Requirement 9.4: Return 400 if slug contains invalid characters
+func TestCreateCategoryRequestValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		request CreateCategoryRequest
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid request with all fields",
+			request: CreateCategoryRequest{
+				Name:        "テクノロジー",
+				Slug:        strPtr("tech"),
+				Description: strPtr("Technology category"),
+				SortOrder:   intPtr(1),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid request with name only",
+			request: CreateCategoryRequest{
+				Name: "Test Category",
+			},
+			wantErr: false,
+		},
+		{
+			name: "missing name",
+			request: CreateCategoryRequest{
+				Slug: strPtr("test"),
+			},
+			wantErr: true,
+			errMsg:  "name is required",
+		},
+		{
+			name: "empty name",
+			request: CreateCategoryRequest{
+				Name: "",
+			},
+			wantErr: true,
+			errMsg:  "name is required",
+		},
+		{
+			name: "name too long (101 chars)",
+			request: CreateCategoryRequest{
+				Name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", // 101 chars
+			},
+			wantErr: true,
+			errMsg:  "name must be 100 characters or less",
+		},
+		{
+			name: "name exactly 100 chars",
+			request: CreateCategoryRequest{
+				Name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", // 100 chars
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid slug with uppercase",
+			request: CreateCategoryRequest{
+				Name: "Test",
+				Slug: strPtr("UPPERCASE"),
+			},
+			wantErr: true,
+			errMsg:  "slug must contain only lowercase alphanumeric characters and hyphens",
+		},
+		{
+			name: "invalid slug with underscore",
+			request: CreateCategoryRequest{
+				Name: "Test",
+				Slug: strPtr("invalid_slug"),
+			},
+			wantErr: true,
+			errMsg:  "slug must contain only lowercase alphanumeric characters and hyphens",
+		},
+		{
+			name: "invalid slug with special chars",
+			request: CreateCategoryRequest{
+				Name: "Test",
+				Slug: strPtr("invalid!slug"),
+			},
+			wantErr: true,
+			errMsg:  "slug must contain only lowercase alphanumeric characters and hyphens",
+		},
+		{
+			name: "valid slug with hyphen",
+			request: CreateCategoryRequest{
+				Name: "Test",
+				Slug: strPtr("valid-slug"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid slug with numbers",
+			request: CreateCategoryRequest{
+				Name: "Test",
+				Slug: strPtr("tech2024"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "nil slug is valid (auto-generate)",
+			request: CreateCategoryRequest{
+				Name: "Test",
+				Slug: nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty slug is valid (auto-generate)",
+			request: CreateCategoryRequest{
+				Name: "Test",
+				Slug: strPtr(""),
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.request.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr && err != nil && tt.errMsg != "" {
+				if err.Error() != tt.errMsg {
+					t.Errorf("Expected error message %q, got %q", tt.errMsg, err.Error())
+				}
+			}
+		})
+	}
+}
+
+// TestGenerateSlug tests slug generation from name
+// Requirement 3.5: Auto-generate slug from name if not provided
+func TestGenerateSlug(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "simple lowercase",
+			input:    "technology",
+			expected: "technology",
+		},
+		{
+			name:     "with spaces",
+			input:    "Technology News",
+			expected: "technology-news",
+		},
+		{
+			name:     "uppercase",
+			input:    "TECHNOLOGY",
+			expected: "technology",
+		},
+		{
+			name:     "mixed case with spaces",
+			input:    "My Awesome Blog",
+			expected: "my-awesome-blog",
+		},
+		{
+			name:     "with numbers",
+			input:    "Tech 2024",
+			expected: "tech-2024",
+		},
+		{
+			name:     "Japanese characters removed",
+			input:    "テクノロジー",
+			expected: "",
+		},
+		{
+			name:     "mixed Japanese and English",
+			input:    "My テクノロジー Blog",
+			expected: "my-blog",
+		},
+		{
+			name:     "special characters removed",
+			input:    "Hello! World?",
+			expected: "hello-world",
+		},
+		{
+			name:     "multiple spaces",
+			input:    "Hello   World",
+			expected: "hello-world",
+		},
+		{
+			name:     "leading and trailing spaces",
+			input:    "  Hello World  ",
+			expected: "hello-world",
+		},
+		{
+			name:     "already valid slug",
+			input:    "valid-slug",
+			expected: "valid-slug",
+		},
+		{
+			name:     "with hyphens",
+			input:    "My-Category",
+			expected: "my-category",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GenerateSlug(tt.input)
+			if result != tt.expected {
+				t.Errorf("GenerateSlug(%q) = %q, expected %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestCategoryJSONMarshal tests Category JSON serialization
+func TestCategoryJSONMarshal(t *testing.T) {
+	description := "Test description"
+	category := Category{
+		ID:          "cat-1",
+		Name:        "テクノロジー",
+		Slug:        "tech",
+		Description: &description,
+		SortOrder:   1,
+		CreatedAt:   "2024-01-15T10:00:00Z",
+		UpdatedAt:   "2024-01-15T10:00:00Z",
+	}
+
+	data, err := json.Marshal(category)
+	if err != nil {
+		t.Fatalf("Failed to marshal Category: %v", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	// Verify field names are camelCase
+	expectedFields := []string{"id", "name", "slug", "description", "sortOrder", "createdAt", "updatedAt"}
+	for _, field := range expectedFields {
+		if _, ok := result[field]; !ok {
+			t.Errorf("Expected field %q not found in JSON", field)
+		}
+	}
+
+	// Verify values
+	if result["id"] != "cat-1" {
+		t.Errorf("Expected id 'cat-1', got %v", result["id"])
+	}
+	if result["name"] != "テクノロジー" {
+		t.Errorf("Expected name 'テクノロジー', got %v", result["name"])
+	}
+}
+
+// TestUpdateCategoryRequestValidation tests UpdateCategoryRequest validation
+// Requirement 4.6: Allow partial updates
+// Requirement 9.3: Return 400 if name exceeds 100 characters
+// Requirement 9.4: Return 400 if slug contains invalid characters
+func TestUpdateCategoryRequestValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		request UpdateCategoryRequest
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid request with all fields",
+			request: UpdateCategoryRequest{
+				Name:        strPtr("Updated Name"),
+				Slug:        strPtr("updated-slug"),
+				Description: strPtr("Updated description"),
+				SortOrder:   intPtr(2),
+			},
+			wantErr: false,
+		},
+		{
+			name:    "empty request is valid (no updates)",
+			request: UpdateCategoryRequest{},
+			wantErr: false,
+		},
+		{
+			name: "valid request with name only",
+			request: UpdateCategoryRequest{
+				Name: strPtr("New Name"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid request with slug only",
+			request: UpdateCategoryRequest{
+				Slug: strPtr("new-slug"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid request with sortOrder only",
+			request: UpdateCategoryRequest{
+				SortOrder: intPtr(5),
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty name is invalid",
+			request: UpdateCategoryRequest{
+				Name: strPtr(""),
+			},
+			wantErr: true,
+			errMsg:  "name cannot be empty",
+		},
+		{
+			name: "name too long (101 chars)",
+			request: UpdateCategoryRequest{
+				Name: strPtr("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), // 101 chars
+			},
+			wantErr: true,
+			errMsg:  "name must be 100 characters or less",
+		},
+		{
+			name: "name exactly 100 chars",
+			request: UpdateCategoryRequest{
+				Name: strPtr("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), // 100 chars
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid slug with uppercase",
+			request: UpdateCategoryRequest{
+				Slug: strPtr("UPPERCASE"),
+			},
+			wantErr: true,
+			errMsg:  "slug must contain only lowercase alphanumeric characters and hyphens",
+		},
+		{
+			name: "invalid slug with underscore",
+			request: UpdateCategoryRequest{
+				Slug: strPtr("invalid_slug"),
+			},
+			wantErr: true,
+			errMsg:  "slug must contain only lowercase alphanumeric characters and hyphens",
+		},
+		{
+			name: "invalid slug with special chars",
+			request: UpdateCategoryRequest{
+				Slug: strPtr("invalid!slug"),
+			},
+			wantErr: true,
+			errMsg:  "slug must contain only lowercase alphanumeric characters and hyphens",
+		},
+		{
+			name: "valid slug with hyphen",
+			request: UpdateCategoryRequest{
+				Slug: strPtr("valid-slug"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid slug with numbers",
+			request: UpdateCategoryRequest{
+				Slug: strPtr("tech2024"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "nil slug is valid (no change)",
+			request: UpdateCategoryRequest{
+				Name: strPtr("Test"),
+				Slug: nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty slug is valid (will be ignored)",
+			request: UpdateCategoryRequest{
+				Slug: strPtr(""),
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.request.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr && err != nil && tt.errMsg != "" {
+				if err.Error() != tt.errMsg {
+					t.Errorf("Expected error message %q, got %q", tt.errMsg, err.Error())
+				}
+			}
+		})
+	}
+}
+
+// TestUpdateSortOrderRequestValidation tests UpdateSortOrderRequest validation
+// Requirement 4B.1, 4B.3, 4B.5: Validate request structure
+func TestUpdateSortOrderRequestValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		request UpdateSortOrderRequest
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid request with single order",
+			request: UpdateSortOrderRequest{
+				Orders: []SortOrderItem{{ID: "cat-1", SortOrder: 1}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid request with multiple orders",
+			request: UpdateSortOrderRequest{
+				Orders: []SortOrderItem{
+					{ID: "cat-1", SortOrder: 1},
+					{ID: "cat-2", SortOrder: 2},
+					{ID: "cat-3", SortOrder: 3},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty orders array",
+			request: UpdateSortOrderRequest{
+				Orders: []SortOrderItem{},
+			},
+			wantErr: true,
+			errMsg:  "orders array is required and cannot be empty",
+		},
+		{
+			name:    "nil orders",
+			request: UpdateSortOrderRequest{},
+			wantErr: true,
+			errMsg:  "orders array is required and cannot be empty",
+		},
+		{
+			name: "duplicate IDs",
+			request: UpdateSortOrderRequest{
+				Orders: []SortOrderItem{
+					{ID: "cat-1", SortOrder: 1},
+					{ID: "cat-1", SortOrder: 2},
+				},
+			},
+			wantErr: true,
+			errMsg:  "duplicate category IDs in request",
+		},
+		{
+			name: "empty ID in item",
+			request: UpdateSortOrderRequest{
+				Orders: []SortOrderItem{
+					{ID: "", SortOrder: 1},
+				},
+			},
+			wantErr: true,
+			errMsg:  "category ID is required for each order item",
+		},
+		{
+			name: "exceeds 100 items limit",
+			request: func() UpdateSortOrderRequest {
+				orders := make([]SortOrderItem, 101)
+				for i := 0; i < 101; i++ {
+					orders[i] = SortOrderItem{ID: "cat-" + string(rune(i)), SortOrder: i}
+				}
+				return UpdateSortOrderRequest{Orders: orders}
+			}(),
+			wantErr: true,
+			errMsg:  "maximum 100 categories can be updated at once",
+		},
+		{
+			name: "exactly 100 items is valid",
+			request: func() UpdateSortOrderRequest {
+				orders := make([]SortOrderItem, 100)
+				for i := 0; i < 100; i++ {
+					orders[i] = SortOrderItem{ID: "cat-" + string(rune(i+'a')), SortOrder: i}
+				}
+				return UpdateSortOrderRequest{Orders: orders}
+			}(),
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.request.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr && err != nil && tt.errMsg != "" {
+				if err.Error() != tt.errMsg {
+					t.Errorf("Expected error message %q, got %q", tt.errMsg, err.Error())
+				}
+			}
+		})
+	}
+}
+
+// TestUpdateSortOrderRequestJSONMarshal tests JSON serialization
+func TestUpdateSortOrderRequestJSONMarshal(t *testing.T) {
+	request := UpdateSortOrderRequest{
+		Orders: []SortOrderItem{
+			{ID: "cat-1", SortOrder: 1},
+			{ID: "cat-2", SortOrder: 2},
+		},
+	}
+
+	data, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("Failed to marshal UpdateSortOrderRequest: %v", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	// Verify field names
+	if _, ok := result["orders"]; !ok {
+		t.Error("Expected orders field to be present")
+	}
+
+	orders := result["orders"].([]interface{})
+	if len(orders) != 2 {
+		t.Errorf("Expected 2 orders, got %d", len(orders))
+	}
+
+	firstOrder := orders[0].(map[string]interface{})
+	if firstOrder["id"] != "cat-1" {
+		t.Errorf("Expected id 'cat-1', got %v", firstOrder["id"])
+	}
+	if firstOrder["sortOrder"] != float64(1) {
+		t.Errorf("Expected sortOrder 1, got %v", firstOrder["sortOrder"])
+	}
+}
+
+// TestInvalidIDsErrorResponseJSONMarshal tests InvalidIDsErrorResponse JSON serialization
+func TestInvalidIDsErrorResponseJSONMarshal(t *testing.T) {
+	response := InvalidIDsErrorResponse{
+		Message:    "some category IDs do not exist",
+		InvalidIDs: []string{"cat-nonexistent-1", "cat-nonexistent-2"},
+	}
+
+	data, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("Failed to marshal InvalidIDsErrorResponse: %v", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	if result["message"] != "some category IDs do not exist" {
+		t.Errorf("Expected message, got %v", result["message"])
+	}
+
+	invalidIDs := result["invalidIds"].([]interface{})
+	if len(invalidIDs) != 2 {
+		t.Errorf("Expected 2 invalid IDs, got %d", len(invalidIDs))
+	}
+}
+
+// TestCategoryDescriptionOmitEmpty tests that description is omitted when nil
+func TestCategoryDescriptionOmitEmpty(t *testing.T) {
+	category := Category{
+		ID:          "cat-1",
+		Name:        "Test",
+		Slug:        "test",
+		Description: nil,
+		SortOrder:   1,
+		CreatedAt:   "2024-01-15T10:00:00Z",
+		UpdatedAt:   "2024-01-15T10:00:00Z",
+	}
+
+	data, err := json.Marshal(category)
+	if err != nil {
+		t.Fatalf("Failed to marshal Category: %v", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	// Verify description is omitted when nil
+	if _, ok := result["description"]; ok {
+		t.Error("Expected description to be omitted when nil")
+	}
+}

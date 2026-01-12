@@ -1,5 +1,0 @@
-/**
- * アサーションヘルパーのエクスポート
- */
-
-export * from './responseAssertions';

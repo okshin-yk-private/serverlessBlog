@@ -1,0 +1,18 @@
+{
+  "description": "Create custom steering documents for specialized project contexts",
+  "allowedTools": [
+    "Bash",
+    "Read",
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "Glob",
+    "Grep",
+    "LS"
+  ],
+  "codexFormat": "meta",
+  "codexArguments": {
+    "what-to-create-custom-steering": "$ARGUMENTS"
+  },
+  "argumentHint": "<what-to-create-custom-steering>"
+}

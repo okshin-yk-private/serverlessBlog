@@ -2,172 +2,16 @@
 
 ## 現在の実装状況
 
-**Last Updated**: 2026-01-06 (Steering Sync - Go Migration Progress)
+**Last Updated**: 2026-01-10 (Steering Sync - Terraform Migration Complete)
 
 ### ✅ 実装完了
-- **Task 1.1**: CDKプロジェクトの初期化とディレクトリ構造の作成
-- **Task 1.2**: Lambda Powertools Layerの構築
-  - `layers/powertools/nodejs/` - Lambda Powertools (Logger, Tracer, Metrics, Parameters)
-- **Task 1.3**: 共通ユーティリティLayerの構築
-  - `layers/common/nodejs/utils/markdownUtils.ts` - Markdown変換・XSS対策
-  - `layers/common/nodejs/utils/s3Utils.ts` - S3操作・Pre-signed URL生成
-  - `layers/common/nodejs/utils/dynamodbUtils.ts` - DynamoDB操作ヘルパー
-- **Task 2.1**: DynamoDBテーブルとGlobal Secondary Indexesの定義
-  - `infrastructure/lib/database-stack.ts` - BlogPostsテーブル、GSI定義
-  - `infrastructure/test/database-stack.test.ts` - ユニット・スナップショットテスト
-- **Task 2.2**: S3バケットの構成
-  - `infrastructure/lib/storage-stack.ts` - 画像・公開サイト・管理画面バケット
-  - `infrastructure/test/storage-stack.test.ts` - ユニット・スナップショットテスト
-- **Task 3.1**: Cognito User Poolとアプリクライアントの設定
-  - `infrastructure/lib/auth-stack.ts` - User Pool、User Pool Client定義
-  - `infrastructure/test/auth-stack.test.ts` - ユニット・スナップショットテスト
-- **Task 3.2**: API Gateway Cognito Authorizerの統合
-  - `infrastructure/lib/api-stack.ts` - REST API、Cognito Authorizer、リソースパス定義
-  - `infrastructure/test/api-stack.test.ts` - ユニット・スナップショットテスト
+- Terraform移行完了（CDKは削除済み）
+- Go Lambda実装完了（バックエンドはGo単一構成）
+- フロントエンド（public/admin）主要機能の実装完了
+- テスト基盤（Goテスト、フロントエンドユニット/統合/E2E）の整備完了
 
 ### ✅ 最近完了したタスク
-- **Task 2.1**: 記事作成機能の実装（TDD）
-  - `tests/unit/functions/createPost.test.ts` - 14テストケース（正常系6、異常系8）
-  - `functions/posts/createPost/handler.ts` - 記事作成Lambda関数（既存実装の検証）
-  - Markdownコンテンツでの記事作成
-  - 下書き・公開ステータス処理
-  - XSS対策付きMarkdown→HTML変換
-  - バリデーション、認証、エラーハンドリング
-  - **100%テストカバレッジ達成**（TDD手法）
-
-- **Task 2.2**: 記事取得機能の実装（TDD）
-  - `tests/unit/functions/getPost.test.ts` - 11テストケース（正常系4、異常系7）
-  - `functions/posts/getPost/handler.ts` - 記事取得Lambda関数
-  - IDによる単一記事取得
-  - 公開記事は全ユーザーがアクセス可能
-  - 下書き記事は認証済みユーザーのみアクセス可能
-  - 存在しない記事IDは404エラー
-  - バリデーション、アクセス制御、エラーハンドリング
-  - **100%テストカバレッジ達成**（TDD手法）
-
-- **Task 2.3**: 記事一覧取得機能の実装（TDD）
-  - `tests/unit/functions/listPosts.test.ts` - 10テストケース（正常系9、異常系1）
-  - `functions/posts/listPosts/handler.ts` - 記事一覧取得Lambda関数（既存実装の検証）
-  - 公開記事一覧取得（createdAt降順ソート）
-  - ページネーション（limit、nextToken）
-  - カテゴリフィルタリング（CategoryIndex使用）
-  - クエリ最適化（PublishStatusIndex使用）
-  - limitバリデーション（1〜100、デフォルト10）
-  - contentMarkdown除外
-  - **100%テストカバレッジ達成**（TDD手法）
-
-- **Task 2.4**: 記事更新機能の実装（TDD）
-  - `tests/unit/functions/updatePost.test.ts` - 15テストケース（正常系7、異常系8）
-  - `functions/posts/updatePost/handler.ts` - 記事更新Lambda関数
-  - 記事コンテンツの更新（title、contentMarkdown、category、tags、imageUrls）
-  - contentMarkdown更新時のcontentHTML自動変換
-  - 公開ステータス遷移（draft → published、publishedAt自動設定）
-  - 公開→下書きへの遷移（publishStatus: published → draft）
-  - updatedAtの自動更新
-  - 認証チェック（未認証は401エラー）
-  - 記事が存在しない場合は404エラー
-  - バリデーション（記事ID、リクエストボディ、JSON形式）
-  - DynamoDBエラーハンドリング
-  - **100%テストカバレッジ達成**（TDD手法）
-
-- **Task 2.5**: 記事削除機能の実装（TDD）
-  - `tests/unit/functions/deletePost.test.ts` - 12テストケース（正常系4、異常系8）
-  - `functions/posts/deletePost/handler.ts` - 記事削除Lambda関数
-  - 記事のDynamoDB削除
-  - 関連画像のS3カスケード削除（DeleteObjectsCommandによるバッチ削除）
-  - imageUrls配列チェック（存在し、配列で、length > 0の場合のみS3削除）
-  - URL文字列からS3キー抽出（extractS3KeyFromUrl関数）
-  - 認証チェック（未認証は401エラー）
-  - 記事が存在しない場合は404エラー
-  - バリデーション（記事ID必須、空文字チェック）
-  - DynamoDBエラーハンドリング（GetCommand、DeleteCommand）
-  - S3エラーハンドリング（DeleteObjectsCommand）
-  - 204 No Contentレスポンス（削除成功時）
-  - **100%テストカバレッジ達成**（TDD手法）
-
-- **Task 3.1**: ログイン機能の実装（TDD）
-  - `tests/unit/functions/login.test.ts` - 12テストケース（正常系2、異常系10）
-  - `functions/auth/login/handler.ts` - ログインLambda関数
-  - Cognito InitiateAuthCommandによる認証実行
-  - USER_PASSWORD_AUTHフローを使用
-  - 認証成功時にJWTトークン（accessToken、refreshToken、idToken）を返す
-  - トークン有効期限（expiresIn）を含むレスポンス
-  - バリデーション（email必須、password必須、リクエストボディ必須、JSON形式チェック）
-  - 認証エラーハンドリング（NotAuthorizedException → 401）
-  - ユーザー不在エラーハンドリング（UserNotFoundException → 401）
-  - ユーザー未確認エラーハンドリング（UserNotConfirmedException → 401）
-  - Cognitoその他のエラーハンドリング → 500
-  - 200 OKレスポンス（ログイン成功時）
-  - **100%テストカバレッジ達成**（TDD手法）
-  - **注**: Cognito SDKモック設定を追加（`@aws-sdk/client-cognito-identity-provider`）
-
-- **Task 3.2**: セッション管理機能の実装（TDD）
-  - **refresh Lambda実装**:
-    - `tests/unit/functions/refresh.test.ts` - 13テストケース（正常系2、バリデーション3、認証エラー2、Cognitoエラー2、認証結果なし1、環境設定3）
-    - `functions/auth/refresh/handler.ts` - リフレッシュトークン更新Lambda関数
-    - Cognito InitiateAuthCommandによるトークン更新（REFRESH_TOKEN_AUTH）
-    - リフレッシュトークンから新しいアクセストークンとIDトークンを取得
-    - 新しいリフレッシュトークンは返さない（Cognitoの仕様）
-    - バリデーション（refreshToken必須、リクエストボディ必須、JSON形式チェック）
-    - 認証エラーハンドリング（NotAuthorizedException → 401）
-    - Cognitoエラーハンドリング → 500
-    - 認証結果なしエラーハンドリング → 500
-    - LocalStack対応（COGNITO_ENDPOINT環境変数）
-    - **100%テストカバレッジ達成**（TDD手法）
-  - **logout Lambda実装**:
-    - `tests/unit/functions/logout.test.ts` - 11テストケース（正常系2、バリデーション3、認証エラー2、Cognitoエラー2、環境設定2）
-    - `functions/auth/logout/handler.ts` - ログアウトLambda関数
-    - Cognito GlobalSignOutCommandによるグローバルサインアウト
-    - アクセストークンを使用してすべてのデバイスからサインアウト
-    - バリデーション（accessToken必須、リクエストボディ必須、JSON形式チェック）
-    - 認証エラーハンドリング（NotAuthorizedException → 401）
-    - Cognitoエラーハンドリング → 500
-    - LocalStack対応（COGNITO_ENDPOINT環境変数）
-    - **100%テストカバレッジ達成**（TDD手法）
-
-- **Task 4.1**: 画像アップロード用Pre-signed URL生成機能の実装（TDD）
-  - **getUploadUrl Lambda実装**:
-    - `tests/unit/functions/getUploadUrl.test.ts` - 19テストケース（正常系5、バリデーション6、認証4、環境設定3、エラー1）
-    - `functions/images/getUploadUrl/handler.ts` - Pre-signed URL生成Lambda関数
-    - AWS S3 getSignedUrlによる画像アップロード用URL生成
-    - 15分（900秒）の有効期限設定
-    - ファイル拡張子検証（.jpg、.jpeg、.png、.gif、.webp）
-    - Content-Type検証（image/jpeg、image/png、image/gif、image/webp）
-    - ファイルサイズ上限チェック（5MB）
-    - S3キー生成パターン: `images/{userId}/{timestamp}_{sanitizedFileName}`
-    - CloudFront URLとS3 Direct URLのフォールバック対応
-    - バリデーション（fileName必須、contentType必須、リクエストボディ必須、JSON形式チェック）
-    - 認証チェック（requestContext、authorizer、claims.sub）
-    - LocalStack対応（S3_ENDPOINT環境変数、AWS認証情報フォールバック）
-    - **100%テストカバレッジ達成**（TDD手法）
-  - **auth-utils共有ヘルパー実装**:
-    - `functions/shared/auth-utils.ts` - 認証ユーティリティ関数
-    - `tests/unit/shared/auth-utils.test.ts` - 5テストケース（正常系1、エッジケース4）
-    - `getUserIdFromEvent()`: API GatewayイベントからユーザーIDを安全に取得
-    - TypeScriptオプショナルチェーン（`?.`）の暗黙的分岐カバレッジ問題を解決
-    - 明示的なnullチェックによる100%ブランチカバレッジ達成
-    - **100%テストカバレッジ達成**（ヘルパー関数リファクタリング手法）
-
-- **Task 4.2**: 画像CDN配信の統合テスト
-  - **CloudFront Stack実装**:
-    - `infrastructure/lib/cdn-stack.ts` - CloudFrontディストリビューションCDK定義
-    - `infrastructure/test/cdn-stack.test.ts` - 14テストケース（スタック1、ディストリビューション6、キャッシュポリシー4、出力2、スナップショット1）
-    - S3BucketOrigin.withOriginAccessControl()による安全なS3アクセス
-    - HTTPS強制（ViewerProtocolPolicy.REDIRECT_TO_HTTPS）
-    - Gzip/Brotli圧縮有効化
-    - 24時間デフォルトTTL（86400秒）
-    - GET/HEADメソッドのみ許可
-    - PRICE_CLASS_100でコスト最適化
-    - **14/14テストパス**（CDKユニットテスト）
-  - **CloudFront CDN統合テスト実装**:
-    - `infrastructure/test/cloudfront-cdn-integration.test.ts` - 20テストケース（画像配信3、キャッシュ5、アクセス3、パフォーマンス6、S3制限3）
-    - CloudFront画像配信検証（ディストリビューション作成、S3オリジン、OAC設定）
-    - キャッシュヘッダー検証（キャッシュポリシー、24時間TTL、Gzip/Brotli圧縮）
-    - アクセス可能性検証（HTTPS強制、GET/HEADのみ、有効化）
-    - パフォーマンス検証（PRICE_CLASS_100、HTTP/2、IPv6、最適化されたキャッシュキー）
-    - S3制限検証（パブリックアクセスブロック、バージョニング、SSE-S3暗号化）
-    - **20/20テストパス**（統合テスト）
-    - **Requirements R11達成**: CloudFront経由での画像CDN配信
+- 旧Node.js/LambdaテストとLayersは削除済み（Goへの統一により不要）
 
 - **Task 5.2**: 記事詳細ページの実装（TDD）
   - **PostDetailPage実装**:
@@ -325,37 +169,10 @@
 - **Task 7.1**: APIエンドポイント統合テストの実装（TDD）
   - **完了日**: 2025-11-03
   - **実装済みファイル**:
-    - `tests/integration/functions/createPost.integration.test.ts` - POST /posts（285行、既存実装の検証）
-    - `tests/integration/functions/getPost.integration.test.ts` - GET /posts/:id認証必須（308行）
-    - `tests/integration/functions/getPublicPost.integration.test.ts` - GET /posts/:id公開（270行）
-    - `tests/integration/functions/listPosts.integration.test.ts` - GET /posts一覧・ページネーション（499行）
-    - `tests/integration/functions/updatePost.integration.test.ts` - PUT /posts/:id（489行）
-    - `tests/integration/functions/deletePost.integration.test.ts` - DELETE /posts/:id（250行）
-    - `tests/integration/functions/getUploadUrl.integration.test.ts` - POST /images/upload-url（241行）
-    - `tests/integration/auth/authentication.integration.test.ts` - 認証統合テスト（412行）
-  - すべてのAPIエンドポイント（POST、GET、PUT、DELETE）の統合テスト実装
-  - 認証フローとアクセス制御の統合テスト
-  - 画像アップロードワークフローの統合テスト
-  - DynamoDB Local（Docker）を使用した統合テスト環境構築
-  - **8テストスイート、46テストケース、すべて成功**
-  - **Requirements R30, R39達成**: 統合テスト、TDD
-
-- **Task 7.2**: データベース統合テストの実装（TDD）
-  - **完了日**: 2025-11-03
-  - `tests/integration/database/dynamodb-crud.integration.test.ts` - 15テストケース（PutItem 3、GetItem 3、UpdateItem 4、DeleteItem 3、Scan 2）
-  - `tests/integration/database/dynamodb-gsi-queries.integration.test.ts` - 16テストケース（CategoryIndex 7、PublishStatusIndex 4、Combined Queries 3、Query Optimization 2）
-  - `tests/integration/database/dynamodb-pagination.integration.test.ts` - 15テストケース（Limit 4、LastEvaluatedKey 3、ExclusiveStartKey 3、ScanIndexForward 2、Edge Cases 3）
-  - `tests/integration/database/dynamodb-concurrency.integration.test.ts` - 10テストケース（Concurrent Writes 2、Concurrent Reads 2、Update Conflicts 2、Race Conditions 2、Data Consistency 2）
-  - DynamoDB Local（Docker）を使用した統合テスト環境
-  - **4テストスイート、56テストケース、すべて成功**
-  - **Requirements R30, R16, R17, R18, R37達成**: 統合テスト、DynamoDB永続化、GSI設計、クエリ最適化、高可用性
-
-- **Task 7.3**: 認証・認可統合テストの実装
-  - **完了日**: 2025-11-03
-  - `tests/integration/auth/auth-flow.integration.test.ts` - 認証フロー統合テスト（730行）
-  - 16テストケース（エンドツーエンド認証フロー3、トークン更新メカニズム3、セッションタイムアウトとログアウト3、保護されたエンドポイントアクセス制御3、エラーハンドリング4）
-  - **1テストスイート、16テストケース、すべて成功**
-  - **Requirements R15, R30, R14達成**: 権限管理、統合テスト、セッション管理
+    - `go-functions/tests/parity/` - API互換性テスト（Go実装の検証）
+  - 旧Node.js API統合テストは削除済み（Goへの統一により不要）
+  - Go実装の互換性検証を優先（パリティテスト中心）
+  - **Requirements R30, R39達成**: 互換性検証、TDD
 
 - **Task 8.4**: E2Eテスト統合実行環境の構築（部分完了）
   - **完了日**: 2025-11-03
@@ -448,7 +265,7 @@ serverless_blog/
 ├── .github/
 │   └── workflows/          # GitHub Actions CI/CD
 │       ├── ci.yml          # テスト・Lint実行
-│       └── deploy.yml      # 環境別デプロイ
+│       └── deploy.yml      # 環境別Terraformデプロイ
 ├── .kiro/
 │   ├── specs/             # 仕様ドキュメント
 │   │   └── serverless-blog-aws/
@@ -460,35 +277,24 @@ serverless_blog/
 │       ├── product.md
 │       ├── tech.md
 │       └── structure.md
-├── infrastructure/        # CDK Infrastructure code
-│   ├── bin/
-│   │   └── blog-app.ts    # CDK アプリエントリーポイント
-│   ├── lib/               # CDK スタック定義
-│   │   ├── layers-stack.ts
-│   │   ├── database-stack.ts
-│   │   ├── storage-stack.ts
-│   │   ├── auth-stack.ts
-│   │   ├── api-stack.ts
-│   │   ├── go-lambda-stack.ts         # Go Lambda関数定義
-│   │   ├── api-integrations-stack.ts  # API Gateway統合
-│   │   ├── cdn-stack.ts
-│   │   └── monitoring-stack.ts
-│   ├── test/              # CDK テスト
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── cdk.json
-│   └── jest.config.js
-├── layers/                # Lambda Layers（フロントエンド用）
-│   ├── powertools/        # Lambda Powertools
-│   │   └── nodejs/
-│   │       └── package.json
-│   └── common/            # 共通ライブラリ
-│       └── nodejs/
-│           ├── package.json
-│           └── utils/
-│               ├── markdownUtils.ts
-│               ├── s3Utils.ts
-│               └── dynamodbUtils.ts
+├── terraform/             # Terraform Infrastructure code（CDKから移行完了）
+│   ├── modules/           # 共通Terraformモジュール
+│   │   ├── api/           # API Gateway
+│   │   ├── auth/          # Cognito User Pool
+│   │   ├── cdn/           # CloudFront Distribution
+│   │   ├── database/      # DynamoDB
+│   │   ├── lambda/        # Lambda関数
+│   │   ├── monitoring/    # CloudWatchアラート
+│   │   └── storage/       # S3バケット
+│   ├── environments/      # 環境別設定
+│   │   ├── dev/           # 開発環境
+│   │   └── prd/           # 本番環境
+│   ├── bootstrap/         # 初期設定（Terraformバックエンド）
+│   ├── scripts/           # ビルド・デプロイスクリプト
+│   ├── tests/             # Terraformテスト
+│   ├── .checkov.yaml      # Checkovセキュリティスキャン設定
+│   ├── .trivyignore       # Trivyスキャン除外設定
+│   └── README.md          # Terraformドキュメント
 ├── go-functions/          # Go Lambda 関数（唯一のバックエンド実装）
 │   ├── cmd/               # Lambda関数エントリーポイント
 │   │   ├── posts/         # create, get, get_public, list, update, delete
@@ -525,26 +331,6 @@ serverless_blog/
 │       ├── public/
 │       └── package.json
 ├── tests/                 # テストコード
-│   ├── unit/              # ユニットテスト
-│   │   ├── functions/
-│   │   │   ├── createPost.test.ts
-│   │   │   ├── getPost.test.ts
-│   │   │   ├── listPosts.test.ts
-│   │   │   ├── updatePost.test.ts
-│   │   │   ├── deletePost.test.ts
-│   │   │   ├── login.test.ts
-│   │   │   ├── refresh.test.ts
-│   │   │   ├── logout.test.ts
-│   │   │   └── getUploadUrl.test.ts
-│   │   ├── shared/
-│   │   │   └── auth-utils.test.ts
-│   │   └── layers/
-│   ├── integration/       # 統合テスト
-│   │   ├── functions/
-│   │   ├── database/
-│   │   ├── auth/
-│   │   ├── frontend/
-│   │   └── monitoring/
 │   └── e2e/              # E2Eテスト
 │       ├── specs/         # テストスペック
 │       │   ├── home.spec.ts
@@ -583,95 +369,70 @@ serverless_blog/
 
 ## ディレクトリ詳細
 
-### infrastructure/
-CDK Infrastructure as Codeの定義。
+### terraform/
+Terraform Infrastructure as Codeの定義（CDKから移行完了）。
 
-#### bin/
-- **blog-app.ts**: CDKアプリのエントリーポイント
-  - 環境変数からコンテキストを読み取り
-  - 各スタックをインスタンス化
+#### modules/
+再利用可能なTerraformモジュール定義。
 
-#### lib/
-各AWSリソースのスタック定義。
+- **api/**: API Gateway定義
+  - REST API
+  - Cognito Authorizer
+  - リソースとメソッド定義
 
-- **layers-stack.ts**: Lambda Layers定義
-  - Powertools Layer
-  - 共通ライブラリLayer
+- **auth/**: Cognito定義
+  - User Pool
+  - User Pool Client
+  - SSMパラメータ出力
 
-- **database-stack.ts**: DynamoDB定義
+- **cdn/**: CloudFront CDN定義
+  - S3オリジン統合
+  - OAC（Origin Access Control）
+  - キャッシュポリシー
+  - CloudFront Functions（Basic Auth、SPA routing、API path rewriting）
+
+- **database/**: DynamoDB定義
   - BlogPostsテーブル
   - GSI定義（CategoryIndex, PublishStatusIndex）
 
-- **storage-stack.ts**: S3バケット定義
+- **lambda/**: Lambda関数定義
+  - Go Lambda関数
+  - IAMロール・ポリシー
+  - CloudWatch Logs
+
+- **monitoring/**: 監視・アラート定義
+  - CloudWatchアラーム
+  - SNSトピック
+
+- **storage/**: S3バケット定義
   - 画像ストレージバケット
   - 公開サイトバケット
   - 管理画面バケット
+  - バケットポリシー
 
-- **auth-stack.ts**: Cognito定義
-  - User Pool
-  - User Pool Client
+#### environments/
+環境別のTerraform設定。
 
-- **api-stack.ts**: API Gateway定義
-  - REST API
-  - Cognito Authorizer
+- **dev/**: 開発環境
+  - main.tf（モジュール呼び出し）
+  - variables.tf
+  - terraform.tfvars
 
-- **lambda-functions-stack.ts**: Lambda関数定義
-  - 記事CRUD関数
-  - 認証関数
-  - 画像アップロード関数
+- **prd/**: 本番環境
+  - main.tf（モジュール呼び出し）
+  - variables.tf
+  - terraform.tfvars
 
-- **cdn-stack.ts**: CloudFront CDN定義
-  - S3オリジン統合
-  - キャッシング設定
+#### bootstrap/
+Terraformバックエンド初期設定。
+- S3バケット（tfstate保存）
+- DynamoDBテーブル（状態ロック）
 
-- **monitoring-stack.ts**: 監視・アラート定義
-  - CloudWatchダッシュボード
-  - アラーム設定
+#### scripts/
+ビルド・デプロイスクリプト。
 
-#### test/
-CDKスタックのテスト。
-- ユニットテスト
-- スナップショットテスト
-- インテグレーションテスト
-
-### layers/
-Lambda Layersのコード。
-
-#### powertools/
-Lambda Powertools for TypeScript。
-- Logger
-- Tracer
-- Metrics
-- Parameters
-
-#### common/
-プロジェクト共通ライブラリ。
-- **markdownUtils.ts**: Markdown → HTML変換、XSS対策
-- **s3Utils.ts**: S3操作、Pre-signed URL生成
-- **dynamodbUtils.ts**: DynamoDB操作ヘルパー
-
-### functions/
-Lambda関数のコード。
-
-#### posts/
-記事関連のLambda関数。
-- **createPost**: 記事作成
-- **getPost**: 記事取得（認証必須）
-- **getPublicPost**: 公開記事取得（認証不要）
-- **updatePost**: 記事更新
-- **deletePost**: 記事削除
-- **listPosts**: 記事一覧取得
-
-#### auth/
-認証関連のLambda関数。
-- **login**: ログイン処理
-- **logout**: ログアウト処理
-- **refresh**: トークン更新
-
-#### shared/
-Lambda関数間で共有するコード。
-- **types.ts**: TypeScript型定義
-- **constants.ts**: 定数定義
+#### tests/
+Terraformテスト（Terratest等）。
 
 ### frontend/
 フロントエンドアプリケーション。
@@ -691,17 +452,6 @@ Lambda関数間で共有するコード。
 
 ### tests/
 テストコード。
-
-#### unit/
-ユニットテスト。
-- Lambda関数のユニットテスト
-- ユーティリティ関数のテスト
-
-#### integration/
-統合テスト。
-- API エンドポイントテスト
-- DynamoDB統合テスト
-- 認証フロー統合テスト
 
 #### e2e/
 UI E2Eテスト（最小限）（Playwright + MSW、重要なユーザーフローのみ検証）。

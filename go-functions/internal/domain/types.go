@@ -4,6 +4,7 @@ package domain
 import (
 	"errors"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -187,4 +188,171 @@ func isAllowedExtension(ext string) bool {
 // isAllowedContentType checks if the content type is allowed.
 func isAllowedContentType(contentType string) bool {
 	return allowedContentTypes[contentType]
+}
+
+//------------------------------------------------------------------------------
+// Category Management Types
+// Requirements: Category Management Feature
+//------------------------------------------------------------------------------
+
+// Category represents a blog category entity.
+// JSON tags use camelCase for API compatibility.
+type Category struct {
+	ID          string  `json:"id" dynamodbav:"id"`
+	Name        string  `json:"name" dynamodbav:"name"`
+	Slug        string  `json:"slug" dynamodbav:"slug"`
+	Description *string `json:"description,omitempty" dynamodbav:"description,omitempty"`
+	SortOrder   int     `json:"sortOrder" dynamodbav:"sortOrder"`
+	CreatedAt   string  `json:"createdAt" dynamodbav:"createdAt"`
+	UpdatedAt   string  `json:"updatedAt" dynamodbav:"updatedAt"`
+}
+
+// ListCategoriesResponse represents the response for list categories API.
+// Requirement 2.2: Return id, name, slug, and sortOrder fields.
+type ListCategoriesResponse []Category
+
+// CreateCategoryRequest represents the request body for creating a category.
+// Requirement 3: Category Creation API
+type CreateCategoryRequest struct {
+	Name        string  `json:"name"`
+	Slug        *string `json:"slug,omitempty"`
+	Description *string `json:"description,omitempty"`
+	SortOrder   *int    `json:"sortOrder,omitempty"`
+}
+
+// slugPattern is a regex pattern for valid slugs (alphanumeric and hyphens only)
+var slugPattern = regexp.MustCompile(`^[a-z0-9-]+$`)
+
+// Validate validates the CreateCategoryRequest.
+// Requirement 3.3: Return 400 if name is missing or empty
+// Requirement 9.3: Return 400 if name exceeds 100 characters
+// Requirement 9.4: Return 400 if slug contains invalid characters
+func (r *CreateCategoryRequest) Validate() error {
+	// Requirement 3.3: name required check
+	if r.Name == "" {
+		return errors.New("name is required")
+	}
+
+	// Requirement 9.3: name length check (100 characters max)
+	if len(r.Name) > 100 {
+		return errors.New("name must be 100 characters or less")
+	}
+
+	// Requirement 9.4: slug format check (if provided)
+	if r.Slug != nil && *r.Slug != "" {
+		if !slugPattern.MatchString(*r.Slug) {
+			return errors.New("slug must contain only lowercase alphanumeric characters and hyphens")
+		}
+	}
+
+	return nil
+}
+
+// UpdateCategoryRequest represents the request body for updating a category.
+// Requirement 4: Category Update API
+type UpdateCategoryRequest struct {
+	Name        *string `json:"name,omitempty"`
+	Slug        *string `json:"slug,omitempty"`
+	Description *string `json:"description,omitempty"`
+	SortOrder   *int    `json:"sortOrder,omitempty"`
+}
+
+// Validate validates the UpdateCategoryRequest.
+// Requirement 4.1: Partial update support - only provided fields are updated
+// Requirement 9.3: Return 400 if name exceeds 100 characters
+// Requirement 9.4: Return 400 if slug contains invalid characters
+func (r *UpdateCategoryRequest) Validate() error {
+	// Requirement 9.3: name length check (100 characters max) - only if provided
+	if r.Name != nil && len(*r.Name) > 100 {
+		return errors.New("name must be 100 characters or less")
+	}
+
+	// Check for empty name if provided
+	if r.Name != nil && *r.Name == "" {
+		return errors.New("name cannot be empty")
+	}
+
+	// Requirement 9.4: slug format check (if provided)
+	if r.Slug != nil && *r.Slug != "" {
+		if !slugPattern.MatchString(*r.Slug) {
+			return errors.New("slug must contain only lowercase alphanumeric characters and hyphens")
+		}
+	}
+
+	return nil
+}
+
+// UpdateSortOrderRequest represents the request for bulk sort order update.
+// Requirement 4B: Category Sort Order Bulk Update API
+type UpdateSortOrderRequest struct {
+	Orders []SortOrderItem `json:"orders"`
+}
+
+// SortOrderItem represents a single category ID and sortOrder pair for bulk update.
+type SortOrderItem struct {
+	ID        string `json:"id"`
+	SortOrder int    `json:"sortOrder"`
+}
+
+// Validate validates the UpdateSortOrderRequest.
+// Requirement 4B.1, 4B.3, 4B.5: Validate request structure
+func (r *UpdateSortOrderRequest) Validate() error {
+	if len(r.Orders) == 0 {
+		return errors.New("orders array is required and cannot be empty")
+	}
+
+	// Check for maximum limit (TransactWriteItems supports max 100 items)
+	if len(r.Orders) > 100 {
+		return errors.New("maximum 100 categories can be updated at once")
+	}
+
+	// Check for duplicate IDs
+	seen := make(map[string]bool)
+	for _, item := range r.Orders {
+		if item.ID == "" {
+			return errors.New("category ID is required for each order item")
+		}
+		if seen[item.ID] {
+			return errors.New("duplicate category IDs in request")
+		}
+		seen[item.ID] = true
+	}
+
+	return nil
+}
+
+// InvalidIDsErrorResponse represents an error response with list of invalid IDs.
+// Requirement 4B.3: Return 400 with list of invalid IDs
+type InvalidIDsErrorResponse struct {
+	Message    string   `json:"message"`
+	InvalidIDs []string `json:"invalidIds"`
+}
+
+// GenerateSlug generates a URL-safe slug from the name.
+// Requirement 3.5: Auto-generate slug from name if not provided
+func GenerateSlug(name string) string {
+	// Convert to lowercase
+	slug := strings.ToLower(name)
+
+	// Replace spaces with hyphens
+	slug = strings.ReplaceAll(slug, " ", "-")
+
+	// Remove non-alphanumeric characters except hyphens
+	var result strings.Builder
+	for _, r := range slug {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			result.WriteRune(r)
+		}
+	}
+
+	// Remove consecutive hyphens
+	slug = result.String()
+	for strings.Contains(slug, "--") {
+		slug = strings.ReplaceAll(slug, "--", "-")
+	}
+
+	// Trim leading/trailing hyphens
+	slug = strings.Trim(slug, "-")
+
+	return slug
 }

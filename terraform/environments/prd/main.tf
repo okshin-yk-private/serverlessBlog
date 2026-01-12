@@ -17,9 +17,10 @@ locals {
 module "database" {
   source = "../../modules/database"
 
-  table_name  = "${var.project_name}-posts-${var.environment}"
-  environment = var.environment
-  enable_pitr = true
+  table_name            = "${var.project_name}-posts-${var.environment}"
+  categories_table_name = "${var.project_name}-categories-${var.environment}"
+  environment           = var.environment
+  enable_pitr           = true
 
   tags = local.common_tags
 }
@@ -105,6 +106,26 @@ data "aws_lambda_function" "delete_image" {
   function_name = "blog-delete-image-go"
 }
 
+data "aws_lambda_function" "list_categories" {
+  function_name = "blog-list-categories-go"
+}
+
+data "aws_lambda_function" "create_category" {
+  function_name = "blog-create-category-go"
+}
+
+data "aws_lambda_function" "update_category" {
+  function_name = "blog-update-category-go"
+}
+
+data "aws_lambda_function" "update_categories_sort_order" {
+  function_name = "blog-update-categories-sort-order-go"
+}
+
+data "aws_lambda_function" "delete_category" {
+  function_name = "blog-delete-category-go"
+}
+
 #------------------------------------------------------------------------------
 # Module 4: API Gateway
 # Dependencies: auth (for Cognito Authorizer), Lambda data sources
@@ -142,6 +163,18 @@ module "api" {
   lambda_get_upload_url_invoke_arn  = data.aws_lambda_function.get_upload_url.invoke_arn
   lambda_delete_image_arn           = data.aws_lambda_function.delete_image.arn
   lambda_delete_image_invoke_arn    = data.aws_lambda_function.delete_image.invoke_arn
+
+  # Categories Lambda function ARNs
+  lambda_list_categories_arn                     = data.aws_lambda_function.list_categories.arn
+  lambda_list_categories_invoke_arn              = data.aws_lambda_function.list_categories.invoke_arn
+  lambda_create_category_arn                     = data.aws_lambda_function.create_category.arn
+  lambda_create_category_invoke_arn              = data.aws_lambda_function.create_category.invoke_arn
+  lambda_update_category_arn                     = data.aws_lambda_function.update_category.arn
+  lambda_update_category_invoke_arn              = data.aws_lambda_function.update_category.invoke_arn
+  lambda_update_categories_sort_order_arn        = data.aws_lambda_function.update_categories_sort_order.arn
+  lambda_update_categories_sort_order_invoke_arn = data.aws_lambda_function.update_categories_sort_order.invoke_arn
+  lambda_delete_category_arn                     = data.aws_lambda_function.delete_category.arn
+  lambda_delete_category_invoke_arn              = data.aws_lambda_function.delete_category.invoke_arn
 
   tags = local.common_tags
 
@@ -275,6 +308,10 @@ module "lambda" {
   cloudfront_domain   = module.cdn.distribution_domain_name
   enable_xray         = true # X-Ray enabled for prd
   go_binary_path      = "${path.module}/../../../go-functions/bin"
+
+  # Categories domain
+  categories_table_name = module.database.categories_table_name
+  categories_table_arn  = module.database.categories_table_arn
 
   tags = local.common_tags
 

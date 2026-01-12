@@ -12,12 +12,15 @@ import DashboardPage from './pages/DashboardPage';
 import PostListPage from './pages/PostListPage';
 import PostCreatePage from './pages/PostCreatePage';
 import PostEditPage from './pages/PostEditPage';
+import CategoryListPage from './pages/CategoryListPage';
+import CategoryEditPage from './pages/CategoryEditPage';
 
 function App() {
   return (
     // CloudFrontで /admin/ パスで配信されるため、basename を設定
     // import.meta.env.BASE_URL は vite.config.ts の base 設定値が自動的に入る
-    <Router basename={import.meta.env.BASE_URL}>
+    // React Router v6 は basename に末尾スラッシュがないことを期待するため、削除する
+    <Router basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -54,7 +57,33 @@ function App() {
               </AuthGuard>
             }
           />
+          <Route
+            path="/categories"
+            element={
+              <AuthGuard>
+                <CategoryListPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/categories/new"
+            element={
+              <AuthGuard>
+                <CategoryEditPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/categories/edit/:id"
+            element={
+              <AuthGuard>
+                <CategoryEditPage />
+              </AuthGuard>
+            }
+          />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          {/* Catch-all: 未定義パスは dashboard へリダイレクト */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </AuthProvider>
     </Router>

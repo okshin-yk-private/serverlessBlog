@@ -27,22 +27,30 @@ export interface PostEditorHandle {
   removeImageUrl: (imageUrl: string) => void;
 }
 
+/**
+ * カテゴリオプション（動的カテゴリ用）
+ */
+export interface CategoryOption {
+  slug: string;
+  name: string;
+  sortOrder: number;
+}
+
 interface PostEditorProps {
   onSave: (data: PostData) => Promise<void>;
   onCancel: () => void;
   initialData?: PostData;
   onImagePaste?: (file: File) => Promise<void>;
   isUploading?: boolean;
+  /** 動的カテゴリ一覧 */
+  categories: CategoryOption[];
+  /** カテゴリローディング状態 */
+  categoriesLoading?: boolean;
+  /** カテゴリエラーメッセージ */
+  categoriesError?: string | null;
+  /** カテゴリ再取得関数 */
+  onCategoriesRefetch?: () => void;
 }
-
-const CATEGORIES = [
-  { value: '', label: '選択してください' },
-  { value: 'Technology', label: 'Technology' },
-  { value: 'tech', label: 'テクノロジー' },
-  { value: 'life', label: 'ライフスタイル' },
-  { value: 'business', label: 'ビジネス' },
-  { value: 'other', label: 'その他' },
-];
 
 const PUBLISH_STATUS = [
   { value: 'draft', label: '下書き' },
@@ -50,8 +58,34 @@ const PUBLISH_STATUS = [
 ];
 
 export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
-  ({ onSave, onCancel, initialData, onImagePaste, isUploading }, ref) => {
+  (
+    {
+      onSave,
+      onCancel,
+      initialData,
+      onImagePaste,
+      isUploading,
+      categories,
+      categoriesLoading = false,
+      categoriesError = null,
+      onCategoriesRefetch,
+    },
+    ref
+  ) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // カテゴリをsortOrder順でソート
+    const sortedCategories = [...categories].sort(
+      (a, b) => a.sortOrder - b.sortOrder
+    );
+
+    // 記事のカテゴリが一覧に存在するかチェック
+    const isCategoryMissing =
+      initialData?.category &&
+      initialData.category !== '' &&
+      !categoriesLoading &&
+      categories.length > 0 &&
+      !categories.some((cat) => cat.slug === initialData.category);
 
     const [title, setTitle] = useState(initialData?.title || '');
     const [contentMarkdown, setContentMarkdown] = useState(
@@ -240,14 +274,44 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={isSaving}
+                disabled={isSaving || categoriesLoading}
               >
-                {CATEGORIES.map((cat) => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.label}
-                  </option>
-                ))}
+                {categoriesLoading ? (
+                  <option value="">読み込み中...</option>
+                ) : sortedCategories.length === 0 ? (
+                  <option value="">カテゴリがありません</option>
+                ) : (
+                  <>
+                    <option value="">選択してください</option>
+                    {sortedCategories.map((cat) => (
+                      <option key={cat.slug} value={cat.slug}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </>
+                )}
               </select>
+              {categoriesError && (
+                <div className="mt-1">
+                  <p className="text-sm text-red-600">{categoriesError}</p>
+                  {onCategoriesRefetch && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={onCategoriesRefetch}
+                      className="mt-1 text-sm"
+                    >
+                      再試行
+                    </Button>
+                  )}
+                </div>
+              )}
+              {isCategoryMissing && (
+                <p className="mt-1 text-sm text-yellow-600">
+                  選択されているカテゴリ「{initialData?.category}
+                  」は現在利用できません。別のカテゴリを選択してください。
+                </p>
+              )}
               {categoryError && (
                 <p
                   className="mt-1 text-sm text-red-600"

@@ -1,0 +1,6 @@
+{
+  "description": "Research AWS services, architecture patterns, and best practices (runs in separate context)",
+  "argumentHint": "<research-topic>",
+  "allowedTools": ["Task"],
+  "codexFormat": "yaml"
+}

@@ -349,11 +349,14 @@ npm run cleanup:test-data
 
 ## ドキュメント
 
+- [ドキュメント索引](./docs/README.md)
 - [アーキテクチャ設計](./docs/architecture.md)
 - [デプロイメントガイド](./docs/deployment.md)
 - [カバレッジガイド](./docs/coverage.md)
 - [テスト戦略](./docs/testing-strategy.md)
 - [API仕様](./.kiro/specs/serverless-blog-aws/requirements.md)
+- [Go Lambda 関数のREADME](./go-functions/README.md)
+- [スクリプト一覧](./scripts/README.md)
 
 ## 要件と設計
 

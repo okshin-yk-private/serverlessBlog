@@ -9,6 +9,16 @@ import { AuthProvider } from '../contexts/AuthContext';
 // API関数とコンポーネントをモック
 vi.mock('../api/posts');
 
+// カテゴリAPIのモック
+vi.mock('../api/categories', () => ({
+  fetchCategories: vi.fn().mockResolvedValue([
+    { id: '1', slug: 'tech', name: 'テクノロジー', sortOrder: 1 },
+    { id: '2', slug: 'life', name: 'ライフスタイル', sortOrder: 2 },
+    { id: '3', slug: 'business', name: 'ビジネス', sortOrder: 3 },
+    { id: '4', slug: 'other', name: 'その他', sortOrder: 4 },
+  ]),
+}));
+
 // Amplifyのモック
 vi.mock('aws-amplify/auth', () => ({
   signIn: vi.fn(),

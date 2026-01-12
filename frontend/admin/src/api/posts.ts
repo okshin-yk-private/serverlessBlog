@@ -2,7 +2,7 @@ import axios from 'axios';
 import { getAuthToken } from '../utils/auth';
 
 // E2Eテスト時は空文字列を使用して相対パスにする（MSWは同一オリジンのリクエストをインターセプトできる）
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL ?? '/api';
 
 export interface Post {
   id: string;

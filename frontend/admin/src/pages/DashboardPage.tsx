@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { getPosts } from '../api/posts';
 import type { Post } from '../api/posts';
 import AdminLayout from '../components/AdminLayout';
+import { DashboardSkeleton } from '../components/skeleton';
 
 const DashboardPage = () => {
   const [publishedPosts, setPublishedPosts] = useState<Post[]>([]);
@@ -57,7 +58,7 @@ const DashboardPage = () => {
   if (loading) {
     return (
       <AdminLayout title="Dashboard">
-        <div className="admin-loading">読み込み中...</div>
+        <DashboardSkeleton />
       </AdminLayout>
     );
   }

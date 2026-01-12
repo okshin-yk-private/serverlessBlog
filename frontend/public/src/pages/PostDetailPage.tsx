@@ -10,6 +10,7 @@ import { useParams, Link } from 'react-router-dom';
 import { fetchPost } from '../services/api';
 import type { Post } from '../types/post';
 import { SEOHead } from '../components/SEOHead';
+import { PostDetailSkeleton } from '../components/skeleton';
 
 const PostDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -48,11 +49,7 @@ const PostDetailPage: React.FC = () => {
   }, [id]);
 
   if (loading) {
-    return (
-      <div className="container">
-        <p>読み込み中...</p>
-      </div>
-    );
+    return <PostDetailSkeleton />;
   }
 
   if (error) {
