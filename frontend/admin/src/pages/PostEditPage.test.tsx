@@ -7,7 +7,17 @@ import * as postsApi from '../api/posts';
 import { AuthProvider } from '../contexts/AuthContext';
 
 // API関数とコンポーネントをモック
-vi.mock('../api/posts');
+vi.mock('../api/posts', () => ({
+  getPosts: vi.fn(),
+  deletePost: vi.fn(),
+  updatePost: vi.fn(),
+  createPost: vi.fn(),
+  getPost: vi.fn(),
+  getUploadUrl: vi.fn(),
+  uploadImage: vi.fn(),
+  deleteImage: vi.fn(),
+  extractImageKey: vi.fn(),
+}));
 
 // カテゴリAPIのモック
 vi.mock('../api/categories', () => ({
@@ -82,8 +92,8 @@ vi.mock('../components/ImageUploader', () => ({
   ),
 }));
 
-const mockGetPost = vi.mocked(postsApi.getPost);
-const mockUpdatePost = vi.mocked(postsApi.updatePost);
+const mockGetPost = postsApi.getPost as ReturnType<typeof vi.fn>;
+const mockUpdatePost = postsApi.updatePost as ReturnType<typeof vi.fn>;
 
 // MemoryRouter版のヘルパー
 const renderWithRouter = (postId: string = '1') => {
@@ -458,7 +468,8 @@ describe('PostEditPage', () => {
 
       renderWithRouter('1');
 
-      expect(screen.getByText(/読み込み中/i)).toBeInTheDocument();
+      // スケルトンUIが表示されることを確認
+      expect(screen.getByTestId('post-edit-skeleton')).toBeInTheDocument();
     });
 
     it('ローディング完了後にPostEditorを表示する', async () => {
@@ -478,7 +489,9 @@ describe('PostEditPage', () => {
       renderWithRouter('1');
 
       await waitFor(() => {
-        expect(screen.queryByText(/読み込み中/i)).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId('post-edit-skeleton')
+        ).not.toBeInTheDocument();
         expect(screen.getByTestId('post-editor')).toBeInTheDocument();
       });
     });

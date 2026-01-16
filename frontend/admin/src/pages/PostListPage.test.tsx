@@ -7,7 +7,17 @@ import * as postsApi from '../api/posts';
 import { AuthProvider } from '../contexts/AuthContext';
 
 // API関数をモック
-vi.mock('../api/posts');
+vi.mock('../api/posts', () => ({
+  getPosts: vi.fn(),
+  deletePost: vi.fn(),
+  updatePost: vi.fn(),
+  createPost: vi.fn(),
+  getPost: vi.fn(),
+  getUploadUrl: vi.fn(),
+  uploadImage: vi.fn(),
+  deleteImage: vi.fn(),
+  extractImageKey: vi.fn(),
+}));
 
 // Amplifyのモック
 vi.mock('aws-amplify/auth', () => ({
@@ -40,9 +50,9 @@ vi.mock('../components/AdminLayout', () => ({
   ),
 }));
 
-const mockGetPosts = vi.mocked(postsApi.getPosts);
-const mockDeletePost = vi.mocked(postsApi.deletePost);
-const mockUpdatePost = vi.mocked(postsApi.updatePost);
+const mockGetPosts = postsApi.getPosts as ReturnType<typeof vi.fn>;
+const mockDeletePost = postsApi.deletePost as ReturnType<typeof vi.fn>;
+const mockUpdatePost = postsApi.updatePost as ReturnType<typeof vi.fn>;
 
 const renderPostListPage = () => {
   return render(
@@ -490,7 +500,8 @@ describe('PostListPage', () => {
 
       renderPostListPage();
 
-      expect(screen.getByText(/読み込み中/i)).toBeInTheDocument();
+      // スケルトンUIが表示されることを確認
+      expect(screen.getByTestId('post-list-skeleton')).toBeInTheDocument();
     });
 
     it('ページネーション用のnextTokenが存在する場合、次へボタンを表示する', async () => {
