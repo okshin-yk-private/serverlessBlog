@@ -98,12 +98,35 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		tokenResp.RefreshToken = authOutput.AuthenticationResult.RefreshToken
 	}
 
-	return middleware.JSONResponse(200, tokenResp)
+	return tokenResponseWithNoCache(200, tokenResp)
 }
 
 // errorResponse creates an error response with CORS headers
 func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
 	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
+}
+
+// tokenResponseWithNoCache creates a JSON response with Cache-Control: no-store header
+// to prevent tokens from being cached by browsers or intermediaries
+func tokenResponseWithNoCache(statusCode int, body interface{}) (events.APIGatewayProxyResponse, error) {
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Headers:    middleware.CORSHeaders(),
+			Body:       `{"error":"Failed to marshal response"}`,
+		}, err
+	}
+
+	headers := middleware.CORSHeaders()
+	headers["Cache-Control"] = "no-store"
+	headers["Pragma"] = "no-cache"
+
+	return events.APIGatewayProxyResponse{
+		StatusCode: statusCode,
+		Headers:    headers,
+		Body:       string(jsonBody),
+	}, nil
 }
 
 // handleCognitoError maps Cognito errors to appropriate HTTP responses
@@ -121,7 +144,8 @@ func handleCognitoError(err error) (events.APIGatewayProxyResponse, error) {
 
 	var userNotConfirmedErr *types.UserNotConfirmedException
 	if errors.As(err, &userNotConfirmedErr) {
-		return errorResponse(401, "user is not confirmed")
+		// Return generic message to prevent user enumeration attacks
+		return errorResponse(401, "invalid email or password")
 	}
 
 	// Generic server error for other cases

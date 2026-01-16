@@ -307,7 +307,7 @@ func TestHandler_CognitoErrors(t *testing.T) {
 			name:           "UserNotConfirmedException",
 			cognitoErr:     &types.UserNotConfirmedException{Message: ptrString("User is not confirmed")},
 			expectedStatus: 401,
-			expectedError:  "user is not confirmed",
+			expectedError:  "invalid email or password", // Generic message to prevent user enumeration
 		},
 		{
 			name:           "generic Cognito error",
