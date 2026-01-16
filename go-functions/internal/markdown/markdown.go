@@ -49,10 +49,12 @@ func ConvertToHTML(markdown string) (string, error) {
 }
 
 // ExtractExcerpt extracts a text excerpt from Markdown content.
-// If the content is longer than maxLength, it truncates and adds "...".
+// If the content is longer than maxLength runes, it truncates and adds "...".
+// Uses rune count instead of byte count to properly handle UTF-8 multi-byte characters.
 func ExtractExcerpt(markdown string, maxLength int) string {
-	if len(markdown) <= maxLength {
+	runes := []rune(markdown)
+	if len(runes) <= maxLength {
 		return markdown
 	}
-	return markdown[:maxLength] + "..."
+	return string(runes[:maxLength]) + "..."
 }

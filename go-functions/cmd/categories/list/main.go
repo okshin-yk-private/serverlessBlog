@@ -54,19 +54,35 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return errorResponse(500, "server error")
 	}
 
-	// Build DynamoDB Scan input to get all categories
-	scanInput := &dynamodb.ScanInput{
-		TableName: aws.String(tableName),
-	}
+	// Collect all items using pagination
+	var allItems []map[string]types.AttributeValue
+	var lastEvaluatedKey map[string]types.AttributeValue
 
-	// Execute scan
-	result, err := dynamoClient.Scan(ctx, scanInput)
-	if err != nil {
-		return errorResponse(500, "failed to retrieve categories")
+	for {
+		// Build DynamoDB Scan input to get all categories
+		scanInput := &dynamodb.ScanInput{
+			TableName:         aws.String(tableName),
+			ExclusiveStartKey: lastEvaluatedKey,
+		}
+
+		// Execute scan
+		result, err := dynamoClient.Scan(ctx, scanInput)
+		if err != nil {
+			return errorResponse(500, "failed to retrieve categories")
+		}
+
+		// Append items from this page
+		allItems = append(allItems, result.Items...)
+
+		// Check if there are more items to fetch
+		if result.LastEvaluatedKey == nil {
+			break
+		}
+		lastEvaluatedKey = result.LastEvaluatedKey
 	}
 
 	// Process results
-	categories := processResults(result.Items)
+	categories := processResults(allItems)
 
 	// Sort categories by sortOrder ascending
 	// Requirement 2.1: sorted by sortOrder ascending
@@ -74,8 +90,15 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return categories[i].SortOrder < categories[j].SortOrder
 	})
 
+	// Convert to list response items (only id, name, slug, sortOrder)
+	// Requirement 2.2: Return only specified fields
+	response := make([]domain.CategoryListItem, 0, len(categories))
+	for i := range categories {
+		response = append(response, categories[i].ToCategoryListItem())
+	}
+
 	// Return response (empty array if no categories)
-	return middleware.JSONResponse(200, categories)
+	return middleware.JSONResponse(200, response)
 }
 
 // processResults converts DynamoDB items to Category structs

@@ -283,8 +283,12 @@ func saveCategory(ctx context.Context, client DynamoDBClientInterface, tableName
 	return err
 }
 
+// maxTransactWriteItems is the maximum number of items per TransactWriteItems call
+// DynamoDB limits TransactWriteItems to 100 items per call
+const maxTransactWriteItems = 100
+
 // updateCategoryWithPosts updates the category and all posts referencing the old slug
-// Requirement 4.7: Atomic update of category and posts
+// Requirement 4.7: Update category and posts (handles large numbers of posts via batching)
 func updateCategoryWithPosts(ctx context.Context, client DynamoDBClientInterface, tableName, postsTableName, categoryIndexName, oldSlug string, category *domain.Category) (events.APIGatewayProxyResponse, error) {
 	// Find all posts referencing the old slug
 	posts, err := getPostsByCategory(ctx, client, postsTableName, categoryIndexName, oldSlug)
@@ -292,73 +296,125 @@ func updateCategoryWithPosts(ctx context.Context, client DynamoDBClientInterface
 		return errorResponse(500, "failed to query posts")
 	}
 
-	// Build transaction items
-	transactItems := make([]types.TransactWriteItem, 0, len(posts)+1)
-
-	// Add category update
+	// Marshal category for updates
 	categoryAV, err := attributevalue.MarshalMap(category)
 	if err != nil {
 		return errorResponse(500, "failed to marshal category")
 	}
 
-	transactItems = append(transactItems, types.TransactWriteItem{
-		Put: &types.Put{
-			TableName: aws.String(tableName),
-			Item:      categoryAV,
-		},
-	})
-
-	// Add post updates
-	for i := range posts {
-		transactItems = append(transactItems, types.TransactWriteItem{
-			Update: &types.Update{
-				TableName: aws.String(postsTableName),
-				Key: map[string]types.AttributeValue{
-					"id": &types.AttributeValueMemberS{Value: posts[i].ID},
-				},
-				UpdateExpression: aws.String("SET category = :newCategory"),
-				ExpressionAttributeValues: map[string]types.AttributeValue{
-					":newCategory": &types.AttributeValueMemberS{Value: category.Slug},
+	// If no posts to update, just update the category
+	if len(posts) == 0 {
+		transactInput := &dynamodb.TransactWriteItemsInput{
+			TransactItems: []types.TransactWriteItem{
+				{
+					Put: &types.Put{
+						TableName: aws.String(tableName),
+						Item:      categoryAV,
+					},
 				},
 			},
-		})
+		}
+
+		_, err = client.TransactWriteItems(ctx, transactInput)
+		if err != nil {
+			return errorResponse(500, "failed to update category")
+		}
+
+		return middleware.JSONResponse(200, category)
 	}
 
-	// Execute transaction
-	transactInput := &dynamodb.TransactWriteItemsInput{
-		TransactItems: transactItems,
-	}
+	// Process posts in batches
+	// First batch includes the category update + up to (maxTransactWriteItems - 1) posts
+	// Subsequent batches contain up to maxTransactWriteItems posts each
+	batchSize := maxTransactWriteItems - 1 // Reserve 1 slot for category in first batch
+	totalBatches := (len(posts) + batchSize - 1) / batchSize
 
-	_, err = client.TransactWriteItems(ctx, transactInput)
-	if err != nil {
-		return errorResponse(500, "failed to update category and posts")
+	for batchIndex := 0; batchIndex < totalBatches; batchIndex++ {
+		start := batchIndex * batchSize
+		end := start + batchSize
+		if end > len(posts) {
+			end = len(posts)
+		}
+
+		batchPosts := posts[start:end]
+		transactItems := make([]types.TransactWriteItem, 0, len(batchPosts)+1)
+
+		// Include category update only in first batch
+		if batchIndex == 0 {
+			transactItems = append(transactItems, types.TransactWriteItem{
+				Put: &types.Put{
+					TableName: aws.String(tableName),
+					Item:      categoryAV,
+				},
+			})
+		}
+
+		// Add post updates for this batch
+		for i := range batchPosts {
+			transactItems = append(transactItems, types.TransactWriteItem{
+				Update: &types.Update{
+					TableName: aws.String(postsTableName),
+					Key: map[string]types.AttributeValue{
+						"id": &types.AttributeValueMemberS{Value: batchPosts[i].ID},
+					},
+					UpdateExpression: aws.String("SET category = :newCategory"),
+					ExpressionAttributeValues: map[string]types.AttributeValue{
+						":newCategory": &types.AttributeValueMemberS{Value: category.Slug},
+					},
+				},
+			})
+		}
+
+		// Execute this batch
+		transactInput := &dynamodb.TransactWriteItemsInput{
+			TransactItems: transactItems,
+		}
+
+		_, err = client.TransactWriteItems(ctx, transactInput)
+		if err != nil {
+			return errorResponse(500, "failed to update category and posts")
+		}
 	}
 
 	return middleware.JSONResponse(200, category)
 }
 
-// getPostsByCategory retrieves all posts with a given category slug
+// getPostsByCategory retrieves all posts with a given category slug using pagination
 func getPostsByCategory(ctx context.Context, client DynamoDBClientInterface, tableName, indexName, category string) ([]domain.BlogPost, error) {
-	queryInput := &dynamodb.QueryInput{
-		TableName:              aws.String(tableName),
-		IndexName:              aws.String(indexName),
-		KeyConditionExpression: aws.String("category = :cat"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":cat": &types.AttributeValueMemberS{Value: category},
-		},
+	var allPosts []domain.BlogPost
+	var lastEvaluatedKey map[string]types.AttributeValue
+
+	for {
+		queryInput := &dynamodb.QueryInput{
+			TableName:              aws.String(tableName),
+			IndexName:              aws.String(indexName),
+			KeyConditionExpression: aws.String("category = :cat"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":cat": &types.AttributeValueMemberS{Value: category},
+			},
+			ExclusiveStartKey: lastEvaluatedKey,
+		}
+
+		result, err := client.Query(ctx, queryInput)
+		if err != nil {
+			return nil, err
+		}
+
+		var posts []domain.BlogPost
+		if err := attributevalue.UnmarshalListOfMaps(result.Items, &posts); err != nil {
+			return nil, err
+		}
+
+		allPosts = append(allPosts, posts...)
+
+		// Check if there are more items to fetch
+		if result.LastEvaluatedKey == nil {
+			break
+		}
+		lastEvaluatedKey = result.LastEvaluatedKey
 	}
 
-	result, err := client.Query(ctx, queryInput)
-	if err != nil {
-		return nil, err
-	}
-
-	var posts []domain.BlogPost
-	if err := attributevalue.UnmarshalListOfMaps(result.Items, &posts); err != nil {
-		return nil, err
-	}
-
-	return posts, nil
+	return allPosts, nil
 }
 
 // errorResponse creates an error response with CORS headers

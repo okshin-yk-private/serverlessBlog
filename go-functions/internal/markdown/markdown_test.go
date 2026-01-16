@@ -408,10 +408,22 @@ func TestExtractExcerpt(t *testing.T) {
 			expected:  "",
 		},
 		{
-			name:      "unicode text truncated correctly",
+			name:      "unicode text truncated correctly by rune count",
 			input:     "こんにちは世界",
-			maxLength: 15,
+			maxLength: 5,
 			expected:  "こんにちは...",
+		},
+		{
+			name:      "unicode text shorter than maxLength unchanged",
+			input:     "こんにちは世界",
+			maxLength: 10,
+			expected:  "こんにちは世界",
+		},
+		{
+			name:      "mixed ascii and unicode truncated by rune count",
+			input:     "Hello世界！",
+			maxLength: 7,
+			expected:  "Hello世界...",
 		},
 	}
 

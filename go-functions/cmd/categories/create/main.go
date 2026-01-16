@@ -13,6 +13,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"time"
 
@@ -36,6 +37,7 @@ type DynamoDBClientInterface interface {
 	Query(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
 	PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
 	Scan(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error)
+	TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error)
 }
 
 // dynamoClientGetter is a function that returns the DynamoDB client
@@ -85,12 +87,6 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return errorResponse(500, "server configuration error")
 	}
 
-	// Get slug index name
-	slugIndexName := os.Getenv("SLUG_INDEX_NAME")
-	if slugIndexName == "" {
-		slugIndexName = "SlugIndex"
-	}
-
 	// Get DynamoDB client
 	dynamoClient, err := dynamoClientGetter()
 	if err != nil {
@@ -104,16 +100,6 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		slug = *req.Slug
 	} else {
 		slug = domain.GenerateSlug(req.Name)
-	}
-
-	// Check slug uniqueness
-	// Requirement 3.4: Return 409 if slug exists
-	slugExists, err := checkSlugExists(ctx, dynamoClient, tableName, slugIndexName, slug)
-	if err != nil {
-		return errorResponse(500, "failed to check slug uniqueness")
-	}
-	if slugExists {
-		return errorResponse(409, "category with this slug already exists")
 	}
 
 	// Determine sortOrder
@@ -152,14 +138,42 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return errorResponse(500, "failed to marshal category")
 	}
 
-	// Save to DynamoDB
-	putInput := &dynamodb.PutItemInput{
-		TableName: &tableName,
-		Item:      av,
+	// Use TransactWriteItems for atomic slug uniqueness check
+	// Requirement 3.4: Return 409 if slug exists (enforced atomically)
+	// This creates both the category item and a slug reservation item in a single transaction
+	slugReservationID := "SLUG#" + slug
+	transactInput := &dynamodb.TransactWriteItemsInput{
+		TransactItems: []types.TransactWriteItem{
+			{
+				// Put the category item
+				Put: &types.Put{
+					TableName:           &tableName,
+					Item:                av,
+					ConditionExpression: aws.String("attribute_not_exists(id)"),
+				},
+			},
+			{
+				// Put slug reservation item to ensure uniqueness atomically
+				Put: &types.Put{
+					TableName: &tableName,
+					Item: map[string]types.AttributeValue{
+						"id":         &types.AttributeValueMemberS{Value: slugReservationID},
+						"slug":       &types.AttributeValueMemberS{Value: slug},
+						"categoryId": &types.AttributeValueMemberS{Value: categoryID},
+						"itemType":   &types.AttributeValueMemberS{Value: "SLUG_RESERVATION"},
+					},
+					ConditionExpression: aws.String("attribute_not_exists(id)"),
+				},
+			},
+		},
 	}
 
-	_, err = dynamoClient.PutItem(ctx, putInput)
+	_, err = dynamoClient.TransactWriteItems(ctx, transactInput)
 	if err != nil {
+		// Check if it's a transaction canceled error (slug already exists)
+		if isTransactionCanceledError(err) {
+			return errorResponse(409, "category with this slug already exists")
+		}
 		return errorResponse(500, "failed to create category")
 	}
 
@@ -196,25 +210,11 @@ func extractAuthorID(request events.APIGatewayProxyRequest) string {
 	return subStr
 }
 
-// checkSlugExists checks if a category with the given slug already exists
-// Uses SlugIndex GSI for efficient lookup
-func checkSlugExists(ctx context.Context, client DynamoDBClientInterface, tableName, indexName, slug string) (bool, error) {
-	queryInput := &dynamodb.QueryInput{
-		TableName:              aws.String(tableName),
-		IndexName:              aws.String(indexName),
-		KeyConditionExpression: aws.String("slug = :slug"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":slug": &types.AttributeValueMemberS{Value: slug},
-		},
-		Limit: aws.Int32(1),
-	}
-
-	result, err := client.Query(ctx, queryInput)
-	if err != nil {
-		return false, err
-	}
-
-	return result.Count > 0, nil
+// isTransactionCanceledError checks if the error is a DynamoDB TransactionCanceledException
+// This typically happens when a condition expression fails (e.g., slug already exists)
+func isTransactionCanceledError(err error) bool {
+	var tcErr *types.TransactionCanceledException
+	return errors.As(err, &tcErr)
 }
 
 // getMaxSortOrder finds the maximum sortOrder value among existing categories

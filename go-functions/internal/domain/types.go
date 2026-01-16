@@ -207,9 +207,29 @@ type Category struct {
 	UpdatedAt   string  `json:"updatedAt" dynamodbav:"updatedAt"`
 }
 
+// CategoryListItem represents a category item in list response.
+// Requirement 2.2: Return only id, name, slug, and sortOrder fields.
+// This excludes description, createdAt, and updatedAt which are internal fields.
+type CategoryListItem struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Slug      string `json:"slug"`
+	SortOrder int    `json:"sortOrder"`
+}
+
+// ToCategoryListItem converts a Category to CategoryListItem for API response.
+func (c *Category) ToCategoryListItem() CategoryListItem {
+	return CategoryListItem{
+		ID:        c.ID,
+		Name:      c.Name,
+		Slug:      c.Slug,
+		SortOrder: c.SortOrder,
+	}
+}
+
 // ListCategoriesResponse represents the response for list categories API.
 // Requirement 2.2: Return id, name, slug, and sortOrder fields.
-type ListCategoriesResponse []Category
+type ListCategoriesResponse []CategoryListItem
 
 // CreateCategoryRequest represents the request body for creating a category.
 // Requirement 3: Category Creation API
@@ -239,7 +259,11 @@ func (r *CreateCategoryRequest) Validate() error {
 	}
 
 	// Requirement 9.4: slug format check (if provided)
-	if r.Slug != nil && *r.Slug != "" {
+	if r.Slug != nil {
+		// Reject explicitly empty slugs
+		if *r.Slug == "" {
+			return errors.New("slug cannot be empty when provided")
+		}
 		if !slugPattern.MatchString(*r.Slug) {
 			return errors.New("slug must contain only lowercase alphanumeric characters and hyphens")
 		}
@@ -273,7 +297,11 @@ func (r *UpdateCategoryRequest) Validate() error {
 	}
 
 	// Requirement 9.4: slug format check (if provided)
-	if r.Slug != nil && *r.Slug != "" {
+	if r.Slug != nil {
+		// Reject explicitly empty slugs
+		if *r.Slug == "" {
+			return errors.New("slug cannot be empty when provided")
+		}
 		if !slugPattern.MatchString(*r.Slug) {
 			return errors.New("slug must contain only lowercase alphanumeric characters and hyphens")
 		}

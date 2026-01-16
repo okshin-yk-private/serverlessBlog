@@ -248,11 +248,16 @@ func boolPtr(b bool) *bool {
 // This prevents deletion of arbitrary S3 objects by validating the key prefix
 // Valid patterns:
 //   - {authorID}/...  (user-owned prefix)
+//   - images/{authorID}/... (CloudFront URL pattern - user-owned prefix)
 //   - images/{postID}/... (post-owned prefix)
 //   - {postID}/... (post-owned prefix)
 func isValidS3KeyForDeletion(key, authorID, postID string) bool {
 	// Check if key starts with user's ID prefix
 	if strings.HasPrefix(key, authorID+"/") {
+		return true
+	}
+	// Check if key is under images/{authorID}/ prefix (CloudFront URL pattern)
+	if strings.HasPrefix(key, "images/"+authorID+"/") {
 		return true
 	}
 	// Check if key starts with post's ID prefix

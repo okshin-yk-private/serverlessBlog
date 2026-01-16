@@ -42,9 +42,10 @@ const (
 
 // MockDynamoDBClient is a mock implementation of DynamoDBClientInterface
 type MockDynamoDBClient struct {
-	QueryFunc   func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
-	PutItemFunc func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
-	ScanFunc    func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error)
+	QueryFunc              func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
+	PutItemFunc            func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
+	ScanFunc               func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error)
+	TransactWriteItemsFunc func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error)
 }
 
 func (m *MockDynamoDBClient) Query(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
@@ -66,6 +67,13 @@ func (m *MockDynamoDBClient) Scan(ctx context.Context, params *dynamodb.ScanInpu
 		return m.ScanFunc(ctx, params, optFns...)
 	}
 	return nil, errors.New("ScanFunc not set")
+}
+
+func (m *MockDynamoDBClient) TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+	if m.TransactWriteItemsFunc != nil {
+		return m.TransactWriteItemsFunc(ctx, params, optFns...)
+	}
+	return nil, errors.New("TransactWriteItemsFunc not set")
 }
 
 func setupTest(t *testing.T) func() {
@@ -118,16 +126,9 @@ func TestHandler_SuccessfulCreateCategory(t *testing.T) {
 	uuidGenerator = func() string { return testUUID }
 	timeNow = func() string { return testTime }
 
-	var savedItem map[string]types.AttributeValue
+	var savedItems []types.TransactWriteItem
 
 	mockClient := &MockDynamoDBClient{
-		// Query for slug check - returns empty (slug not exists)
-		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-			return &dynamodb.QueryOutput{
-				Items: []map[string]types.AttributeValue{},
-				Count: 0,
-			}, nil
-		},
 		// Scan for max sortOrder - returns empty
 		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 			return &dynamodb.ScanOutput{
@@ -135,10 +136,10 @@ func TestHandler_SuccessfulCreateCategory(t *testing.T) {
 				Count: 0,
 			}, nil
 		},
-		// PutItem saves the category
-		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
-			savedItem = params.Item
-			return &dynamodb.PutItemOutput{}, nil
+		// TransactWriteItems saves the category and slug reservation atomically
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			savedItems = params.TransactItems
+			return &dynamodb.TransactWriteItemsOutput{}, nil
 		},
 	}
 
@@ -180,9 +181,9 @@ func TestHandler_SuccessfulCreateCategory(t *testing.T) {
 		t.Errorf("expected UpdatedAt %q, got %q", testTime, category.UpdatedAt)
 	}
 
-	// Verify item was saved
-	if savedItem == nil {
-		t.Fatal("expected item to be saved")
+	// Verify transaction items were saved (category + slug reservation)
+	if len(savedItems) != 2 {
+		t.Fatalf("expected 2 transaction items, got %d", len(savedItems))
 	}
 }
 
@@ -199,14 +200,11 @@ func TestHandler_AutoGenerateSlug(t *testing.T) {
 	timeNow = func() string { return testTime }
 
 	mockClient := &MockDynamoDBClient{
-		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
-		},
 		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 			return &dynamodb.ScanOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
 		},
-		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
-			return &dynamodb.PutItemOutput{}, nil
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return &dynamodb.TransactWriteItemsOutput{}, nil
 		},
 	}
 
@@ -255,17 +253,14 @@ func TestHandler_AutoAssignSortOrder(t *testing.T) {
 	existingAV, _ := attributevalue.MarshalMap(existingCat)
 
 	mockClient := &MockDynamoDBClient{
-		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
-		},
 		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 			return &dynamodb.ScanOutput{
 				Items: []map[string]types.AttributeValue{existingAV},
 				Count: 1,
 			}, nil
 		},
-		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
-			return &dynamodb.PutItemOutput{}, nil
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return &dynamodb.TransactWriteItemsOutput{}, nil
 		},
 	}
 
@@ -309,14 +304,11 @@ func TestHandler_ProvidedSortOrder(t *testing.T) {
 	timeNow = func() string { return testTime }
 
 	mockClient := &MockDynamoDBClient{
-		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
-		},
 		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 			return &dynamodb.ScanOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
 		},
-		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
-			return &dynamodb.PutItemOutput{}, nil
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return &dynamodb.TransactWriteItemsOutput{}, nil
 		},
 	}
 
@@ -528,17 +520,15 @@ func TestHandler_SlugAlreadyExists(t *testing.T) {
 	cleanup := setupTest(t)
 	defer cleanup()
 
-	// Existing category with same slug
-	existingCat := domain.Category{ID: "existing-1", Slug: "tech"}
-	existingAV, _ := attributevalue.MarshalMap(existingCat)
-
 	mockClient := &MockDynamoDBClient{
-		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-			// Return existing category (slug exists)
-			return &dynamodb.QueryOutput{
-				Items: []map[string]types.AttributeValue{existingAV},
-				Count: 1,
-			}, nil
+		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+			return &dynamodb.ScanOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
+		},
+		// TransactWriteItems fails with TransactionCanceledException when slug already exists
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return nil, &types.TransactionCanceledException{
+				Message: aws.String("Transaction canceled due to condition failure"),
+			}
 		},
 	}
 
@@ -626,52 +616,12 @@ func TestHandler_DynamoDBClientError(t *testing.T) {
 	}
 }
 
-// TestHandler_QueryError tests 500 response when slug query fails
-func TestHandler_QueryError(t *testing.T) {
-	cleanup := setupTest(t)
-	defer cleanup()
-
-	mockClient := &MockDynamoDBClient{
-		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-			return nil, errors.New("DynamoDB query error")
-		},
-	}
-
-	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
-		return mockClient, nil
-	}
-
-	reqBody := `{"name":"Test"}`
-	request := createAuthenticatedRequest(reqBody)
-
-	resp, err := Handler(context.Background(), request)
-	if err != nil {
-		t.Fatalf("Handler returned unexpected error: %v", err)
-	}
-
-	if resp.StatusCode != 500 {
-		t.Errorf("expected status 500, got %d", resp.StatusCode)
-	}
-
-	var errResp domain.ErrorResponse
-	if err := json.Unmarshal([]byte(resp.Body), &errResp); err != nil {
-		t.Fatalf("failed to unmarshal response: %v", err)
-	}
-
-	if errResp.Message != "failed to check slug uniqueness" {
-		t.Errorf("expected error message about slug check, got %q", errResp.Message)
-	}
-}
-
 // TestHandler_ScanError tests 500 response when sortOrder scan fails
 func TestHandler_ScanError(t *testing.T) {
 	cleanup := setupTest(t)
 	defer cleanup()
 
 	mockClient := &MockDynamoDBClient{
-		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
-		},
 		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 			return nil, errors.New("DynamoDB scan error")
 		},
@@ -699,12 +649,12 @@ func TestHandler_ScanError(t *testing.T) {
 	}
 
 	if errResp.Message != "failed to determine sort order" {
-		t.Errorf("expected error message about sort order, got %q", errResp.Message)
+		t.Errorf("expected error message about slug check, got %q", errResp.Message)
 	}
 }
 
-// TestHandler_PutItemError tests 500 response when save fails
-func TestHandler_PutItemError(t *testing.T) {
+// TestHandler_TransactWriteError tests 500 response when save fails
+func TestHandler_TransactWriteError(t *testing.T) {
 	cleanup := setupTest(t)
 	defer cleanup()
 
@@ -715,14 +665,11 @@ func TestHandler_PutItemError(t *testing.T) {
 	timeNow = func() string { return testTime }
 
 	mockClient := &MockDynamoDBClient{
-		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
-		},
 		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 			return &dynamodb.ScanOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
 		},
-		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
-			return nil, errors.New("DynamoDB put error")
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return nil, errors.New("DynamoDB transact write error")
 		},
 	}
 
@@ -764,14 +711,11 @@ func TestHandler_CORSHeaders(t *testing.T) {
 	timeNow = func() string { return testTime }
 
 	mockClient := &MockDynamoDBClient{
-		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
-		},
 		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 			return &dynamodb.ScanOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
 		},
-		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
-			return &dynamodb.PutItemOutput{}, nil
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return &dynamodb.TransactWriteItemsOutput{}, nil
 		},
 	}
 
@@ -808,14 +752,11 @@ func TestHandler_CategoryWithDescription(t *testing.T) {
 	timeNow = func() string { return testTime }
 
 	mockClient := &MockDynamoDBClient{
-		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
-		},
 		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 			return &dynamodb.ScanOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
 		},
-		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
-			return &dynamodb.PutItemOutput{}, nil
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return &dynamodb.TransactWriteItemsOutput{}, nil
 		},
 	}
 
@@ -885,14 +826,11 @@ func TestHandler_Timestamps(t *testing.T) {
 	timeNow = func() string { return testTime }
 
 	mockClient := &MockDynamoDBClient{
-		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
-		},
 		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 			return &dynamodb.ScanOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
 		},
-		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
-			return &dynamodb.PutItemOutput{}, nil
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return &dynamodb.TransactWriteItemsOutput{}, nil
 		},
 	}
 
@@ -926,8 +864,8 @@ func TestHandler_Timestamps(t *testing.T) {
 	}
 }
 
-// TestHandler_SlugIndexQueryParams tests that the correct index is used for slug lookup
-func TestHandler_SlugIndexQueryParams(t *testing.T) {
+// TestHandler_TransactWriteItemsParams tests that the correct transaction items are created
+func TestHandler_TransactWriteItemsParams(t *testing.T) {
 	cleanup := setupTest(t)
 	defer cleanup()
 
@@ -937,18 +875,15 @@ func TestHandler_SlugIndexQueryParams(t *testing.T) {
 	uuidGenerator = func() string { return testUUID }
 	timeNow = func() string { return testTime }
 
-	var capturedQueryInput *dynamodb.QueryInput
+	var capturedTransactInput *dynamodb.TransactWriteItemsInput
 
 	mockClient := &MockDynamoDBClient{
-		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-			capturedQueryInput = params
-			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
-		},
 		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 			return &dynamodb.ScanOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
 		},
-		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
-			return &dynamodb.PutItemOutput{}, nil
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			capturedTransactInput = params
+			return &dynamodb.TransactWriteItemsOutput{}, nil
 		},
 	}
 
@@ -964,36 +899,33 @@ func TestHandler_SlugIndexQueryParams(t *testing.T) {
 		t.Fatalf("Handler returned unexpected error: %v", err)
 	}
 
-	// Verify correct index is used
-	if capturedQueryInput == nil {
-		t.Fatal("expected query to be executed")
+	// Verify transaction has 2 items (category + slug reservation)
+	if capturedTransactInput == nil {
+		t.Fatal("expected transaction to be executed")
 	}
 
-	if capturedQueryInput.IndexName == nil || *capturedQueryInput.IndexName != testSlugIndex {
-		t.Errorf("expected index name %q, got %v", testSlugIndex, capturedQueryInput.IndexName)
+	if len(capturedTransactInput.TransactItems) != 2 {
+		t.Errorf("expected 2 transaction items, got %d", len(capturedTransactInput.TransactItems))
 	}
 
-	// Verify table name
-	if capturedQueryInput.TableName == nil || *capturedQueryInput.TableName != testTableName {
-		t.Errorf("expected table name %q, got %v", testTableName, capturedQueryInput.TableName)
+	// Verify first item is the category
+	if capturedTransactInput.TransactItems[0].Put == nil {
+		t.Error("expected first transaction item to be a Put operation")
 	}
 
-	// Verify key condition
-	if capturedQueryInput.KeyConditionExpression == nil || *capturedQueryInput.KeyConditionExpression != "slug = :slug" {
-		t.Errorf("expected key condition %q, got %v", "slug = :slug", capturedQueryInput.KeyConditionExpression)
+	// Verify second item is the slug reservation
+	if capturedTransactInput.TransactItems[1].Put == nil {
+		t.Error("expected second transaction item to be a Put operation (slug reservation)")
 	}
 
-	// Verify slug value in expression attribute values
-	if capturedQueryInput.ExpressionAttributeValues == nil {
-		t.Fatal("expected expression attribute values")
+	// Verify slug reservation has correct id pattern
+	slugReservationItem := capturedTransactInput.TransactItems[1].Put.Item
+	if slugReservationItem == nil {
+		t.Fatal("expected slug reservation item")
 	}
-	slugVal, ok := capturedQueryInput.ExpressionAttributeValues[":slug"]
-	if !ok {
-		t.Fatal("expected :slug in expression attribute values")
-	}
-	slugStr, ok := slugVal.(*types.AttributeValueMemberS)
-	if !ok || slugStr.Value != "my-slug" {
-		t.Errorf("expected slug value %q, got %v", "my-slug", slugVal)
+	idVal, ok := slugReservationItem["id"].(*types.AttributeValueMemberS)
+	if !ok || idVal.Value != "SLUG#my-slug" {
+		t.Errorf("expected slug reservation id %q, got %v", "SLUG#my-slug", slugReservationItem["id"])
 	}
 }
 
@@ -1009,15 +941,12 @@ func TestHandler_FirstCategorySortOrder(t *testing.T) {
 	timeNow = func() string { return testTime }
 
 	mockClient := &MockDynamoDBClient{
-		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
-		},
 		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 			// Return empty - no existing categories
 			return &dynamodb.ScanOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
 		},
-		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
-			return &dynamodb.PutItemOutput{}, nil
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return &dynamodb.TransactWriteItemsOutput{}, nil
 		},
 	}
 

@@ -686,12 +686,13 @@ func TestCreateCategoryRequestValidation(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "empty slug is valid (auto-generate)",
+			name: "empty slug is rejected with 400",
 			request: CreateCategoryRequest{
 				Name: "Test",
 				Slug: strPtr(""),
 			},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "slug cannot be empty when provided",
 		},
 	}
 
@@ -947,11 +948,12 @@ func TestUpdateCategoryRequestValidation(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "empty slug is valid (will be ignored)",
+			name: "empty slug is rejected with 400",
 			request: UpdateCategoryRequest{
 				Slug: strPtr(""),
 			},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "slug cannot be empty when provided",
 		},
 	}
 
