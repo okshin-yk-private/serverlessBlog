@@ -4,6 +4,7 @@ import { AuthProvider } from './AuthContext';
 import { useAuth } from '../hooks/useAuth';
 import * as amplifyAuth from 'aws-amplify/auth';
 import * as authApi from '../api/auth';
+import { removeAuthToken, saveAuthToken } from '../utils/auth';
 
 // Amplifyのモック
 vi.mock('aws-amplify/auth', () => ({
@@ -19,8 +20,8 @@ vi.mock('../api/auth', () => ({
   loginAPI: vi.fn(),
 }));
 
-// localStorageのモック
-const localStorageMock = (() => {
+// sessionStorage と localStorage のモック（セキュリティ改善後はsessionStorageを使用）
+const createStorageMock = () => {
   let store: { [key: string]: string } = {};
 
   return {
@@ -35,15 +36,28 @@ const localStorageMock = (() => {
       store = {};
     },
   };
-})();
+};
+
+const sessionStorageMock = createStorageMock();
+const localStorageMock = createStorageMock();
+
+Object.defineProperty(window, 'sessionStorage', {
+  value: sessionStorageMock,
+});
 
 Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
 });
 
+// トークン保存キー（auth.tsと同じ）
+const SESSION_TOKEN_KEY = 'auth_session_token';
+
 describe('AuthContext', () => {
   beforeEach(() => {
-    localStorage.clear();
+    // メモリ内トークンもクリア
+    removeAuthToken();
+    sessionStorageMock.clear();
+    localStorageMock.clear();
     vi.clearAllMocks();
   });
 
@@ -81,7 +95,7 @@ describe('AuthContext', () => {
     };
     const encodedPayload = btoa(JSON.stringify(payload));
     const token = `header.${encodedPayload}.signature`;
-    localStorage.setItem('auth_token', token);
+    saveAuthToken(token);
 
     // Amplify getCurrentUser のモック
     vi.mocked(amplifyAuth.getCurrentUser).mockResolvedValue({
@@ -117,7 +131,7 @@ describe('AuthContext', () => {
     };
     const encodedPayload = btoa(JSON.stringify(payload));
     const token = `header.${encodedPayload}.signature`;
-    localStorage.setItem('auth_token', token);
+    saveAuthToken(token);
 
     const { result } = renderHook(() => useAuth(), {
       wrapper: AuthProvider,
@@ -129,7 +143,7 @@ describe('AuthContext', () => {
 
     expect(result.current.isAuthenticated).toBe(false);
     expect(result.current.user).toBeNull();
-    expect(localStorage.getItem('auth_token')).toBeNull();
+    expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBeNull();
   });
 
   it('ログインが成功するとユーザー情報が設定される', async () => {
@@ -174,7 +188,7 @@ describe('AuthContext', () => {
       id: 'user-123',
       email: 'test@example.com',
     });
-    expect(localStorage.getItem('auth_token')).toBe('mock-jwt-token');
+    expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBe('mock-jwt-token');
   });
 
   it('ログアウトするとユーザー情報がクリアされる', async () => {
@@ -187,7 +201,7 @@ describe('AuthContext', () => {
     };
     const encodedPayload = btoa(JSON.stringify(payload));
     const token = `header.${encodedPayload}.signature`;
-    localStorage.setItem('auth_token', token);
+    saveAuthToken(token);
 
     vi.mocked(amplifyAuth.getCurrentUser).mockResolvedValue({
       userId: 'user-123',
@@ -214,7 +228,7 @@ describe('AuthContext', () => {
 
     expect(result.current.isAuthenticated).toBe(false);
     expect(result.current.user).toBeNull();
-    expect(localStorage.getItem('auth_token')).toBeNull();
+    expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBeNull();
   });
 
   it('ログインが失敗するとエラーをスローする', async () => {
@@ -274,7 +288,7 @@ describe('AuthContext', () => {
     };
     const encodedPayload = btoa(JSON.stringify(payload));
     const token = `header.${encodedPayload}.signature`;
-    localStorage.setItem('auth_token', token);
+    saveAuthToken(token);
 
     // getCurrentUserがエラーをスローするようにモック
     const authError = new Error('Auth check failed');
@@ -296,7 +310,7 @@ describe('AuthContext', () => {
 
     // エラーが発生した場合、ユーザーはnullになり、トークンがクリアされる
     expect(result.current.user).toBeNull();
-    expect(localStorage.getItem('auth_token')).toBeNull();
+    expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBeNull();
 
     // モックをクリーンアップ
     consoleErrorSpy.mockRestore();
@@ -312,7 +326,7 @@ describe('AuthContext', () => {
     };
     const encodedPayload = btoa(JSON.stringify(payload));
     const token = `header.${encodedPayload}.signature`;
-    localStorage.setItem('auth_token', token);
+    saveAuthToken(token);
 
     // signInDetailsがundefinedのgetCurrentUserモック
     vi.mocked(amplifyAuth.getCurrentUser).mockResolvedValue({

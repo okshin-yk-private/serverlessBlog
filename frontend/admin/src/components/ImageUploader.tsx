@@ -1,6 +1,7 @@
-import React, { useState, type ChangeEvent } from 'react';
+import React, { useState, useMemo, type ChangeEvent } from 'react';
 import { Button } from './Button';
 import ConfirmDialog from './ConfirmDialog';
+import { isAllowedImageUrl } from '../utils/imageUrl';
 
 interface ImageUploaderProps {
   onUploadComplete: (imageUrl: string) => void;
@@ -34,6 +35,11 @@ const TrashIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+// CloudFront URL from environment variable
+const CLOUDFRONT_URL = import.meta.env.VITE_CLOUDFRONT_URL as
+  | string
+  | undefined;
+
 export const ImageUploader: React.FC<ImageUploaderProps> = ({
   onUploadComplete,
   uploadFunction,
@@ -47,6 +53,16 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // 許可されたURLのみをフィルタリング（セキュリティ対策）
+  const validatedImages = useMemo(() => {
+    return uploadedImages.filter((url) =>
+      isAllowedImageUrl(url, CLOUDFRONT_URL)
+    );
+  }, [uploadedImages]);
+
+  // フィルタリングされた画像がある場合は警告
+  const filteredCount = uploadedImages.length - validatedImages.length;
 
   const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
     setError(null);
@@ -229,15 +245,25 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
         </div>
       )}
 
+      {/* フィルタリング警告 */}
+      {filteredCount > 0 && (
+        <div
+          className="p-3 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded text-sm"
+          data-testid="url-validation-warning"
+        >
+          {filteredCount}件の画像が許可されていないURLのため非表示になっています
+        </div>
+      )}
+
       {/* アップロード済み画像一覧 */}
-      {uploadedImages.length > 0 && (
+      {validatedImages.length > 0 && (
         <div className="space-y-2">
           <p className="text-sm text-gray-600">アップロード済み画像:</p>
           <div
             className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"
             data-testid="uploaded-images-grid"
           >
-            {uploadedImages.map((imageUrl) => (
+            {validatedImages.map((imageUrl) => (
               <div key={imageUrl} className="relative group">
                 <div className="border border-gray-300 rounded overflow-hidden bg-gray-50">
                   <img
