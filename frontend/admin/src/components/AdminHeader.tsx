@@ -31,7 +31,7 @@ const AdminHeader: React.FC = () => {
           <Link to="/dashboard" className="admin-logo">
             <img src="/fallacy.png" alt="Logo" className="admin-logo-image" />
             <span className="admin-site-title">Bone of my fallacy</span>
-            <span className="admin-badge">Admin</span>
+            <span className="admin-badge admin-badge-header">Admin</span>
           </Link>
           <nav className="admin-nav">
             <Link
@@ -131,17 +131,6 @@ const AdminHeader: React.FC = () => {
           color: #1f2937;
           letter-spacing: 0.02em;
           margin-right: 12px;
-        }
-
-        .admin-badge {
-          background: #2D2A5A;
-          color: white;
-          padding: 4px 10px;
-          border-radius: 6px;
-          font-size: 0.7rem;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
         }
 
         .admin-nav {
@@ -255,11 +244,6 @@ const AdminHeader: React.FC = () => {
           .admin-site-title {
             font-size: 1.2rem;
             margin-right: 8px;
-          }
-
-          .admin-badge {
-            font-size: 0.6rem;
-            padding: 3px 6px;
           }
 
           .admin-nav {

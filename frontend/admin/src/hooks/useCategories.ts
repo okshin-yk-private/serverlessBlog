@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   fetchCategories,
   type Category,
@@ -47,6 +47,7 @@ const isAPIError = (error: unknown): error is APIError => {
  *
  * - 初回マウント時にfetchCategoriesを呼び出してカテゴリ一覧を取得
  * - categories、loading、error、refetch関数を返却
+ * - アンマウント時は状態更新をスキップしてメモリリークを防止
  *
  * @param options - フックのオプション
  * @returns UseCategoriesResult
@@ -76,19 +77,34 @@ export const useCategories = (
   const [loading, setLoading] = useState<boolean>(enabled);
   const [error, setError] = useState<string | null>(null);
 
+  // マウント状態を追跡してアンマウント後の状態更新を防止
+  const isMountedRef = useRef(true);
+
   /**
    * カテゴリを取得する内部関数
+   * @param ignoreCancel - キャンセルフラグを無視するかどうか（手動refetch用）
    */
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (ignoreCancel = false) => {
     setLoading(true);
     setError(null);
 
     try {
       const data = await fetchCategories();
+
+      // アンマウント後は状態を更新しない
+      if (!isMountedRef.current && !ignoreCancel) {
+        return;
+      }
+
       // sortOrder順でソート
       const sorted = [...data].sort((a, b) => a.sortOrder - b.sortOrder);
       setCategories(sorted);
     } catch (err) {
+      // アンマウント後は状態を更新しない
+      if (!isMountedRef.current && !ignoreCancel) {
+        return;
+      }
+
       if (isAPIError(err)) {
         setError(err.message);
       } else {
@@ -96,7 +112,10 @@ export const useCategories = (
       }
       setCategories([]);
     } finally {
-      setLoading(false);
+      // アンマウント後は状態を更新しない
+      if (isMountedRef.current || ignoreCancel) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -104,14 +123,20 @@ export const useCategories = (
    * カテゴリを再取得する関数
    */
   const refetch = useCallback(async () => {
-    await fetchData();
+    await fetchData(true);
   }, [fetchData]);
 
-  // 初回マウント時に自動フェッチ
+  // 初回マウント時に自動フェッチ、アンマウント時にフラグをリセット
   useEffect(() => {
+    isMountedRef.current = true;
+
     if (enabled) {
       fetchData();
     }
+
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [enabled, fetchData]);
 
   return {

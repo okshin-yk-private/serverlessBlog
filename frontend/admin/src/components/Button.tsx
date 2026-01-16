@@ -2,18 +2,15 @@ import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
-  onClick?: () => void;
   variant?: 'primary' | 'secondary' | 'danger';
-  disabled?: boolean;
-  type?: 'button' | 'submit' | 'reset';
 }
 
 export const Button: React.FC<ButtonProps> = ({
   children,
-  onClick,
   variant = 'primary',
   disabled = false,
   type = 'button',
+  className,
   ...restProps
 }) => {
   const baseClass = 'px-4 py-2 rounded font-medium transition-colors';
@@ -28,8 +25,7 @@ export const Button: React.FC<ButtonProps> = ({
   return (
     <button
       type={type}
-      className={`${baseClass} ${variantClasses[variant]}`}
-      onClick={onClick}
+      className={`${baseClass} ${variantClasses[variant]} ${className ?? ''}`}
       disabled={disabled}
       {...restProps}
     >
