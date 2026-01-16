@@ -1,0 +1,29 @@
+// Claude Code + Codex Review Daemon Layout
+// Usage: zellij --layout .zellij/layouts/claude-codex.kdl
+
+layout {
+    default_tab_template {
+        pane size=1 borderless=true {
+            plugin location="compact-bar"
+        }
+        children
+    }
+
+    tab name="AI Dev" focus=true {
+        pane split_direction="vertical" {
+            // Left pane: Claude Code (60% width)
+            pane size="60%" name="Claude Code" {
+                command "claude"
+            }
+            // Right pane: Codex Review Daemon (40% width)
+            pane size="40%" name="Codex Daemon" {
+                command "bash"
+                args "-c" "./scripts/codex-review-daemon.sh"
+            }
+        }
+    }
+
+    tab name="Shell" {
+        pane name="Terminal"
+    }
+}
