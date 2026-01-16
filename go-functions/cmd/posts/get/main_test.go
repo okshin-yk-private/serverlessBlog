@@ -175,7 +175,7 @@ func TestHandler_SuccessfulGetDraftPost(t *testing.T) {
 		Category:        "technology",
 		Tags:            []string{},
 		PublishStatus:   domain.PublishStatusDraft,
-		AuthorID:        "author-123",
+		AuthorID:        testUserID, // Must match authenticated user for draft access
 		CreatedAt:       testCreatedAt,
 		UpdatedAt:       testUpdatedAt,
 		PublishedAt:     nil,
@@ -771,7 +771,7 @@ func TestHandler_TableDriven_SuccessScenarios(t *testing.T) {
 			},
 		},
 		{
-			name:   "draft post with minimal fields (authenticated users can access)",
+			name:   "draft post with minimal fields (authenticated users can access their own drafts)",
 			postID: "draft-minimal",
 			post: domain.BlogPost{
 				ID:              "draft-minimal",
@@ -780,8 +780,8 @@ func TestHandler_TableDriven_SuccessScenarios(t *testing.T) {
 				ContentHTML:     "<p>Short draft content</p>",
 				Category:        "general",
 				Tags:            []string{},
-				PublishStatus:   domain.PublishStatusDraft, // Draft is accessible for authenticated users
-				AuthorID:        "author-789",
+				PublishStatus:   domain.PublishStatusDraft, // Draft is accessible for owner
+				AuthorID:        testUserID,                // Must match authenticated user
 				CreatedAt:       testCreatedAt,
 				UpdatedAt:       testUpdatedAt,
 				PublishedAt:     nil,

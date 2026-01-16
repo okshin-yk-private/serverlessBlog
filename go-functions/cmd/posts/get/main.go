@@ -82,8 +82,11 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return errorResponse(500, "failed to parse post data")
 	}
 
-	// Note: Unlike GetPublicPost, authenticated users CAN access draft posts
-	// No publish status check required here
+	// Security: Draft posts can only be accessed by their author
+	// Published posts can be accessed by any authenticated user
+	if post.PublishStatus == domain.PublishStatusDraft && post.AuthorID != userID {
+		return errorResponse(403, "forbidden: you can only access your own draft posts")
+	}
 
 	return middleware.JSONResponse(200, post)
 }

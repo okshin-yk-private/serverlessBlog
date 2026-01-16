@@ -119,6 +119,7 @@ func createUnauthenticatedRequest(postID string) events.APIGatewayProxyRequest {
 }
 
 // createTestPost creates a test BlogPost
+// Note: AuthorID matches testUserID to pass ownership checks
 func createTestPost() domain.BlogPost {
 	return domain.BlogPost{
 		ID:              testPostID,
@@ -128,7 +129,7 @@ func createTestPost() domain.BlogPost {
 		Category:        "technology",
 		Tags:            []string{"go", "aws"},
 		PublishStatus:   domain.PublishStatusDraft,
-		AuthorID:        "author-123",
+		AuthorID:        testUserID, // Must match authenticated user for ownership check
 		CreatedAt:       testCreatedAt,
 		UpdatedAt:       testUpdatedAt,
 		PublishedAt:     nil,
@@ -137,6 +138,7 @@ func createTestPost() domain.BlogPost {
 }
 
 // createTestPostWithImages creates a test BlogPost with images
+// Note: AuthorID matches testUserID and image URLs use valid prefixes for S3 key validation
 func createTestPostWithImages() domain.BlogPost {
 	return domain.BlogPost{
 		ID:              testPostID,
@@ -146,13 +148,14 @@ func createTestPostWithImages() domain.BlogPost {
 		Category:        "technology",
 		Tags:            []string{"go", "aws"},
 		PublishStatus:   domain.PublishStatusPublished,
-		AuthorID:        "author-123",
+		AuthorID:        testUserID, // Must match authenticated user for ownership check
 		CreatedAt:       testCreatedAt,
 		UpdatedAt:       testUpdatedAt,
 		PublishedAt:     nil,
 		ImageURLs: []string{
-			"https://test-bucket.s3.amazonaws.com/images/user-123/1234567890_photo1.jpg",
-			"https://test-bucket.s3.amazonaws.com/images/user-123/1234567891_photo2.png",
+			// Use postID prefix to pass S3 key validation
+			"https://test-bucket.s3.amazonaws.com/" + testPostID + "/1234567890_photo1.jpg",
+			"https://test-bucket.s3.amazonaws.com/" + testPostID + "/1234567891_photo2.png",
 		},
 	}
 }
@@ -873,12 +876,14 @@ func TestHandler_DeleteWithMultipleImages(t *testing.T) {
 	defer cleanup()
 
 	existingPost := domain.BlogPost{
-		ID:    testPostID,
-		Title: "Test Post",
+		ID:       testPostID,
+		Title:    "Test Post",
+		AuthorID: testUserID, // Must match authenticated user for ownership check
 		ImageURLs: []string{
-			"https://bucket.s3.amazonaws.com/images/1.jpg",
-			"https://bucket.s3.amazonaws.com/images/2.jpg",
-			"https://bucket.s3.amazonaws.com/images/3.jpg",
+			// Use postID prefix to pass S3 key validation
+			"https://bucket.s3.amazonaws.com/" + testPostID + "/1.jpg",
+			"https://bucket.s3.amazonaws.com/" + testPostID + "/2.jpg",
+			"https://bucket.s3.amazonaws.com/" + testPostID + "/3.jpg",
 		},
 	}
 	av := marshalPost(t, existingPost)
@@ -934,6 +939,7 @@ func TestHandler_NilImageURLsArray(t *testing.T) {
 	existingPost := domain.BlogPost{
 		ID:        testPostID,
 		Title:     "Test Post",
+		AuthorID:  testUserID, // Must match authenticated user for ownership check
 		ImageURLs: nil,
 	}
 	av := marshalPost(t, existingPost)

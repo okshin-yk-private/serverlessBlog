@@ -97,17 +97,20 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	exclusiveStartKey := parseNextToken(queryParams["nextToken"])
 
 	// Parse publishStatus (defaults to "published" for backward compatibility)
+	// Security: Unauthenticated users can ONLY access published posts
 	publishStatus := domain.PublishStatusPublished
 	if queryParams["publishStatus"] != "" {
-		var parseErr error
-		publishStatus, parseErr = parsePublishStatus(queryParams["publishStatus"])
-		if parseErr != nil {
-			// Return 400 only for admin requests (authenticated)
-			if isAuthenticated(request) {
+		// Only authenticated users can query non-published posts
+		if !isAuthenticated(request) {
+			// Security: Force published status for unauthenticated requests
+			// Ignore any publishStatus parameter from unauthenticated users
+			publishStatus = domain.PublishStatusPublished
+		} else {
+			var parseErr error
+			publishStatus, parseErr = parsePublishStatus(queryParams["publishStatus"])
+			if parseErr != nil {
 				return errorResponse(400, "invalid publishStatus value")
 			}
-			// For public requests, ignore invalid value and use default
-			publishStatus = domain.PublishStatusPublished
 		}
 	}
 
