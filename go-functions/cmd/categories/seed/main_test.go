@@ -37,6 +37,14 @@ func (m *MockDynamoDBClient) Query(ctx context.Context, params *dynamodb.QueryIn
 	return args.Get(0).(*dynamodb.QueryOutput), args.Error(1)
 }
 
+func (m *MockDynamoDBClient) TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+	args := m.Called(ctx, params)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dynamodb.TransactWriteItemsOutput), args.Error(1)
+}
+
 // TestSeedCategories_Success tests successful seeding of all initial categories.
 // Requirement 8.2: Create specified categories with exact values
 func TestSeedCategories_Success(t *testing.T) {
@@ -48,10 +56,8 @@ func TestSeedCategories_Success(t *testing.T) {
 		return *input.TableName == tableName && *input.IndexName == "SlugIndex"
 	})).Return(&dynamodb.QueryOutput{Count: 0, Items: []map[string]types.AttributeValue{}}, nil)
 
-	// Mock PutItem responses for all 4 categories
-	mockClient.On("PutItem", mock.Anything, mock.MatchedBy(func(input *dynamodb.PutItemInput) bool {
-		return *input.TableName == tableName
-	})).Return(&dynamodb.PutItemOutput{}, nil)
+	// Mock TransactWriteItems responses for all 4 categories
+	mockClient.On("TransactWriteItems", mock.Anything, mock.Anything).Return(&dynamodb.TransactWriteItemsOutput{}, nil)
 
 	handler := NewSeedHandler(mockClient, tableName)
 	event := events.APIGatewayProxyRequest{}
@@ -98,10 +104,8 @@ func TestSeedCategories_Idempotent(t *testing.T) {
 		return false
 	})).Return(&dynamodb.QueryOutput{Count: 0, Items: []map[string]types.AttributeValue{}}, nil)
 
-	// Mock PutItem - should only be called for business and other
-	mockClient.On("PutItem", mock.Anything, mock.MatchedBy(func(input *dynamodb.PutItemInput) bool {
-		return *input.TableName == tableName
-	})).Return(&dynamodb.PutItemOutput{}, nil)
+	// Mock TransactWriteItems - should only be called for business and other
+	mockClient.On("TransactWriteItems", mock.Anything, mock.Anything).Return(&dynamodb.TransactWriteItemsOutput{}, nil)
 
 	handler := NewSeedHandler(mockClient, tableName)
 	event := events.APIGatewayProxyRequest{}
@@ -145,17 +149,20 @@ func TestSeedCategories_CorrectValues(t *testing.T) {
 	mockClient := new(MockDynamoDBClient)
 	tableName := "test-categories-table"
 
-	// Store captured PutItem calls
-	var capturedPuts []*dynamodb.PutItemInput
+	// Store captured TransactWriteItems calls (category items from transactions)
+	var capturedCategories []map[string]types.AttributeValue
 
 	mockClient.On("Query", mock.Anything, mock.MatchedBy(func(input *dynamodb.QueryInput) bool {
 		return *input.TableName == tableName && *input.IndexName == "SlugIndex"
 	})).Return(&dynamodb.QueryOutput{Count: 0, Items: []map[string]types.AttributeValue{}}, nil)
 
-	mockClient.On("PutItem", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		input := args.Get(1).(*dynamodb.PutItemInput)
-		capturedPuts = append(capturedPuts, input)
-	}).Return(&dynamodb.PutItemOutput{}, nil)
+	mockClient.On("TransactWriteItems", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		input := args.Get(1).(*dynamodb.TransactWriteItemsInput)
+		// First item in transaction is the category, second is slug reservation
+		if len(input.TransactItems) > 0 && input.TransactItems[0].Put != nil {
+			capturedCategories = append(capturedCategories, input.TransactItems[0].Put.Item)
+		}
+	}).Return(&dynamodb.TransactWriteItemsOutput{}, nil)
 
 	handler := NewSeedHandler(mockClient, tableName)
 	event := events.APIGatewayProxyRequest{}
@@ -164,7 +171,7 @@ func TestSeedCategories_CorrectValues(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
-	assert.Len(t, capturedPuts, 4)
+	assert.Len(t, capturedCategories, 4)
 
 	// Verify each category has correct values
 	expectedCategories := []struct {
@@ -182,13 +189,13 @@ func TestSeedCategories_CorrectValues(t *testing.T) {
 		var name, slug string
 		var sortOrder int
 
-		if v, ok := capturedPuts[i].Item["name"].(*types.AttributeValueMemberS); ok {
+		if v, ok := capturedCategories[i]["name"].(*types.AttributeValueMemberS); ok {
 			name = v.Value
 		}
-		if v, ok := capturedPuts[i].Item["slug"].(*types.AttributeValueMemberS); ok {
+		if v, ok := capturedCategories[i]["slug"].(*types.AttributeValueMemberS); ok {
 			slug = v.Value
 		}
-		if v, ok := capturedPuts[i].Item["sortOrder"].(*types.AttributeValueMemberN); ok {
+		if v, ok := capturedCategories[i]["sortOrder"].(*types.AttributeValueMemberN); ok {
 			sortOrder = 0
 			if n, err := parseInt(v.Value); err == nil {
 				sortOrder = n
@@ -219,14 +226,14 @@ func TestSeedCategories_QueryError(t *testing.T) {
 	assert.Contains(t, resp.Body, "message")
 }
 
-// TestSeedCategories_PutItemError tests handling of DynamoDB PutItem errors.
+// TestSeedCategories_TransactWriteError tests handling of DynamoDB TransactWriteItems errors.
 // Requirement 8.4: Error handling and execution logs
-func TestSeedCategories_PutItemError(t *testing.T) {
+func TestSeedCategories_TransactWriteError(t *testing.T) {
 	mockClient := new(MockDynamoDBClient)
 	tableName := "test-categories-table"
 
 	mockClient.On("Query", mock.Anything, mock.Anything).Return(&dynamodb.QueryOutput{Count: 0, Items: []map[string]types.AttributeValue{}}, nil)
-	mockClient.On("PutItem", mock.Anything, mock.Anything).Return(nil, errors.New("DynamoDB PutItem error"))
+	mockClient.On("TransactWriteItems", mock.Anything, mock.Anything).Return(nil, errors.New("DynamoDB TransactWriteItems error"))
 
 	handler := NewSeedHandler(mockClient, tableName)
 	event := events.APIGatewayProxyRequest{}
@@ -248,22 +255,26 @@ func TestSeedCategories_SortOrderValues(t *testing.T) {
 
 	mockClient.On("Query", mock.Anything, mock.Anything).Return(&dynamodb.QueryOutput{Count: 0, Items: []map[string]types.AttributeValue{}}, nil)
 
-	mockClient.On("PutItem", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		input := args.Get(1).(*dynamodb.PutItemInput)
-		var slug string
-		var sortOrder int
+	mockClient.On("TransactWriteItems", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		input := args.Get(1).(*dynamodb.TransactWriteItemsInput)
+		// First item in transaction is the category
+		if len(input.TransactItems) > 0 && input.TransactItems[0].Put != nil {
+			item := input.TransactItems[0].Put.Item
+			var slug string
+			var sortOrder int
 
-		if v, ok := input.Item["slug"].(*types.AttributeValueMemberS); ok {
-			slug = v.Value
-		}
-		if v, ok := input.Item["sortOrder"].(*types.AttributeValueMemberN); ok {
-			if n, err := parseInt(v.Value); err == nil {
-				sortOrder = n
+			if v, ok := item["slug"].(*types.AttributeValueMemberS); ok {
+				slug = v.Value
 			}
-		}
+			if v, ok := item["sortOrder"].(*types.AttributeValueMemberN); ok {
+				if n, err := parseInt(v.Value); err == nil {
+					sortOrder = n
+				}
+			}
 
-		sortOrders[slug] = sortOrder
-	}).Return(&dynamodb.PutItemOutput{}, nil)
+			sortOrders[slug] = sortOrder
+		}
+	}).Return(&dynamodb.TransactWriteItemsOutput{}, nil)
 
 	handler := NewSeedHandler(mockClient, tableName)
 	event := events.APIGatewayProxyRequest{}
@@ -286,12 +297,16 @@ func TestSeedCategories_UUIDGenerated(t *testing.T) {
 
 	mockClient.On("Query", mock.Anything, mock.Anything).Return(&dynamodb.QueryOutput{Count: 0, Items: []map[string]types.AttributeValue{}}, nil)
 
-	mockClient.On("PutItem", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		input := args.Get(1).(*dynamodb.PutItemInput)
-		if v, ok := input.Item["id"].(*types.AttributeValueMemberS); ok {
-			ids = append(ids, v.Value)
+	mockClient.On("TransactWriteItems", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		input := args.Get(1).(*dynamodb.TransactWriteItemsInput)
+		// First item in transaction is the category
+		if len(input.TransactItems) > 0 && input.TransactItems[0].Put != nil {
+			item := input.TransactItems[0].Put.Item
+			if v, ok := item["id"].(*types.AttributeValueMemberS); ok {
+				ids = append(ids, v.Value)
+			}
 		}
-	}).Return(&dynamodb.PutItemOutput{}, nil)
+	}).Return(&dynamodb.TransactWriteItemsOutput{}, nil)
 
 	handler := NewSeedHandler(mockClient, tableName)
 	event := events.APIGatewayProxyRequest{}
@@ -322,20 +337,24 @@ func TestSeedCategories_TimestampsSet(t *testing.T) {
 
 	mockClient.On("Query", mock.Anything, mock.Anything).Return(&dynamodb.QueryOutput{Count: 0, Items: []map[string]types.AttributeValue{}}, nil)
 
-	mockClient.On("PutItem", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		input := args.Get(1).(*dynamodb.PutItemInput)
-		var ts struct {
-			createdAt string
-			updatedAt string
+	mockClient.On("TransactWriteItems", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		input := args.Get(1).(*dynamodb.TransactWriteItemsInput)
+		// First item in transaction is the category
+		if len(input.TransactItems) > 0 && input.TransactItems[0].Put != nil {
+			item := input.TransactItems[0].Put.Item
+			var ts struct {
+				createdAt string
+				updatedAt string
+			}
+			if v, ok := item["createdAt"].(*types.AttributeValueMemberS); ok {
+				ts.createdAt = v.Value
+			}
+			if v, ok := item["updatedAt"].(*types.AttributeValueMemberS); ok {
+				ts.updatedAt = v.Value
+			}
+			timestamps = append(timestamps, ts)
 		}
-		if v, ok := input.Item["createdAt"].(*types.AttributeValueMemberS); ok {
-			ts.createdAt = v.Value
-		}
-		if v, ok := input.Item["updatedAt"].(*types.AttributeValueMemberS); ok {
-			ts.updatedAt = v.Value
-		}
-		timestamps = append(timestamps, ts)
-	}).Return(&dynamodb.PutItemOutput{}, nil)
+	}).Return(&dynamodb.TransactWriteItemsOutput{}, nil)
 
 	handler := NewSeedHandler(mockClient, tableName)
 	event := events.APIGatewayProxyRequest{}
@@ -362,7 +381,7 @@ func TestSeedCategories_MarshalError(t *testing.T) {
 	tableName := "test-categories-table"
 
 	mockClient.On("Query", mock.Anything, mock.Anything).Return(&dynamodb.QueryOutput{Count: 0, Items: []map[string]types.AttributeValue{}}, nil)
-	mockClient.On("PutItem", mock.Anything, mock.Anything).Return(&dynamodb.PutItemOutput{}, nil)
+	mockClient.On("TransactWriteItems", mock.Anything, mock.Anything).Return(&dynamodb.TransactWriteItemsOutput{}, nil)
 
 	handler := NewSeedHandler(mockClient, tableName)
 	event := events.APIGatewayProxyRequest{}

@@ -497,10 +497,10 @@ func TestHandler_SlugUpdateWithPosts(t *testing.T) {
 		t.Errorf("expected Slug %q, got %q", "technology", category.Slug)
 	}
 
-	// Verify transaction was called with category + posts updates
-	// We expect: 1 category update + 2 post updates = 3 items
-	if len(transactItems) != 3 {
-		t.Errorf("expected 3 transaction items, got %d", len(transactItems))
+	// Verify transaction was called with category + slug reservation management + posts updates
+	// We expect: 1 category update + 1 delete old slug + 1 create new slug + 2 post updates = 5 items
+	if len(transactItems) != 5 {
+		t.Errorf("expected 5 transaction items, got %d", len(transactItems))
 	}
 }
 

@@ -27,6 +27,7 @@ import (
 type DynamoDBClient interface {
 	PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
 	Query(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
+	TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error)
 }
 
 // SeedCategory represents a category to be seeded.
@@ -135,9 +136,10 @@ func (h *SeedHandler) checkSlugExists(ctx context.Context, slug string) (bool, e
 	return output.Count > 0, nil
 }
 
-// createCategory creates a new category in DynamoDB.
+// createCategory creates a new category in DynamoDB with slug reservation.
 // Requirement 8.2: Create category with exact values.
 // Requirement 8.4: Assign sortOrder values as specified.
+// Uses TransactWriteItems to atomically create both the category and slug reservation item.
 func (h *SeedHandler) createCategory(ctx context.Context, seedCat SeedCategory) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	id := uuid.New().String()
@@ -156,14 +158,37 @@ func (h *SeedHandler) createCategory(ctx context.Context, seedCat SeedCategory) 
 		return fmt.Errorf("failed to marshal category: %w", err)
 	}
 
-	input := &dynamodb.PutItemInput{
-		TableName: aws.String(h.tableName),
-		Item:      item,
+	// Use TransactWriteItems to atomically create category and slug reservation
+	slugReservationID := "SLUG#" + seedCat.Slug
+	transactInput := &dynamodb.TransactWriteItemsInput{
+		TransactItems: []types.TransactWriteItem{
+			{
+				// Put the category item
+				Put: &types.Put{
+					TableName:           aws.String(h.tableName),
+					Item:                item,
+					ConditionExpression: aws.String("attribute_not_exists(id)"),
+				},
+			},
+			{
+				// Put slug reservation item to ensure uniqueness atomically
+				Put: &types.Put{
+					TableName: aws.String(h.tableName),
+					Item: map[string]types.AttributeValue{
+						"id":         &types.AttributeValueMemberS{Value: slugReservationID},
+						"slug":       &types.AttributeValueMemberS{Value: seedCat.Slug},
+						"categoryId": &types.AttributeValueMemberS{Value: id},
+						"itemType":   &types.AttributeValueMemberS{Value: "SLUG_RESERVATION"},
+					},
+					ConditionExpression: aws.String("attribute_not_exists(id)"),
+				},
+			},
+		},
 	}
 
-	_, err = h.client.PutItem(ctx, input)
+	_, err = h.client.TransactWriteItems(ctx, transactInput)
 	if err != nil {
-		return fmt.Errorf("failed to put item: %w", err)
+		return fmt.Errorf("failed to create category with transaction: %w", err)
 	}
 
 	return nil

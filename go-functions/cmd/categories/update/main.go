@@ -302,17 +302,45 @@ func updateCategoryWithPosts(ctx context.Context, client DynamoDBClientInterface
 		return errorResponse(500, "failed to marshal category")
 	}
 
-	// If no posts to update, just update the category
+	// Build slug reservation items for transaction
+	oldSlugReservationID := "SLUG#" + oldSlug
+	newSlugReservationID := "SLUG#" + category.Slug
+
+	// If no posts to update, just update the category with slug reservation management
 	if len(posts) == 0 {
-		transactInput := &dynamodb.TransactWriteItemsInput{
-			TransactItems: []types.TransactWriteItem{
-				{
-					Put: &types.Put{
-						TableName: aws.String(tableName),
-						Item:      categoryAV,
+		transactItems := []types.TransactWriteItem{
+			{
+				Put: &types.Put{
+					TableName: aws.String(tableName),
+					Item:      categoryAV,
+				},
+			},
+			{
+				// Delete old slug reservation
+				Delete: &types.Delete{
+					TableName: aws.String(tableName),
+					Key: map[string]types.AttributeValue{
+						"id": &types.AttributeValueMemberS{Value: oldSlugReservationID},
 					},
 				},
 			},
+			{
+				// Create new slug reservation (fails if already exists)
+				Put: &types.Put{
+					TableName: aws.String(tableName),
+					Item: map[string]types.AttributeValue{
+						"id":         &types.AttributeValueMemberS{Value: newSlugReservationID},
+						"slug":       &types.AttributeValueMemberS{Value: category.Slug},
+						"categoryId": &types.AttributeValueMemberS{Value: category.ID},
+						"itemType":   &types.AttributeValueMemberS{Value: "SLUG_RESERVATION"},
+					},
+					ConditionExpression: aws.String("attribute_not_exists(id)"),
+				},
+			},
+		}
+
+		transactInput := &dynamodb.TransactWriteItemsInput{
+			TransactItems: transactItems,
 		}
 
 		_, err = client.TransactWriteItems(ctx, transactInput)
@@ -324,29 +352,68 @@ func updateCategoryWithPosts(ctx context.Context, client DynamoDBClientInterface
 	}
 
 	// Process posts in batches
-	// First batch includes the category update + up to (maxTransactWriteItems - 1) posts
-	// Subsequent batches contain up to maxTransactWriteItems posts each
-	batchSize := maxTransactWriteItems - 1 // Reserve 1 slot for category in first batch
-	totalBatches := (len(posts) + batchSize - 1) / batchSize
+	// First batch includes: category update + delete old slug + create new slug + posts
+	// Reserve 3 slots for category and slug operations in first batch
+	firstBatchSize := maxTransactWriteItems - 3
+	subsequentBatchSize := maxTransactWriteItems
 
+	// Calculate total batches
+	remainingPosts := len(posts)
+	totalBatches := 1
+	if remainingPosts > firstBatchSize {
+		remainingPosts -= firstBatchSize
+		totalBatches += (remainingPosts + subsequentBatchSize - 1) / subsequentBatchSize
+	}
+
+	processedPosts := 0
 	for batchIndex := 0; batchIndex < totalBatches; batchIndex++ {
-		start := batchIndex * batchSize
-		end := start + batchSize
+		var batchSize int
+		if batchIndex == 0 {
+			batchSize = firstBatchSize
+		} else {
+			batchSize = subsequentBatchSize
+		}
+
+		end := processedPosts + batchSize
 		if end > len(posts) {
 			end = len(posts)
 		}
 
-		batchPosts := posts[start:end]
-		transactItems := make([]types.TransactWriteItem, 0, len(batchPosts)+1)
+		batchPosts := posts[processedPosts:end]
+		transactItems := make([]types.TransactWriteItem, 0, len(batchPosts)+3)
 
-		// Include category update only in first batch
+		// Include category update and slug reservation management only in first batch
 		if batchIndex == 0 {
-			transactItems = append(transactItems, types.TransactWriteItem{
-				Put: &types.Put{
-					TableName: aws.String(tableName),
-					Item:      categoryAV,
+			transactItems = append(transactItems,
+				types.TransactWriteItem{
+					Put: &types.Put{
+						TableName: aws.String(tableName),
+						Item:      categoryAV,
+					},
 				},
-			})
+				types.TransactWriteItem{
+					// Delete old slug reservation
+					Delete: &types.Delete{
+						TableName: aws.String(tableName),
+						Key: map[string]types.AttributeValue{
+							"id": &types.AttributeValueMemberS{Value: oldSlugReservationID},
+						},
+					},
+				},
+				types.TransactWriteItem{
+					// Create new slug reservation (fails if already exists)
+					Put: &types.Put{
+						TableName: aws.String(tableName),
+						Item: map[string]types.AttributeValue{
+							"id":         &types.AttributeValueMemberS{Value: newSlugReservationID},
+							"slug":       &types.AttributeValueMemberS{Value: category.Slug},
+							"categoryId": &types.AttributeValueMemberS{Value: category.ID},
+							"itemType":   &types.AttributeValueMemberS{Value: "SLUG_RESERVATION"},
+						},
+						ConditionExpression: aws.String("attribute_not_exists(id)"),
+					},
+				},
+			)
 		}
 
 		// Add post updates for this batch
@@ -374,6 +441,8 @@ func updateCategoryWithPosts(ctx context.Context, client DynamoDBClientInterface
 		if err != nil {
 			return errorResponse(500, "failed to update category and posts")
 		}
+
+		processedPosts = end
 	}
 
 	return middleware.JSONResponse(200, category)
