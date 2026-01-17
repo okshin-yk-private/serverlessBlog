@@ -8,14 +8,16 @@
 - インフラ管理負荷の最小化
 
 ### 2. Infrastructure as Code
-- AWS CDKによるインフラ定義
+- Terraformによるインフラ定義（CDKから移行完了）
+- モジュール化されたインフラ構成
+- 環境別デプロイ（dev/prd）
 - バージョン管理とコードレビュー
 - 再現可能なデプロイ
 
 ### 3. セキュリティバイデザイン
 - 最小権限の原則（IAM）
 - データ暗号化（転送中・保管中）
-- セキュリティスキャン（CDK Nag）
+- セキュリティスキャン（Checkov, Trivy）
 
 ### 4. 監視可能性
 - 構造化ログ（Lambda Powertools）
@@ -43,12 +45,14 @@
   - npm/yarn互換のpackage.json使用
 
 ### Infrastructure as Code
-- **AWS CDK v2**: TypeScriptによるインフラ定義
-- **CDK Nag**: セキュリティとベストプラクティスの検証
+- **Terraform**: HCLによるインフラ定義（CDKから移行完了）
+- **モジュール構成**: api, auth, cdn, database, lambda, monitoring, storage
+- **環境分離**: environments/dev, environments/prd
+- **セキュリティスキャン**: Checkov, Trivy
 
 ### ランタイム
 - **Go 1.25.x**: Lambda関数実装（provided.al2023）
-- **TypeScript**: CDK・フロントエンド型安全な開発
+- **TypeScript**: フロントエンド型安全な開発
 
 ### Lambda実装戦略
 - **単一言語**: Go実装のみ（Node.js/Rust実装は移行完了により削除済み）
@@ -113,7 +117,7 @@
 ### CI/CD
 - **GitHub Actions**:
   - ci.yml: 自動テスト実行（lint、unit、integration、e2e）
-  - deploy.yml: CDKデプロイ（dev/prd環境別）
+  - deploy.yml: Terraformデプロイ（dev/prd環境別）
 - **OIDC認証**: AWS認証情報の安全な管理
 
 ## データモデル設計
@@ -318,22 +322,26 @@
 
 ### 定期的なメンテナンス
 1. 依存パッケージの更新
-2. CDKバージョンのアップグレード
+2. Terraformバージョンのアップグレード
 3. Goバージョンの更新（現在: Go 1.25.x）
 4. セキュリティパッチの適用
 
-### CDK開発ルール
+### Terraform開発ルール
 
-#### スナップショットテスト更新
-- **必須**: CDKコードを編集した場合、必ずスナップショットテストを更新すること
-- **理由**: スナップショットはインフラの意図した変更を検証するための重要な安全策
+#### セキュリティスキャン
+- **必須**: Terraformコードを編集した場合、セキュリティスキャンを実行
+- **ツール**: Checkov, Trivy
 - **手順**:
-  1. CDKコード（`infra/`配下）を変更
-  2. `bun run test:snapshot` でスナップショットテストを実行
-  3. 変更内容を確認し、意図した変更であることを検証
-  4. `bun run test:snapshot:update` でスナップショットを更新
-  5. 更新されたスナップショットファイルをコミットに含める
-- **CI/CD**: スナップショットの不一致はCIで失敗となる
+  1. Terraformコード（`terraform/`配下）を変更
+  2. `terraform validate` で構文検証
+  3. `terraform plan` で変更内容を確認
+  4. Checkov/Trivyでセキュリティスキャン
+  5. 問題を解消後にapply
+
+#### 環境別デプロイ
+- **dev環境**: `terraform/environments/dev/` で管理
+- **prd環境**: `terraform/environments/prd/` で管理
+- **モジュール共有**: 共通モジュールは `terraform/modules/` で定義
 
 ### コード品質
 1. ESLintによる静的解析

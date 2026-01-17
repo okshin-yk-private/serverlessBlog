@@ -3,9 +3,12 @@
 
 # AWS managed cache policy IDs (hardcoded to avoid Terraform provider bug)
 # See: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
+# See: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html
 locals {
   cache_policy_caching_optimized = "658327ea-f89d-4fab-a63d-7e88639e58f6"
   cache_policy_caching_disabled  = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+  # AllViewerExceptHostHeader - Forwards all viewer headers except Host (recommended for API Gateway)
+  origin_request_policy_all_viewer_except_host = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
 }
 
 # Origin Access Control for S3 buckets
@@ -159,14 +162,17 @@ function handler(event) {
     };
   }
 
-  // SPA routing: Strip /admin prefix and handle SPA routes
+  // SPA routing: Keep /admin prefix to avoid cache key collision with public site
+  // Admin files are stored in S3 under /admin/ prefix
   if (uri.startsWith('/admin')) {
-    uri = uri.substring(6);
-    if (uri === '' || uri === '/') {
-      uri = '/index.html';
-    } else if (!uri.includes('.')) {
-      uri = '/index.html';
+    // For paths without file extension, serve /admin/index.html
+    if (uri === '/admin' || uri === '/admin/') {
+      uri = '/admin/index.html';
+    } else if (!uri.substring(6).includes('.')) {
+      // SPA route (e.g., /admin/dashboard) -> serve /admin/index.html
+      uri = '/admin/index.html';
     }
+    // Paths with extensions (e.g., /admin/assets/foo.js) pass through unchanged
   }
 
   request.uri = uri;
@@ -191,15 +197,17 @@ function handler(event) {
   var request = event.request;
   var uri = request.uri;
 
-  // Strip /admin prefix for origin request
+  // SPA routing: Keep /admin prefix to avoid cache key collision with public site
+  // Admin files are stored in S3 under /admin/ prefix
   if (uri.startsWith('/admin')) {
-    uri = uri.substring(6); // Remove '/admin'
-    if (uri === '' || uri === '/') {
-      uri = '/index.html';
-    } else if (!uri.includes('.')) {
-      // SPA routing: paths without extension should serve index.html
-      uri = '/index.html';
+    // For paths without file extension, serve /admin/index.html
+    if (uri === '/admin' || uri === '/admin/') {
+      uri = '/admin/index.html';
+    } else if (!uri.substring(6).includes('.')) {
+      // SPA route (e.g., /admin/dashboard) -> serve /admin/index.html
+      uri = '/admin/index.html';
     }
+    // Paths with extensions (e.g., /admin/assets/foo.js) pass through unchanged
   }
 
   request.uri = uri;
@@ -336,14 +344,15 @@ resource "aws_cloudfront_distribution" "main" {
   # /api/* behavior
   # Requirement 7.6: API Gateway proxy
   ordered_cache_behavior {
-    path_pattern             = "/api/*"
-    allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
-    cached_methods           = ["GET", "HEAD"]
-    target_origin_id         = "api-gateway"
-    viewer_protocol_policy   = "redirect-to-https"
-    compress                 = true
-    cache_policy_id          = local.cache_policy_caching_disabled
-    origin_request_policy_id = aws_cloudfront_origin_request_policy.api.id
+    path_pattern           = "/api/*"
+    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "api-gateway"
+    viewer_protocol_policy = "redirect-to-https"
+    compress               = true
+    cache_policy_id        = local.cache_policy_caching_disabled
+    # Use AWS managed policy: AllViewerExceptHostHeader (forwards Authorization header)
+    origin_request_policy_id = local.origin_request_policy_all_viewer_except_host
 
     function_association {
       event_type   = "viewer-request"
@@ -351,20 +360,10 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
-  # SPA error responses
-  custom_error_response {
-    error_code            = 403
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 300
-  }
-
-  custom_error_response {
-    error_code            = 404
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 300
-  }
+  # Note: custom_error_response removed because:
+  # 1. CloudFront functions handle SPA routing (rewrite to /index.html)
+  # 2. Global error responses interfere with /admin/* Basic Auth
+  # 3. S3 should not return 403/404 since functions rewrite paths first
 
   # Restrictions (no geo restrictions)
   restrictions {

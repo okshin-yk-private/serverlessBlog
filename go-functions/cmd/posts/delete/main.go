@@ -100,41 +100,14 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return errorResponse(500, "failed to parse post data")
 	}
 
+	// Security: Verify ownership - only the author can delete their post
+	if existingPost.AuthorID != userID {
+		return errorResponse(403, "forbidden: you can only delete your own posts")
+	}
+
 	// Delete associated images from S3 if any
-	if len(existingPost.ImageURLs) > 0 {
-		// Check for BUCKET_NAME
-		bucketName := os.Getenv("BUCKET_NAME")
-		if bucketName == "" {
-			return errorResponse(500, "server configuration error")
-		}
-
-		// Get S3 client
-		s3Client, s3Err := s3ClientGetter()
-		if s3Err != nil {
-			return errorResponse(500, "server error")
-		}
-
-		// Prepare objects to delete
-		objectsToDelete := make([]s3types.ObjectIdentifier, 0, len(existingPost.ImageURLs))
-		for _, imageURL := range existingPost.ImageURLs {
-			key := extractS3KeyFromURL(imageURL)
-			objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
-				Key: &key,
-			})
-		}
-
-		// Delete objects from S3
-		s3DeleteInput := &s3.DeleteObjectsInput{
-			Bucket: &bucketName,
-			Delete: &s3types.Delete{
-				Objects: objectsToDelete,
-				Quiet:   boolPtr(true),
-			},
-		}
-
-		if _, s3DeleteErr := s3Client.DeleteObjects(ctx, s3DeleteInput); s3DeleteErr != nil {
-			return errorResponse(500, "failed to delete images")
-		}
+	if errResp := deletePostImages(ctx, existingPost); errResp != nil {
+		return *errResp, nil
 	}
 
 	// Delete post from DynamoDB
@@ -156,6 +129,61 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		Headers:    middleware.CORSHeaders(),
 		Body:       "",
 	}, nil
+}
+
+// deletePostImages deletes associated images from S3
+// Returns an error response if deletion fails, nil on success
+func deletePostImages(ctx context.Context, post domain.BlogPost) *events.APIGatewayProxyResponse {
+	if len(post.ImageURLs) == 0 {
+		return nil
+	}
+
+	// Check for BUCKET_NAME
+	bucketName := os.Getenv("BUCKET_NAME")
+	if bucketName == "" {
+		resp, _ := errorResponse(500, "server configuration error")
+		return &resp
+	}
+
+	// Get S3 client
+	s3Client, s3Err := s3ClientGetter()
+	if s3Err != nil {
+		resp, _ := errorResponse(500, "server error")
+		return &resp
+	}
+
+	// Prepare objects to delete - only delete keys that belong to this user/post
+	// Security: Validate S3 keys to prevent deletion of arbitrary objects
+	objectsToDelete := make([]s3types.ObjectIdentifier, 0, len(post.ImageURLs))
+	for _, imageURL := range post.ImageURLs {
+		key := extractS3KeyFromURL(imageURL)
+		// Only delete keys that are under the user's prefix or post's prefix
+		// Expected formats: "{userId}/..." or "images/{postId}/..." or "{postId}/..."
+		if !isValidS3KeyForDeletion(key, post.AuthorID, post.ID) {
+			continue // Skip keys that don't match expected patterns
+		}
+		objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
+			Key: &key,
+		})
+	}
+
+	// Only proceed with deletion if there are valid objects to delete
+	if len(objectsToDelete) > 0 {
+		s3DeleteInput := &s3.DeleteObjectsInput{
+			Bucket: &bucketName,
+			Delete: &s3types.Delete{
+				Objects: objectsToDelete,
+				Quiet:   boolPtr(true),
+			},
+		}
+
+		if _, s3DeleteErr := s3Client.DeleteObjects(ctx, s3DeleteInput); s3DeleteErr != nil {
+			resp, _ := errorResponse(500, "failed to delete images")
+			return &resp
+		}
+	}
+
+	return nil
 }
 
 // extractS3KeyFromURL extracts the S3 key from a full URL
@@ -214,6 +242,33 @@ func errorResponse(statusCode int, message string) (events.APIGatewayProxyRespon
 // boolPtr returns a pointer to a bool
 func boolPtr(b bool) *bool {
 	return &b
+}
+
+// isValidS3KeyForDeletion validates that an S3 key belongs to the specified user or post
+// This prevents deletion of arbitrary S3 objects by validating the key prefix
+// Valid patterns:
+//   - {authorID}/...  (user-owned prefix)
+//   - images/{authorID}/... (CloudFront URL pattern - user-owned prefix)
+//   - images/{postID}/... (post-owned prefix)
+//   - {postID}/... (post-owned prefix)
+func isValidS3KeyForDeletion(key, authorID, postID string) bool {
+	// Check if key starts with user's ID prefix
+	if strings.HasPrefix(key, authorID+"/") {
+		return true
+	}
+	// Check if key is under images/{authorID}/ prefix (CloudFront URL pattern)
+	if strings.HasPrefix(key, "images/"+authorID+"/") {
+		return true
+	}
+	// Check if key starts with post's ID prefix
+	if strings.HasPrefix(key, postID+"/") {
+		return true
+	}
+	// Check if key is under images/{postID}/ prefix
+	if strings.HasPrefix(key, "images/"+postID+"/") {
+		return true
+	}
+	return false
 }
 
 func main() {

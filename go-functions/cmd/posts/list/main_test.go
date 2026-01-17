@@ -1327,6 +1327,61 @@ func TestExecuteCountQuery(t *testing.T) {
 	}
 }
 
+// TestExecuteCountQuery_Pagination tests count query with pagination (multiple pages)
+func TestExecuteCountQuery_Pagination(t *testing.T) {
+	callCount := 0
+
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			callCount++
+
+			// Verify it's a count query
+			if params.Select != types.SelectCount {
+				t.Errorf("expected Select to be COUNT")
+			}
+
+			// Simulate pagination: first call returns 50 with LastEvaluatedKey, second call returns 30
+			if callCount == 1 {
+				// First page: no ExclusiveStartKey expected
+				if params.ExclusiveStartKey != nil {
+					t.Errorf("expected no ExclusiveStartKey on first call")
+				}
+				return &dynamodb.QueryOutput{
+					Count: 50,
+					LastEvaluatedKey: map[string]types.AttributeValue{
+						"id":            &types.AttributeValueMemberS{Value: "page1-last"},
+						"publishStatus": &types.AttributeValueMemberS{Value: "published"},
+					},
+				}, nil
+			}
+
+			// Second page: ExclusiveStartKey should be set
+			if params.ExclusiveStartKey == nil {
+				t.Errorf("expected ExclusiveStartKey on second call")
+			}
+			return &dynamodb.QueryOutput{
+				Count:            30,
+				LastEvaluatedKey: nil, // No more pages
+			}, nil
+		},
+	}
+
+	count, err := executeCountQuery(context.Background(), mockClient, testTableName, "published")
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	// Total count should be sum of all pages: 50 + 30 = 80
+	if count != 80 {
+		t.Errorf("expected total count 80, got %d", count)
+	}
+
+	if callCount != 2 {
+		t.Errorf("expected 2 query calls, got %d", callCount)
+	}
+}
+
 // TestBuildQueryInput_WithPublishStatus tests buildQueryInput with different publishStatus values
 func TestBuildQueryInput_WithPublishStatus(t *testing.T) {
 	tests := []struct {

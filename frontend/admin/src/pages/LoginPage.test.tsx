@@ -15,8 +15,8 @@ vi.mock('aws-amplify/auth', () => ({
   confirmSignIn: vi.fn(),
 }));
 
-// localStorageのモック
-const localStorageMock = (() => {
+// sessionStorage と localStorage のモック（セキュリティ改善後はsessionStorageを使用）
+const createStorageMock = () => {
   let store: { [key: string]: string } = {};
 
   return {
@@ -31,11 +31,21 @@ const localStorageMock = (() => {
       store = {};
     },
   };
-})();
+};
+
+const sessionStorageMock = createStorageMock();
+const localStorageMock = createStorageMock();
+
+Object.defineProperty(window, 'sessionStorage', {
+  value: sessionStorageMock,
+});
 
 Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
 });
+
+// トークン保存キー（auth.tsと同じ）
+const SESSION_TOKEN_KEY = 'auth_session_token';
 
 // テストヘルパー: LoginPageをラップして描画
 const renderLoginPage = (initialRoute = '/login') => {
@@ -50,7 +60,8 @@ const renderLoginPage = (initialRoute = '/login') => {
 
 describe('LoginPage', () => {
   beforeEach(() => {
-    localStorage.clear();
+    sessionStorageMock.clear();
+    localStorageMock.clear();
     vi.clearAllMocks();
     // console.errorをモック（エラーログの抑制）
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -176,7 +187,7 @@ describe('LoginPage', () => {
 
     // ログインが成功すると、トークンが保存される
     await waitFor(() => {
-      expect(localStorage.getItem('auth_token')).toBe('mock-jwt-token');
+      expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBe('mock-jwt-token');
     });
   });
 
@@ -246,7 +257,7 @@ describe('LoginPage', () => {
   });
 
   // トークンストレージテスト
-  it('ログイン成功時にトークンがlocalStorageに保存される', async () => {
+  it('ログイン成功時にトークンがsessionStorageに保存される', async () => {
     const user = userEvent.setup();
 
     // Amplifyのモック設定
@@ -280,7 +291,7 @@ describe('LoginPage', () => {
     });
 
     // 初期状態ではトークンが存在しない
-    expect(localStorage.getItem('auth_token')).toBeNull();
+    expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBeNull();
 
     await user.type(
       screen.getByLabelText(/メールアドレス/i),
@@ -291,7 +302,9 @@ describe('LoginPage', () => {
 
     // ログイン成功後、トークンが保存される
     await waitFor(() => {
-      expect(localStorage.getItem('auth_token')).toBe('test-jwt-token-12345');
+      expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBe(
+        'test-jwt-token-12345'
+      );
     });
   });
 
@@ -361,7 +374,7 @@ describe('LoginPage', () => {
 
     // 今回は成功してトークンが保存される
     await waitFor(() => {
-      expect(localStorage.getItem('auth_token')).toBe('new-jwt-token');
+      expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBe('new-jwt-token');
     });
 
     // エラーメッセージが消える
@@ -526,7 +539,7 @@ describe('LoginPage', () => {
 
     // Enterキーでログインが実行される
     await waitFor(() => {
-      expect(localStorage.getItem('auth_token')).toBe('enter-key-token');
+      expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBe('enter-key-token');
     });
   });
 

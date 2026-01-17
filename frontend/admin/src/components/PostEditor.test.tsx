@@ -8,7 +8,11 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRef } from 'react';
-import { PostEditor, type PostEditorHandle } from './PostEditor';
+import {
+  PostEditor,
+  type PostEditorHandle,
+  type CategoryOption,
+} from './PostEditor';
 
 interface PostData {
   title: string;
@@ -16,6 +20,14 @@ interface PostData {
   category: string;
   publishStatus: 'draft' | 'published';
 }
+
+// テスト用のカテゴリデータ
+const mockCategories: CategoryOption[] = [
+  { slug: 'tech', name: 'テクノロジー', sortOrder: 1 },
+  { slug: 'life', name: 'ライフスタイル', sortOrder: 2 },
+  { slug: 'business', name: 'ビジネス', sortOrder: 3 },
+  { slug: 'other', name: 'その他', sortOrder: 4 },
+];
 
 describe('PostEditor', () => {
   const mockOnSave = vi.fn();
@@ -27,7 +39,13 @@ describe('PostEditor', () => {
   });
 
   it('全ての入力フィールドが表示される', () => {
-    render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
+    render(
+      <PostEditor
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+        categories={mockCategories}
+      />
+    );
 
     expect(screen.getByLabelText(/タイトル/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/本文/i)).toBeInTheDocument();
@@ -36,7 +54,13 @@ describe('PostEditor', () => {
   });
 
   it('保存ボタンとキャンセルボタンが表示される', () => {
-    render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
+    render(
+      <PostEditor
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+        categories={mockCategories}
+      />
+    );
 
     expect(screen.getByRole('button', { name: /保存/i })).toBeInTheDocument();
     expect(
@@ -57,6 +81,7 @@ describe('PostEditor', () => {
         onSave={mockOnSave}
         onCancel={mockOnCancel}
         initialData={initialData}
+        categories={mockCategories}
       />
     );
 
@@ -77,7 +102,13 @@ describe('PostEditor', () => {
 
   it('タイトルが空の場合はバリデーションエラーが表示される', async () => {
     const user = userEvent.setup();
-    render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
+    render(
+      <PostEditor
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+        categories={mockCategories}
+      />
+    );
 
     await user.click(screen.getByRole('button', { name: /保存/i }));
 
@@ -90,7 +121,13 @@ describe('PostEditor', () => {
 
   it('本文が空の場合はバリデーションエラーが表示される', async () => {
     const user = userEvent.setup();
-    render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
+    render(
+      <PostEditor
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+        categories={mockCategories}
+      />
+    );
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
     await user.click(screen.getByRole('button', { name: /保存/i }));
@@ -104,7 +141,13 @@ describe('PostEditor', () => {
 
   it('カテゴリが選択されていない場合はバリデーションエラーが表示される', async () => {
     const user = userEvent.setup();
-    render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
+    render(
+      <PostEditor
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+        categories={mockCategories}
+      />
+    );
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
     await user.type(screen.getByLabelText(/本文/i), 'テスト本文');
@@ -124,7 +167,13 @@ describe('PostEditor', () => {
 
   it('正しい情報を入力して保存するとonSaveが呼ばれる', async () => {
     const user = userEvent.setup();
-    render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
+    render(
+      <PostEditor
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+        categories={mockCategories}
+      />
+    );
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
     await user.type(
@@ -149,7 +198,13 @@ describe('PostEditor', () => {
 
   it('キャンセルボタンをクリックするとonCancelが呼ばれる', async () => {
     const user = userEvent.setup();
-    render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
+    render(
+      <PostEditor
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+        categories={mockCategories}
+      />
+    );
 
     await user.click(screen.getByRole('button', { name: /キャンセル/i }));
 
@@ -158,14 +213,26 @@ describe('PostEditor', () => {
   });
 
   it('Markdownプレビューが表示される', () => {
-    render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
+    render(
+      <PostEditor
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+        categories={mockCategories}
+      />
+    );
 
     expect(screen.getByTestId('markdown-preview')).toBeInTheDocument();
   });
 
   it('入力した内容がMarkdownプレビューに反映される', async () => {
     const user = userEvent.setup();
-    render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
+    render(
+      <PostEditor
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+        categories={mockCategories}
+      />
+    );
 
     await user.type(screen.getByLabelText(/本文/i), '# テスト見出し');
 
@@ -182,7 +249,13 @@ describe('PostEditor', () => {
     const slowSave = vi.fn(
       () => new Promise<void>((resolve) => setTimeout(resolve, 100))
     );
-    render(<PostEditor onSave={slowSave} onCancel={mockOnCancel} />);
+    render(
+      <PostEditor
+        onSave={slowSave}
+        onCancel={mockOnCancel}
+        categories={mockCategories}
+      />
+    );
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
     await user.type(screen.getByLabelText(/本文/i), 'テスト本文');
@@ -203,7 +276,13 @@ describe('PostEditor', () => {
   });
 
   it('カテゴリの選択肢が正しく表示される', () => {
-    render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
+    render(
+      <PostEditor
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+        categories={mockCategories}
+      />
+    );
 
     const categorySelect = screen.getByLabelText(
       /カテゴリ/i
@@ -217,7 +296,13 @@ describe('PostEditor', () => {
   });
 
   it('公開状態の選択肢が正しく表示される', () => {
-    render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
+    render(
+      <PostEditor
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+        categories={mockCategories}
+      />
+    );
 
     const statusSelect = screen.getByLabelText(
       /公開状態/i
@@ -232,7 +317,12 @@ describe('PostEditor', () => {
     it('refを通じてinsertAtCursorメソッドにアクセスできる', () => {
       const ref = createRef<PostEditorHandle>();
       render(
-        <PostEditor ref={ref} onSave={mockOnSave} onCancel={mockOnCancel} />
+        <PostEditor
+          ref={ref}
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
       );
 
       expect(ref.current).not.toBeNull();
@@ -243,7 +333,12 @@ describe('PostEditor', () => {
       const user = userEvent.setup();
       const ref = createRef<PostEditorHandle>();
       render(
-        <PostEditor ref={ref} onSave={mockOnSave} onCancel={mockOnCancel} />
+        <PostEditor
+          ref={ref}
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
       );
 
       const textarea = screen.getByTestId(
@@ -268,7 +363,12 @@ describe('PostEditor', () => {
       const user = userEvent.setup();
       const ref = createRef<PostEditorHandle>();
       render(
-        <PostEditor ref={ref} onSave={mockOnSave} onCancel={mockOnCancel} />
+        <PostEditor
+          ref={ref}
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
       );
 
       const textarea = screen.getByTestId(
@@ -289,7 +389,12 @@ describe('PostEditor', () => {
     it('空のテキストエリアに挿入できる', () => {
       const ref = createRef<PostEditorHandle>();
       render(
-        <PostEditor ref={ref} onSave={mockOnSave} onCancel={mockOnCancel} />
+        <PostEditor
+          ref={ref}
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
       );
 
       act(() => {
@@ -311,6 +416,7 @@ describe('PostEditor', () => {
           onSave={mockOnSave}
           onCancel={mockOnCancel}
           onImagePaste={mockOnImagePaste}
+          categories={mockCategories}
         />
       );
 
@@ -341,6 +447,7 @@ describe('PostEditor', () => {
           onSave={mockOnSave}
           onCancel={mockOnCancel}
           onImagePaste={mockOnImagePaste}
+          categories={mockCategories}
         />
       );
 
@@ -361,7 +468,13 @@ describe('PostEditor', () => {
     });
 
     it('onImagePasteが未定義でも画像ペーストでエラーにならない', () => {
-      render(<PostEditor onSave={mockOnSave} onCancel={mockOnCancel} />);
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
+      );
 
       const textarea = screen.getByTestId('post-content-editor');
 
@@ -388,6 +501,7 @@ describe('PostEditor', () => {
           onSave={mockOnSave}
           onCancel={mockOnCancel}
           isUploading={true}
+          categories={mockCategories}
         />
       );
 
@@ -400,12 +514,211 @@ describe('PostEditor', () => {
           onSave={mockOnSave}
           onCancel={mockOnCancel}
           isUploading={false}
+          categories={mockCategories}
         />
       );
 
       expect(
         screen.queryByText('画像アップロード中...')
       ).not.toBeInTheDocument();
+    });
+  });
+
+  describe('動的カテゴリドロップダウン', () => {
+    it('categoriesプロップから動的にカテゴリを表示する', () => {
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
+      );
+
+      const categorySelect = screen.getByLabelText(
+        /カテゴリ/i
+      ) as HTMLSelectElement;
+      const options = Array.from(categorySelect.options).map((opt) => ({
+        value: opt.value,
+        label: opt.textContent,
+      }));
+
+      // プレースホルダーオプションがある
+      expect(options[0]).toEqual({ value: '', label: '選択してください' });
+      // 動的カテゴリがsortOrder順で表示される
+      expect(options[1]).toEqual({ value: 'tech', label: 'テクノロジー' });
+      expect(options[2]).toEqual({ value: 'life', label: 'ライフスタイル' });
+      expect(options[3]).toEqual({ value: 'business', label: 'ビジネス' });
+      expect(options[4]).toEqual({ value: 'other', label: 'その他' });
+    });
+
+    it('categoriesLoadingがtrueの時にローディング表示する', () => {
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={[]}
+          categoriesLoading={true}
+        />
+      );
+
+      const categorySelect = screen.getByLabelText(
+        /カテゴリ/i
+      ) as HTMLSelectElement;
+      // ローディング中はドロップダウンが無効化される
+      expect(categorySelect).toBeDisabled();
+      // ローディング表示
+      expect(screen.getByText('読み込み中...')).toBeInTheDocument();
+    });
+
+    it('categoriesErrorがある場合にエラーメッセージとリトライボタンを表示する', () => {
+      const mockRefetch = vi.fn();
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={[]}
+          categoriesError="カテゴリの取得に失敗しました"
+          onCategoriesRefetch={mockRefetch}
+        />
+      );
+
+      // エラーメッセージが表示される
+      expect(
+        screen.getByText('カテゴリの取得に失敗しました')
+      ).toBeInTheDocument();
+      // リトライボタンが表示される
+      const retryButton = screen.getByRole('button', { name: /再試行/i });
+      expect(retryButton).toBeInTheDocument();
+    });
+
+    it('リトライボタンをクリックするとonCategoriesRefetchが呼ばれる', async () => {
+      const user = userEvent.setup();
+      const mockRefetch = vi.fn();
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={[]}
+          categoriesError="カテゴリの取得に失敗しました"
+          onCategoriesRefetch={mockRefetch}
+        />
+      );
+
+      const retryButton = screen.getByRole('button', { name: /再試行/i });
+      await user.click(retryButton);
+
+      expect(mockRefetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('編集時に既存記事のカテゴリが選択状態になる', () => {
+      const initialData: PostData = {
+        title: '既存記事タイトル',
+        contentMarkdown: '# 既存記事本文',
+        category: 'life',
+        publishStatus: 'published',
+      };
+
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+          initialData={initialData}
+        />
+      );
+
+      const categorySelect = screen.getByLabelText(
+        /カテゴリ/i
+      ) as HTMLSelectElement;
+      expect(categorySelect.value).toBe('life');
+    });
+
+    it('記事のカテゴリが一覧に存在しない場合は警告を表示する', () => {
+      const initialData: PostData = {
+        title: '既存記事タイトル',
+        contentMarkdown: '# 既存記事本文',
+        category: 'deleted-category',
+        publishStatus: 'published',
+      };
+
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+          initialData={initialData}
+        />
+      );
+
+      // 警告メッセージが表示される
+      expect(
+        screen.getByText(
+          /選択されているカテゴリ「deleted-category」は現在利用できません/i
+        )
+      ).toBeInTheDocument();
+    });
+
+    it('カテゴリ未選択の場合はmissingCategoryWarningを表示しない', () => {
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
+      );
+
+      // 警告メッセージは表示されない
+      expect(
+        screen.queryByText(/選択されているカテゴリ.*は現在利用できません/i)
+      ).not.toBeInTheDocument();
+    });
+
+    it('sortOrder順でカテゴリがソートされて表示される', () => {
+      // sortOrder順がシャッフルされたカテゴリ
+      const shuffledCategories: CategoryOption[] = [
+        { slug: 'other', name: 'その他', sortOrder: 4 },
+        { slug: 'tech', name: 'テクノロジー', sortOrder: 1 },
+        { slug: 'business', name: 'ビジネス', sortOrder: 3 },
+        { slug: 'life', name: 'ライフスタイル', sortOrder: 2 },
+      ];
+
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={shuffledCategories}
+        />
+      );
+
+      const categorySelect = screen.getByLabelText(
+        /カテゴリ/i
+      ) as HTMLSelectElement;
+      const options = Array.from(categorySelect.options).map(
+        (opt) => opt.value
+      );
+
+      // プレースホルダー + sortOrder順
+      expect(options).toEqual(['', 'tech', 'life', 'business', 'other']);
+    });
+
+    it('categoriesLoadingがfalseでcategoriesが空の場合は「カテゴリがありません」と表示する', () => {
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={[]}
+          categoriesLoading={false}
+        />
+      );
+
+      const categorySelect = screen.getByLabelText(
+        /カテゴリ/i
+      ) as HTMLSelectElement;
+      const options = Array.from(categorySelect.options);
+
+      // プレースホルダーのみ
+      expect(options.length).toBe(1);
+      expect(options[0].textContent).toBe('カテゴリがありません');
     });
   });
 });

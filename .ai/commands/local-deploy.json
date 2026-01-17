@@ -1,0 +1,6 @@
+{
+  "description": "Execute local deployment workflow for serverless blog",
+  "argumentHint": "[options]",
+  "allowedTools": ["Bash", "Read"],
+  "codexFormat": "yaml"
+}

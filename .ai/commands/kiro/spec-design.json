@@ -1,0 +1,22 @@
+{
+  "description": "Create comprehensive technical design for a specification",
+  "argumentHint": "<feature-name> [-y]",
+  "allowedTools": [
+    "Bash",
+    "Glob",
+    "Grep",
+    "LS",
+    "Read",
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "Update",
+    "WebSearch",
+    "WebFetch"
+  ],
+  "codexFormat": "meta",
+  "codexArguments": {
+    "feature-name": "$1",
+    "-y flag": "$2"
+  }
+}

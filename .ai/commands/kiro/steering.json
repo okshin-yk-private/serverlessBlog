@@ -1,0 +1,14 @@
+{
+  "description": "Manage .kiro/steering/ as persistent project knowledge",
+  "allowedTools": [
+    "Bash",
+    "Read",
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "Glob",
+    "Grep",
+    "LS"
+  ],
+  "codexFormat": "meta"
+}

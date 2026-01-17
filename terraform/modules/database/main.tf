@@ -79,3 +79,67 @@ resource "aws_dynamodb_table" "blog_posts" {
     prevent_destroy = false # Set to true in production via environment-specific configuration
   }
 }
+
+#------------------------------------------------------------------------------
+# Categories DynamoDB Table
+# Requirements: Category Management Feature
+# - 1.1: Partition key `id` (String)
+# - 1.2: PAY_PER_REQUEST billing mode
+# - 1.4: Point-in-Time Recovery enabled
+# - 1.5: Server-side encryption with AWS managed key
+# - 1.6: SlugIndex GSI with partition key `slug` (KEYS_ONLY)
+#------------------------------------------------------------------------------
+
+resource "aws_dynamodb_table" "categories" {
+  name         = var.categories_table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "id"
+
+  # Partition key attribute
+  attribute {
+    name = "id"
+    type = "S"
+  }
+
+  # GSI attribute for slug lookup
+  attribute {
+    name = "slug"
+    type = "S"
+  }
+
+  # Requirement 1.6: SlugIndex GSI for unique slug lookup
+  # Partition key: slug, Projection: KEYS_ONLY
+  global_secondary_index {
+    name            = "SlugIndex"
+    hash_key        = "slug"
+    projection_type = "KEYS_ONLY"
+  }
+
+  # Requirement 1.4: Point-in-Time Recovery
+  point_in_time_recovery {
+    enabled = var.enable_pitr
+  }
+
+  # Requirement 1.5: Server-side encryption (AWS managed key)
+  server_side_encryption {
+    enabled = true
+  }
+
+  # Prevent accidental deletion in production
+  deletion_protection_enabled = var.environment == "prd" ? true : false
+
+  # Tags
+  tags = merge(
+    {
+      Name        = var.categories_table_name
+      Environment = var.environment
+      Module      = "database"
+      ManagedBy   = "terraform"
+    },
+    var.tags
+  )
+
+  lifecycle {
+    prevent_destroy = false # Set to true in production via environment-specific configuration
+  }
+}

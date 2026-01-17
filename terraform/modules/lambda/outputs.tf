@@ -7,17 +7,22 @@
 
 output "function_arns" {
   value = {
-    create_post     = aws_lambda_function.create_post.arn
-    get_post        = aws_lambda_function.get_post.arn
-    get_public_post = aws_lambda_function.get_public_post.arn
-    list_posts      = aws_lambda_function.list_posts.arn
-    update_post     = aws_lambda_function.update_post.arn
-    delete_post     = aws_lambda_function.delete_post.arn
-    login           = aws_lambda_function.login.arn
-    logout          = aws_lambda_function.logout.arn
-    refresh         = aws_lambda_function.refresh.arn
-    get_upload_url  = aws_lambda_function.get_upload_url.arn
-    delete_image    = aws_lambda_function.delete_image.arn
+    create_post                  = aws_lambda_function.create_post.arn
+    get_post                     = aws_lambda_function.get_post.arn
+    get_public_post              = aws_lambda_function.get_public_post.arn
+    list_posts                   = aws_lambda_function.list_posts.arn
+    update_post                  = aws_lambda_function.update_post.arn
+    delete_post                  = aws_lambda_function.delete_post.arn
+    login                        = aws_lambda_function.login.arn
+    logout                       = aws_lambda_function.logout.arn
+    refresh                      = aws_lambda_function.refresh.arn
+    get_upload_url               = aws_lambda_function.get_upload_url.arn
+    delete_image                 = aws_lambda_function.delete_image.arn
+    list_categories              = aws_lambda_function.list_categories.arn
+    create_category              = aws_lambda_function.create_category.arn
+    update_category              = aws_lambda_function.update_category.arn
+    update_categories_sort_order = aws_lambda_function.update_categories_sort_order.arn
+    delete_category              = aws_lambda_function.delete_category.arn
   }
   description = "Map of Lambda function ARNs"
 }
@@ -28,17 +33,22 @@ output "function_arns" {
 
 output "function_invoke_arns" {
   value = {
-    create_post     = aws_lambda_function.create_post.invoke_arn
-    get_post        = aws_lambda_function.get_post.invoke_arn
-    get_public_post = aws_lambda_function.get_public_post.invoke_arn
-    list_posts      = aws_lambda_function.list_posts.invoke_arn
-    update_post     = aws_lambda_function.update_post.invoke_arn
-    delete_post     = aws_lambda_function.delete_post.invoke_arn
-    login           = aws_lambda_function.login.invoke_arn
-    logout          = aws_lambda_function.logout.invoke_arn
-    refresh         = aws_lambda_function.refresh.invoke_arn
-    get_upload_url  = aws_lambda_function.get_upload_url.invoke_arn
-    delete_image    = aws_lambda_function.delete_image.invoke_arn
+    create_post                  = aws_lambda_function.create_post.invoke_arn
+    get_post                     = aws_lambda_function.get_post.invoke_arn
+    get_public_post              = aws_lambda_function.get_public_post.invoke_arn
+    list_posts                   = aws_lambda_function.list_posts.invoke_arn
+    update_post                  = aws_lambda_function.update_post.invoke_arn
+    delete_post                  = aws_lambda_function.delete_post.invoke_arn
+    login                        = aws_lambda_function.login.invoke_arn
+    logout                       = aws_lambda_function.logout.invoke_arn
+    refresh                      = aws_lambda_function.refresh.invoke_arn
+    get_upload_url               = aws_lambda_function.get_upload_url.invoke_arn
+    delete_image                 = aws_lambda_function.delete_image.invoke_arn
+    list_categories              = aws_lambda_function.list_categories.invoke_arn
+    create_category              = aws_lambda_function.create_category.invoke_arn
+    update_category              = aws_lambda_function.update_category.invoke_arn
+    update_categories_sort_order = aws_lambda_function.update_categories_sort_order.invoke_arn
+    delete_category              = aws_lambda_function.delete_category.invoke_arn
   }
   description = "Map of Lambda function Invoke ARNs for API Gateway integrations"
 }
@@ -60,6 +70,11 @@ output "function_names" {
     aws_lambda_function.refresh.function_name,
     aws_lambda_function.get_upload_url.function_name,
     aws_lambda_function.delete_image.function_name,
+    aws_lambda_function.list_categories.function_name,
+    aws_lambda_function.create_category.function_name,
+    aws_lambda_function.update_category.function_name,
+    aws_lambda_function.update_categories_sort_order.function_name,
+    aws_lambda_function.delete_category.function_name,
   ]
   description = "List of all Lambda function names"
 }
@@ -227,4 +242,94 @@ output "delete_image_function_arn" {
 output "delete_image_function_name" {
   value       = aws_lambda_function.delete_image.function_name
   description = "Delete Image Lambda function name"
+}
+
+# ======================
+# Categories Domain Outputs
+# ======================
+
+# Categories Domain Role
+output "categories_role_arn" {
+  value       = aws_iam_role.lambda_categories.arn
+  description = "Categories domain Lambda execution role ARN"
+}
+
+output "categories_role_name" {
+  value       = aws_iam_role.lambda_categories.name
+  description = "Categories domain Lambda execution role name"
+}
+
+output "list_categories_function_arn" {
+  value       = aws_lambda_function.list_categories.arn
+  description = "List Categories Lambda function ARN"
+}
+
+output "list_categories_function_name" {
+  value       = aws_lambda_function.list_categories.function_name
+  description = "List Categories Lambda function name"
+}
+
+output "list_categories_invoke_arn" {
+  value       = aws_lambda_function.list_categories.invoke_arn
+  description = "List Categories Lambda function invoke ARN for API Gateway integration"
+}
+
+output "create_category_function_arn" {
+  value       = aws_lambda_function.create_category.arn
+  description = "Create Category Lambda function ARN"
+}
+
+output "create_category_function_name" {
+  value       = aws_lambda_function.create_category.function_name
+  description = "Create Category Lambda function name"
+}
+
+output "create_category_invoke_arn" {
+  value       = aws_lambda_function.create_category.invoke_arn
+  description = "Create Category Lambda function invoke ARN for API Gateway integration"
+}
+
+output "update_category_function_arn" {
+  value       = aws_lambda_function.update_category.arn
+  description = "Update Category Lambda function ARN"
+}
+
+output "update_category_function_name" {
+  value       = aws_lambda_function.update_category.function_name
+  description = "Update Category Lambda function name"
+}
+
+output "update_category_invoke_arn" {
+  value       = aws_lambda_function.update_category.invoke_arn
+  description = "Update Category Lambda function invoke ARN for API Gateway integration"
+}
+
+output "update_categories_sort_order_function_arn" {
+  value       = aws_lambda_function.update_categories_sort_order.arn
+  description = "Update Categories Sort Order Lambda function ARN"
+}
+
+output "update_categories_sort_order_function_name" {
+  value       = aws_lambda_function.update_categories_sort_order.function_name
+  description = "Update Categories Sort Order Lambda function name"
+}
+
+output "update_categories_sort_order_invoke_arn" {
+  value       = aws_lambda_function.update_categories_sort_order.invoke_arn
+  description = "Update Categories Sort Order Lambda function invoke ARN for API Gateway integration"
+}
+
+output "delete_category_function_arn" {
+  value       = aws_lambda_function.delete_category.arn
+  description = "Delete Category Lambda function ARN"
+}
+
+output "delete_category_function_name" {
+  value       = aws_lambda_function.delete_category.function_name
+  description = "Delete Category Lambda function name"
+}
+
+output "delete_category_invoke_arn" {
+  value       = aws_lambda_function.delete_category.invoke_arn
+  description = "Delete Category Lambda function invoke ARN for API Gateway integration"
 }

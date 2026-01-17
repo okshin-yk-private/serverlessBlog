@@ -24,7 +24,12 @@ FUNCTIONS := \
 	auth/logout \
 	auth/refresh \
 	images/get_upload_url \
-	images/delete
+	images/delete \
+	categories/list \
+	categories/create \
+	categories/update \
+	categories/bulk_sort \
+	categories/delete
 
 .PHONY: all build clean test lint fmt help
 
@@ -38,7 +43,7 @@ build:
 		name=$$(echo $$func | tr '/' '-'); \
 		echo "  Building $$name..."; \
 		CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
-			go build -ldflags="$(LDFLAGS)" -tags="$(BUILD_TAGS)" \
+			go build -trimpath -ldflags="$(LDFLAGS)" -tags="$(BUILD_TAGS)" \
 			-o $(BIN_DIR)/$$name/bootstrap ./$(CMD_DIR)/$$func || exit 1; \
 	done
 	@echo "Build complete!"
@@ -51,7 +56,7 @@ endif
 	@name=$$(echo $(FUNC) | tr '/' '-'); \
 	echo "Building $$name for $(GOOS)/$(GOARCH)..."; \
 	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
-		go build -ldflags="$(LDFLAGS)" -tags="$(BUILD_TAGS)" \
+		go build -trimpath -ldflags="$(LDFLAGS)" -tags="$(BUILD_TAGS)" \
 		-o $(BIN_DIR)/$$name/bootstrap ./$(CMD_DIR)/$(FUNC)
 
 # Run tests with race detector

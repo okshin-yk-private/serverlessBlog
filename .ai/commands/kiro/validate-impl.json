@@ -1,0 +1,10 @@
+{
+  "description": "Validate implementation against requirements, design, and tasks",
+  "argumentHint": "[feature-name] [task-numbers]",
+  "allowedTools": ["Bash", "Glob", "Grep", "Read", "LS"],
+  "codexFormat": "meta",
+  "codexArguments": {
+    "feature-name": "$1",
+    "task-numbers": "$2"
+  }
+}

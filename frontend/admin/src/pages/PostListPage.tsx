@@ -4,6 +4,7 @@ import { getPosts, deletePost, updatePost } from '../api/posts';
 import type { Post } from '../api/posts';
 import ConfirmDialog from '../components/ConfirmDialog';
 import AdminLayout from '../components/AdminLayout';
+import { PostListSkeleton } from '../components/skeleton';
 
 type TabType = 'published' | 'draft';
 
@@ -126,7 +127,7 @@ const PostListPage = () => {
   if (loading) {
     return (
       <AdminLayout title="Articles">
-        <div className="admin-loading">読み込み中...</div>
+        <PostListSkeleton />
       </AdminLayout>
     );
   }

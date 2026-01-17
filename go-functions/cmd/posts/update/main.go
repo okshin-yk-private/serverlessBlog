@@ -46,7 +46,7 @@ var markdownConverter = markdown.ConvertToHTML
 // Handler handles PUT /posts/:id requests
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Validate and parse request
-	postID, req, errResp := validateAndParseRequest(request)
+	postID, req, userID, errResp := validateAndParseRequest(request)
 	if errResp != nil {
 		return *errResp, nil
 	}
@@ -61,6 +61,11 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	existingPost, errResp := getExistingPost(ctx, dynamoClient, tableName, postID)
 	if errResp != nil {
 		return *errResp, nil
+	}
+
+	// Security: Verify ownership - only the author can update their post
+	if existingPost.AuthorID != userID {
+		return errorResponse(403, "forbidden: you can only update your own posts")
 	}
 
 	// Validate update fields
@@ -84,35 +89,36 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 }
 
 // validateAndParseRequest validates authentication and parses the request body
-func validateAndParseRequest(request events.APIGatewayProxyRequest) (string, *domain.UpdatePostRequest, *events.APIGatewayProxyResponse) {
+// Returns postID, request, userID, and error response
+func validateAndParseRequest(request events.APIGatewayProxyRequest) (postID string, req *domain.UpdatePostRequest, userID string, errResp *events.APIGatewayProxyResponse) {
 	// Validate authentication
-	userID := getUserIDFromRequest(request)
+	userID = getUserIDFromRequest(request)
 	if userID == "" {
 		resp, _ := errorResponse(401, "unauthorized")
-		return "", nil, &resp
+		return "", nil, "", &resp
 	}
 
 	// Validate post ID
-	postID := request.PathParameters["id"]
+	postID = request.PathParameters["id"]
 	if postID == "" {
 		resp, _ := errorResponse(400, "post ID is required")
-		return "", nil, &resp
+		return "", nil, "", &resp
 	}
 
 	// Validate request body is present
 	if request.Body == "" {
 		resp, _ := errorResponse(400, "request body is required")
-		return "", nil, &resp
+		return "", nil, "", &resp
 	}
 
 	// Parse request body
-	var req domain.UpdatePostRequest
-	if err := json.Unmarshal([]byte(request.Body), &req); err != nil {
+	var parsedReq domain.UpdatePostRequest
+	if err := json.Unmarshal([]byte(request.Body), &parsedReq); err != nil {
 		resp, _ := errorResponse(400, "invalid JSON format")
-		return "", nil, &resp
+		return "", nil, "", &resp
 	}
 
-	return postID, &req, nil
+	return postID, &parsedReq, userID, nil
 }
 
 // getClientAndTable returns the DynamoDB client and table name

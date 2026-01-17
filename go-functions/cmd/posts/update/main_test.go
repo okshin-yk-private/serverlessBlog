@@ -95,6 +95,7 @@ func createUnauthenticatedRequest(postID, body string) events.APIGatewayProxyReq
 }
 
 // createTestPost creates a test BlogPost
+// Note: AuthorID matches testUserID to pass ownership checks
 func createTestPost() domain.BlogPost {
 	return domain.BlogPost{
 		ID:              testPostID,
@@ -104,7 +105,7 @@ func createTestPost() domain.BlogPost {
 		Category:        "technology",
 		Tags:            []string{"go", "aws"},
 		PublishStatus:   domain.PublishStatusDraft,
-		AuthorID:        "author-123",
+		AuthorID:        testUserID, // Must match authenticated user for ownership check
 		CreatedAt:       testCreatedAt,
 		UpdatedAt:       testUpdatedAt,
 		PublishedAt:     nil,

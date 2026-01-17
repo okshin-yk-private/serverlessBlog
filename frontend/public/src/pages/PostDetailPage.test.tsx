@@ -286,7 +286,7 @@ describe('PostDetailPage', () => {
   });
 
   describe('ローディング状態', () => {
-    test('ローディング中に「読み込み中...」が表示される', async () => {
+    test('ローディング中にスケルトンUIが表示される', async () => {
       vi.mocked(api.fetchPost).mockReturnValue(
         new Promise(() => {}) // Never resolves
       );
@@ -299,7 +299,8 @@ describe('PostDetailPage', () => {
         </MemoryRouter>
       );
 
-      expect(screen.getByText('読み込み中...')).toBeInTheDocument();
+      // スケルトンUIはaria-label="Loading"を持つ
+      expect(screen.getByLabelText('Loading')).toBeInTheDocument();
     });
   });
 

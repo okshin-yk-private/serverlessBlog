@@ -1,0 +1,11 @@
+{
+  "description": "Generate implementation tasks for a specification",
+  "argumentHint": "<feature-name> [-y] [--sequential]",
+  "allowedTools": ["Read", "Write", "Edit", "MultiEdit", "Glob", "Grep"],
+  "codexFormat": "meta",
+  "codexArguments": {
+    "feature-name": "$1",
+    "-y flag": "$2",
+    "--sequential flag": "$3"
+  }
+}

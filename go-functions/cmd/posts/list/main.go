@@ -97,17 +97,20 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	exclusiveStartKey := parseNextToken(queryParams["nextToken"])
 
 	// Parse publishStatus (defaults to "published" for backward compatibility)
+	// Security: Unauthenticated users can ONLY access published posts
 	publishStatus := domain.PublishStatusPublished
 	if queryParams["publishStatus"] != "" {
-		var parseErr error
-		publishStatus, parseErr = parsePublishStatus(queryParams["publishStatus"])
-		if parseErr != nil {
-			// Return 400 only for admin requests (authenticated)
-			if isAuthenticated(request) {
+		// Only authenticated users can query non-published posts
+		if !isAuthenticated(request) {
+			// Security: Force published status for unauthenticated requests
+			// Ignore any publishStatus parameter from unauthenticated users
+			publishStatus = domain.PublishStatusPublished
+		} else {
+			var parseErr error
+			publishStatus, parseErr = parsePublishStatus(queryParams["publishStatus"])
+			if parseErr != nil {
 				return errorResponse(400, "invalid publishStatus value")
 			}
-			// For public requests, ignore invalid value and use default
-			publishStatus = domain.PublishStatusPublished
 		}
 	}
 
@@ -316,23 +319,38 @@ func isAuthenticated(request events.APIGatewayProxyRequest) bool {
 
 // executeCountQuery executes a count query on PublishStatusIndex for the given publishStatus
 // This is used to get the total count of articles for admin dashboard statistics
+// Uses pagination to ensure accurate count even when data exceeds 1MB per query
 func executeCountQuery(ctx context.Context, client DynamoDBClientInterface, tableName, publishStatus string) (int64, error) {
-	queryInput := &dynamodb.QueryInput{
-		TableName:              aws.String(tableName),
-		IndexName:              aws.String("PublishStatusIndex"),
-		KeyConditionExpression: aws.String("publishStatus = :publishStatus"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":publishStatus": &types.AttributeValueMemberS{Value: publishStatus},
-		},
-		Select: types.SelectCount,
+	var totalCount int64
+	var lastEvaluatedKey map[string]types.AttributeValue
+
+	for {
+		queryInput := &dynamodb.QueryInput{
+			TableName:              aws.String(tableName),
+			IndexName:              aws.String("PublishStatusIndex"),
+			KeyConditionExpression: aws.String("publishStatus = :publishStatus"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":publishStatus": &types.AttributeValueMemberS{Value: publishStatus},
+			},
+			Select:            types.SelectCount,
+			ExclusiveStartKey: lastEvaluatedKey,
+		}
+
+		result, err := client.Query(ctx, queryInput)
+		if err != nil {
+			return 0, err
+		}
+
+		totalCount += int64(result.Count)
+
+		// Check if there are more pages
+		if result.LastEvaluatedKey == nil {
+			break
+		}
+		lastEvaluatedKey = result.LastEvaluatedKey
 	}
 
-	result, err := client.Query(ctx, queryInput)
-	if err != nil {
-		return 0, err
-	}
-
-	return int64(result.Count), nil
+	return totalCount, nil
 }
 
 // errorResponse creates an error response with CORS headers

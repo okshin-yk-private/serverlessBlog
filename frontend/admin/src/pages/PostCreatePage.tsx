@@ -4,6 +4,7 @@ import { PostEditor, type PostEditorHandle } from '../components/PostEditor';
 import { ImageUploader } from '../components/ImageUploader';
 import { createPost, uploadImage, deleteImage } from '../api/posts';
 import AdminLayout from '../components/AdminLayout';
+import { useCategories } from '../hooks/useCategories';
 
 const PostCreatePage = () => {
   const navigate = useNavigate();
@@ -11,6 +12,14 @@ const PostCreatePage = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const editorRef = useRef<PostEditorHandle>(null);
+
+  // カテゴリを動的に取得
+  const {
+    categories,
+    loading: categoriesLoading,
+    error: categoriesError,
+    refetch: refetchCategories,
+  } = useCategories();
 
   const handleSave = async (data: {
     title: string;
@@ -92,6 +101,10 @@ const PostCreatePage = () => {
           onCancel={handleCancel}
           onImagePaste={handleImagePaste}
           isUploading={isUploading}
+          categories={categories}
+          categoriesLoading={categoriesLoading}
+          categoriesError={categoriesError}
+          onCategoriesRefetch={refetchCategories}
         />
       </div>
     </AdminLayout>

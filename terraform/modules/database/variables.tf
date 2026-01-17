@@ -30,3 +30,17 @@ variable "tags" {
   default     = {}
   description = "Additional tags for resources"
 }
+
+#------------------------------------------------------------------------------
+# Categories Table Variables
+# Requirements: Category Management Feature 1.1
+#------------------------------------------------------------------------------
+
+variable "categories_table_name" {
+  type        = string
+  description = "Name of the Categories DynamoDB table"
+  validation {
+    condition     = length(var.categories_table_name) >= 3 && length(var.categories_table_name) <= 255
+    error_message = "Categories table name must be between 3 and 255 characters"
+  }
+}

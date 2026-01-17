@@ -8,6 +8,8 @@ import {
 import { ImageUploader } from '../components/ImageUploader';
 import { getPost, updatePost, uploadImage, deleteImage } from '../api/posts';
 import AdminLayout from '../components/AdminLayout';
+import { PostEditSkeleton } from '../components/skeleton';
+import { useCategories } from '../hooks/useCategories';
 
 const PostEditPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +20,14 @@ const PostEditPage = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const editorRef = useRef<PostEditorHandle>(null);
+
+  // カテゴリを動的に取得
+  const {
+    categories,
+    loading: categoriesLoading,
+    error: categoriesError,
+    refetch: refetchCategories,
+  } = useCategories();
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -98,7 +108,7 @@ const PostEditPage = () => {
   if (loading) {
     return (
       <AdminLayout title="Edit Article">
-        <div className="admin-loading">読み込み中...</div>
+        <PostEditSkeleton />
       </AdminLayout>
     );
   }
@@ -134,6 +144,10 @@ const PostEditPage = () => {
             initialData={initialData}
             onImagePaste={handleImagePaste}
             isUploading={isUploading}
+            categories={categories}
+            categoriesLoading={categoriesLoading}
+            categoriesError={categoriesError}
+            onCategoriesRefetch={refetchCategories}
           />
         )}
       </div>

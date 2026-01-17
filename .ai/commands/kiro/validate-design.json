@@ -1,0 +1,9 @@
+{
+  "description": "Interactive technical design quality review and validation",
+  "argumentHint": "<feature-name>",
+  "allowedTools": ["Read", "Glob", "Grep"],
+  "codexFormat": "meta",
+  "codexArguments": {
+    "feature-name": "$1"
+  }
+}

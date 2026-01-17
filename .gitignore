@@ -103,6 +103,8 @@ coverage/
 .nyc_output/
 *.lcov
 coverage.out
+go-functions/coverage*.out
+go-functions/coverage*.html
 
 # Jest
 .jest/
@@ -226,6 +228,12 @@ layers/**/*.js
 .serena/memories/
 .serena/cache/
 
+# Codex CLI (local state / secrets)
+.codex/auth.json
+.codex/history.jsonl
+.codex/log/
+.codex/sessions/
+
 # CloudFormation templates (generated)
 *.template.json
 *.template.yaml
@@ -262,3 +270,19 @@ target/
 
 # Go build artifacts
 go-functions/bin/
+
+# ===================================
+# Terraform Plan Files
+# ===================================
+**/tfplan
+*.tfplan
+**/tfplan.binary
+
+# ===================================
+# Root Level Images
+# ===================================
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+!fallacy.png

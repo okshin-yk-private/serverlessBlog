@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom';
 import { fetchPosts } from '../services/api';
 import type { Post } from '../types/post';
 import { SEOHead } from '../components/SEOHead';
+import { PostListSkeleton } from '../components/skeleton';
 
 const PostListPage: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -92,11 +93,7 @@ const PostListPage: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="container">
-        <p>読み込み中...</p>
-      </div>
-    );
+    return <PostListSkeleton />;
   }
 
   // Generate dynamic SEO title and description based on filters

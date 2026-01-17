@@ -150,3 +150,57 @@ variable "lambda_delete_image_invoke_arn" {
   type        = string
   description = "Delete Image Lambda function invoke ARN"
 }
+
+# ======================
+# Categories Lambda Function ARNs
+# ======================
+
+variable "lambda_list_categories_arn" {
+  type        = string
+  description = "List Categories Lambda function ARN"
+}
+
+variable "lambda_list_categories_invoke_arn" {
+  type        = string
+  description = "List Categories Lambda function invoke ARN"
+}
+
+variable "lambda_create_category_arn" {
+  type        = string
+  description = "Create Category Lambda function ARN"
+}
+
+variable "lambda_create_category_invoke_arn" {
+  type        = string
+  description = "Create Category Lambda function invoke ARN"
+}
+
+variable "lambda_update_category_arn" {
+  type        = string
+  description = "Update Category Lambda function ARN"
+}
+
+variable "lambda_update_category_invoke_arn" {
+  type        = string
+  description = "Update Category Lambda function invoke ARN"
+}
+
+variable "lambda_update_categories_sort_order_arn" {
+  type        = string
+  description = "Update Categories Sort Order Lambda function ARN"
+}
+
+variable "lambda_update_categories_sort_order_invoke_arn" {
+  type        = string
+  description = "Update Categories Sort Order Lambda function invoke ARN"
+}
+
+variable "lambda_delete_category_arn" {
+  type        = string
+  description = "Delete Category Lambda function ARN"
+}
+
+variable "lambda_delete_category_invoke_arn" {
+  type        = string
+  description = "Delete Category Lambda function invoke ARN"
+}

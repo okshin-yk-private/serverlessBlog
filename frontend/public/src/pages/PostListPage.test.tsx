@@ -121,8 +121,8 @@ describe('PostListPage', () => {
       // Act
       renderWithRouter(<PostListPage />);
 
-      // Assert
-      expect(screen.getByText(/読み込み中/)).toBeInTheDocument();
+      // Assert - スケルトンUIはaria-label="Loading"を持つ
+      expect(screen.getByLabelText('Loading')).toBeInTheDocument();
     });
 
     it('エラー時は「エラーが発生しました」と表示する', async () => {

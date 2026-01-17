@@ -1,0 +1,17 @@
+{
+  "description": "Show specification status and progress",
+  "argumentHint": "<feature-name>",
+  "allowedTools": [
+    "Bash",
+    "Read",
+    "Glob",
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "Update"
+  ],
+  "codexFormat": "meta",
+  "codexArguments": {
+    "feature-name": "$1"
+  }
+}

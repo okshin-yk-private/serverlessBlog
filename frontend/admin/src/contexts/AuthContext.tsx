@@ -16,6 +16,7 @@ import {
   saveAuthToken,
   removeAuthToken,
   isTokenExpired,
+  migrateFromLocalStorage,
 } from '../utils/auth';
 import { loginAPI } from '../api/auth';
 
@@ -81,6 +82,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const checkAuthStatus = async () => {
     try {
+      // 既存のlocalStorageトークンをsessionStorageに移行（セキュリティ向上）
+      migrateFromLocalStorage();
+
       // E2Eテスト時はAmplifyを使用せず、トークンベースの認証のみ
       if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
         const token = getAuthToken();

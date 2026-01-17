@@ -7,6 +7,7 @@ import {
   removeAuthToken,
   isTokenExpired,
   decodeToken,
+  migrateFromLocalStorage,
 } from './auth';
 
 describe('validateEmail', () => {
@@ -71,48 +72,84 @@ describe('validatePassword', () => {
 
 describe('Token管理', () => {
   const testToken = 'test-jwt-token-12345';
+  const SESSION_TOKEN_KEY = 'auth_session_token';
 
   beforeEach(() => {
+    // メモリとストレージの両方をクリア
+    removeAuthToken();
+    sessionStorage.clear();
     localStorage.clear();
   });
 
   afterEach(() => {
+    removeAuthToken();
+    sessionStorage.clear();
     localStorage.clear();
   });
 
   describe('saveAuthToken', () => {
-    it('トークンをlocalStorageに保存できる', () => {
+    it('トークンをsessionStorageに保存できる（セキュリティ向上）', () => {
       saveAuthToken(testToken);
-      expect(localStorage.getItem('auth_token')).toBe(testToken);
+      expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBe(testToken);
+      // localStorageには保存されないことを確認
+      expect(localStorage.getItem('auth_token')).toBeNull();
     });
 
     it('既存のトークンを上書きできる', () => {
       saveAuthToken('old-token');
       saveAuthToken(testToken);
-      expect(localStorage.getItem('auth_token')).toBe(testToken);
+      expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBe(testToken);
     });
   });
 
   describe('getAuthToken', () => {
     it('保存されたトークンを取得できる', () => {
-      localStorage.setItem('auth_token', testToken);
+      saveAuthToken(testToken);
       expect(getAuthToken()).toBe(testToken);
     });
 
     it('トークンが存在しない場合はnullを返す', () => {
       expect(getAuthToken()).toBeNull();
     });
+
+    it('sessionStorageからリストアできる（ページリロード時）', () => {
+      // sessionStorageに直接保存（ページリロードをシミュレート）
+      sessionStorage.setItem(SESSION_TOKEN_KEY, testToken);
+      // メモリをクリア（モジュールの状態をシミュレートするため removeAuthToken は使わない）
+      // Note: 実際のリロード時はモジュールが再読み込みされるのでメモリはクリアされる
+      expect(getAuthToken()).toBe(testToken);
+    });
   });
 
   describe('removeAuthToken', () => {
     it('トークンを削除できる', () => {
-      localStorage.setItem('auth_token', testToken);
+      saveAuthToken(testToken);
       removeAuthToken();
-      expect(localStorage.getItem('auth_token')).toBeNull();
+      expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBeNull();
+      expect(getAuthToken()).toBeNull();
     });
 
     it('トークンが存在しない場合でもエラーにならない', () => {
       expect(() => removeAuthToken()).not.toThrow();
+    });
+  });
+
+  describe('migrateFromLocalStorage', () => {
+    it('localStorageからsessionStorageにトークンを移行できる', () => {
+      const legacyToken = 'legacy-token-from-localstorage';
+      localStorage.setItem('auth_token', legacyToken);
+
+      migrateFromLocalStorage();
+
+      // sessionStorageに移行されている
+      expect(getAuthToken()).toBe(legacyToken);
+      // localStorageからは削除されている
+      expect(localStorage.getItem('auth_token')).toBeNull();
+    });
+
+    it('localStorageにトークンがない場合は何もしない', () => {
+      expect(() => migrateFromLocalStorage()).not.toThrow();
+      expect(getAuthToken()).toBeNull();
     });
   });
 });

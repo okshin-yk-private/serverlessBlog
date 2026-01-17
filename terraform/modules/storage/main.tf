@@ -356,3 +356,25 @@ resource "aws_s3_bucket_policy" "admin_site" {
     ]
   })
 }
+
+#------------------------------------------------------------------------------
+# SSM Parameters for bucket names (used by CI/CD pipeline)
+#------------------------------------------------------------------------------
+
+resource "aws_ssm_parameter" "public_site_bucket_name" {
+  name        = "/serverless-blog/${var.environment}/storage/public-site-bucket-name"
+  description = "Public site S3 bucket name for ${var.environment} environment"
+  type        = "String"
+  value       = aws_s3_bucket.public_site.bucket
+
+  tags = local.common_tags
+}
+
+resource "aws_ssm_parameter" "admin_site_bucket_name" {
+  name        = "/serverless-blog/${var.environment}/storage/admin-site-bucket-name"
+  description = "Admin site S3 bucket name for ${var.environment} environment"
+  type        = "String"
+  value       = aws_s3_bucket.admin_site.bucket
+
+  tags = local.common_tags
+}

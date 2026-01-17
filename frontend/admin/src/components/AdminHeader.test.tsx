@@ -69,6 +69,13 @@ describe('AdminHeader', () => {
       ).toBeInTheDocument();
     });
 
+    it('Categoriesリンクが表示される', () => {
+      renderAdminHeader();
+      expect(
+        screen.getByRole('link', { name: 'Categories' })
+      ).toBeInTheDocument();
+    });
+
     it('+ Newリンクが表示される', () => {
       renderAdminHeader();
       expect(screen.getByRole('link', { name: '+ New' })).toBeInTheDocument();
@@ -93,6 +100,12 @@ describe('AdminHeader', () => {
       renderAdminHeader();
       const link = screen.getByRole('link', { name: 'Articles' });
       expect(link).toHaveAttribute('href', '/posts');
+    });
+
+    it('Categoriesリンクが/categoriesへのリンクを持つ', () => {
+      renderAdminHeader();
+      const link = screen.getByRole('link', { name: 'Categories' });
+      expect(link).toHaveAttribute('href', '/categories');
     });
 
     it('+ Newリンクが/posts/newへのリンクを持つ', () => {
@@ -132,6 +145,24 @@ describe('AdminHeader', () => {
     it('現在のパスが/posts/edit/1の場合も、Articlesリンクがactiveクラスを持つ', () => {
       renderAdminHeader('/posts/edit/1');
       const link = screen.getByRole('link', { name: 'Articles' });
+      expect(link).toHaveClass('active');
+    });
+
+    it('現在のパスが/categoriesの場合、Categoriesリンクがactiveクラスを持つ', () => {
+      renderAdminHeader('/categories');
+      const link = screen.getByRole('link', { name: 'Categories' });
+      expect(link).toHaveClass('active');
+    });
+
+    it('現在のパスが/categories/newの場合も、Categoriesリンクがactiveクラスを持つ', () => {
+      renderAdminHeader('/categories/new');
+      const link = screen.getByRole('link', { name: 'Categories' });
+      expect(link).toHaveClass('active');
+    });
+
+    it('現在のパスが/categories/edit/1の場合も、Categoriesリンクがactiveクラスを持つ', () => {
+      renderAdminHeader('/categories/edit/1');
+      const link = screen.getByRole('link', { name: 'Categories' });
       expect(link).toHaveClass('active');
     });
   });

@@ -86,6 +86,37 @@ locals {
       description = "Delete image from S3 (Go)"
       binary_name = "images-delete"
     }
+    # Categories domain
+    list_categories = {
+      name        = "blog-list-categories-go"
+      description = "List all categories sorted by sortOrder (Go)"
+      binary_name = "categories-list"
+    }
+    create_category = {
+      name        = "blog-create-category-go"
+      description = "Create new category (Go)"
+      binary_name = "categories-create"
+    }
+    update_category = {
+      name        = "blog-update-category-go"
+      description = "Update existing category (Go)"
+      binary_name = "categories-update"
+    }
+    update_categories_sort_order = {
+      name        = "blog-update-categories-sort-order-go"
+      description = "Bulk update category sort orders (Go)"
+      binary_name = "categories-bulk_sort"
+    }
+    delete_category = {
+      name        = "blog-delete-category-go"
+      description = "Delete existing category (Go)"
+      binary_name = "categories-delete"
+    }
+  }
+
+  # Categories domain environment variables
+  categories_environment = {
+    CATEGORIES_TABLE_NAME = var.categories_table_name
   }
 }
 
@@ -563,6 +594,244 @@ resource "aws_lambda_function" "delete_image" {
   }
 
   depends_on = [aws_cloudwatch_log_group.delete_image]
+
+  tags = local.common_tags
+}
+
+# ======================
+# Categories Domain Lambda Functions
+# ======================
+
+resource "aws_cloudwatch_log_group" "list_categories" {
+  name              = "/aws/lambda/${local.lambda_functions.list_categories.name}"
+  retention_in_days = local.log_retention_days
+  tags              = local.common_tags
+}
+
+data "archive_file" "list_categories" {
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.list_categories.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.list_categories.binary_name}.zip"
+  output_file_mode = "0644"
+}
+
+# GET /categories - List Categories (Public, No Auth)
+# Requirement 2: Category List API
+resource "aws_lambda_function" "list_categories" {
+  function_name = local.lambda_functions.list_categories.name
+  description   = local.lambda_functions.list_categories.description
+  role          = aws_iam_role.lambda_categories.arn
+
+  filename         = data.archive_file.list_categories.output_path
+  source_code_hash = data.archive_file.list_categories.output_base64sha256
+
+  runtime       = "provided.al2023"
+  architectures = ["arm64"]
+  handler       = "bootstrap"
+  memory_size   = 128
+  timeout       = 30
+
+  environment {
+    variables = local.categories_environment
+  }
+
+  tracing_config {
+    mode = local.tracing_mode
+  }
+
+  depends_on = [aws_cloudwatch_log_group.list_categories]
+
+  tags = local.common_tags
+}
+
+# ======================
+# Create Category Lambda Function
+# Requirement 3: Category Creation API
+# ======================
+
+resource "aws_cloudwatch_log_group" "create_category" {
+  name              = "/aws/lambda/${local.lambda_functions.create_category.name}"
+  retention_in_days = local.log_retention_days
+  tags              = local.common_tags
+}
+
+data "archive_file" "create_category" {
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.create_category.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.create_category.binary_name}.zip"
+  output_file_mode = "0644"
+}
+
+# POST /admin/categories - Create Category (Cognito Auth)
+# Requirement 3: Category Creation API
+resource "aws_lambda_function" "create_category" {
+  function_name = local.lambda_functions.create_category.name
+  description   = local.lambda_functions.create_category.description
+  role          = aws_iam_role.lambda_categories.arn
+
+  filename         = data.archive_file.create_category.output_path
+  source_code_hash = data.archive_file.create_category.output_base64sha256
+
+  runtime       = "provided.al2023"
+  architectures = ["arm64"]
+  handler       = "bootstrap"
+  memory_size   = 128
+  timeout       = 30
+
+  environment {
+    variables = local.categories_environment
+  }
+
+  tracing_config {
+    mode = local.tracing_mode
+  }
+
+  depends_on = [aws_cloudwatch_log_group.create_category]
+
+  tags = local.common_tags
+}
+
+# ======================
+# Update Category Lambda Function
+# Requirement 4: Category Update API
+# ======================
+
+resource "aws_cloudwatch_log_group" "update_category" {
+  name              = "/aws/lambda/${local.lambda_functions.update_category.name}"
+  retention_in_days = local.log_retention_days
+  tags              = local.common_tags
+}
+
+data "archive_file" "update_category" {
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.update_category.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.update_category.binary_name}.zip"
+  output_file_mode = "0644"
+}
+
+# PUT /admin/categories/{id} - Update Category (Cognito Auth)
+# Requirement 4: Category Update API
+resource "aws_lambda_function" "update_category" {
+  function_name = local.lambda_functions.update_category.name
+  description   = local.lambda_functions.update_category.description
+  role          = aws_iam_role.lambda_categories.arn
+
+  filename         = data.archive_file.update_category.output_path
+  source_code_hash = data.archive_file.update_category.output_base64sha256
+
+  runtime       = "provided.al2023"
+  architectures = ["arm64"]
+  handler       = "bootstrap"
+  memory_size   = 128
+  timeout       = 30
+
+  environment {
+    variables = merge(local.categories_environment, {
+      POSTS_TABLE_NAME = var.table_name
+    })
+  }
+
+  tracing_config {
+    mode = local.tracing_mode
+  }
+
+  depends_on = [aws_cloudwatch_log_group.update_category]
+
+  tags = local.common_tags
+}
+
+# ======================
+# Update Categories Sort Order Lambda Function
+# Requirement 4B: Category Sort Order Bulk Update API
+# ======================
+
+resource "aws_cloudwatch_log_group" "update_categories_sort_order" {
+  name              = "/aws/lambda/${local.lambda_functions.update_categories_sort_order.name}"
+  retention_in_days = local.log_retention_days
+  tags              = local.common_tags
+}
+
+data "archive_file" "update_categories_sort_order" {
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.update_categories_sort_order.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.update_categories_sort_order.binary_name}.zip"
+  output_file_mode = "0644"
+}
+
+# PATCH /admin/categories/sort - Bulk Update Category Sort Orders (Cognito Auth)
+# Requirement 4B: Category Sort Order Bulk Update API
+resource "aws_lambda_function" "update_categories_sort_order" {
+  function_name = local.lambda_functions.update_categories_sort_order.name
+  description   = local.lambda_functions.update_categories_sort_order.description
+  role          = aws_iam_role.lambda_categories.arn
+
+  filename         = data.archive_file.update_categories_sort_order.output_path
+  source_code_hash = data.archive_file.update_categories_sort_order.output_base64sha256
+
+  runtime       = "provided.al2023"
+  architectures = ["arm64"]
+  handler       = "bootstrap"
+  memory_size   = 128
+  timeout       = 30
+
+  environment {
+    variables = local.categories_environment
+  }
+
+  tracing_config {
+    mode = local.tracing_mode
+  }
+
+  depends_on = [aws_cloudwatch_log_group.update_categories_sort_order]
+
+  tags = local.common_tags
+}
+
+# ======================
+# Delete Category Lambda Function
+# Requirement 5: Category Deletion API
+# ======================
+
+resource "aws_cloudwatch_log_group" "delete_category" {
+  name              = "/aws/lambda/${local.lambda_functions.delete_category.name}"
+  retention_in_days = local.log_retention_days
+  tags              = local.common_tags
+}
+
+data "archive_file" "delete_category" {
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.delete_category.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.delete_category.binary_name}.zip"
+  output_file_mode = "0644"
+}
+
+# DELETE /admin/categories/{id} - Delete Category (Cognito Auth)
+# Requirement 5: Category Deletion API
+resource "aws_lambda_function" "delete_category" {
+  function_name = local.lambda_functions.delete_category.name
+  description   = local.lambda_functions.delete_category.description
+  role          = aws_iam_role.lambda_categories.arn
+
+  filename         = data.archive_file.delete_category.output_path
+  source_code_hash = data.archive_file.delete_category.output_base64sha256
+
+  runtime       = "provided.al2023"
+  architectures = ["arm64"]
+  handler       = "bootstrap"
+  memory_size   = 128
+  timeout       = 30
+
+  environment {
+    variables = merge(local.categories_environment, {
+      POSTS_TABLE_NAME = var.table_name
+    })
+  }
+
+  tracing_config {
+    mode = local.tracing_mode
+  }
+
+  depends_on = [aws_cloudwatch_log_group.delete_category]
 
   tags = local.common_tags
 }
