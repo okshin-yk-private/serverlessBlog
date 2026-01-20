@@ -1,0 +1,30 @@
+{
+  "feature_name": "astro-ssr-migration",
+  "created_at": "2026-01-19T12:15:52Z",
+  "updated_at": "2026-01-19T15:00:00Z",
+  "language": "ja",
+  "phase": "tasks-generated",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": true
+    }
+  },
+  "ready_for_implementation": true,
+  "review_history": [
+    {
+      "reviewer": "codex/gpt-5",
+      "date": "2026-01-19T12:53:20Z",
+      "result": "needs_changes",
+      "issues_addressed": 7
+    }
+  ]
+}

@@ -1,0 +1,143 @@
+---
+/**
+ * index.astro - ホームページ（記事一覧）
+ *
+ * Task 2.2: 記事一覧ページ実装（TDD）
+ * Task 3.2: JSON-LD構造化データ実装
+ *
+ * Requirements:
+ * - 2.2: 記事一覧ページ実装
+ *   - ホームページ (`index.astro`) で公開記事一覧を表示
+ *   - 記事カードコンポーネントでタイトル、カテゴリ、作成日時、抜粋を表示
+ *   - 記事詳細へのリンクを設定 (/posts/[id])
+ *   - ビルド時に `/index.html` として静的生成
+ * - 4.4: JSON-LD structured data with @type: "WebSite" schema for home page
+ * - 14.1, 14.2: 日本語対応
+ *
+ * Implementation:
+ * - PostCard.astro: 記事カードコンポーネント
+ * - postUtils.ts: 抜粋生成、日付フォーマット、ソート関数
+ * - postUtils.test.ts: 16テストケース (100%カバレッジ)
+ * - build-output.test.ts: 15テストケース（ビルド出力検証）
+ */
+import Layout from '../layouts/Layout.astro';
+import PostCard from '../components/PostCard.astro';
+import { fetchAllPosts, type Post } from '../lib/api';
+import { sortPostsByDate } from '../lib/postUtils';
+
+// ビルド時に公開記事を取得
+let posts: Post[] = [];
+let error: string | null = null;
+
+try {
+  const allPosts = await fetchAllPosts();
+  posts = sortPostsByDate(allPosts);
+} catch (e) {
+  console.error('Failed to fetch posts:', e);
+  error = e instanceof Error ? e.message : 'Unknown error';
+}
+---
+
+<Layout
+  title="bone of my fallacy"
+  description="最新のブログ記事一覧。テクノロジー、ライフスタイル、プログラミングなど様々なトピックを扱っています。"
+  showWebSiteJsonLd={true}
+>
+  <!-- Hero Section -->
+  <div class="hero-section">
+    <h1 class="hero-title">I am the bone of my fallacy</h1>
+  </div>
+
+  <div class="container">
+    {error ? (
+      <div class="error-message" role="alert">
+        <p>記事の取得に失敗しました: {error}</p>
+      </div>
+    ) : posts.length === 0 ? (
+      <p class="no-articles" data-testid="no-articles">記事がありません</p>
+    ) : (
+      <div class="post-list-container" data-testid="article-list">
+        {posts.map((post) => (
+          <PostCard post={post} />
+        ))}
+      </div>
+    )}
+  </div>
+</Layout>
+
+<style>
+  .hero-section {
+    background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+    padding: 80px 32px 60px;
+    text-align: center;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .hero-title {
+    font-size: 3.5rem;
+    font-weight: 500;
+    color: #111827;
+    margin: 0 0 24px 0;
+    letter-spacing: 0.02em;
+    font-family: 'Caveat', cursive;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 32px;
+  }
+
+  .error-message {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 24px;
+    color: #991b1b;
+    font-size: 0.95rem;
+  }
+
+  .no-articles {
+    text-align: center;
+    color: #6b7280;
+    font-size: 1.125rem;
+    padding: 40px;
+  }
+
+  .post-list-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  @media (min-width: 768px) {
+    .post-list-container {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .hero-title {
+      font-size: 4rem;
+    }
+
+    .post-list-container {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .hero-section {
+      padding: 60px 20px 40px;
+    }
+
+    .hero-title {
+      font-size: 2rem;
+    }
+
+    .container {
+      padding: 32px 20px;
+    }
+  }
+</style>
