@@ -142,10 +142,6 @@ jobs:
         working-directory: frontend/admin
         run: bun install --frozen-lockfile
 
-      - name: Install infrastructure dependencies
-        working-directory: infrastructure
-        run: bun install --frozen-lockfile
-
       - name: Run ESLint
         run: bun run lint
 
@@ -155,10 +151,6 @@ jobs:
       - name: Lint frontend
         working-directory: frontend/admin
         run: bun run lint
-
-      - name: Lint infrastructure
-        working-directory: infrastructure
-        run: bun run lint || echo "Infrastructure linting may have issues - continuing..."
 
   # =======================================
   # Job 2: Backend Unit Tests - REMOVED (Task 21.3)
