@@ -1,0 +1,60 @@
+{
+  "id": "d9fefc24-1896-4a8d-9c2f-0a0cd26c74d7",
+  "type": "code_review",
+  "status": "completed",
+  "request": {
+    "files": [
+      "frontend/public/src/types/post.ts",
+      "frontend/public/src/services/api.ts",
+      "frontend/public/src/pages/PostListPage.tsx",
+      "frontend/public/src/pages/PostListPage.test.tsx"
+    ],
+    "focus_areas": ["all"],
+    "specific_questions": [
+      "カテゴリー取得のエラーハンドリングは適切か",
+      "テストのモック実装は正しいか",
+      "状態管理のアプローチは適切か"
+    ],
+    "context_summary": "公開ページのトップページでカテゴリーフィルターを動的に表示するよう修正。fetchCategories APIを追加し、PostListPageでカテゴリーを動的にレンダリング。テストも更新済み。"
+  },
+  "response": {
+    "completed_at": "2026-01-17T09:56:37Z",
+    "reviewer": "codex/gpt-5",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "frontend/public/src/pages/PostListPage.tsx",
+        "line": 25,
+        "code_snippet": "const response = await fetchPosts(filters);\n\nsetPosts(response.items || []);\nsetNextToken(response.nextToken);",
+        "issue": "連続操作で複数の fetchPosts が並行実行されると、遅い応答が後から到着して最新のフィルタ状態を上書きする可能性があります。カテゴリ/タグの変更が素早く行われた場合に、表示内容が実際の選択とズレるリスクがあります。",
+        "suggestion": "リクエストIDや AbortController を使って最新リクエストのみ反映するようにし、古い応答は破棄してください。必要ならアンマウント時の setState を防ぐガードも追加すると安全です。",
+        "category": "architecture"
+      },
+      {
+        "severity": "LOW",
+        "file": "frontend/public/src/pages/PostListPage.tsx",
+        "line": 51,
+        "code_snippet": "fetchCategories()\n  .then((data) => setCategories(data))\n  .catch((err) => console.error('Failed to fetch categories:', err));",
+        "issue": "カテゴリー取得失敗時に UI 側へ通知されず、ユーザーには「カテゴリが存在しない」ように見えてしまいます。原因把握や再試行ができないため、実運用での障害検知が難しくなります。",
+        "suggestion": "カテゴリ取得用のエラー状態を持ち、メッセージ表示や再試行ボタンなどのフォールバック UI を用意してください。少なくとも画面に可視化するのが望ましいです。",
+        "category": "architecture"
+      }
+    ],
+    "summary": "致命的な問題は見当たりませんが、フィルタ変更時の非同期競合による表示ズレと、カテゴリ取得失敗の黙殺が運用上のリスクになり得ます。",
+    "approved": false,
+    "specific_answers": [
+      {
+        "question": "カテゴリー取得のエラーハンドリングは適切か",
+        "answer": "現状は console.error のみで UI に反映されず、失敗がユーザーに伝わりません。エラー状態やリトライの提示が必要です。"
+      },
+      {
+        "question": "テストのモック実装は正しいか",
+        "answer": "/posts と /categories を同一モックで分岐しており、現状の実装では成立します。将来の呼び出し順変更に弱いので、必要ならエンドポイントごとに期待を分けると堅牢です。"
+      },
+      {
+        "question": "状態管理のアプローチは適切か",
+        "answer": "基本的には適切ですが、複数の非同期リクエストが並走した際に古い応答で上書きされる可能性があり、競合対策が必要です。"
+      }
+    ]
+  }
+}

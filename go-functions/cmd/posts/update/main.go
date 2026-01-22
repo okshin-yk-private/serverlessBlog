@@ -6,11 +6,16 @@
 //   - publishStatusが"draft"から"published"に変更されたとき、UpdatePost LambdaはpublishedAtタイムスタンプを設定する
 //   - 記事IDが存在しない場合、UpdatePost LambdaはHTTP 404を返す
 //   - リクエストに有効な認証がない場合、UpdatePost LambdaはHTTP 401を返す
+//
+// Requirement 10.1: 記事公開時にCodeBuildトリガー
+//   - publishStatusが"published"に変更されたとき、CodeBuildプロジェクトを起動してサイトを再ビルドする
+//   - ビルドは非同期で実行され、Lambda応答には影響しない
 package main
 
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -21,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
+	"serverless-blog/go-functions/internal/buildtrigger"
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/markdown"
@@ -38,6 +44,10 @@ type DynamoDBClientInterface interface {
 var dynamoClientGetter = func() (DynamoDBClientInterface, error) {
 	return clients.GetDynamoDB()
 }
+
+// codebuildClientGetter is a function that returns the CodeBuild client
+// This can be overridden in tests
+var codebuildClientGetter = clients.GetCodeBuild
 
 // markdownConverter is a function that converts markdown to HTML
 // This can be overridden in tests
@@ -82,6 +92,13 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// Save to DynamoDB
 	if errResp := savePost(ctx, dynamoClient, tableName, updatedPost); errResp != nil {
 		return *errResp, nil
+	}
+
+	// Trigger CodeBuild if publishStatus changed to "published"
+	// Requirement 10.1: Trigger CodeBuild for site rebuild when post is published
+	// Requirement 10.10: Handle CodeBuild API errors gracefully without affecting post update response
+	if shouldTriggerBuild(existingPost, req) {
+		triggerSiteBuild(ctx)
 	}
 
 	// Return updated post with 200 status
@@ -203,6 +220,43 @@ func shouldSetPublishedAt(existingPost *domain.BlogPost, req *domain.UpdatePostR
 	isTransitioningToPublished := req.PublishStatus != nil && *req.PublishStatus == domain.PublishStatusPublished
 	isFirstPublish := existingPost.PublishStatus == domain.PublishStatusDraft && existingPost.PublishedAt == nil
 	return isTransitioningToPublished && isFirstPublish
+}
+
+// shouldTriggerBuild checks if a site rebuild should be triggered
+// Requirement 10.1: Trigger CodeBuild when post is published
+// Note: existingPost parameter kept for future use (e.g., checking transition from draft)
+func shouldTriggerBuild(_ *domain.BlogPost, req *domain.UpdatePostRequest) bool {
+	// Only trigger if publishStatus is being set to "published"
+	return req.PublishStatus != nil && *req.PublishStatus == domain.PublishStatusPublished
+}
+
+// triggerSiteBuild triggers the Astro SSG build via CodeBuild
+// Requirement 10.1, 10.2, 10.10: Trigger CodeBuild, handle errors gracefully
+func triggerSiteBuild(ctx context.Context) {
+	// Get CodeBuild project name from environment
+	projectName := os.Getenv("CODEBUILD_PROJECT_NAME")
+	if projectName == "" {
+		slog.Warn("CODEBUILD_PROJECT_NAME not set, skipping build trigger")
+		return
+	}
+
+	// Get CodeBuild client
+	client, err := codebuildClientGetter()
+	if err != nil {
+		slog.Error("failed to get CodeBuild client", "error", err)
+		return
+	}
+
+	// Create and use build trigger
+	trigger := buildtrigger.NewBuildTrigger(client, projectName)
+
+	if err := trigger.TriggerBuild(ctx); err != nil {
+		// Requirement 10.10: Handle CodeBuild API errors gracefully
+		slog.Error("failed to trigger site build", "error", err, "project", projectName)
+		return
+	}
+
+	slog.Info("site build triggered successfully", "project", projectName)
 }
 
 // savePost saves the updated post to DynamoDB

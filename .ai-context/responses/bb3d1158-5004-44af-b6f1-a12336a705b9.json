@@ -1,0 +1,119 @@
+{
+  "id": "bb3d1158-5004-44af-b6f1-a12336a705b9",
+  "type": "code_review",
+  "status": "completed",
+  "request": {
+    "files": [
+      "/home/okshin/.claude/plans/cryptic-crafting-pancake.md",
+      ".kiro/specs/astro-ssr-migration/requirements.md",
+      ".kiro/specs/astro-ssr-migration/spec.json"
+    ],
+    "focus_areas": ["architecture"],
+    "specific_questions": [
+      "Is S3 SSG (Static Site Generation) the right choice for a blog with infrequent content updates?",
+      "Is DynamoDB Streams + Lambda the best trigger mechanism for content updates, or would extending existing Go Lambda be simpler?",
+      "Are there any missing requirements or potential issues in the architecture?",
+      "What are the security considerations for the CodeBuild approach?",
+      "Is the proposed CloudFront routing strategy correct for Astro SSG?",
+      "Should we consider any AWS cost optimization strategies?"
+    ],
+    "context_summary": "Architecture proposal for migrating public blog from React SPA to Astro SSG. Key decisions: (1) S3+CloudFront static hosting instead of Lambda SSR, (2) CodeBuild for Astro builds, (3) DynamoDB Streams or Lambda extension for automatic rebuild on content publish. Existing infrastructure: Go Lambda APIs, DynamoDB, Cognito auth, Terraform IaC."
+  },
+  "response": {
+    "completed_at": "2026-01-19T12:53:20Z",
+    "reviewer": "codex/gpt-5",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": ".kiro/specs/astro-ssr-migration/requirements.md",
+        "line": 152,
+        "code_snippet": "The rebuild trigger shall be implementable via GitHub Actions workflow dispatch.",
+        "issue": "記事公開からビルド起動までの起点（どのコンポーネントがトリガーを発火するか）と認可方式が要件に明記されておらず、手動運用や誤起動・再試行の設計が曖昧です。",
+        "suggestion": "Admin公開処理からの署名付きWebhookやAPI Gateway経由のworkflow dispatch/CodeBuild起動など、トリガーの発火主体・認証方式・冪等性・再試行・同時実行制御を要件に追加してください。",
+        "category": "architecture"
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "/home/okshin/.claude/plans/cryptic-crafting-pancake.md",
+        "line": 252,
+        "code_snippet": "- name: Deploy to S3\n  run: |\n    aws s3 sync frontend/public-astro/dist/ s3://${{ secrets.PUBLIC_BUCKET }}/ --delete\n    aws cloudfront create-invalidation --distribution-id ${{ secrets.CF_DIST_ID }} --paths \"/*\"",
+        "issue": "デプロイの権限設計や秘密情報の扱い、ソース供給網の対策が記述されておらず、CI/CDの権限過多や漏えいリスクが残ります。",
+        "suggestion": "OIDCによる一時的なロール引き受け（最小権限でS3/CloudFrontに限定）、KMS暗号化、ログの秘匿、依存のピン留め・署名検証などをパイプライン要件に追加してください。",
+        "category": "security"
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "/home/okshin/.claude/plans/cryptic-crafting-pancake.md",
+        "line": 237,
+        "code_snippet": "aws s3 sync frontend/public-astro/dist/ s3://${PUBLIC_SITE_BUCKET}/ --delete",
+        "issue": "本番バケットへの直接同期と`--delete`は、ビルド/同期途中の失敗で不完全なサイトを公開する可能性があり、要件の「失敗時に前バージョンを維持」と整合しません。",
+        "suggestion": "バージョニング/プレフィックス分離でステージングにアップロードし、CloudFrontのorigin path切替やコピーで原子的に切替える方式を採用してください。",
+        "category": "architecture"
+      },
+      {
+        "severity": "MEDIUM",
+        "file": ".kiro/specs/astro-ssr-migration/requirements.md",
+        "line": 96,
+        "code_snippet": "The S3 bucket shall serve `index.html` as the default document for directory paths.",
+        "issue": "CloudFront + S3(OAC/REST)構成ではS3の\"ディレクトリのindex\"機能は使えないため、要件の責務がS3側に寄り過ぎています。",
+        "suggestion": "`/posts/123 -> /posts/123/index.html`の変換はCloudFront Functionで行う前提を要件に明記し、S3 Website endpoint利用有無も明確化してください。",
+        "category": "architecture"
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "/home/okshin/.claude/plans/cryptic-crafting-pancake.md",
+        "line": 108,
+        "code_snippet": "const res = await fetch(`${API_URL}/posts?publishStatus=published`);",
+        "issue": "全件取得の前提があり、ページング/上限/バックオフが要件化されていないため、記事数増加時にビルド時間超過や欠落が起きるリスクがあります。",
+        "suggestion": "API側のページング対応や一括エクスポートエンドポイントの追加、ビルド側の再試行・分割取得の要件化を検討してください。",
+        "category": "performance"
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "/home/okshin/.claude/plans/cryptic-crafting-pancake.md",
+        "line": 143,
+        "code_snippet": "<article set:html={post.contentHtml} />",
+        "issue": "ビルド時にHTMLをそのまま挿入するため、投稿内容のサニタイズが保証されていないとXSSが静的に固定化される恐れがあります。",
+        "suggestion": "投稿保存時またはビルド時にHTMLサニタイズ（許可タグ/属性の明確化）を行う要件を追加してください。",
+        "category": "security"
+      },
+      {
+        "severity": "LOW",
+        "file": ".kiro/specs/astro-ssr-migration/requirements.md",
+        "line": 81,
+        "code_snippet": "The Astro build shall generate a sitemap at `dist/sitemap-index.xml` using `@astrojs/sitemap`.",
+        "issue": "計画側では`/sitemap.xml`を想定しており、出力パスの前提が資料間で不一致です。SEOやテストがずれる可能性があります。",
+        "suggestion": "出力パスを`/sitemap-index.xml`に統一するか、Astro側の出力設定を変更するなど、要件と計画を揃えてください。",
+        "category": "architecture"
+      }
+    ],
+    "summary": "SSG移行の方向性は妥当ですが、トリガー設計・デプロイの原子性・S3/CloudFrontの責務・パイプラインセキュリティ・データ取得スケールの要件が不足しています。これらを補完しない限り承認は難しいです。",
+    "approved": false,
+    "specific_answers": [
+      {
+        "question": "Is S3 SSG (Static Site Generation) the right choice for a blog with infrequent content updates?",
+        "answer": "はい、更新頻度が低いブログならS3+CloudFrontのSSGはコストと運用の両面で最適です。ビルドトリガーとキャッシュ無効化の運用だけ明確にすれば十分に成立します。"
+      },
+      {
+        "question": "Is DynamoDB Streams + Lambda the best trigger mechanism for content updates, or would extending existing Go Lambda be simpler?",
+        "answer": "更新頻度が低い前提なら、既存のGo Lambda（公開処理）から直接workflow dispatch/CodeBuildを起動する方がシンプルです。DynamoDB Streamsは疎結合で堅牢ですが、重複処理や再試行、監視が増えるため過剰になりがちです。"
+      },
+      {
+        "question": "Are there any missing requirements or potential issues in the architecture?",
+        "answer": "主に(1)公開→ビルドの認可/冪等性/再試行の要件、(2)原子的デプロイ手順、(3)全件取得のページング/制限、(4)S3とCloudFrontの責務明確化、(5)CI/CDセキュリティ、(6)HTMLサニタイズ、(7)サイトマップ出力パスの整合が不足しています。"
+      },
+      {
+        "question": "What are the security considerations for the CodeBuild approach?",
+        "answer": "最小権限のIAM（S3/CloudFront限定）、OIDC/一時クレデンシャル、KMS暗号化（アーティファクト/ログ）、秘密情報の非露出、依存関係のピン留めと署名検証、VPC/Egress制御、S3バケットポリシーの厳格化が必須です。"
+      },
+      {
+        "question": "Is the proposed CloudFront routing strategy correct for Astro SSG?",
+        "answer": "概ね正しいですが、Functionで拡張子なしパスを`/index.html`に変換する際に`/_astro/`、`/api/`、`/admin/`、`/images/`、`/sitemap*.xml`、`/rss.xml`、`/robots.txt`を除外することと、404のカスタムエラーレスポンス設定が必要です。"
+      },
+      {
+        "question": "Should we consider any AWS cost optimization strategies?",
+        "answer": "SSG自体が低コストですが、(1)HTMLのTTL短縮＋ハッシュ付きアセットの長期TTL、(2)必要パスのみのCloudFront無効化、(3)ビルドキャッシュ活用、(4)ビルド頻度の抑制、(5)OAC/Function利用でLambda@Edgeを避ける、といった最適化を検討できます。"
+      }
+    ]
+  }
+}

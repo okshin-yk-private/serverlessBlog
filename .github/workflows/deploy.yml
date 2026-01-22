@@ -3,6 +3,7 @@
 # - Infrastructure (Terraform)
 # - Backend (Go Lambda via Terraform)
 # - Frontend (S3 static sites)
+# - Frontend Astro SSG (S3 atomic deployment)
 #
 # Triggers:
 # - develop branch push: Deploy to DEV environment
@@ -40,6 +41,7 @@ on:
           - all
           - infrastructure
           - frontend
+          - astro
 
 permissions:
   id-token: write
@@ -48,6 +50,7 @@ permissions:
 env:
   TERRAFORM_VERSION: '1.14.0'
   GO_VERSION: '1.25.5'
+  BUN_VERSION: '1.2.0'
   AWS_REGION: 'ap-northeast-1'
 
 jobs:
@@ -60,10 +63,12 @@ jobs:
     outputs:
       deploy-infrastructure: ${{ steps.changes.outputs.infrastructure }}
       deploy-frontend: ${{ steps.changes.outputs.frontend }}
+      deploy-astro: ${{ steps.changes.outputs.astro }}
       target-env: ${{ steps.env.outputs.target-env }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        # Pin to specific commit SHA for security (Requirement 9.8)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 2
 
@@ -75,12 +80,19 @@ jobs:
             if [ "${{ github.event.inputs.components }}" == "all" ]; then
               echo "infrastructure=true" >> $GITHUB_OUTPUT
               echo "frontend=true" >> $GITHUB_OUTPUT
+              echo "astro=true" >> $GITHUB_OUTPUT
             elif [ "${{ github.event.inputs.components }}" == "infrastructure" ]; then
               echo "infrastructure=true" >> $GITHUB_OUTPUT
               echo "frontend=false" >> $GITHUB_OUTPUT
+              echo "astro=false" >> $GITHUB_OUTPUT
+            elif [ "${{ github.event.inputs.components }}" == "astro" ]; then
+              echo "infrastructure=false" >> $GITHUB_OUTPUT
+              echo "frontend=false" >> $GITHUB_OUTPUT
+              echo "astro=true" >> $GITHUB_OUTPUT
             else
               echo "infrastructure=false" >> $GITHUB_OUTPUT
               echo "frontend=true" >> $GITHUB_OUTPUT
+              echo "astro=false" >> $GITHUB_OUTPUT
             fi
           else
             # Push event - detect from changed files
@@ -92,10 +104,16 @@ jobs:
               echo "infrastructure=false" >> $GITHUB_OUTPUT
             fi
 
-            if echo "$CHANGED" | grep -qE "^frontend/"; then
+            if echo "$CHANGED" | grep -qE "^frontend/(public|admin)/"; then
               echo "frontend=true" >> $GITHUB_OUTPUT
             else
               echo "frontend=false" >> $GITHUB_OUTPUT
+            fi
+
+            if echo "$CHANGED" | grep -qE "^frontend/public-astro/"; then
+              echo "astro=true" >> $GITHUB_OUTPUT
+            else
+              echo "astro=false" >> $GITHUB_OUTPUT
             fi
           fi
 
@@ -655,6 +673,359 @@ jobs:
           fi
 
   # =======================================
+  # Build Astro SSG (Task 5.3)
+  # Requirements: 9.3, 9.4, 9.7, 9.8, 9.10
+  # =======================================
+  build-astro:
+    name: Build Astro SSG
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    environment: ${{ needs.detect-changes.outputs.target-env }}
+    if: needs.detect-changes.outputs.deploy-astro == 'true'
+    steps:
+      - name: Checkout code
+        # Pin to specific commit SHA for security (Requirement 9.8)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Configure AWS credentials (OIDC)
+        # OIDC authentication for temporary credentials (Requirement 9.4)
+        # Pin to specific commit SHA for security (Requirement 9.8)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-AstroBuild
+
+      - name: Get API URL from SSM
+        id: api
+        run: |
+          # Retrieve API URL and mask sensitive values (Requirement 9.7)
+          API_URL=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/api/endpoint" --query "Parameter.Value" --output text 2>/dev/null || echo "/api")
+          echo "::add-mask::$API_URL"
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          echo "✓ API URL retrieved from SSM"
+
+      - name: Setup Node.js
+        # Pin to specific commit SHA for security (Requirement 9.8)
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        # Pin to specific commit SHA for security (Requirement 9.8)
+        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        working-directory: frontend/public-astro
+        run: |
+          bun install --frozen-lockfile
+          echo "✓ Dependencies installed"
+
+      - name: Build Astro project
+        working-directory: frontend/public-astro
+        # Requirement 9.10: API_URL as environment variable
+        run: |
+          echo "========================================="
+          echo "Building Astro SSG"
+          echo "========================================="
+          bun run build
+          echo "✓ Astro build complete"
+          echo ""
+          echo "Build artifacts:"
+          ls -la dist/
+          echo ""
+          DIST_SIZE=$(du -sh dist/ | cut -f1)
+          echo "Total size: $DIST_SIZE"
+        env:
+          NODE_ENV: production
+          PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
+          API_URL: ${{ steps.api.outputs.api_url }}
+
+      - name: Validate build output
+        working-directory: frontend/public-astro
+        run: |
+          echo "Validating build output..."
+
+          # Check required files exist
+          REQUIRED_FILES=("dist/index.html" "dist/404.html" "dist/about/index.html")
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ -f "$file" ]; then
+              echo "✓ $file exists"
+            else
+              echo "❌ Missing required file: $file"
+              exit 1
+            fi
+          done
+
+          # Check dist size < 50MB (Requirement 6.8)
+          DIST_SIZE_BYTES=$(du -sb dist/ | cut -f1)
+          MAX_SIZE=$((50 * 1024 * 1024))
+          if [ "$DIST_SIZE_BYTES" -gt "$MAX_SIZE" ]; then
+            echo "❌ Build size exceeds 50MB limit: $DIST_SIZE_BYTES bytes"
+            exit 1
+          fi
+          echo "✓ Build size within 50MB limit"
+
+          echo "✓ Build validation passed"
+
+      - name: Upload build artifact
+        # Pin to specific commit SHA for security (Requirement 9.8)
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: astro-build
+          path: frontend/public-astro/dist/
+          retention-days: 1
+
+  # =======================================
+  # Deploy Astro SSG (DEV)
+  # Task 5.3: Requirements 9.3, 9.4, 9.7, 9.8, 9.9, 9.11
+  # =======================================
+  deploy-astro-dev:
+    name: Deploy Astro SSG (DEV)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-astro, deploy-infrastructure-dev]
+    environment: dev
+    if: |
+      always() &&
+      needs.detect-changes.outputs.deploy-astro == 'true' &&
+      needs.detect-changes.outputs.target-env == 'dev' &&
+      needs.build-astro.result == 'success' &&
+      (needs.deploy-infrastructure-dev.result == 'success' || needs.deploy-infrastructure-dev.result == 'skipped')
+    steps:
+      - name: Checkout code
+        # Pin to specific commit SHA for security (Requirement 9.8)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Configure AWS credentials (OIDC)
+        # OIDC authentication (Requirement 9.4)
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-AstroDeploy-DEV
+
+      - name: Get deployment config from SSM
+        id: config
+        run: |
+          # Retrieve bucket and distribution IDs (Requirement 9.7: mask sensitive values)
+          PUBLIC_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/dev/storage/public-site-bucket-name" --query "Parameter.Value" --output text)
+          echo "::add-mask::$PUBLIC_BUCKET"
+          echo "bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
+
+          DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?contains(Origins.Items[].DomainName, 'serverless-blog') && contains(Origins.Items[].DomainName, 'dev')].Id" --output text | head -1)
+          if [ -z "$DIST_ID" ]; then
+            DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?contains(Origins.Items[].DomainName, 'serverless-blog')].Id" --output text | head -1)
+          fi
+          echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
+
+          echo "✓ Retrieved deployment config from SSM"
+
+      - name: Download Astro build artifact
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: astro-build
+          path: dist/
+
+      - name: Setup Node.js
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install deploy script dependencies
+        working-directory: scripts/deploy
+        run: bun install --frozen-lockfile
+
+      - name: Deploy to S3 (Atomic Deployment)
+        id: deploy
+        working-directory: scripts/deploy
+        run: |
+          echo "========================================="
+          echo "Deploying Astro SSG to DEV"
+          echo "========================================="
+
+          # Run atomic deployment (Requirement 9.2)
+          # Timer start for Requirement 9.11 (5 min limit)
+          START_TIME=$(date +%s)
+
+          bun run cli.ts \
+            --bucket "${{ steps.config.outputs.bucket }}" \
+            --distribution "${{ steps.config.outputs.distribution_id }}" \
+            --dist "../../dist" \
+            --region "${{ env.AWS_REGION }}" \
+            --retain 3
+
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+
+          echo ""
+          echo "Deployment completed in ${DURATION}s"
+
+          # Requirement 9.11: Check 5-minute limit (300s)
+          if [ "$DURATION" -gt 300 ]; then
+            echo "⚠️ Deployment exceeded 5-minute target (${DURATION}s)"
+          else
+            echo "✓ Deployment within 5-minute target"
+          fi
+
+      - name: Invalidate CloudFront Cache
+        # Requirement 9.9: Invalidate changed paths
+        run: |
+          if [ -n "${{ steps.config.outputs.distribution_id }}" ]; then
+            echo "Creating CloudFront invalidation..."
+            # For SSG, we invalidate common paths instead of /*
+            aws cloudfront create-invalidation \
+              --distribution-id "${{ steps.config.outputs.distribution_id }}" \
+              --paths "/" "/index.html" "/about/*" "/posts/*" "/sitemap*.xml" "/rss.xml"
+            echo "✓ CloudFront cache invalidated"
+          else
+            echo "⚠️ CloudFront distribution not found, skipping invalidation"
+          fi
+
+      - name: Deployment Summary
+        run: |
+          echo "========================================="
+          echo "✓ Astro SSG DEV Deployment Complete"
+          echo "========================================="
+          echo ""
+          echo "Bucket: ${{ steps.config.outputs.bucket }}"
+          echo "Distribution: ${{ steps.config.outputs.distribution_id }}"
+
+  # =======================================
+  # Deploy Astro SSG (PRD) - Requires Approval
+  # Task 5.3: Requirements 9.3, 9.4, 9.7, 9.8, 9.9, 9.11
+  # =======================================
+  deploy-astro-prd:
+    name: Deploy Astro SSG (PRD)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-astro, deploy-infrastructure-prd]
+    environment:
+      name: prod
+    if: |
+      always() &&
+      needs.detect-changes.outputs.deploy-astro == 'true' &&
+      needs.detect-changes.outputs.target-env == 'prd' &&
+      needs.build-astro.result == 'success' &&
+      (needs.deploy-infrastructure-prd.result == 'success' || needs.deploy-infrastructure-prd.result == 'skipped')
+    steps:
+      - name: Checkout code
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Configure AWS credentials (OIDC)
+        # OIDC authentication (Requirement 9.4)
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-AstroDeploy-PRD
+
+      - name: Get deployment config from SSM
+        id: config
+        run: |
+          # Retrieve bucket and distribution IDs (Requirement 9.7: mask sensitive values)
+          PUBLIC_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/prd/storage/public-site-bucket-name" --query "Parameter.Value" --output text)
+          echo "::add-mask::$PUBLIC_BUCKET"
+          echo "bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
+
+          DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?contains(Origins.Items[].DomainName, 'serverless-blog') && contains(Origins.Items[].DomainName, 'prd')].Id" --output text | head -1)
+          if [ -z "$DIST_ID" ]; then
+            DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?contains(Origins.Items[].DomainName, 'serverless-blog')].Id" --output text | head -1)
+          fi
+          echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
+
+          echo "✓ Retrieved deployment config from SSM"
+
+      - name: Download Astro build artifact
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: astro-build
+          path: dist/
+
+      - name: Setup Node.js
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install deploy script dependencies
+        working-directory: scripts/deploy
+        run: bun install --frozen-lockfile
+
+      - name: Deploy to S3 (Atomic Deployment)
+        id: deploy
+        working-directory: scripts/deploy
+        run: |
+          echo "========================================="
+          echo "⚠️ Deploying Astro SSG to PRODUCTION"
+          echo "========================================="
+
+          # Run atomic deployment (Requirement 9.2)
+          # Timer start for Requirement 9.11 (5 min limit)
+          START_TIME=$(date +%s)
+
+          bun run cli.ts \
+            --bucket "${{ steps.config.outputs.bucket }}" \
+            --distribution "${{ steps.config.outputs.distribution_id }}" \
+            --dist "../../dist" \
+            --region "${{ env.AWS_REGION }}" \
+            --retain 3
+
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+
+          echo ""
+          echo "Deployment completed in ${DURATION}s"
+
+          # Requirement 9.11: Check 5-minute limit (300s)
+          if [ "$DURATION" -gt 300 ]; then
+            echo "⚠️ Deployment exceeded 5-minute target (${DURATION}s)"
+          else
+            echo "✓ Deployment within 5-minute target"
+          fi
+
+      - name: Invalidate CloudFront Cache
+        # Requirement 9.9: Invalidate changed paths
+        run: |
+          if [ -n "${{ steps.config.outputs.distribution_id }}" ]; then
+            echo "Creating CloudFront invalidation..."
+            # For SSG, we invalidate common paths instead of /*
+            aws cloudfront create-invalidation \
+              --distribution-id "${{ steps.config.outputs.distribution_id }}" \
+              --paths "/" "/index.html" "/about/*" "/posts/*" "/sitemap*.xml" "/rss.xml"
+            echo "✓ CloudFront cache invalidated"
+          else
+            echo "⚠️ CloudFront distribution not found, skipping invalidation"
+          fi
+
+      - name: Deployment Summary
+        run: |
+          echo "========================================="
+          echo "✓ Astro SSG PRODUCTION Deployment Complete"
+          echo "========================================="
+          echo ""
+          echo "Bucket: ${{ steps.config.outputs.bucket }}"
+          echo "Distribution: ${{ steps.config.outputs.distribution_id }}"
+
+  # =======================================
   # Deployment Summary
   # =======================================
   deploy-summary:
@@ -666,6 +1037,8 @@ jobs:
       - deploy-infrastructure-prd
       - deploy-frontend-dev
       - deploy-frontend-prd
+      - deploy-astro-dev
+      - deploy-astro-prd
     if: always()
     steps:
       - name: Summary
@@ -680,9 +1053,13 @@ jobs:
           echo "  DEV: ${{ needs.deploy-infrastructure-dev.result }}"
           echo "  PRD: ${{ needs.deploy-infrastructure-prd.result }}"
           echo ""
-          echo "--- Frontend ---"
+          echo "--- Frontend (Legacy) ---"
           echo "  DEV: ${{ needs.deploy-frontend-dev.result }}"
           echo "  PRD: ${{ needs.deploy-frontend-prd.result }}"
+          echo ""
+          echo "--- Astro SSG ---"
+          echo "  DEV: ${{ needs.deploy-astro-dev.result }}"
+          echo "  PRD: ${{ needs.deploy-astro-prd.result }}"
           echo ""
           echo "========================================="
 
@@ -690,7 +1067,9 @@ jobs:
           if [ "${{ needs.deploy-infrastructure-dev.result }}" == "failure" ] || \
              [ "${{ needs.deploy-infrastructure-prd.result }}" == "failure" ] || \
              [ "${{ needs.deploy-frontend-dev.result }}" == "failure" ] || \
-             [ "${{ needs.deploy-frontend-prd.result }}" == "failure" ]; then
+             [ "${{ needs.deploy-frontend-prd.result }}" == "failure" ] || \
+             [ "${{ needs.deploy-astro-dev.result }}" == "failure" ] || \
+             [ "${{ needs.deploy-astro-prd.result }}" == "failure" ]; then
             echo "❌ One or more deployments failed"
             exit 1
           fi

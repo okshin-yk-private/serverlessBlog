@@ -45,6 +45,10 @@ SSM_COGNITO_CLIENT_ID_TEMPLATE="/serverless-blog/{env}/cognito/user-pool-client-
 SSM_PUBLIC_BUCKET_TEMPLATE="/serverless-blog/{env}/storage/public-site-bucket-name"
 SSM_ADMIN_BUCKET_TEMPLATE="/serverless-blog/{env}/storage/admin-site-bucket-name"
 
+# Astro SSG paths
+ASTRO_PROJECT_PATH="frontend/public-astro"
+ASTRO_DIST_PATH="frontend/public-astro/dist"
+
 # Valid Lambda function names
 VALID_LAMBDA_FUNCTIONS=(
     "posts-create"
@@ -88,6 +92,7 @@ SKIP_PREREQ_CHECK=false
 NO_INVALIDATION=false
 TARGET_LAMBDA=""
 TARGET_FRONTEND=""
+DEPLOY_ASTRO=false
 PARALLEL=true
 VERBOSE=false
 STRICT_VERSIONS=false
@@ -119,6 +124,7 @@ show_usage() {
     echo "  --no-invalidation         Skip CloudFront cache invalidation"
     echo "  --lambda <function-name>  Deploy only specific Lambda function"
     echo "  --frontend <public|admin> Deploy only specific frontend site"
+    echo "  --astro                   Deploy Astro SSG site (frontend/public-astro)"
     echo "  --parallel                Enable parallel builds (default: enabled)"
     echo "  --no-parallel             Disable parallel builds"
     echo "  --verbose                 Show detailed output from each step"
@@ -236,6 +242,10 @@ parse_args() {
                     exit 1
                 fi
                 shift 2
+                ;;
+            --astro)
+                DEPLOY_ASTRO=true
+                shift
                 ;;
             --parallel)
                 PARALLEL=true
@@ -914,6 +924,177 @@ build_frontend() {
 }
 
 # ===========================================
+# Astro SSG Build and Deploy (Requirements 9.1, 9.2, 9.9, 9.10, 9.11)
+# Task 5.2: ローカルデプロイスクリプト更新
+# ===========================================
+build_and_deploy_astro() {
+    local env="$1"
+    local dry_run="${2:-false}"
+
+    log_section "Astro SSG Build and Deploy"
+
+    local astro_start_time
+    astro_start_time=$(date +%s)
+
+    local astro_path="$PROJECT_ROOT/$ASTRO_PROJECT_PATH"
+
+    if [[ ! -d "$astro_path" ]]; then
+        log_error "Astro project not found: $astro_path"
+        return 1
+    fi
+
+    cd "$astro_path"
+
+    # Install dependencies (Requirement 9.1)
+    log_info "Installing Astro dependencies..."
+    if ! bun install --frozen-lockfile > /dev/null 2>&1; then
+        log_error "Failed to install Astro dependencies"
+        log_error "Run 'cd $ASTRO_PROJECT_PATH && bun install' to see detailed error"
+        FAILED_STEPS+=("Astro Install")
+        return 1
+    fi
+    log_success "Astro dependencies installed"
+
+    # Get API URL from Terraform or SSM (Requirement 9.10)
+    local api_url=""
+    local env_dir="$PROJECT_ROOT/terraform/environments/$env"
+    if [[ -d "$env_dir" ]]; then
+        cd "$env_dir"
+        # Ensure Terraform is initialized
+        if [[ ! -d ".terraform" ]]; then
+            terraform init -input=false > /dev/null 2>&1
+        fi
+        api_url=$(terraform output -raw api_endpoint 2>/dev/null || echo "")
+        cd "$astro_path"
+    fi
+
+    if [[ -z "$api_url" ]]; then
+        log_warning "Could not fetch API URL from Terraform, using default"
+        api_url="/api"
+    fi
+
+    # Build Astro project (Requirement 9.1)
+    log_info "Building Astro project..."
+    log_verbose "API_URL: $api_url"
+
+    local build_output
+    if ! build_output=$(PUBLIC_API_URL="$api_url" API_URL="$api_url" NODE_ENV=production bun run build 2>&1); then
+        log_error "Astro build failed"
+        echo "$build_output" | tail -20
+        FAILED_STEPS+=("Astro Build")
+        return 1
+    fi
+
+    if [[ "$VERBOSE" == true ]]; then
+        echo "$build_output"
+    fi
+
+    local dist_size
+    dist_size=$(du -sh dist 2>/dev/null | cut -f1)
+    log_success "Astro built ($dist_size)"
+
+    local build_time
+    build_time=$(date +%s)
+    local build_duration=$((build_time - astro_start_time))
+    log_info "Build time: ${build_duration}s"
+
+    # Dry-run mode - skip deploy
+    if [[ "$dry_run" == true ]]; then
+        log_info "Dry-run mode: Skipping Astro S3 deployment"
+        cd "$PROJECT_ROOT"
+        DEPLOYED_COMPONENTS+=("Astro Build (dry-run)")
+        record_step_timing "Astro Build" "$build_duration" "Dry-run mode"
+        return 0
+    fi
+
+    # Fetch bucket and distribution from SSM/Terraform
+    local bucket_name=""
+    local distribution_id=""
+
+    # Get public bucket from SSM
+    local ssm_public_path="${SSM_PUBLIC_BUCKET_TEMPLATE//\{env\}/$env}"
+    if ! bucket_name=$(fetch_ssm "$ssm_public_path" false); then
+        log_error "Could not fetch public bucket name"
+        return 1
+    fi
+
+    # Get CloudFront distribution ID from Terraform
+    if [[ -d "$env_dir" ]]; then
+        cd "$env_dir"
+        distribution_id=$(terraform output -raw cloudfront_distribution_id 2>/dev/null || echo "")
+        cd "$astro_path"
+    fi
+
+    if [[ -z "$distribution_id" ]]; then
+        log_warning "Could not fetch CloudFront distribution ID, invalidation may fail"
+        distribution_id="UNKNOWN"
+    fi
+
+    # Deploy using atomic deployment script (Requirement 9.2)
+    log_info "Deploying to S3 using atomic deployment..."
+    log_verbose "Bucket: $bucket_name"
+    log_verbose "Distribution: $distribution_id"
+
+    local region
+    region=$(aws configure get region 2>/dev/null || echo "ap-northeast-1")
+
+    cd "$PROJECT_ROOT/scripts/deploy"
+
+    # Install deploy script dependencies if needed
+    if [[ ! -d "node_modules" ]]; then
+        log_info "Installing deploy script dependencies..."
+        bun install --frozen-lockfile > /dev/null 2>&1
+    fi
+
+    local deploy_args=(
+        "--project-root" "$PROJECT_ROOT"
+        "--bucket" "$bucket_name"
+        "--distribution" "$distribution_id"
+        "--api-url" "$api_url"
+        "--region" "$region"
+        "--astro-path" "$ASTRO_PROJECT_PATH"
+    )
+
+    if [[ "$VERBOSE" == true ]]; then
+        deploy_args+=("--verbose")
+    fi
+
+    # Run the atomic deployment
+    local deploy_output
+    if ! deploy_output=$(bun run astro-deploy -- "${deploy_args[@]}" 2>&1); then
+        log_error "Astro S3 deployment failed"
+        echo "$deploy_output" | tail -30
+        FAILED_STEPS+=("Astro S3 Deploy")
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+
+    if [[ "$VERBOSE" == true ]]; then
+        echo "$deploy_output"
+    fi
+
+    log_success "Astro deployed to S3"
+
+    cd "$PROJECT_ROOT"
+
+    local end_time
+    end_time=$(date +%s)
+    local total_duration=$((end_time - astro_start_time))
+
+    # Check 5-minute time limit (Requirement 9.11)
+    if [[ $total_duration -gt 300 ]]; then
+        log_warning "Astro build and deploy exceeded 5-minute target (${total_duration}s)"
+    else
+        log_info "Astro build and deploy completed in ${total_duration}s (under 5-minute target)"
+    fi
+
+    DEPLOYED_COMPONENTS+=("Astro SSG Deploy")
+    record_step_timing "Astro SSG Deploy" "$total_duration" "Build + Atomic S3 Deploy"
+
+    return 0
+}
+
+# ===========================================
 # S3 Deployment (Requirement 7)
 # ===========================================
 deploy_s3() {
@@ -1205,6 +1386,7 @@ main() {
     echo -e "${CYAN} Local Deploy Script${NC}"
     echo -e "${CYAN} Environment: $TARGET_ENV${NC}"
     echo -e "${CYAN} Component: $COMPONENT${NC}"
+    [[ "$DEPLOY_ASTRO" == true ]] && echo -e "${CYAN} Astro: Enabled${NC}"
     [[ "$DRY_RUN" == true ]] && echo -e "${CYAN} Mode: DRY-RUN${NC}"
     echo -e "${CYAN}===========================================${NC}"
 
@@ -1222,7 +1404,20 @@ main() {
         exit 1
     fi
 
-    # Step 3: Deploy based on component selection
+    # Step 3: Astro deployment (if requested separately)
+    if [[ "$DEPLOY_ASTRO" == true && "$COMPONENT" == "all" ]]; then
+        # Astro is included in full deployment, handled below
+        :
+    elif [[ "$DEPLOY_ASTRO" == true ]]; then
+        # Deploy only Astro
+        if ! build_and_deploy_astro "$TARGET_ENV" "$DRY_RUN"; then
+            exit 1
+        fi
+        show_summary "$TARGET_ENV"
+        return
+    fi
+
+    # Step 4: Deploy based on component selection
     case "$COMPONENT" in
         infrastructure)
             # Build Lambda first
@@ -1299,6 +1494,13 @@ main() {
                     exit 1
                 fi
                 if ! invalidate_cf "$TARGET_ENV"; then
+                    exit 1
+                fi
+            fi
+
+            # Astro SSG deployment (if --astro flag is set)
+            if [[ "$DEPLOY_ASTRO" == true ]]; then
+                if ! build_and_deploy_astro "$TARGET_ENV" "$DRY_RUN"; then
                     exit 1
                 fi
             fi

@@ -1,0 +1,77 @@
+{
+  "id": "dde42dca-c3b4-4e77-8136-32cab29c2873",
+  "type": "code_review",
+  "status": "completed",
+  "request": {
+    "files": [
+      "frontend/admin/src/contexts/AuthContext.tsx",
+      "frontend/admin/src/contexts/AuthContext.test.tsx",
+      "frontend/admin/src/hooks/useAuth.ts",
+      "frontend/admin/src/components/AuthGuard.tsx",
+      "frontend/admin/src/components/AuthGuard.test.tsx",
+      "frontend/admin/src/components/LoginForm.tsx",
+      "frontend/admin/src/components/PostEditor.tsx",
+      "frontend/admin/src/components/ImageUploader.tsx",
+      "frontend/admin/src/components/ImageUploader.test.tsx",
+      "frontend/admin/src/components/AdminHeader.tsx",
+      "frontend/admin/src/components/AdminLayout.tsx"
+    ],
+    "focus_areas": ["security"],
+    "specific_questions": [
+      "Are authentication tokens handled securely?",
+      "Is there proper input validation and sanitization?",
+      "Are there any XSS vulnerabilities in the components?",
+      "Is sensitive data properly protected from exposure?",
+      "Are API calls made securely with proper authorization headers?"
+    ],
+    "context_summary": "Security-focused review of frontend admin panel components, including authentication context, auth guards, login form, and content editing components. Focus on token handling, input validation, XSS prevention, and secure API communication."
+  },
+  "response": {
+    "completed_at": "2026-01-16T12:43:34Z",
+    "reviewer": "codex/gpt-5",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "frontend/admin/src/contexts/AuthContext.tsx",
+        "line": 228,
+        "code_snippet": "    if (idToken) {\n      // トークンを保存\n      saveAuthToken(idToken);",
+        "issue": "認証トークンをlocalStorageに保存しており、XSSが発生した場合にトークンが窃取されるリスクがあります。管理画面の特性上、被害が大きくなりやすい点が懸念です。",
+        "suggestion": "HttpOnly/Secureクッキーへの移行、またはメモリ保持＋短寿命トークン／更新トークン戦略を検討してください。併せてCSPの強化やXSS対策を行うと防御層が増えます。",
+        "category": "security"
+      },
+      {
+        "severity": "LOW",
+        "file": "frontend/admin/src/components/ImageUploader.tsx",
+        "line": 243,
+        "code_snippet": "                  <img\n                    src={imageUrl}\n                    alt=\"アップロード済み画像\"\n                    className=\"w-full h-24 object-cover\"\n                    data-testid=\"uploaded-image\"\n                  />",
+        "issue": "アップロード済み画像URLをそのままimgのsrcに差し込んでおり、バックエンド側の検証が弱い場合に外部URLやdata: URLを読み込んでしまう可能性があります。管理画面からの外部トラッキングやコンテンツ混入のリスクが残ります。",
+        "suggestion": "サーバ側でURLの正規化・許可ドメインのホワイトリスト化を行い、httpsのみ許可する運用にしてください。必要に応じて画像配信を自ドメイン経由にプロキシするのが安全です。",
+        "category": "security"
+      }
+    ],
+    "summary": "認証トークンがlocalStorageに保存されている点が主要な懸念です。その他は明確なXSSや入力バリデーションの欠落は見当たりませんが、画像URLの取り扱いはサーバ側の制限を前提に安全性を担保する必要があります。",
+    "approved": false,
+    "specific_answers": [
+      {
+        "question": "Are authentication tokens handled securely?",
+        "answer": "localStorage保存のためXSS時に窃取されるリスクがあります。HttpOnlyクッキーやメモリ保持＋短寿命トークンへの移行が望ましいです。"
+      },
+      {
+        "question": "Is there proper input validation and sanitization?",
+        "answer": "クライアント側の形式チェックはありますが、サニタイズやサーバ側検証の実装はこの範囲では確認できません。"
+      },
+      {
+        "question": "Are there any XSS vulnerabilities in the components?",
+        "answer": "dangerouslySetInnerHTMLは使われておらず、ReactMarkdownもraw HTMLを許可していないため顕在的なXSSは見当たりません。"
+      },
+      {
+        "question": "Is sensitive data properly protected from exposure?",
+        "answer": "トークンがlocalStorageに保存されているため、XSSが起きると漏えいし得ます。その他の機密情報露出はこの範囲では確認できません。"
+      },
+      {
+        "question": "Are API calls made securely with proper authorization headers?",
+        "answer": "該当ファイルではAPI呼び出し実装がほぼ見えず（ログインはAmplify/ログインAPIに委譲）、Authorizationヘッダー付与はAPI層の確認が必要です。"
+      }
+    ]
+  }
+}

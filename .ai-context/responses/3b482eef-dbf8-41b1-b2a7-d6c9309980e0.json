@@ -1,0 +1,116 @@
+{
+  "id": "3b482eef-dbf8-41b1-b2a7-d6c9309980e0",
+  "type": "code_review",
+  "created_at": "2026-01-15T23:28:44Z",
+  "source_cli": "claude-code",
+  "target_cli": "codex",
+  "status": "completed",
+  "request": {
+    "files": [
+      "go-functions/internal/middleware/middleware.go",
+      "go-functions/internal/middleware/logging.go",
+      "go-functions/internal/middleware/tracing.go",
+      "go-functions/internal/middleware/metrics.go",
+      "go-functions/internal/clients/clients.go",
+      "go-functions/internal/apierrors/errors.go",
+      "go-functions/internal/domain/types.go",
+      "go-functions/internal/markdown/markdown.go",
+      "go-functions/cmd/auth/login/main.go",
+      "go-functions/cmd/auth/logout/main.go",
+      "go-functions/cmd/auth/refresh/main.go",
+      "go-functions/cmd/images/delete/main.go",
+      "go-functions/cmd/images/get_upload_url/main.go",
+      "go-functions/cmd/posts/create/main.go",
+      "go-functions/cmd/posts/update/main.go",
+      "go-functions/cmd/posts/delete/main.go",
+      "go-functions/cmd/posts/get/main.go",
+      "go-functions/cmd/posts/get_public/main.go",
+      "go-functions/cmd/posts/list/main.go",
+      "go-functions/cmd/categories/create/main.go"
+    ],
+    "focus_areas": ["security"],
+    "specific_questions": [
+      "Are there any input validation vulnerabilities?",
+      "Is authentication/authorization properly implemented?",
+      "Are there any potential injection vulnerabilities (SQL, command, etc.)?",
+      "Are secrets and credentials handled securely?",
+      "Are there any insecure deserialization issues?"
+    ],
+    "context_summary": "Go Lambda functions for serverless blog API - auth, posts, images, categories management"
+  },
+  "response": {
+    "completed_at": "2026-01-15T23:39:48Z",
+    "reviewer": "codex/gpt-5.2-codex",
+    "findings": [
+      {
+        "severity": "high",
+        "file": "go-functions/cmd/posts/update/main.go",
+        "line": 60,
+        "code_snippet": "\t// Get existing post from DynamoDB\n\texistingPost, errResp := getExistingPost(ctx, dynamoClient, tableName, postID)\n\tif errResp != nil {\n\t\treturn *errResp, nil\n\t}\n\n\t// Validate update fields\n\tif validateErr := validateUpdateRequest(req); validateErr != nil {\n\t\treturn errorResponse(400, validateErr.Error())\n\t}\n\n\t// Build updated post\n\tupdatedPost, errResp := buildUpdatedPost(existingPost, req)\n\tif errResp != nil {",
+        "issue": "UpdatePost only checks that the requester is authenticated; it never verifies the post owner. Any authenticated user can update any post if they know the ID.",
+        "suggestion": "After loading the post, compare existingPost.AuthorID to the authenticated user ID (or enforce an admin role) and return 403/404 on mismatch.",
+        "category": "security"
+      },
+      {
+        "severity": "high",
+        "file": "go-functions/cmd/posts/delete/main.go",
+        "line": 97,
+        "code_snippet": "\t// Unmarshal the existing post\n\tvar existingPost domain.BlogPost\n\tif unmarshalErr := attributevalue.UnmarshalMap(result.Item, &existingPost); unmarshalErr != nil {\n\t\treturn errorResponse(500, \"failed to parse post data\")\n\t}\n\n\t// Delete associated images from S3 if any\n\tif len(existingPost.ImageURLs) > 0 {\n\t\t// Check for BUCKET_NAME\n\t\tbucketName := os.Getenv(\"BUCKET_NAME\")\n\t\tif bucketName == \"\" {\n\t\t\treturn errorResponse(500, \"server configuration error\")\n\t\t}\n\n\t\t// Get S3 client\n\t\ts3Client, s3Err := s3ClientGetter()",
+        "issue": "DeletePost loads the post and proceeds to delete it without checking ownership. Any authenticated user can delete any post by ID.",
+        "suggestion": "Check existingPost.AuthorID against the authenticated user ID (or admin role) before deleting; return 403/404 on mismatch.",
+        "category": "security"
+      },
+      {
+        "severity": "high",
+        "file": "go-functions/cmd/posts/delete/main.go",
+        "line": 117,
+        "code_snippet": "\t\t// Prepare objects to delete\n\t\tobjectsToDelete := make([]s3types.ObjectIdentifier, 0, len(existingPost.ImageURLs))\n\t\tfor _, imageURL := range existingPost.ImageURLs {\n\t\t\tkey := extractS3KeyFromURL(imageURL)\n\t\t\tobjectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{\n\t\t\t\tKey: &key,\n\t\t\t})\n\t\t}",
+        "issue": "S3 deletions are based on stored ImageURLs without validating ownership or expected key prefix. Since create/update accept imageUrls directly, a user can point to another users key and have it deleted when their post is removed.",
+        "suggestion": "Store and delete only server-generated S3 keys (e.g., from the upload URL flow) and enforce a user-owned prefix like {userId}/. Ignore or reject keys outside that prefix.",
+        "category": "security"
+      },
+      {
+        "severity": "high",
+        "file": "go-functions/cmd/posts/list/main.go",
+        "line": 99,
+        "code_snippet": "\t// Parse publishStatus (defaults to \"published\" for backward compatibility)\n\tpublishStatus := domain.PublishStatusPublished\n\tif queryParams[\"publishStatus\"] != \"\" {\n\t\tvar parseErr error\n\t\tpublishStatus, parseErr = parsePublishStatus(queryParams[\"publishStatus\"])\n\t\tif parseErr != nil {\n\t\t\t// Return 400 only for admin requests (authenticated)\n\t\t\tif isAuthenticated(request) {\n\t\t\t\treturn errorResponse(400, \"invalid publishStatus value\")\n\t\t\t}\n\t\t\t// For public requests, ignore invalid value and use default\n\t\t\tpublishStatus = domain.PublishStatusPublished\n\t\t}\n\t}\n\n\t// Build DynamoDB Query input\n\tqueryInput := buildQueryInput(tableName, limit, category, publishStatus, exclusiveStartKey)",
+        "issue": "Unauthenticated requests can set publishStatus=draft and retrieve unpublished posts. This exposes draft content publicly.",
+        "suggestion": "If the request is unauthenticated, force publishStatus to published or return 401/403 for draft queries. Consider role-based checks for admin access.",
+        "category": "security"
+      },
+      {
+        "severity": "medium",
+        "file": "go-functions/cmd/posts/get/main.go",
+        "line": 79,
+        "code_snippet": "\t// Unmarshal the post\n\tvar post domain.BlogPost\n\tif err := attributevalue.UnmarshalMap(result.Item, &post); err != nil {\n\t\treturn errorResponse(500, \"failed to parse post data\")\n\t}\n\n\t// Note: Unlike GetPublicPost, authenticated users CAN access draft posts\n\t// No publish status check required here\n\n\treturn middleware.JSONResponse(200, post)",
+        "issue": "Authenticated access to /posts/:id does not enforce ownership or role checks, so any authenticated user can read another authors draft post by ID.",
+        "suggestion": "Verify post.AuthorID matches the requester (or admin role) before returning drafts; otherwise return 403 or 404.",
+        "category": "security"
+      }
+    ],
+    "summary": "Multiple authorization gaps allow unauthorized users to read or modify content (update/delete/get/list), and unvalidated image URL deletion can delete arbitrary S3 objects. These should be fixed before release.",
+    "approved": false,
+    "specific_answers": [
+      {
+        "question": "Are there any input validation vulnerabilities?",
+        "answer": "Yes. imageUrls are accepted without validation and later used for S3 deletions, enabling deletion of arbitrary objects. Also, publishStatus in /posts list is not restricted for unauthenticated requests, allowing draft exposure."
+      },
+      {
+        "question": "Is authentication/authorization properly implemented?",
+        "answer": "Authentication is checked, but authorization is incomplete. Update/Delete/Get/List do not enforce ownership or admin roles, enabling unauthorized access and modification."
+      },
+      {
+        "question": "Are there any potential injection vulnerabilities (SQL, command, etc.)?",
+        "answer": "No obvious injection issues found. DynamoDB queries use parameterized expressions; no SQL/command construction from user input."
+      },
+      {
+        "question": "Are secrets and credentials handled securely?",
+        "answer": "No direct secret leakage found. Tokens are returned as intended; ensure logs avoid token values if logging is added elsewhere."
+      },
+      {
+        "question": "Are there any insecure deserialization issues?",
+        "answer": "None observed. JSON is unmarshaled into typed structs without unsafe deserialization."
+      }
+    ]
+  }
+}

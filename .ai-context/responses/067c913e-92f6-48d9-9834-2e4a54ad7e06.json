@@ -1,0 +1,49 @@
+{
+  "id": "067c913e-92f6-48d9-9834-2e4a54ad7e06",
+  "type": "code_review",
+  "status": "completed",
+  "request": {
+    "files": [
+      "terraform/modules/auth/main.tf",
+      "terraform/modules/auth/variables.tf"
+    ],
+    "focus_areas": ["security"],
+    "specific_questions": [
+      "Verify the OAuth flow fix (implicit removed)",
+      "Verify callback_urls variable implementation",
+      "Verify prevent_user_existence_errors setting"
+    ],
+    "context_summary": "Fix verification for 031817b3-d7fb-4490-81fa-8caf00328ff3 - OAuth security fixes applied"
+  },
+  "response": {
+    "completed_at": "2026-01-16T12:03:47Z",
+    "reviewer": "codex/gpt-5",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "terraform/modules/auth/variables.tf",
+        "line": 47,
+        "code_snippet": "default     = [\"https://example.com\"]",
+        "issue": "callback_urls/logout_urls のデフォルトがプレースホルダのままのため、環境変数の未設定時に認可コードが想定外ドメインへリダイレクトされるリスクがあります。",
+        "suggestion": "デフォルト値を削除して必須入力にし、https（localhost 例外）を強制する validation を追加してください。",
+        "category": "security"
+      }
+    ],
+    "summary": "OAuth フローは code のみに制限され、prevent_user_existence_errors も有効化されているため修正内容は妥当です。未設定時の callback/logout URL がプレースホルダに落ちる点のみ、誤設定によるリダイレクト漏洩リスクとして残っています。",
+    "approved": false,
+    "specific_answers": [
+      {
+        "question": "Verify the OAuth flow fix (implicit removed)",
+        "answer": "OK。allowed_oauth_flows が [\"code\"] のみで、implicit/token は含まれていません。"
+      },
+      {
+        "question": "Verify callback_urls variable implementation",
+        "answer": "OK。main.tf で callback_urls = var.callback_urls として変数参照されています。"
+      },
+      {
+        "question": "Verify prevent_user_existence_errors setting",
+        "answer": "OK。aws_cognito_user_pool_client に prevent_user_existence_errors = \"ENABLED\" が設定されています。"
+      }
+    ]
+  }
+}

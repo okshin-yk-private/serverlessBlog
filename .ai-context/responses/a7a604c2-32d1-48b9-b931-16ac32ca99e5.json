@@ -1,0 +1,29 @@
+{
+  "id": "a7a604c2-32d1-48b9-b931-16ac32ca99e5",
+  "type": "code_review",
+  "status": "completed",
+  "request": {
+    "files": ["terraform/modules/storage/main.tf"],
+    "focus_areas": ["security"],
+    "specific_questions": [],
+    "context_summary": "Fix verification (round 3) for e59902e9-8cde-4257-b951-a2fa42d831dc - S3 TLS enforcement always applied"
+  },
+  "response": {
+    "completed_at": "2026-01-17T05:10:51Z",
+    "reviewer": "codex/gpt-5",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "terraform/modules/storage/main.tf",
+        "line": 32,
+        "code_snippet": "resource \"aws_s3_bucket\" \"access_logs\" {\n  count  = var.enable_access_logs ? 1 : 0\n  bucket = local.access_logs_bucket_name\n\n  tags = merge(\n    local.common_tags,\n    {\n      Name = local.access_logs_bucket_name\n      Type = \"access-logs\"\n    }\n  )\n}\n\nresource \"aws_s3_bucket_public_access_block\" \"access_logs\" {\n  count  = var.enable_access_logs ? 1 : 0\n  bucket = aws_s3_bucket.access_logs[0].id\n\n  block_public_acls       = true\n  block_public_policy     = true\n  ignore_public_acls      = true\n  restrict_public_buckets = true\n}",
+        "issue": "アクセスログ用バケットにTLS強制 (aws:SecureTransport の Deny) が定義されておらず、\"TLS enforcement always applied\" の目的から漏れています。アクセスログは機密性が高く、HTTP 経由のアクセスを許可すると盗聴・改ざんのリスクが残ります。",
+        "suggestion": "access_logs バケットにも他のバケットと同様の `DenyInsecureTransport` を追加してください。併せてログ配信を妨げないよう、必要なら S3 ログ配信サービス用の許可を明示的に追加する構成にしてください。",
+        "category": "security"
+      }
+    ],
+    "summary": "アクセスログ用バケットのみTLS強制が欠落しており、\"常にTLS強制\"の前提を満たしていません。access_logs へのTLS強制ポリシー追加が必要です。",
+    "approved": false,
+    "specific_answers": []
+  }
+}

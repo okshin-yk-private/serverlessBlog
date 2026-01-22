@@ -438,12 +438,12 @@ func TestExtractExcerpt(t *testing.T) {
 }
 
 func TestConvertToHTML_LinksHaveNofollow(t *testing.T) {
-	// bluemonday adds rel="nofollow" to links for security
+	// sanitizer adds rel="nofollow noreferrer" to links for security
 	result, err := ConvertToHTML("[link](https://example.com)")
 	if err != nil {
 		t.Fatalf("ConvertToHTML() error = %v", err)
 	}
-	if !strings.Contains(result, `rel="nofollow"`) {
+	if !strings.Contains(result, `rel="nofollow`) {
 		t.Errorf("ConvertToHTML() should add rel=nofollow to links, got: %s", result)
 	}
 }

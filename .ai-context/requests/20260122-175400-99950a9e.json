@@ -1,0 +1,32 @@
+{
+  "id": "99950a9e-4d8d-4042-a5d8-667188b16ed0",
+  "type": "code_review",
+  "created_at": "2026-01-22T17:54:00+09:00",
+  "source_cli": "claude-code",
+  "target_cli": "codex",
+  "status": "pending",
+  "request": {
+    "files": [
+      "frontend/public-astro/src/lib/performanceUtils.ts",
+      "frontend/public-astro/src/lib/performanceUtils.test.ts",
+      "frontend/public-astro/src/lib/performanceValidation.test.ts",
+      "frontend/public-astro/scripts/validate-build.ts",
+      "frontend/public-astro/lighthouserc.js"
+    ],
+    "focus_areas": ["all"],
+    "specific_questions": [
+      "Are the performance budget thresholds (50KB gzip JS, 50MB total) appropriate?",
+      "Is the TDD approach properly followed?",
+      "Are there edge cases missing in the unit tests?",
+      "Is the error handling in validate-build.ts robust enough?",
+      "Are the Lighthouse CI assertions properly configured?"
+    ],
+    "context_summary": "Task 7.1 implementation: Performance validation utilities for Astro SSG build output. Includes performanceUtils.ts (96% coverage, 26 tests), integration tests (14 tests), Lighthouse CI config, and CLI validation script. Implements requirements 11.1-11.6 (Lighthouse 95+, TTFB <100ms, FCP <1s, JS <50KB gzip, Brotli/Gzip compression, zero JS for static pages)."
+  },
+  "metadata": {
+    "branch": "feature/readme-simplify",
+    "spec_path": ".kiro/specs/astro-ssr-migration",
+    "task": "7.1",
+    "requirements_covered": ["11.1", "11.2", "11.3", "11.4", "11.5", "11.6"]
+  }
+}

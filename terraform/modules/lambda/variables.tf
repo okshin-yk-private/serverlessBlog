@@ -84,3 +84,20 @@ variable "categories_table_arn" {
   default     = ""
   description = "Categories DynamoDB table ARN"
 }
+
+# ======================
+# CodeBuild Integration Variables
+# Requirement 10.4: Lambda execution role with codebuild:StartBuild permission
+# ======================
+
+variable "codebuild_project_name" {
+  type        = string
+  default     = ""
+  description = "CodeBuild project name for Astro site build"
+}
+
+variable "codebuild_project_arn" {
+  type        = string
+  default     = ""
+  description = "CodeBuild project ARN for IAM policy"
+}

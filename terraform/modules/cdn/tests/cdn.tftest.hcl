@@ -386,8 +386,9 @@ run "default_root_object" {
   }
 }
 
-# Test 16: Verify SPA error responses (403 -> 200 /index.html)
-run "spa_error_responses" {
+# Test 16: Verify SSG error response (404 -> 404 /404.html)
+# Requirement 7.10, 15.3: Custom 404.html for S3 404 responses
+run "ssg_404_error_response" {
   command = plan
 
   variables {
@@ -403,22 +404,13 @@ run "spa_error_responses" {
     aws_region                              = "ap-northeast-1"
   }
 
-  # Verify 403 error response is configured for SPA
+  # Verify 404 error response is configured for SSG (serves custom 404.html)
   assert {
     condition = anytrue([
       for err in aws_cloudfront_distribution.main.custom_error_response :
-      err.error_code == 403 && err.response_code == 200 && err.response_page_path == "/index.html"
+      err.error_code == 404 && err.response_code == 404 && err.response_page_path == "/404.html"
     ])
-    error_message = "Distribution must have custom error response for 403 -> 200 /index.html"
-  }
-
-  # Verify 404 error response is configured for SPA
-  assert {
-    condition = anytrue([
-      for err in aws_cloudfront_distribution.main.custom_error_response :
-      err.error_code == 404 && err.response_code == 200 && err.response_page_path == "/index.html"
-    ])
-    error_message = "Distribution must have custom error response for 404 -> 200 /index.html"
+    error_message = "Distribution must have custom error response for 404 -> 404 /404.html"
   }
 }
 
@@ -454,8 +446,9 @@ run "tags_applied" {
   }
 }
 
-# Test 18: Verify CloudFront functions are created for path rewriting
-run "cloudfront_functions_created" {
+# Test 18: Verify /_astro/* cache behavior with 1-year TTL
+# Requirement 7.7: Cache static assets (/_astro/*) with content-based hash for 1 year
+run "astro_assets_cache_behavior" {
   command = plan
 
   variables {
@@ -471,15 +464,116 @@ run "cloudfront_functions_created" {
     aws_region                              = "ap-northeast-1"
   }
 
+  # Verify /_astro/* ordered cache behavior exists
+  assert {
+    condition = anytrue([
+      for behavior in aws_cloudfront_distribution.main.ordered_cache_behavior :
+      behavior.path_pattern == "/_astro/*"
+    ])
+    error_message = "Distribution must have ordered cache behavior for /_astro/* path"
+  }
+}
+
+# Test 19: Verify Astro assets cache policy has 1-year TTL
+# Requirement 7.7: 1-year TTL for static assets with content-based hash
+run "astro_assets_cache_ttl" {
+  command = plan
+
+  variables {
+    environment                             = "dev"
+    image_bucket_name                       = "test-images-bucket"
+    image_bucket_regional_domain_name       = "test-images-bucket.s3.ap-northeast-1.amazonaws.com"
+    public_site_bucket_name                 = "test-public-site-bucket"
+    public_site_bucket_regional_domain_name = "test-public-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    admin_site_bucket_name                  = "test-admin-site-bucket"
+    admin_site_bucket_regional_domain_name  = "test-admin-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    rest_api_id                             = "abc123xyz"
+    api_stage_name                          = "dev"
+    aws_region                              = "ap-northeast-1"
+  }
+
+  # Verify Astro assets cache policy has 1-year default TTL (31536000 seconds)
+  assert {
+    condition     = aws_cloudfront_cache_policy.astro_assets.default_ttl == 31536000
+    error_message = "Astro assets cache policy must have default TTL of 1 year (31536000 seconds)"
+  }
+
+  # Verify min TTL is also 1 year (immutable assets)
+  assert {
+    condition     = aws_cloudfront_cache_policy.astro_assets.min_ttl == 31536000
+    error_message = "Astro assets cache policy must have min TTL of 1 year for immutable assets"
+  }
+
+  # Verify max TTL is also 1 year
+  assert {
+    condition     = aws_cloudfront_cache_policy.astro_assets.max_ttl == 31536000
+    error_message = "Astro assets cache policy must have max TTL of 1 year"
+  }
+}
+
+# Test 20: Verify HTML/XML cache policy with appropriate TTL
+# Requirement 7.6: Default TTL 1 hour, max TTL 24 hours for HTML pages
+run "html_cache_policy" {
+  command = plan
+
+  variables {
+    environment                             = "dev"
+    image_bucket_name                       = "test-images-bucket"
+    image_bucket_regional_domain_name       = "test-images-bucket.s3.ap-northeast-1.amazonaws.com"
+    public_site_bucket_name                 = "test-public-site-bucket"
+    public_site_bucket_regional_domain_name = "test-public-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    admin_site_bucket_name                  = "test-admin-site-bucket"
+    admin_site_bucket_regional_domain_name  = "test-admin-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    rest_api_id                             = "abc123xyz"
+    api_stage_name                          = "dev"
+    aws_region                              = "ap-northeast-1"
+  }
+
+  # Verify HTML cache policy has 1-hour default TTL (3600 seconds)
+  assert {
+    condition     = aws_cloudfront_cache_policy.html_pages.default_ttl == 3600
+    error_message = "HTML cache policy must have default TTL of 1 hour (3600 seconds)"
+  }
+
+  # Verify min TTL is 0 (respect Cache-Control: no-cache)
+  assert {
+    condition     = aws_cloudfront_cache_policy.html_pages.min_ttl == 0
+    error_message = "HTML cache policy must have min TTL of 0"
+  }
+
+  # Verify max TTL is 24 hours (86400 seconds)
+  assert {
+    condition     = aws_cloudfront_cache_policy.html_pages.max_ttl == 86400
+    error_message = "HTML cache policy must have max TTL of 24 hours (86400 seconds)"
+  }
+}
+
+# Test 21: Verify CloudFront functions are created for path rewriting
+run "cloudfront_functions_created" {
+  command = plan
+
+  variables {
+    environment                             = "prd"
+    image_bucket_name                       = "test-images-bucket"
+    image_bucket_regional_domain_name       = "test-images-bucket.s3.ap-northeast-1.amazonaws.com"
+    public_site_bucket_name                 = "test-public-site-bucket"
+    public_site_bucket_regional_domain_name = "test-public-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    admin_site_bucket_name                  = "test-admin-site-bucket"
+    admin_site_bucket_regional_domain_name  = "test-admin-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    rest_api_id                             = "abc123xyz"
+    api_stage_name                          = "prd"
+    aws_region                              = "ap-northeast-1"
+  }
+
   # Verify image path function exists
   assert {
     condition     = aws_cloudfront_function.image_path.runtime == "cloudfront-js-2.0"
     error_message = "Image path CloudFront function must use cloudfront-js-2.0 runtime"
   }
 
-  # Verify admin SPA function exists
+  # Verify admin SPA function exists (production without basic auth)
   assert {
-    condition     = aws_cloudfront_function.admin_spa.runtime == "cloudfront-js-2.0"
+    condition     = aws_cloudfront_function.admin_spa[0].runtime == "cloudfront-js-2.0"
     error_message = "Admin SPA CloudFront function must use cloudfront-js-2.0 runtime"
   }
 
@@ -488,9 +582,15 @@ run "cloudfront_functions_created" {
     condition     = aws_cloudfront_function.api_path.runtime == "cloudfront-js-2.0"
     error_message = "API path CloudFront function must use cloudfront-js-2.0 runtime"
   }
+
+  # Verify public SSG function exists
+  assert {
+    condition     = aws_cloudfront_function.public_ssg.runtime == "cloudfront-js-2.0"
+    error_message = "Public SSG CloudFront function must use cloudfront-js-2.0 runtime"
+  }
 }
 
-# Test 19: Verify S3 origins have OAC configured
+# Test 22: Verify S3 origins have OAC configured
 # Note: origin_access_control_id is computed after apply, so we verify
 # that OAC resource exists and is properly configured
 run "s3_origins_have_oac" {
@@ -522,7 +622,7 @@ run "s3_origins_have_oac" {
   }
 }
 
-# Test 20: Verify API origin uses HTTPS only
+# Test 23: Verify API origin uses HTTPS only
 run "api_origin_https_only" {
   command = plan
 

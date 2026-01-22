@@ -1,6 +1,9 @@
 # Main configuration for dev environment
 # Requirements: 1.6 - Module calls with environment-specific variables
 
+# Get current AWS account ID for constructing ARNs
+data "aws_caller_identity" "current" {}
+
 locals {
   common_tags = {
     Project     = var.project_name
@@ -83,6 +86,13 @@ module "lambda" {
   # Categories domain
   categories_table_name = module.database.categories_table_name
   categories_table_arn  = module.database.categories_table_arn
+
+  # CodeBuild integration for posts/update Lambda
+  # Note: CodeBuild project name follows predictable pattern so we can set it before CodeBuild module exists
+  # The actual CodeBuild project is created after CDN to get the distribution ID
+  # Requirement 10.1: Trigger CodeBuild when post is published
+  codebuild_project_name = "${var.project_name}-astro-build-${var.environment}"
+  codebuild_project_arn  = "arn:aws:codebuild:${var.aws_region}:${data.aws_caller_identity.current.account_id}:project/${var.project_name}-astro-build-${var.environment}"
 
   tags = local.common_tags
 
@@ -288,4 +298,25 @@ module "monitoring" {
   tags = local.common_tags
 
   depends_on = [module.lambda, module.database, module.api]
+}
+
+#------------------------------------------------------------------------------
+# Module 8: CodeBuild (Astro SSG Build)
+# Dependencies: storage (for S3 bucket), cdn (for CloudFront distribution)
+# Requirements: 8.5, 9.5, 9.6 (Astro SSG Migration spec)
+#------------------------------------------------------------------------------
+
+module "codebuild" {
+  source = "../../modules/codebuild"
+
+  project_name               = var.project_name
+  environment                = var.environment
+  public_site_bucket_name    = module.storage.public_site_bucket_name
+  public_site_bucket_arn     = module.storage.public_site_bucket_arn
+  cloudfront_distribution_id = module.cdn.distribution_id
+  api_url                    = module.cdn.api_base_url
+
+  tags = local.common_tags
+
+  depends_on = [module.storage, module.cdn]
 }
