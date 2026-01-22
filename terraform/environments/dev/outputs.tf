@@ -146,37 +146,3 @@ output "codebuild_project_arn" {
   value       = module.codebuild.codebuild_project_arn
   description = "CodeBuild project ARN"
 }
-
-#------------------------------------------------------------------------------
-# Custom Domain Outputs (when enabled)
-#------------------------------------------------------------------------------
-
-output "custom_domain_enabled" {
-  value       = var.enable_custom_domain
-  description = "Whether custom domain is enabled"
-}
-
-output "custom_domain_name" {
-  value       = var.enable_custom_domain ? var.domain_name : null
-  description = "Custom domain name"
-}
-
-output "custom_domain_url" {
-  value       = var.enable_custom_domain ? "https://${var.domain_name}" : null
-  description = "Custom domain URL"
-}
-
-output "route53_zone_id" {
-  value       = var.enable_custom_domain ? module.dns_route53[0].zone_id : null
-  description = "Route53 hosted zone ID for dev subdomain"
-}
-
-output "route53_name_servers" {
-  value       = var.enable_custom_domain ? module.dns_route53[0].name_servers : null
-  description = "Route53 nameservers (for Cloudflare NS delegation)"
-}
-
-output "acm_certificate_arn" {
-  value       = var.enable_custom_domain ? module.acm[0].certificate_arn : null
-  description = "ACM certificate ARN (us-east-1)"
-}

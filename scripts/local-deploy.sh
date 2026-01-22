@@ -50,6 +50,10 @@ SSM_CLOUDFLARE_API_TOKEN_TEMPLATE="/serverless-blog/{env}/cloudflare/apikey"
 ASTRO_PROJECT_PATH="frontend/public-astro"
 ASTRO_DIST_PATH="frontend/public-astro/dist"
 
+# Astro SSG paths
+ASTRO_PROJECT_PATH="frontend/public-astro"
+ASTRO_DIST_PATH="frontend/public-astro/dist"
+
 # Valid Lambda function names
 VALID_LAMBDA_FUNCTIONS=(
     "posts-create"

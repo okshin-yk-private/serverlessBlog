@@ -28,6 +28,13 @@ const GitHubIcon: React.FC = () => (
   </svg>
 );
 
+// Organization アイコン
+const OrgIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className="social-icon">
+    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12c6.627 0 12-5.373 12-12S18.627 0 12 0zm-.5 3.5h1v3h-1v-3zm-4.5 4h10v1h-10v-1zm0 3h10v1h-10v-1zm0 3h10v1h-10v-1zm5 6c-2.757 0-5-1.343-5-3h10c0 1.657-2.243 3-5 3z" />
+  </svg>
+);
+
 // ソーシャルリンクの設定（プレースホルダー - 実際の値は設定で変更可能）
 const socialLinks: SocialLink[] = [
   {
