@@ -34,8 +34,9 @@ run "database_outputs_for_lambda" {
   }
 
   variables {
-    table_name  = "test-blog-posts"
-    environment = "dev"
+    table_name            = "test-blog-posts"
+    categories_table_name = "test-blog-categories"
+    environment           = "dev"
   }
 
   # Verify table_name output exists and matches input
@@ -134,28 +135,38 @@ run "api_outputs_for_cdn_and_lambda" {
     cognito_user_pool_arn = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
 
     # Lambda function ARNs (required for API Gateway integrations)
-    lambda_create_post_arn            = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-post-go"
-    lambda_create_post_invoke_arn     = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-post-go/invocations"
-    lambda_list_posts_arn             = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-posts-go"
-    lambda_list_posts_invoke_arn      = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-posts-go/invocations"
-    lambda_get_post_arn               = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-post-go"
-    lambda_get_post_invoke_arn        = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-post-go/invocations"
-    lambda_get_public_post_arn        = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-public-post-go"
-    lambda_get_public_post_invoke_arn = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-public-post-go/invocations"
-    lambda_update_post_arn            = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-post-go"
-    lambda_update_post_invoke_arn     = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-post-go/invocations"
-    lambda_delete_post_arn            = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-post-go"
-    lambda_delete_post_invoke_arn     = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-post-go/invocations"
-    lambda_login_arn                  = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go"
-    lambda_login_invoke_arn           = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go/invocations"
-    lambda_logout_arn                 = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-logout-go"
-    lambda_logout_invoke_arn          = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-logout-go/invocations"
-    lambda_refresh_arn                = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-refresh-go"
-    lambda_refresh_invoke_arn         = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-refresh-go/invocations"
-    lambda_get_upload_url_arn         = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-upload-url-go"
-    lambda_get_upload_url_invoke_arn  = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-upload-url-go/invocations"
-    lambda_delete_image_arn           = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-image-go"
-    lambda_delete_image_invoke_arn    = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-image-go/invocations"
+    lambda_create_post_arn                         = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-post-go"
+    lambda_create_post_invoke_arn                  = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-post-go/invocations"
+    lambda_list_posts_arn                          = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-posts-go"
+    lambda_list_posts_invoke_arn                   = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-posts-go/invocations"
+    lambda_get_post_arn                            = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-post-go"
+    lambda_get_post_invoke_arn                     = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-post-go/invocations"
+    lambda_get_public_post_arn                     = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-public-post-go"
+    lambda_get_public_post_invoke_arn              = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-public-post-go/invocations"
+    lambda_update_post_arn                         = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-post-go"
+    lambda_update_post_invoke_arn                  = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-post-go/invocations"
+    lambda_delete_post_arn                         = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-post-go"
+    lambda_delete_post_invoke_arn                  = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-post-go/invocations"
+    lambda_login_arn                               = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go"
+    lambda_login_invoke_arn                        = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go/invocations"
+    lambda_logout_arn                              = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-logout-go"
+    lambda_logout_invoke_arn                       = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-logout-go/invocations"
+    lambda_refresh_arn                             = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-refresh-go"
+    lambda_refresh_invoke_arn                      = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-refresh-go/invocations"
+    lambda_get_upload_url_arn                      = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-upload-url-go"
+    lambda_get_upload_url_invoke_arn               = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-upload-url-go/invocations"
+    lambda_delete_image_arn                        = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-image-go"
+    lambda_delete_image_invoke_arn                 = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-image-go/invocations"
+    lambda_list_categories_arn                     = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-categories-go"
+    lambda_list_categories_invoke_arn              = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-categories-go/invocations"
+    lambda_create_category_arn                     = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-category-go"
+    lambda_create_category_invoke_arn              = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-category-go/invocations"
+    lambda_update_category_arn                     = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-category-go"
+    lambda_update_category_invoke_arn              = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-category-go/invocations"
+    lambda_update_categories_sort_order_arn        = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-categories-sort-go"
+    lambda_update_categories_sort_order_invoke_arn = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-categories-sort-go/invocations"
+    lambda_delete_category_arn                     = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-category-go"
+    lambda_delete_category_invoke_arn              = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-category-go/invocations"
   }
 
   # Verify stage_name output matches input (known value)
@@ -193,8 +204,8 @@ run "lambda_outputs_for_monitoring" {
 
   # Verify function_names has expected count (known during plan)
   assert {
-    condition     = length(output.function_names) == 11
-    error_message = "Lambda module must export all 11 function names"
+    condition     = length(output.function_names) == 16
+    error_message = "Lambda module must export all 16 function names"
   }
 
   # Verify role name outputs match expected values
@@ -267,8 +278,9 @@ run "dependency_chain_database" {
   }
 
   variables {
-    table_name  = "chain-test-posts"
-    environment = "dev"
+    table_name            = "chain-test-posts"
+    categories_table_name = "chain-test-categories"
+    environment           = "dev"
   }
 
   # Database table_name matches expected naming pattern
@@ -356,8 +368,9 @@ run "output_compatibility_database_naming" {
   }
 
   variables {
-    table_name  = "serverless-blog-posts-dev"
-    environment = "dev"
+    table_name            = "serverless-blog-posts-dev"
+    categories_table_name = "serverless-blog-categories-dev"
+    environment           = "dev"
   }
 
   # Table name follows expected naming convention
