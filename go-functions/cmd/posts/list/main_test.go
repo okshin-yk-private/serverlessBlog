@@ -1942,3 +1942,575 @@ func TestHandler_PostWithNilTags(t *testing.T) {
 		t.Errorf("expected imageUrls to be empty array, not nil")
 	}
 }
+
+// TestFilterBySearch_TableDriven tests the filterBySearch function with various inputs
+func TestFilterBySearch_TableDriven(t *testing.T) {
+	items := []ListPostsResponseItem{
+		{
+			ID:    "post-1",
+			Title: "Learning React Hooks",
+			Tags:  []string{"react", "javascript", "frontend"},
+		},
+		{
+			ID:    "post-2",
+			Title: "Introduction to Go Programming",
+			Tags:  []string{"go", "backend", "programming"},
+		},
+		{
+			ID:    "post-3",
+			Title: "AWS Lambda Best Practices",
+			Tags:  []string{"aws", "serverless", "cloud"},
+		},
+	}
+
+	tests := []struct {
+		name          string
+		searchQuery   string
+		expectedCount int
+		expectedIDs   []string
+	}{
+		{
+			name:          "empty query returns all items",
+			searchQuery:   "",
+			expectedCount: 3,
+			expectedIDs:   []string{"post-1", "post-2", "post-3"},
+		},
+		{
+			name:          "whitespace only query returns all items",
+			searchQuery:   "   ",
+			expectedCount: 3,
+			expectedIDs:   []string{"post-1", "post-2", "post-3"},
+		},
+		{
+			name:          "title match - exact word",
+			searchQuery:   "React",
+			expectedCount: 1,
+			expectedIDs:   []string{"post-1"},
+		},
+		{
+			name:          "title match - partial word",
+			searchQuery:   "rea",
+			expectedCount: 1,
+			expectedIDs:   []string{"post-1"},
+		},
+		{
+			name:          "title match - case insensitive lowercase",
+			searchQuery:   "react",
+			expectedCount: 1,
+			expectedIDs:   []string{"post-1"},
+		},
+		{
+			name:          "title match - case insensitive uppercase",
+			searchQuery:   "REACT",
+			expectedCount: 1,
+			expectedIDs:   []string{"post-1"},
+		},
+		{
+			name:          "title match - mixed case",
+			searchQuery:   "ReAcT",
+			expectedCount: 1,
+			expectedIDs:   []string{"post-1"},
+		},
+		{
+			name:          "tag match - exact tag",
+			searchQuery:   "serverless",
+			expectedCount: 1,
+			expectedIDs:   []string{"post-3"},
+		},
+		{
+			name:          "tag match - partial tag",
+			searchQuery:   "server",
+			expectedCount: 1,
+			expectedIDs:   []string{"post-3"},
+		},
+		{
+			name:          "tag match - case insensitive",
+			searchQuery:   "AWS",
+			expectedCount: 1,
+			expectedIDs:   []string{"post-3"},
+		},
+		{
+			name:          "multiple matches - common word in title",
+			searchQuery:   "Introduction",
+			expectedCount: 1,
+			expectedIDs:   []string{"post-2"},
+		},
+		{
+			name:          "multiple matches - common tag",
+			searchQuery:   "programming",
+			expectedCount: 1,
+			expectedIDs:   []string{"post-2"},
+		},
+		{
+			name:          "no match",
+			searchQuery:   "python",
+			expectedCount: 0,
+			expectedIDs:   []string{},
+		},
+		{
+			name:          "match across title and tags",
+			searchQuery:   "go",
+			expectedCount: 1,
+			expectedIDs:   []string{"post-2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := filterBySearch(items, tt.searchQuery)
+
+			if len(result) != tt.expectedCount {
+				t.Errorf("filterBySearch(%q) returned %d items, want %d", tt.searchQuery, len(result), tt.expectedCount)
+			}
+
+			// Verify expected IDs
+			for i, expected := range tt.expectedIDs {
+				if i < len(result) && result[i].ID != expected {
+					t.Errorf("filterBySearch(%q) item[%d].ID = %q, want %q", tt.searchQuery, i, result[i].ID, expected)
+				}
+			}
+		})
+	}
+}
+
+// TestFilterBySearch_EmptyTags tests filterBySearch with posts that have empty tags
+func TestFilterBySearch_EmptyTags(t *testing.T) {
+	items := []ListPostsResponseItem{
+		{
+			ID:    "post-1",
+			Title: "Post with no tags",
+			Tags:  []string{},
+		},
+		{
+			ID:    "post-2",
+			Title: "Another post",
+			Tags:  nil,
+		},
+	}
+
+	// Search by title should still work
+	result := filterBySearch(items, "no tags")
+	if len(result) != 1 {
+		t.Errorf("expected 1 result, got %d", len(result))
+	}
+	if len(result) > 0 && result[0].ID != "post-1" {
+		t.Errorf("expected post-1, got %s", result[0].ID)
+	}
+
+	// Search for non-existent tag should return empty
+	result = filterBySearch(items, "nonexistent")
+	if len(result) != 0 {
+		t.Errorf("expected 0 results, got %d", len(result))
+	}
+}
+
+// TestHandler_SearchByTitle tests the Handler with search query parameter for title search
+func TestHandler_SearchByTitle(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	posts := []domain.BlogPost{
+		{
+			ID:            "post-1",
+			Title:         "Learning React Hooks",
+			ContentHTML:   "<p>Content</p>",
+			Category:      "technology",
+			Tags:          []string{"react"},
+			PublishStatus: domain.PublishStatusPublished,
+			AuthorID:      "author-123",
+			CreatedAt:     "2024-01-15T12:00:00Z",
+			UpdatedAt:     testUpdatedAt,
+			ImageURLs:     []string{},
+		},
+		{
+			ID:            "post-2",
+			Title:         "Introduction to Go",
+			ContentHTML:   "<p>Content</p>",
+			Category:      "technology",
+			Tags:          []string{"go"},
+			PublishStatus: domain.PublishStatusPublished,
+			AuthorID:      "author-123",
+			CreatedAt:     "2024-01-14T12:00:00Z",
+			UpdatedAt:     testUpdatedAt,
+			ImageURLs:     []string{},
+		},
+	}
+
+	var items []map[string]types.AttributeValue
+	for _, post := range posts {
+		av, err := attributevalue.MarshalMap(post)
+		if err != nil {
+			t.Fatalf("failed to marshal post: %v", err)
+		}
+		items = append(items, av)
+	}
+
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			return &dynamodb.QueryOutput{
+				Items: items,
+				Count: int32(len(items)),
+			}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	request := events.APIGatewayProxyRequest{
+		QueryStringParameters: map[string]string{
+			"q": "React",
+		},
+	}
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var listResp ListPostsResponseBody
+	if err := json.Unmarshal([]byte(resp.Body), &listResp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	// Only the React post should be returned
+	if len(listResp.Items) != 1 {
+		t.Errorf("expected 1 item after search, got %d", len(listResp.Items))
+	}
+
+	if len(listResp.Items) > 0 && listResp.Items[0].ID != "post-1" {
+		t.Errorf("expected post-1, got %s", listResp.Items[0].ID)
+	}
+}
+
+// TestHandler_SearchByTags tests the Handler with search query parameter for tag search
+func TestHandler_SearchByTags(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	posts := []domain.BlogPost{
+		{
+			ID:            "post-1",
+			Title:         "Post One",
+			ContentHTML:   "<p>Content</p>",
+			Category:      "technology",
+			Tags:          []string{"react", "frontend"},
+			PublishStatus: domain.PublishStatusPublished,
+			AuthorID:      "author-123",
+			CreatedAt:     "2024-01-15T12:00:00Z",
+			UpdatedAt:     testUpdatedAt,
+			ImageURLs:     []string{},
+		},
+		{
+			ID:            "post-2",
+			Title:         "Post Two",
+			ContentHTML:   "<p>Content</p>",
+			Category:      "technology",
+			Tags:          []string{"go", "backend"},
+			PublishStatus: domain.PublishStatusPublished,
+			AuthorID:      "author-123",
+			CreatedAt:     "2024-01-14T12:00:00Z",
+			UpdatedAt:     testUpdatedAt,
+			ImageURLs:     []string{},
+		},
+	}
+
+	var items []map[string]types.AttributeValue
+	for _, post := range posts {
+		av, err := attributevalue.MarshalMap(post)
+		if err != nil {
+			t.Fatalf("failed to marshal post: %v", err)
+		}
+		items = append(items, av)
+	}
+
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			return &dynamodb.QueryOutput{
+				Items: items,
+				Count: int32(len(items)),
+			}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	request := events.APIGatewayProxyRequest{
+		QueryStringParameters: map[string]string{
+			"q": "backend",
+		},
+	}
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var listResp ListPostsResponseBody
+	if err := json.Unmarshal([]byte(resp.Body), &listResp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	// Only the backend post should be returned
+	if len(listResp.Items) != 1 {
+		t.Errorf("expected 1 item after tag search, got %d", len(listResp.Items))
+	}
+
+	if len(listResp.Items) > 0 && listResp.Items[0].ID != "post-2" {
+		t.Errorf("expected post-2, got %s", listResp.Items[0].ID)
+	}
+}
+
+// TestHandler_SearchCaseInsensitive tests case-insensitive search
+func TestHandler_SearchCaseInsensitive(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	posts := []domain.BlogPost{
+		{
+			ID:            "post-1",
+			Title:         "Learning React Hooks",
+			ContentHTML:   "<p>Content</p>",
+			Category:      "technology",
+			Tags:          []string{"react"},
+			PublishStatus: domain.PublishStatusPublished,
+			AuthorID:      "author-123",
+			CreatedAt:     "2024-01-15T12:00:00Z",
+			UpdatedAt:     testUpdatedAt,
+			ImageURLs:     []string{},
+		},
+	}
+
+	var items []map[string]types.AttributeValue
+	for _, post := range posts {
+		av, err := attributevalue.MarshalMap(post)
+		if err != nil {
+			t.Fatalf("failed to marshal post: %v", err)
+		}
+		items = append(items, av)
+	}
+
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			return &dynamodb.QueryOutput{
+				Items: items,
+				Count: int32(len(items)),
+			}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	// Test various case combinations
+	cases := []string{"react", "REACT", "React", "ReAcT"}
+	for _, q := range cases {
+		t.Run("query_"+q, func(t *testing.T) {
+			request := events.APIGatewayProxyRequest{
+				QueryStringParameters: map[string]string{
+					"q": q,
+				},
+			}
+
+			resp, err := Handler(context.Background(), request)
+			if err != nil {
+				t.Fatalf("Handler returned unexpected error: %v", err)
+			}
+
+			if resp.StatusCode != 200 {
+				t.Errorf("expected status 200, got %d", resp.StatusCode)
+			}
+
+			var listResp ListPostsResponseBody
+			if err := json.Unmarshal([]byte(resp.Body), &listResp); err != nil {
+				t.Fatalf("failed to unmarshal response: %v", err)
+			}
+
+			if len(listResp.Items) != 1 {
+				t.Errorf("search for %q: expected 1 item, got %d", q, len(listResp.Items))
+			}
+		})
+	}
+}
+
+// TestHandler_SearchCombinedWithCategory tests search combined with category filter
+func TestHandler_SearchCombinedWithCategory(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	posts := []domain.BlogPost{
+		{
+			ID:            "post-1",
+			Title:         "React in Technology",
+			ContentHTML:   "<p>Content</p>",
+			Category:      "technology",
+			Tags:          []string{"react"},
+			PublishStatus: domain.PublishStatusPublished,
+			AuthorID:      "author-123",
+			CreatedAt:     "2024-01-15T12:00:00Z",
+			UpdatedAt:     testUpdatedAt,
+			ImageURLs:     []string{},
+		},
+		{
+			ID:            "post-2",
+			Title:         "React in Lifestyle",
+			ContentHTML:   "<p>Content</p>",
+			Category:      "lifestyle",
+			Tags:          []string{"react"},
+			PublishStatus: domain.PublishStatusPublished,
+			AuthorID:      "author-123",
+			CreatedAt:     "2024-01-14T12:00:00Z",
+			UpdatedAt:     testUpdatedAt,
+			ImageURLs:     []string{},
+		},
+	}
+
+	// Only return posts for the requested category
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			// Verify CategoryIndex is used
+			if params.IndexName == nil || *params.IndexName != "CategoryIndex" {
+				t.Errorf("expected CategoryIndex to be used with category filter")
+			}
+
+			// Filter by category in mock (simulating DynamoDB behavior)
+			categoryVal := params.ExpressionAttributeValues[":category"]
+			category := ""
+			if s, ok := categoryVal.(*types.AttributeValueMemberS); ok {
+				category = s.Value
+			}
+
+			var items []map[string]types.AttributeValue
+			for _, post := range posts {
+				if post.Category == category {
+					av, _ := attributevalue.MarshalMap(post)
+					items = append(items, av)
+				}
+			}
+
+			return &dynamodb.QueryOutput{
+				Items: items,
+				Count: int32(len(items)),
+			}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	request := events.APIGatewayProxyRequest{
+		QueryStringParameters: map[string]string{
+			"q":        "React",
+			"category": "technology",
+		},
+	}
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var listResp ListPostsResponseBody
+	if err := json.Unmarshal([]byte(resp.Body), &listResp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	// Only the technology React post should be returned
+	if len(listResp.Items) != 1 {
+		t.Errorf("expected 1 item, got %d", len(listResp.Items))
+	}
+
+	if len(listResp.Items) > 0 {
+		if listResp.Items[0].ID != "post-1" {
+			t.Errorf("expected post-1, got %s", listResp.Items[0].ID)
+		}
+		if listResp.Items[0].Category != "technology" {
+			t.Errorf("expected category technology, got %s", listResp.Items[0].Category)
+		}
+	}
+}
+
+// TestHandler_SearchNoResults tests search with no matching results
+func TestHandler_SearchNoResults(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	posts := []domain.BlogPost{
+		{
+			ID:            "post-1",
+			Title:         "Learning Go",
+			ContentHTML:   "<p>Content</p>",
+			Category:      "technology",
+			Tags:          []string{"go", "backend"},
+			PublishStatus: domain.PublishStatusPublished,
+			AuthorID:      "author-123",
+			CreatedAt:     "2024-01-15T12:00:00Z",
+			UpdatedAt:     testUpdatedAt,
+			ImageURLs:     []string{},
+		},
+	}
+
+	var items []map[string]types.AttributeValue
+	for _, post := range posts {
+		av, err := attributevalue.MarshalMap(post)
+		if err != nil {
+			t.Fatalf("failed to marshal post: %v", err)
+		}
+		items = append(items, av)
+	}
+
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			return &dynamodb.QueryOutput{
+				Items: items,
+				Count: int32(len(items)),
+			}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	request := events.APIGatewayProxyRequest{
+		QueryStringParameters: map[string]string{
+			"q": "python",
+		},
+	}
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var listResp ListPostsResponseBody
+	if err := json.Unmarshal([]byte(resp.Body), &listResp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	// No results expected
+	if len(listResp.Items) != 0 {
+		t.Errorf("expected 0 items for non-matching search, got %d", len(listResp.Items))
+	}
+}

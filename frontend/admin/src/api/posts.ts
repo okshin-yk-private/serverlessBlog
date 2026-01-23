@@ -10,6 +10,7 @@ export interface Post {
   contentMarkdown: string;
   contentHtml: string;
   category: string;
+  tags: string[];
   publishStatus: 'draft' | 'published';
   createdAt: string;
   updatedAt: string;
@@ -19,6 +20,7 @@ export interface CreatePostRequest {
   title: string;
   contentMarkdown: string;
   category: string;
+  tags?: string[];
   publishStatus: 'draft' | 'published';
 }
 
@@ -26,6 +28,7 @@ export interface UpdatePostRequest {
   title: string;
   contentMarkdown: string;
   category: string;
+  tags?: string[];
   publishStatus: 'draft' | 'published';
 }
 

@@ -25,9 +25,20 @@ export interface PostListResponse {
 export interface PostListFilters {
   category?: string;
   tags?: string;
+  q?: string; // Search query parameter
   limit?: number;
   nextToken?: string;
   // テスト用のエラーシミュレーションパラメータ
   simulateError?: string;
   simulateRetry?: string;
+}
+
+/**
+ * カテゴリー一覧取得時のレスポンス型
+ */
+export interface CategoryListItem {
+  id: string;
+  name: string;
+  slug: string;
+  sortOrder: number;
 }

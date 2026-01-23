@@ -16,7 +16,6 @@ interface FormData {
 
 interface FormErrors {
   name?: string;
-  slug?: string;
 }
 
 const CategoryEditPage = () => {
@@ -78,10 +77,7 @@ const CategoryEditPage = () => {
       errors.name = 'カテゴリ名は100文字以内で入力してください';
     }
 
-    // slug バリデーション (任意だが、入力されている場合は英数字・ハイフンのみ)
-    if (formData.slug && !/^[a-z0-9-]*$/.test(formData.slug)) {
-      errors.slug = 'スラッグは英数字とハイフンのみ使用できます';
-    }
+    // slug はサーバー側で自動生成されるためバリデーション不要
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -98,10 +94,10 @@ const CategoryEditPage = () => {
       setSaving(true);
       setError(null);
 
+      // slug はサーバー側で自動生成されるため送信しない
       const categoryData = {
         name: formData.name,
-        slug: formData.slug,
-        description: formData.description,
+        description: formData.description || undefined,
       };
 
       if (isEditMode) {
@@ -191,7 +187,7 @@ const CategoryEditPage = () => {
         <form onSubmit={handleSubmit} data-testid="category-form">
           <div className="admin-form-group">
             <label htmlFor="name" className="admin-form-label">
-              カテゴリ名 <span className="text-red-500">*</span>
+              カテゴリ名 <span className="admin-form-required">*</span>
             </label>
             <input
               type="text"
@@ -219,18 +215,15 @@ const CategoryEditPage = () => {
               id="slug"
               name="slug"
               value={formData.slug}
-              onChange={handleInputChange}
-              className={`admin-form-input ${formErrors.slug ? 'admin-form-input-error' : ''}`}
-              placeholder="例: tech（空の場合は自動生成）"
+              disabled={true}
+              className="admin-form-input admin-form-input-disabled"
+              placeholder={isEditMode ? '' : '名前から自動生成されます'}
               data-testid="slug-input"
             />
-            {formErrors.slug && (
-              <p className="admin-form-error" data-testid="slug-error">
-                {formErrors.slug}
-              </p>
-            )}
             <p className="admin-form-hint">
-              URLに使用される識別子です。英数字とハイフンのみ使用できます。
+              {isEditMode
+                ? 'スラッグは変更できません'
+                : 'カテゴリ名から自動的に生成されます（変更不可）'}
             </p>
           </div>
 

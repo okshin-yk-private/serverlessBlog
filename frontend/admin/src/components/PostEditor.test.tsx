@@ -18,6 +18,7 @@ interface PostData {
   title: string;
   contentMarkdown: string;
   category: string;
+  tags: string[];
   publishStatus: 'draft' | 'published';
 }
 
@@ -73,6 +74,7 @@ describe('PostEditor', () => {
       title: '既存記事タイトル',
       contentMarkdown: '# 既存記事本文',
       category: 'tech',
+      tags: ['React', 'AWS'],
       publishStatus: 'published',
     };
 
@@ -98,6 +100,10 @@ describe('PostEditor', () => {
     expect(contentInput.value).toBe('# 既存記事本文');
     expect(categorySelect.value).toBe('tech');
     expect(statusSelect.value).toBe('published');
+
+    // タグが表示されていることを確認
+    expect(screen.getByText('React')).toBeInTheDocument();
+    expect(screen.getByText('AWS')).toBeInTheDocument();
   });
 
   it('タイトルが空の場合はバリデーションエラーが表示される', async () => {
@@ -191,6 +197,7 @@ describe('PostEditor', () => {
         title: 'テストタイトル',
         contentMarkdown: '# テスト本文\n\nこれはテストです。',
         category: 'tech',
+        tags: [],
         publishStatus: 'draft',
       });
     });
@@ -615,6 +622,7 @@ describe('PostEditor', () => {
         title: '既存記事タイトル',
         contentMarkdown: '# 既存記事本文',
         category: 'life',
+        tags: [],
         publishStatus: 'published',
       };
 
@@ -638,6 +646,7 @@ describe('PostEditor', () => {
         title: '既存記事タイトル',
         contentMarkdown: '# 既存記事本文',
         category: 'deleted-category',
+        tags: [],
         publishStatus: 'published',
       };
 
@@ -719,6 +728,226 @@ describe('PostEditor', () => {
       // プレースホルダーのみ
       expect(options.length).toBe(1);
       expect(options[0].textContent).toBe('カテゴリがありません');
+    });
+  });
+
+  describe('タグ機能', () => {
+    it('タグ入力フィールドと追加ボタンが表示される', () => {
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
+      );
+
+      expect(screen.getByLabelText(/タグ/i)).toBeInTheDocument();
+      expect(screen.getByTestId('tag-input')).toBeInTheDocument();
+      expect(screen.getByTestId('add-tag-button')).toBeInTheDocument();
+    });
+
+    it('Enterキーでタグを追加できる', async () => {
+      const user = userEvent.setup();
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
+      );
+
+      const tagInput = screen.getByTestId('tag-input');
+      await user.type(tagInput, 'React{Enter}');
+
+      expect(screen.getByText('React')).toBeInTheDocument();
+      expect(tagInput).toHaveValue('');
+    });
+
+    it('追加ボタンでタグを追加できる', async () => {
+      const user = userEvent.setup();
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
+      );
+
+      const tagInput = screen.getByTestId('tag-input');
+      const addButton = screen.getByTestId('add-tag-button');
+
+      await user.type(tagInput, 'TypeScript');
+      await user.click(addButton);
+
+      expect(screen.getByText('TypeScript')).toBeInTheDocument();
+      expect(tagInput).toHaveValue('');
+    });
+
+    it('カンマキーでタグを追加できる', async () => {
+      const user = userEvent.setup();
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
+      );
+
+      const tagInput = screen.getByTestId('tag-input');
+      await user.type(tagInput, 'AWS');
+      await user.type(tagInput, ',');
+
+      expect(screen.getByText('AWS')).toBeInTheDocument();
+      expect(tagInput).toHaveValue('');
+    });
+
+    it('タグを削除できる', async () => {
+      const user = userEvent.setup();
+      const initialData: PostData = {
+        title: 'テスト',
+        contentMarkdown: '# テスト',
+        category: 'tech',
+        tags: ['React', 'AWS'],
+        publishStatus: 'draft',
+      };
+
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+          initialData={initialData}
+        />
+      );
+
+      expect(screen.getByText('React')).toBeInTheDocument();
+      expect(screen.getByText('AWS')).toBeInTheDocument();
+
+      const removeButton = screen.getByTestId('remove-tag-0');
+      await user.click(removeButton);
+
+      expect(screen.queryByText('React')).not.toBeInTheDocument();
+      expect(screen.getByText('AWS')).toBeInTheDocument();
+    });
+
+    it('空のタグは追加されない', async () => {
+      const user = userEvent.setup();
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
+      );
+
+      const tagInput = screen.getByTestId('tag-input');
+      await user.type(tagInput, '   {Enter}');
+
+      expect(screen.queryByTestId('tags-list')).not.toBeInTheDocument();
+    });
+
+    it('重複タグは追加されない', async () => {
+      const user = userEvent.setup();
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
+      );
+
+      const tagInput = screen.getByTestId('tag-input');
+      await user.type(tagInput, 'React{Enter}');
+      await user.type(tagInput, 'React{Enter}');
+
+      const reactTags = screen.getAllByText('React');
+      expect(reactTags).toHaveLength(1);
+    });
+
+    it('保存時にタグが含まれる', async () => {
+      const user = userEvent.setup();
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
+      );
+
+      await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
+      await user.type(screen.getByLabelText(/本文/i), 'テスト本文');
+      await user.selectOptions(screen.getByLabelText(/カテゴリ/i), 'tech');
+
+      // タグを追加
+      const tagInput = screen.getByTestId('tag-input');
+      await user.type(tagInput, 'React{Enter}');
+      await user.type(tagInput, 'TypeScript{Enter}');
+
+      await user.click(screen.getByRole('button', { name: /保存/i }));
+
+      await waitFor(() => {
+        expect(mockOnSave).toHaveBeenCalledWith(
+          expect.objectContaining({
+            tags: ['React', 'TypeScript'],
+          })
+        );
+      });
+    });
+
+    it('編集時に既存タグが表示される', () => {
+      const initialData: PostData = {
+        title: 'テスト',
+        contentMarkdown: '# テスト',
+        category: 'tech',
+        tags: ['React', 'AWS', 'Go'],
+        publishStatus: 'draft',
+      };
+
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+          initialData={initialData}
+        />
+      );
+
+      expect(screen.getByText('React')).toBeInTheDocument();
+      expect(screen.getByText('AWS')).toBeInTheDocument();
+      expect(screen.getByText('Go')).toBeInTheDocument();
+    });
+
+    it('タグが空の時は追加ボタンが無効化される', () => {
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
+      );
+
+      const addButton = screen.getByTestId('add-tag-button');
+      expect(addButton).toBeDisabled();
+    });
+
+    it('タグ入力中は追加ボタンが有効化される', async () => {
+      const user = userEvent.setup();
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
+      );
+
+      const tagInput = screen.getByTestId('tag-input');
+      const addButton = screen.getByTestId('add-tag-button');
+
+      expect(addButton).toBeDisabled();
+
+      await user.type(tagInput, 'Test');
+
+      expect(addButton).not.toBeDisabled();
     });
   });
 });

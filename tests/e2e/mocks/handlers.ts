@@ -59,12 +59,26 @@ const checkAuth = (request: Request): boolean => {
   return token.split('.').length === 3;
 };
 
+// モックカテゴリデータ
+const mockCategories = [
+  { id: 'cat-1', name: 'technology', slug: 'technology', sortOrder: 1 },
+  { id: 'cat-2', name: 'life', slug: 'life', sortOrder: 2 },
+  { id: 'cat-3', name: 'business', slug: 'business', sortOrder: 3 },
+];
+
 export const handlers = [
+  // カテゴリ一覧取得（公開サイト）
+  http.get(`${API_BASE_URL}/categories`, () => {
+    return HttpResponse.json(mockCategories);
+  }),
+
   // 記事一覧取得（公開サイト）- Happy Path Only
   http.get(`${API_BASE_URL}/posts`, ({ request }) => {
     const url = new URL(request.url);
     const category = url.searchParams.get('category');
-    const tags = url.searchParams.get('tags');
+    // 'q' パラメータをサポート（新API）、'tags'もフォールバックとしてサポート
+    const searchQuery =
+      url.searchParams.get('q') || url.searchParams.get('tags');
     const limit = Number(url.searchParams.get('limit')) || 10;
     const nextToken = url.searchParams.get('nextToken');
 
@@ -77,10 +91,13 @@ export const handlers = [
       );
     }
 
-    // タグフィルタリング
-    if (tags) {
-      filteredPosts = filteredPosts.filter((post) =>
-        post.tags?.some((tag) => tag.toLowerCase().includes(tags.toLowerCase()))
+    // 検索フィルタリング（タイトルまたはタグで検索）
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filteredPosts = filteredPosts.filter(
+        (post) =>
+          post.title.toLowerCase().includes(query) ||
+          post.tags?.some((tag) => tag.toLowerCase().includes(query))
       );
     }
 

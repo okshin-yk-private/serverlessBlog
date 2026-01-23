@@ -137,3 +137,37 @@ output "dashboard_name" {
   value       = module.monitoring.dashboard_name
   description = "CloudWatch dashboard name"
 }
+
+#------------------------------------------------------------------------------
+# Custom Domain Outputs (when enabled)
+#------------------------------------------------------------------------------
+
+output "custom_domain_enabled" {
+  value       = var.enable_custom_domain
+  description = "Whether custom domain is enabled"
+}
+
+output "custom_domain_name" {
+  value       = var.enable_custom_domain ? var.domain_name : null
+  description = "Custom domain name"
+}
+
+output "custom_domain_url" {
+  value       = var.enable_custom_domain ? "https://${var.domain_name}" : null
+  description = "Custom domain URL"
+}
+
+output "www_domain_url" {
+  value       = var.enable_custom_domain ? "https://www.${var.domain_name}" : null
+  description = "WWW custom domain URL"
+}
+
+output "acm_certificate_arn" {
+  value       = var.enable_custom_domain ? module.acm[0].certificate_arn : null
+  description = "ACM certificate ARN (us-east-1)"
+}
+
+output "cloudflare_zone_id" {
+  value       = var.enable_custom_domain ? module.dns_cloudflare[0].zone_id : null
+  description = "Cloudflare zone ID"
+}

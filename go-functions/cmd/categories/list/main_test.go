@@ -628,3 +628,182 @@ func TestHandler_NoAuthRequired(t *testing.T) {
 		t.Errorf("expected status 200 without auth, got %d", resp.StatusCode)
 	}
 }
+
+// TestHandler_FiltersSlugReservationItems tests that SLUG_RESERVATION items are filtered out
+// This tests the fix for the bug where SLUG_RESERVATION items appeared as empty categories
+func TestHandler_FiltersSlugReservationItems(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	// Create test category
+	validCategory := createTestCategory("cat-1", "テクノロジー", "tech", 1)
+	validAV, _ := attributevalue.MarshalMap(validCategory)
+
+	// Create SLUG_RESERVATION item (as stored in DynamoDB)
+	slugReservationItem := map[string]types.AttributeValue{
+		"id":         &types.AttributeValueMemberS{Value: "SLUG#tech"},
+		"slug":       &types.AttributeValueMemberS{Value: "tech"},
+		"categoryId": &types.AttributeValueMemberS{Value: "cat-1"},
+		"itemType":   &types.AttributeValueMemberS{Value: "SLUG_RESERVATION"},
+	}
+
+	// Return both items from scan (simulating real DynamoDB behavior)
+	items := []map[string]types.AttributeValue{validAV, slugReservationItem}
+
+	mockClient := &MockDynamoDBClient{
+		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+			return &dynamodb.ScanOutput{
+				Items: items,
+				Count: int32(len(items)),
+			}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	resp, err := Handler(context.Background(), events.APIGatewayProxyRequest{})
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d. Body: %s", resp.StatusCode, resp.Body)
+	}
+
+	var listResp []domain.CategoryListItem
+	if err := json.Unmarshal([]byte(resp.Body), &listResp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	// Should only return the valid category, not the SLUG_RESERVATION
+	if len(listResp) != 1 {
+		t.Fatalf("expected 1 category (SLUG_RESERVATION should be filtered), got %d", len(listResp))
+	}
+
+	if listResp[0].ID != "cat-1" {
+		t.Errorf("expected category ID 'cat-1', got %q", listResp[0].ID)
+	}
+
+	if listResp[0].Name != "テクノロジー" {
+		t.Errorf("expected category name 'テクノロジー', got %q", listResp[0].Name)
+	}
+}
+
+// TestHandler_FiltersItemsWithEmptyName tests that items with empty name are filtered out
+// This is an additional safety check for corrupted or malformed data
+func TestHandler_FiltersItemsWithEmptyName(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	// Create test category with valid name
+	validCategory := createTestCategory("cat-1", "テクノロジー", "tech", 1)
+	validAV, _ := attributevalue.MarshalMap(validCategory)
+
+	// Create category with empty name (should be filtered)
+	emptyNameCategory := domain.Category{
+		ID:        "cat-2",
+		Name:      "", // Empty name
+		Slug:      "empty",
+		SortOrder: 2,
+		CreatedAt: testCreatedAt,
+		UpdatedAt: testUpdatedAt,
+	}
+	emptyNameAV, _ := attributevalue.MarshalMap(emptyNameCategory)
+
+	items := []map[string]types.AttributeValue{validAV, emptyNameAV}
+
+	mockClient := &MockDynamoDBClient{
+		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+			return &dynamodb.ScanOutput{
+				Items: items,
+				Count: int32(len(items)),
+			}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	resp, err := Handler(context.Background(), events.APIGatewayProxyRequest{})
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d. Body: %s", resp.StatusCode, resp.Body)
+	}
+
+	var listResp []domain.CategoryListItem
+	if err := json.Unmarshal([]byte(resp.Body), &listResp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	// Should only return the valid category, not the empty name one
+	if len(listResp) != 1 {
+		t.Fatalf("expected 1 category (empty name should be filtered), got %d", len(listResp))
+	}
+
+	if listResp[0].ID != "cat-1" {
+		t.Errorf("expected category ID 'cat-1', got %q", listResp[0].ID)
+	}
+}
+
+// TestHandler_FiltersSlugReservationByIDPrefix tests filtering by SLUG# ID prefix
+// When itemType field is missing, we fall back to checking the ID prefix
+func TestHandler_FiltersSlugReservationByIDPrefix(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	// Create test category
+	validCategory := createTestCategory("cat-1", "テクノロジー", "tech", 1)
+	validAV, _ := attributevalue.MarshalMap(validCategory)
+
+	// Create SLUG_RESERVATION item without itemType (edge case)
+	slugReservationItem := map[string]types.AttributeValue{
+		"id":         &types.AttributeValueMemberS{Value: "SLUG#tech"},
+		"slug":       &types.AttributeValueMemberS{Value: "tech"},
+		"categoryId": &types.AttributeValueMemberS{Value: "cat-1"},
+		// No itemType field - testing the ID prefix fallback
+	}
+
+	items := []map[string]types.AttributeValue{validAV, slugReservationItem}
+
+	mockClient := &MockDynamoDBClient{
+		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+			return &dynamodb.ScanOutput{
+				Items: items,
+				Count: int32(len(items)),
+			}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	resp, err := Handler(context.Background(), events.APIGatewayProxyRequest{})
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d. Body: %s", resp.StatusCode, resp.Body)
+	}
+
+	var listResp []domain.CategoryListItem
+	if err := json.Unmarshal([]byte(resp.Body), &listResp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	// Should only return the valid category
+	if len(listResp) != 1 {
+		t.Fatalf("expected 1 category (SLUG# prefix should be filtered), got %d", len(listResp))
+	}
+
+	if listResp[0].ID != "cat-1" {
+		t.Errorf("expected category ID 'cat-1', got %q", listResp[0].ID)
+	}
+}

@@ -25,6 +25,7 @@ const PostCreatePage = () => {
     title: string;
     contentMarkdown: string;
     category: string;
+    tags: string[];
     publishStatus: 'draft' | 'published';
   }) => {
     try {

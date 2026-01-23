@@ -32,3 +32,23 @@ variable "alarm_email" {
   description = "Email address for alarm notifications"
   sensitive   = true
 }
+
+# Custom Domain Configuration
+variable "enable_custom_domain" {
+  type        = bool
+  description = "Enable custom domain configuration (requires Cloudflare API token)"
+  default     = false
+}
+
+variable "domain_name" {
+  type        = string
+  description = "Custom domain name for production (e.g., boneofmyfallacy.net)"
+  default     = "boneofmyfallacy.net"
+}
+
+variable "cloudflare_api_token" {
+  type        = string
+  description = "Cloudflare API token for DNS management"
+  sensitive   = true
+  default     = ""
+}

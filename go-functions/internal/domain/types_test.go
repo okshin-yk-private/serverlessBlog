@@ -713,6 +713,7 @@ func TestCreateCategoryRequestValidation(t *testing.T) {
 
 // TestGenerateSlug tests slug generation from name
 // Requirement 3.5: Auto-generate slug from name if not provided
+// Supports Japanese text (kanji, hiragana, katakana) by converting to romaji.
 func TestGenerateSlug(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -744,15 +745,41 @@ func TestGenerateSlug(t *testing.T) {
 			input:    "Tech 2024",
 			expected: "tech-2024",
 		},
+		// Japanese text to romaji conversion tests
 		{
-			name:     "Japanese characters removed",
+			name:     "katakana to romaji",
 			input:    "テクノロジー",
-			expected: "",
+			expected: "tekunoroji",
+		},
+		{
+			name:     "hiragana to romaji",
+			input:    "ぷろぐらみんぐ",
+			expected: "puroguramingu",
+		},
+		{
+			name:     "kanji to romaji",
+			input:    "技術",
+			expected: "gijutsu",
 		},
 		{
 			name:     "mixed Japanese and English",
 			input:    "My テクノロジー Blog",
-			expected: "my-blog",
+			expected: "my-tekunoroji-blog",
+		},
+		{
+			name:     "kanji with mixed content",
+			input:    "Web開発",
+			expected: "webkaihatsu",
+		},
+		{
+			name:     "complex Japanese phrase",
+			input:    "プログラミング入門",
+			expected: "puroguramingunyuumon",
+		},
+		{
+			name:     "Japanese with spaces",
+			input:    "AI と 機械学習",
+			expected: "ai-to-kikaigakushuu",
 		},
 		{
 			name:     "special characters removed",

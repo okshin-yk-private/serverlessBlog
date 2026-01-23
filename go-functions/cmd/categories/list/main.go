@@ -12,6 +12,7 @@ import (
 	"context"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -102,18 +103,48 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 }
 
 // processResults converts DynamoDB items to Category structs
+// Filters out SLUG_RESERVATION items which are used for slug uniqueness enforcement
 func processResults(items []map[string]types.AttributeValue) []domain.Category {
 	result := make([]domain.Category, 0, len(items))
 
 	for _, item := range items {
+		// Skip SLUG_RESERVATION items (used for atomic slug uniqueness)
+		if isSlugReservation(item) {
+			continue
+		}
+
 		var category domain.Category
 		if err := attributevalue.UnmarshalMap(item, &category); err != nil {
 			continue // Skip invalid items
 		}
+
+		// Skip items with empty name (additional safety check)
+		if category.Name == "" {
+			continue
+		}
+
 		result = append(result, category)
 	}
 
 	return result
+}
+
+// isSlugReservation checks if the item is a SLUG_RESERVATION item
+// SLUG_RESERVATION items are created during category creation to ensure slug uniqueness
+func isSlugReservation(item map[string]types.AttributeValue) bool {
+	// Check for itemType field (explicit marker)
+	if itemType, ok := item["itemType"]; ok {
+		if s, ok := itemType.(*types.AttributeValueMemberS); ok {
+			return s.Value == "SLUG_RESERVATION"
+		}
+	}
+	// Fallback: check if id starts with "SLUG#"
+	if id, ok := item["id"]; ok {
+		if s, ok := id.(*types.AttributeValueMemberS); ok {
+			return strings.HasPrefix(s.Value, "SLUG#")
+		}
+	}
+	return false
 }
 
 // errorResponse creates an error response with CORS headers

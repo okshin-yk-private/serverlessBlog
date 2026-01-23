@@ -5,7 +5,12 @@
  */
 
 import axios from 'axios';
-import type { Post, PostListResponse, PostListFilters } from '../types/post';
+import type {
+  Post,
+  PostListResponse,
+  PostListFilters,
+  CategoryListItem,
+} from '../types/post';
 
 /* c8 ignore next */
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -21,8 +26,12 @@ export const fetchPosts = async (
   if (filters.category) {
     params.category = filters.category;
   }
-  if (filters.tags) {
-    params.tags = filters.tags;
+  // Use 'q' parameter for search (replaces tags for search functionality)
+  if (filters.q) {
+    params.q = filters.q;
+  } else if (filters.tags) {
+    // Backward compatibility: use tags as search if q not provided
+    params.q = filters.tags;
   }
   if (filters.limit) {
     params.limit = filters.limit;
@@ -50,6 +59,17 @@ export const fetchPosts = async (
  */
 export const fetchPost = async (id: string): Promise<Post> => {
   const response = await axios.get<Post>(`${API_BASE_URL}/posts/${id}`);
+
+  return response.data;
+};
+
+/**
+ * カテゴリー一覧を取得
+ */
+export const fetchCategories = async (): Promise<CategoryListItem[]> => {
+  const response = await axios.get<CategoryListItem[]>(
+    `${API_BASE_URL}/categories`
+  );
 
   return response.data;
 };

@@ -155,6 +155,41 @@ EOF
   }
 }
 
+# CloudFront Function for Public Site SPA routing (production - no auth)
+resource "aws_cloudfront_function" "public_spa" {
+  count   = var.enable_basic_auth ? 0 : 1
+  name    = "PublicSpaFunction-${var.environment}"
+  runtime = "cloudfront-js-2.0"
+  comment = "SPA routing for Public site (${var.environment})"
+  publish = true
+  code    = <<-EOF
+function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+
+  // SPA routing: For paths without file extension, serve /index.html
+  if (uri === '/' || uri === '') {
+    request.uri = '/index.html';
+  } else if (!uri.includes('.')) {
+    // SPA route (e.g., /about, /posts/123) -> serve /index.html
+    request.uri = '/index.html';
+  }
+  // Paths with extensions (e.g., /assets/foo.js) pass through unchanged
+
+  return request;
+}
+EOF
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# CloudFront Function for Public Site - Combined Basic Auth + SPA routing
+# NOTE: This SPA function is DEPRECATED - SSG version (public_combined below) is used instead
+# Keeping only as reference - do not use
+# resource "aws_cloudfront_function" "public_combined_spa_deprecated" { ... }
+
 # CloudFront Function for Image path rewriting
 # Strips /images prefix for origin request
 resource "aws_cloudfront_function" "image_path" {
@@ -431,6 +466,9 @@ resource "aws_cloudfront_distribution" "main" {
   default_root_object = "index.html"
   price_class         = var.price_class
 
+  # Custom domain names (CNAMEs) - only when custom domain is enabled
+  aliases = var.use_custom_domain ? var.domain_names : []
+
   # Default behavior: Public Site (S3 origin with OAC)
   # Requirements: 7.1, 7.2, 7.3, 7.6, 7.8, 7.9
   default_cache_behavior {
@@ -570,9 +608,12 @@ resource "aws_cloudfront_distribution" "main" {
 
   # Viewer certificate with TLS 1.2
   # Requirement 7.2: HTTPS enforcement
+  # When custom domain is enabled, use ACM certificate; otherwise use CloudFront default
   viewer_certificate {
-    cloudfront_default_certificate = true
+    acm_certificate_arn            = var.use_custom_domain ? var.acm_certificate_arn : null
+    cloudfront_default_certificate = var.use_custom_domain ? false : true
     minimum_protocol_version       = "TLSv1.2_2021"
+    ssl_support_method             = var.use_custom_domain ? "sni-only" : null
   }
 
   tags = merge(

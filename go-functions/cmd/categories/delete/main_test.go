@@ -39,9 +39,10 @@ const (
 
 // MockDynamoDBClient is a mock implementation of DynamoDBClientInterface
 type MockDynamoDBClient struct {
-	GetItemFunc    func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
-	QueryFunc      func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
-	DeleteItemFunc func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
+	GetItemFunc            func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
+	QueryFunc              func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
+	DeleteItemFunc         func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
+	TransactWriteItemsFunc func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error)
 }
 
 func (m *MockDynamoDBClient) GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
@@ -63,6 +64,13 @@ func (m *MockDynamoDBClient) DeleteItem(ctx context.Context, params *dynamodb.De
 		return m.DeleteItemFunc(ctx, params, optFns...)
 	}
 	return nil, errors.New("DeleteItemFunc not set")
+}
+
+func (m *MockDynamoDBClient) TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+	if m.TransactWriteItemsFunc != nil {
+		return m.TransactWriteItemsFunc(ctx, params, optFns...)
+	}
+	return nil, errors.New("TransactWriteItemsFunc not set")
 }
 
 func setupTest(t *testing.T) func() {
@@ -125,7 +133,8 @@ func TestHandler_SuccessfulDelete(t *testing.T) {
 	existingCat := createExistingCategory()
 	existingAV, _ := attributevalue.MarshalMap(existingCat)
 
-	var deletedID string
+	var deletedCategoryID string
+	var deletedSlugReservationID string
 
 	mockClient := &MockDynamoDBClient{
 		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
@@ -135,14 +144,22 @@ func TestHandler_SuccessfulDelete(t *testing.T) {
 			// No posts reference this category
 			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
 		},
-		DeleteItemFunc: func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
-			// Capture the deleted ID
-			if idAttr, ok := params.Key["id"]; ok {
-				if s, ok := idAttr.(*types.AttributeValueMemberS); ok {
-					deletedID = s.Value
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			// Capture the deleted IDs from the transaction
+			for _, item := range params.TransactItems {
+				if item.Delete != nil {
+					if idAttr, ok := item.Delete.Key["id"]; ok {
+						if s, ok := idAttr.(*types.AttributeValueMemberS); ok {
+							if s.Value == testCategoryID {
+								deletedCategoryID = s.Value
+							} else {
+								deletedSlugReservationID = s.Value
+							}
+						}
+					}
 				}
 			}
-			return &dynamodb.DeleteItemOutput{}, nil
+			return &dynamodb.TransactWriteItemsOutput{}, nil
 		},
 	}
 
@@ -168,8 +185,14 @@ func TestHandler_SuccessfulDelete(t *testing.T) {
 	}
 
 	// Verify the correct category was deleted
-	if deletedID != testCategoryID {
-		t.Errorf("expected deleted ID %q, got %q", testCategoryID, deletedID)
+	if deletedCategoryID != testCategoryID {
+		t.Errorf("expected deleted category ID %q, got %q", testCategoryID, deletedCategoryID)
+	}
+
+	// Verify the SLUG_RESERVATION was also deleted
+	expectedSlugReservationID := "SLUG#" + existingCat.Slug
+	if deletedSlugReservationID != expectedSlugReservationID {
+		t.Errorf("expected deleted slug reservation ID %q, got %q", expectedSlugReservationID, deletedSlugReservationID)
 	}
 }
 
@@ -485,7 +508,7 @@ func TestHandler_QueryError(t *testing.T) {
 	}
 }
 
-// TestHandler_DeleteItemError tests 500 response when DeleteItem fails
+// TestHandler_DeleteItemError tests 500 response when TransactWriteItems fails
 func TestHandler_DeleteItemError(t *testing.T) {
 	cleanup := setupTest(t)
 	defer cleanup()
@@ -501,8 +524,8 @@ func TestHandler_DeleteItemError(t *testing.T) {
 			// No posts reference this category
 			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
 		},
-		DeleteItemFunc: func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
-			return nil, errors.New("DynamoDB delete error")
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return nil, errors.New("DynamoDB transaction error")
 		},
 	}
 
@@ -546,8 +569,8 @@ func TestHandler_CORSHeaders(t *testing.T) {
 		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
 			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
 		},
-		DeleteItemFunc: func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
-			return &dynamodb.DeleteItemOutput{}, nil
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return &dynamodb.TransactWriteItemsOutput{}, nil
 		},
 	}
 
@@ -586,8 +609,8 @@ func TestHandler_UsesCorrectCategoryIndexQuery(t *testing.T) {
 			queryParams = params
 			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
 		},
-		DeleteItemFunc: func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
-			return &dynamodb.DeleteItemOutput{}, nil
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return &dynamodb.TransactWriteItemsOutput{}, nil
 		},
 	}
 
@@ -643,7 +666,7 @@ func TestHandler_UsesCorrectTable(t *testing.T) {
 	existingCat := createExistingCategory()
 	existingAV, _ := attributevalue.MarshalMap(existingCat)
 
-	var deleteTableName string
+	var transactTableName string
 
 	mockClient := &MockDynamoDBClient{
 		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
@@ -652,11 +675,14 @@ func TestHandler_UsesCorrectTable(t *testing.T) {
 		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
 			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
 		},
-		DeleteItemFunc: func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
-			if params.TableName != nil {
-				deleteTableName = *params.TableName
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			// Get table name from first delete item in transaction
+			if len(params.TransactItems) > 0 && params.TransactItems[0].Delete != nil {
+				if params.TransactItems[0].Delete.TableName != nil {
+					transactTableName = *params.TransactItems[0].Delete.TableName
+				}
 			}
-			return &dynamodb.DeleteItemOutput{}, nil
+			return &dynamodb.TransactWriteItemsOutput{}, nil
 		},
 	}
 
@@ -671,8 +697,8 @@ func TestHandler_UsesCorrectTable(t *testing.T) {
 		t.Fatalf("Handler returned unexpected error: %v", err)
 	}
 
-	if deleteTableName != testCategoriesTable {
-		t.Errorf("expected delete table name %q, got %q", testCategoriesTable, deleteTableName)
+	if transactTableName != testCategoriesTable {
+		t.Errorf("expected delete table name %q, got %q", testCategoriesTable, transactTableName)
 	}
 }
 
@@ -751,6 +777,48 @@ func TestHandler_SubMissing(t *testing.T) {
 
 	if resp.StatusCode != 401 {
 		t.Errorf("expected status 401, got %d", resp.StatusCode)
+	}
+}
+
+// TestHandler_SlugReservationIDRejected tests that SLUG_RESERVATION IDs are rejected (404)
+func TestHandler_SlugReservationIDRejected(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	// Try to delete a SLUG_RESERVATION ID
+	slugReservationID := "SLUG#tech"
+
+	mockClient := &MockDynamoDBClient{
+		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			// This should never be called because SLUG# IDs are rejected early
+			t.Error("GetItem should not be called for SLUG_RESERVATION IDs")
+			return nil, errors.New("should not reach here")
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	request := createAuthenticatedRequest(slugReservationID)
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	// Should return 404 for SLUG_RESERVATION IDs
+	if resp.StatusCode != 404 {
+		t.Errorf("expected status 404 for SLUG_RESERVATION ID, got %d. Body: %s", resp.StatusCode, resp.Body)
+	}
+
+	var errResp domain.ErrorResponse
+	if err := json.Unmarshal([]byte(resp.Body), &errResp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if errResp.Message != "category not found" {
+		t.Errorf("expected error message %q, got %q", "category not found", errResp.Message)
 	}
 }
 
