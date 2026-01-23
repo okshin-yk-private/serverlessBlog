@@ -32,14 +32,22 @@ import type { JsonLdPost } from '../../lib/jsonLdUtils';
 
 /**
  * getStaticPaths: 全公開記事のパスを生成
+ *
+ * API が利用できない場合は空配列を返し、ビルドを継続する
  */
 export async function getStaticPaths() {
-  const posts = await fetchAllPosts();
+  try {
+    const posts = await fetchAllPosts();
 
-  return posts.map((post) => ({
-    params: { id: post.id },
-    props: { post },
-  }));
+    return posts.map((post) => ({
+      params: { id: post.id },
+      props: { post },
+    }));
+  } catch (error) {
+    console.error('Failed to fetch posts for static paths:', error);
+    // API が利用できない場合は空配列を返し、ビルドを継続
+    return [];
+  }
 }
 
 interface Props {
