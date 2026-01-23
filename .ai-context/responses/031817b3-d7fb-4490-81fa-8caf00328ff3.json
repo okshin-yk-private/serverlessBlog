@@ -1,0 +1,104 @@
+{
+  "id": "031817b3-d7fb-4490-81fa-8caf00328ff3",
+  "type": "code_review",
+  "status": "completed",
+  "request": {
+    "files": [
+      "terraform/modules/monitoring/versions.tf",
+      "terraform/modules/monitoring/main.tf",
+      "terraform/modules/monitoring/variables.tf",
+      "terraform/modules/monitoring/outputs.tf",
+      "terraform/modules/auth/versions.tf",
+      "terraform/modules/auth/main.tf",
+      "terraform/modules/auth/variables.tf",
+      "terraform/modules/auth/import.tf",
+      "terraform/modules/auth/outputs.tf",
+      "terraform/modules/storage/versions.tf",
+      "terraform/modules/storage/main.tf",
+      "terraform/modules/storage/variables.tf",
+      "terraform/modules/storage/import.tf",
+      "terraform/modules/storage/outputs.tf",
+      "terraform/modules/lambda/versions.tf",
+      "terraform/modules/lambda/iam.tf",
+      "terraform/modules/lambda/main.tf",
+      "terraform/modules/lambda/variables.tf",
+      "terraform/modules/lambda/import.tf",
+      "terraform/modules/lambda/outputs.tf"
+    ],
+    "focus_areas": ["security"],
+    "specific_questions": [],
+    "context_summary": "Security review of Terraform modules for serverless blog infrastructure (CDK to Terraform migration)"
+  },
+  "response": {
+    "completed_at": "2026-01-16T07:29:15.644Z",
+    "reviewer": "codex/gpt-5",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "terraform/modules/auth/main.tf",
+        "line": 92,
+        "code_snippet": "allowed_oauth_flows = [\"code\", \"implicit\"]",
+        "issue": "Cognito app client enables the implicit OAuth flow, which exposes tokens in URLs and bypasses PKCE protections.",
+        "suggestion": "Remove the implicit flow and use authorization code flow with PKCE only (e.g., keep only \"code\").",
+        "category": "security"
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "terraform/modules/auth/main.tf",
+        "line": 101,
+        "code_snippet": "callback_urls = [\"https://example.com\"]",
+        "issue": "Callback URL is hard-coded to a placeholder domain; if left unchanged, auth codes/tokens can be redirected to an unintended host.",
+        "suggestion": "Make callback URLs environment-specific (variable input) and restrict them to the actual admin/public domains.",
+        "category": "security"
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "terraform/modules/auth/main.tf",
+        "line": 62,
+        "code_snippet": "resource \"aws_cognito_user_pool_client\" \"main\" {",
+        "issue": "The app client does not enable \"prevent_user_existence_errors\", which allows user enumeration via auth error responses.",
+        "suggestion": "Set `prevent_user_existence_errors = \"ENABLED\"` on the user pool client to reduce enumeration risk.",
+        "category": "security"
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "terraform/modules/lambda/iam.tf",
+        "line": 49,
+        "code_snippet": "Action = [\n  \"dynamodb:GetItem\",\n  \"dynamodb:PutItem\",\n  \"dynamodb:UpdateItem\",\n  \"dynamodb:DeleteItem\",\n  \"dynamodb:Query\",\n  \"dynamodb:Scan\"\n]",
+        "issue": "All Posts-domain Lambdas share a single role with full DynamoDB write/delete privileges, including public endpoints (get_public_post/list_posts). This violates least privilege and increases blast radius if a public function is abused.",
+        "suggestion": "Split roles by function sensitivity (read-only role for public endpoints, read/write role for admin endpoints) and attach narrower policies.",
+        "category": "security"
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "terraform/modules/lambda/iam.tf",
+        "line": 215,
+        "code_snippet": "resource \"aws_iam_role_policy\" \"lambda_categories_dynamodb\" {",
+        "issue": "Categories functions use a shared role with write permissions even for the public list endpoint, allowing unintended writes if that public path is exploited.",
+        "suggestion": "Create a separate read-only role/policy for `list_categories` and keep write permissions only on authenticated/admin functions.",
+        "category": "security"
+      },
+      {
+        "severity": "LOW",
+        "file": "terraform/modules/storage/main.tf",
+        "line": 163,
+        "code_snippet": "cors_rule {\n  allowed_headers = [\"*\"]\n  allowed_methods = [\"PUT\"]\n  allowed_origins = [\"*\"]\n}",
+        "issue": "Image bucket CORS allows any origin and any header, which broadens where pre-signed uploads can be used if a URL leaks.",
+        "suggestion": "Restrict CORS to known admin origins and only the headers/methods required for uploads.",
+        "category": "security"
+      },
+      {
+        "severity": "LOW",
+        "file": "terraform/modules/storage/main.tf",
+        "line": 185,
+        "code_snippet": "Condition = {\n  StringEquals = {\n    \"AWS:SourceArn\" = var.cloudfront_distribution_arn\n  }\n}",
+        "issue": "CloudFront OAC bucket policies rely only on SourceArn; without SourceAccount, they are less protected against confused-deputy scenarios.",
+        "suggestion": "Add `\"AWS:SourceAccount\" = data.aws_caller_identity.current.account_id` to the policy condition.",
+        "category": "security"
+      }
+    ],
+    "summary": "Reviewed Terraform modules with a security focus; found OAuth client configuration risks, least-privilege gaps for public Lambdas, and a few S3 hardening items.",
+    "approved": false,
+    "specific_answers": []
+  }
+}

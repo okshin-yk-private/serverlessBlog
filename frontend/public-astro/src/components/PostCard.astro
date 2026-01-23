@@ -1,0 +1,124 @@
+---
+/**
+ * PostCard.astro - 記事カードコンポーネント
+ *
+ * Requirements:
+ * - 2.2: 記事一覧ページ用のカードコンポーネント
+ *   - タイトル、カテゴリ、作成日時、抜粋を表示
+ *   - 記事詳細へのリンクを設定
+ */
+
+import type { Post } from '../lib/api';
+import { generateExcerpt, formatDateJa } from '../lib/postUtils';
+
+interface Props {
+  post: Post;
+}
+
+const { post } = Astro.props;
+const excerpt = generateExcerpt(post.contentHtml, 100);
+const formattedDate = formatDateJa(post.createdAt);
+---
+
+<article class="post-card" data-testid="article-card">
+  <a href={`/posts/${post.id}`} class="post-link">
+    <h2 class="post-title" data-testid="article-title">{post.title}</h2>
+    <div class="post-meta">
+      <span class="category" data-testid="article-category">{post.category}</span>
+      <span class="date">{formattedDate}</span>
+    </div>
+    {post.tags && post.tags.length > 0 && (
+      <div class="tags">
+        {post.tags.map((tag) => (
+          <span class="tag">{tag}</span>
+        ))}
+      </div>
+    )}
+    <p class="excerpt" data-testid="article-excerpt">{excerpt}</p>
+  </a>
+</article>
+
+<style>
+  .post-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+    transition: all 0.2s ease;
+    height: 100%;
+  }
+
+  .post-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(45, 42, 90, 0.15);
+    border-color: #C9A857;
+  }
+
+  .post-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .post-title {
+    margin: 0 0 12px 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #2D2A5A;
+    line-height: 1.4;
+  }
+
+  .post-link:hover .post-title {
+    color: #C9A857;
+  }
+
+  .post-meta {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 0.875rem;
+  }
+
+  .category {
+    background: #2D2A5A;
+    padding: 6px 16px;
+    border-radius: 6px;
+    color: white;
+    font-weight: 500;
+    font-size: 0.875rem;
+  }
+
+  .date {
+    color: #9ca3af;
+  }
+
+  .tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+
+  .tag {
+    background: #ffffff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: #374151;
+    font-weight: 500;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .excerpt {
+    color: #6b7280;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    flex-grow: 1;
+    margin: 0;
+  }
+</style>

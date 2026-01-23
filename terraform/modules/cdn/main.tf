@@ -45,6 +45,54 @@ resource "aws_cloudfront_cache_policy" "images" {
   }
 }
 
+# Cache Policy for Astro static assets (/_astro/*) with 1-year TTL
+# Requirement 7.7: Cache static assets with content-based hash for 1 year
+resource "aws_cloudfront_cache_policy" "astro_assets" {
+  name        = "BlogAstroAssetsCachePolicy-${var.environment}"
+  comment     = "Cache policy for Astro static assets with 1-year TTL (immutable)"
+  default_ttl = 31536000 # 1 year
+  min_ttl     = 31536000 # 1 year (immutable - content hash in filename)
+  max_ttl     = 31536000 # 1 year
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    cookies_config {
+      cookie_behavior = "none"
+    }
+    headers_config {
+      header_behavior = "none"
+    }
+    query_strings_config {
+      query_string_behavior = "none"
+    }
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+  }
+}
+
+# Cache Policy for HTML/XML pages with 1-hour default TTL
+# Requirement 7.6: Default TTL 1 hour, max TTL 24 hours for HTML pages
+resource "aws_cloudfront_cache_policy" "html_pages" {
+  name        = "BlogHtmlPagesCachePolicy-${var.environment}"
+  comment     = "Cache policy for HTML/XML pages with 1-hour default TTL"
+  default_ttl = 3600  # 1 hour
+  min_ttl     = 0     # Respect Cache-Control: no-cache
+  max_ttl     = 86400 # 24 hours
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    cookies_config {
+      cookie_behavior = "none"
+    }
+    headers_config {
+      header_behavior = "none"
+    }
+    query_strings_config {
+      query_string_behavior = "none"
+    }
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+  }
+}
+
 # Origin Request Policy for API Gateway
 resource "aws_cloudfront_origin_request_policy" "api" {
   name    = "BlogApiOriginRequestPolicy-${var.environment}"
@@ -242,6 +290,138 @@ function handler(event) {
 EOF
 }
 
+# CloudFront Function for Public Site SSG routing
+# Requirements: 7.8, 7.9, 5.6
+# Rewrites extensionless URLs to {path}/index.html for Astro static pages
+resource "aws_cloudfront_function" "public_ssg" {
+  name    = "PublicSsgFunction-${var.environment}"
+  runtime = "cloudfront-js-2.0"
+  comment = "SSG routing for public site - rewrites extensionless URLs to index.html"
+  publish = true
+  code    = <<-EOF
+function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+
+  // Known file extensions for web assets
+  var knownExtensions = ['html','htm','js','mjs','cjs','css','json','xml','txt','jpg','jpeg','png','gif','webp','svg','ico','avif','woff','woff2','ttf','eot','otf','pdf','mp3','mp4','webm','ogg','map','wasm'];
+
+  // Check for file extension in last segment
+  var segments = uri.split('/');
+  var lastSegment = segments[segments.length - 1];
+
+  if (lastSegment !== '') {
+    var lastDotIndex = lastSegment.lastIndexOf('.');
+    if (lastDotIndex > 0) {
+      var ext = lastSegment.substring(lastDotIndex + 1).toLowerCase();
+      for (var i = 0; i < knownExtensions.length; i++) {
+        if (knownExtensions[i] === ext) {
+          return request;
+        }
+      }
+    }
+  }
+
+  // Check for excluded paths
+  if (uri.indexOf('/_astro/') === 0 ||
+      uri.indexOf('/api/') === 0 ||
+      uri === '/admin' ||
+      uri.indexOf('/admin/') === 0 ||
+      uri.indexOf('/images/') === 0 ||
+      (uri.indexOf('/sitemap') === 0 && uri.indexOf('.xml') > -1) ||
+      uri === '/rss.xml' ||
+      uri === '/robots.txt') {
+    return request;
+  }
+
+  // Rewrite to index.html
+  if (uri.charAt(uri.length - 1) === '/') {
+    request.uri = uri + 'index.html';
+  } else {
+    request.uri = uri + '/index.html';
+  }
+
+  return request;
+}
+EOF
+}
+
+# CloudFront Function for Public Site - Combined Basic Auth + SSG routing (dev environment)
+# Requirements: 7.8, 7.9, 5.6
+resource "aws_cloudfront_function" "public_combined" {
+  count   = var.enable_basic_auth ? 1 : 0
+  name    = "PublicCombinedFunction-${var.environment}"
+  runtime = "cloudfront-js-2.0"
+  comment = "Combined Basic Auth and SSG routing for public site (${var.environment})"
+  publish = true
+  code    = <<-EOF
+function handler(event) {
+  var request = event.request;
+  var headers = request.headers;
+  var uri = request.uri;
+
+  // Basic Authentication check
+  var authString = 'Basic ' + btoa('${var.basic_auth_username}:${var.basic_auth_password}');
+  if (
+    typeof headers.authorization === 'undefined' ||
+    headers.authorization.value !== authString
+  ) {
+    return {
+      statusCode: 401,
+      statusDescription: 'Unauthorized',
+      headers: {
+        'www-authenticate': { value: 'Basic realm="DEV Environment"' },
+      },
+    };
+  }
+
+  // Known file extensions for web assets
+  var knownExtensions = ['html','htm','js','mjs','cjs','css','json','xml','txt','jpg','jpeg','png','gif','webp','svg','ico','avif','woff','woff2','ttf','eot','otf','pdf','mp3','mp4','webm','ogg','map','wasm'];
+
+  // Check for file extension in last segment
+  var segments = uri.split('/');
+  var lastSegment = segments[segments.length - 1];
+
+  if (lastSegment !== '') {
+    var lastDotIndex = lastSegment.lastIndexOf('.');
+    if (lastDotIndex > 0) {
+      var ext = lastSegment.substring(lastDotIndex + 1).toLowerCase();
+      for (var i = 0; i < knownExtensions.length; i++) {
+        if (knownExtensions[i] === ext) {
+          return request;
+        }
+      }
+    }
+  }
+
+  // Check for excluded paths
+  if (uri.indexOf('/_astro/') === 0 ||
+      uri.indexOf('/api/') === 0 ||
+      uri === '/admin' ||
+      uri.indexOf('/admin/') === 0 ||
+      uri.indexOf('/images/') === 0 ||
+      (uri.indexOf('/sitemap') === 0 && uri.indexOf('.xml') > -1) ||
+      uri === '/rss.xml' ||
+      uri === '/robots.txt') {
+    return request;
+  }
+
+  // Rewrite to index.html
+  if (uri.charAt(uri.length - 1) === '/') {
+    request.uri = uri + 'index.html';
+  } else {
+    request.uri = uri + '/index.html';
+  }
+
+  return request;
+}
+EOF
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 # Unified CloudFront Distribution
 # Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6
 resource "aws_cloudfront_distribution" "main" {
@@ -252,22 +432,19 @@ resource "aws_cloudfront_distribution" "main" {
   price_class         = var.price_class
 
   # Default behavior: Public Site (S3 origin with OAC)
-  # Requirement 7.1, 7.2, 7.3
+  # Requirements: 7.1, 7.2, 7.3, 7.6, 7.8, 7.9
   default_cache_behavior {
     allowed_methods        = ["GET", "HEAD"]
     cached_methods         = ["GET", "HEAD"]
     target_origin_id       = "public-site"
     viewer_protocol_policy = "redirect-to-https"
     compress               = true
-    cache_policy_id        = local.cache_policy_caching_optimized
+    cache_policy_id        = aws_cloudfront_cache_policy.html_pages.id
 
-    # Basic Auth function for dev environment protection
-    dynamic "function_association" {
-      for_each = var.enable_basic_auth ? [1] : []
-      content {
-        event_type   = "viewer-request"
-        function_arn = aws_cloudfront_function.basic_auth[0].arn
-      }
+    # Use combined function (auth + SSG) for dev, SSG-only for production
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = var.enable_basic_auth ? aws_cloudfront_function.public_combined[0].arn : aws_cloudfront_function.public_ssg.arn
     }
   }
 
@@ -305,6 +482,19 @@ resource "aws_cloudfront_distribution" "main" {
       origin_protocol_policy = "https-only"
       origin_ssl_protocols   = ["TLSv1.2"]
     }
+  }
+
+  # /_astro/* behavior - Astro static assets with 1-year TTL
+  # Requirement 7.7: Cache static assets with content-based hash for 1 year
+  ordered_cache_behavior {
+    path_pattern           = "/_astro/*"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "public-site"
+    viewer_protocol_policy = "redirect-to-https"
+    compress               = true
+    cache_policy_id        = aws_cloudfront_cache_policy.astro_assets.id
+    # No function association - static assets don't need URL rewriting
   }
 
   # /admin/* behavior
@@ -360,10 +550,16 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
-  # Note: custom_error_response removed because:
-  # 1. CloudFront functions handle SPA routing (rewrite to /index.html)
-  # 2. Global error responses interfere with /admin/* Basic Auth
-  # 3. S3 should not return 403/404 since functions rewrite paths first
+  # Custom error response for SSG 404 page
+  # Requirement 7.10, 15.3: Serve custom 404.html for S3 404 responses
+  # Note: CloudFront Function rewrites paths to index.html, but if the file
+  # doesn't exist in S3, this error response serves the custom 404 page.
+  custom_error_response {
+    error_code            = 404
+    response_code         = 404
+    response_page_path    = "/404.html"
+    error_caching_min_ttl = 60
+  }
 
   # Restrictions (no geo restrictions)
   restrictions {

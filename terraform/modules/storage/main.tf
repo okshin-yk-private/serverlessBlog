@@ -224,6 +224,15 @@ resource "aws_s3_bucket" "public_site" {
   }
 }
 
+# Requirement 6.2: Enable versioning on public site bucket for atomic deployment rollback
+resource "aws_s3_bucket_versioning" "public_site" {
+  bucket = aws_s3_bucket.public_site.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
 # Requirement 3.2: Configure SSE-S3 encryption
 resource "aws_s3_bucket_server_side_encryption_configuration" "public_site" {
   bucket = aws_s3_bucket.public_site.id
@@ -243,6 +252,21 @@ resource "aws_s3_bucket_public_access_block" "public_site" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+# Requirement 6.7: Lifecycle policy to cleanup old versions (retain for rollback window)
+resource "aws_s3_bucket_lifecycle_configuration" "public_site" {
+  bucket = aws_s3_bucket.public_site.id
+
+  rule {
+    id     = "cleanup-old-versions"
+    status = "Enabled"
+
+    # Delete old versions after 7 days (allows rollback window)
+    noncurrent_version_expiration {
+      noncurrent_days = 7
+    }
+  }
 }
 
 # Configure access logging for public site bucket (when enabled)

@@ -10,18 +10,20 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/codebuild"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 var (
-	dynamoClient  *dynamodb.Client
-	s3Client      *s3.Client
-	cognitoClient *cognitoidentityprovider.Client
-	presignClient *s3.PresignClient
-	once          sync.Once
-	initErr       error
+	dynamoClient    *dynamodb.Client
+	s3Client        *s3.Client
+	cognitoClient   *cognitoidentityprovider.Client
+	codebuildClient *codebuild.Client
+	presignClient   *s3.PresignClient
+	once            sync.Once
+	initErr         error
 )
 
 // initClients initializes all AWS clients once.
@@ -56,6 +58,15 @@ func initClients() {
 
 	// Initialize S3 Presign client
 	presignClient = s3.NewPresignClient(s3Client)
+
+	// Initialize CodeBuild client with optional endpoint override
+	codebuildOpts := []func(*codebuild.Options){}
+	if endpoint := os.Getenv("CODEBUILD_ENDPOINT"); endpoint != "" {
+		codebuildOpts = append(codebuildOpts, func(o *codebuild.Options) {
+			o.BaseEndpoint = aws.String(endpoint)
+		})
+	}
+	codebuildClient = codebuild.NewFromConfig(cfg, codebuildOpts...)
 
 	// Initialize Cognito client with optional endpoint override
 	cognitoOpts := []func(*cognitoidentityprovider.Options){}
@@ -103,6 +114,15 @@ func GetPresignClient() (*s3.PresignClient, error) {
 	return presignClient, nil
 }
 
+// GetCodeBuild returns the singleton CodeBuild client.
+func GetCodeBuild() (*codebuild.Client, error) {
+	once.Do(initClients)
+	if initErr != nil {
+		return nil, initErr
+	}
+	return codebuildClient, nil
+}
+
 // ResetForTesting resets the singleton state for testing purposes.
 // This should only be used in tests.
 func ResetForTesting() {
@@ -110,6 +130,7 @@ func ResetForTesting() {
 	dynamoClient = nil
 	s3Client = nil
 	cognitoClient = nil
+	codebuildClient = nil
 	presignClient = nil
 	initErr = nil
 }

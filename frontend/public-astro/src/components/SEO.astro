@@ -1,0 +1,98 @@
+---
+/**
+ * SEO.astro - SEOメタタグコンポーネント
+ *
+ * Task 3.1: SEOメタタグコンポーネント実装
+ *
+ * Requirements:
+ * - 3.1: <title> and <meta name="description"> in all pages
+ * - 3.2: Open Graph Protocol tags (og:title, og:description, og:image, og:url, og:type)
+ * - 3.3: Twitter Card tags (twitter:card, twitter:title, twitter:description, twitter:image)
+ * - 3.4: Article pages set og:type to "article"
+ * - 3.5: Post's first image as og:image if available
+ * - 3.6: Generate description from first 160 characters
+ * - 3.7: Canonical URL tag in all pages
+ * - 14.3: Japanese characters properly escaped
+ */
+
+import {
+  type SEOProps,
+  buildSiteTitle,
+  generateOpenGraphData,
+  generateTwitterCardData,
+  escapeHtmlAttribute,
+} from '../lib/seoUtils';
+
+interface Props extends SEOProps {
+  /** Site name (defaults to 'bone of my fallacy') */
+  siteName?: string;
+}
+
+const SITE_NAME = 'bone of my fallacy';
+const SITE_URL = import.meta.env.SITE_URL || import.meta.env.SITE || 'https://example.com';
+
+const {
+  title,
+  description,
+  canonicalUrl,
+  type = 'website',
+  imageUrl,
+  publishedAt,
+  modifiedAt,
+  noindex = false,
+  siteName = SITE_NAME,
+} = Astro.props;
+
+// Build full title with site name
+const fullTitle = buildSiteTitle(title, siteName);
+
+// Generate OG and Twitter Card data
+const og = generateOpenGraphData(
+  { title, description, canonicalUrl, type, imageUrl },
+  SITE_URL
+);
+
+const twitter = generateTwitterCardData(
+  { title, description, canonicalUrl, type, imageUrl }
+);
+
+// Escape values for HTML attributes
+const escapedDescription = escapeHtmlAttribute(description);
+const escapedOgTitle = escapeHtmlAttribute(og.title);
+const escapedOgDescription = escapeHtmlAttribute(og.description);
+const escapedTwitterTitle = escapeHtmlAttribute(twitter.title);
+const escapedTwitterDescription = escapeHtmlAttribute(twitter.description);
+---
+
+<!-- Primary Meta Tags -->
+<title>{fullTitle}</title>
+<meta name="description" content={escapedDescription} />
+
+<!-- Canonical URL (Requirement 3.7) -->
+<link rel="canonical" href={canonicalUrl} />
+
+{/* Noindex for 404 pages (Requirement 15.4) */}
+{noindex && <meta name="robots" content="noindex" />}
+
+<!-- Open Graph / Facebook (Requirement 3.2) -->
+<meta property="og:title" content={escapedOgTitle} />
+<meta property="og:description" content={escapedOgDescription} />
+<meta property="og:type" content={og.type} />
+<meta property="og:url" content={og.url} />
+{og.image && <meta property="og:image" content={og.image} />}
+<meta property="og:site_name" content={siteName} />
+<meta property="og:locale" content="ja_JP" />
+
+<!-- Twitter Card (Requirement 3.3) -->
+<meta name="twitter:card" content={twitter.card} />
+<meta name="twitter:title" content={escapedTwitterTitle} />
+<meta name="twitter:description" content={escapedTwitterDescription} />
+{twitter.image && <meta name="twitter:image" content={twitter.image} />}
+
+<!-- Article-specific meta tags (Requirement 3.4) -->
+{type === 'article' && publishedAt && (
+  <meta property="article:published_time" content={publishedAt} />
+)}
+{type === 'article' && modifiedAt && (
+  <meta property="article:modified_time" content={modifiedAt} />
+)}

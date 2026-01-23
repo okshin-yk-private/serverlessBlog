@@ -1,0 +1,24 @@
+{
+  "id": "8b353c46-9d21-42c9-849a-a7d233ad66f0",
+  "type": "code_review",
+  "created_at": "2026-01-17T12:15:00Z",
+  "source_cli": "claude-code",
+  "target_cli": "codex",
+  "status": "pending",
+  "request": {
+    "files": [
+      "terraform/modules/auth/main.tf",
+      "terraform/modules/lambda/iam.tf",
+      "terraform/modules/lambda/main.tf",
+      "terraform/modules/storage/main.tf"
+    ],
+    "focus_areas": ["security"],
+    "specific_questions": [],
+    "context_summary": "Fix verification for e59902e9-8cde-4257-b951-a2fa42d831dc"
+  },
+  "metadata": {
+    "branch": "feature/cdk-to-terraform-migration",
+    "original_review_id": "e59902e9-8cde-4257-b951-a2fa42d831dc",
+    "review_type": "fix_verification"
+  }
+}

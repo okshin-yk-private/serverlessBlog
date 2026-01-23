@@ -1,0 +1,52 @@
+---
+/**
+ * JsonLd.astro - JSON-LD構造化データコンポーネント
+ *
+ * Task 3.2: JSON-LD構造化データ実装
+ *
+ * Requirements:
+ * - 4.1: JSON-LD structured data with @type: "BlogPosting" schema for post pages
+ * - 4.2: Include headline, datePublished, dateModified, and author properties
+ * - 4.3: If the post has images, include image property
+ * - 4.4: JSON-LD structured data with @type: "WebSite" schema for home page
+ */
+
+import {
+  generateBlogPostingJsonLd,
+  generateWebSiteJsonLd,
+  type JsonLdPost,
+  type BlogPostingJsonLd,
+  type WebSiteJsonLd,
+} from '../lib/jsonLdUtils';
+
+export interface Props {
+  /** Type of JSON-LD schema to generate */
+  type: 'BlogPosting' | 'WebSite';
+
+  /** Post data (required for BlogPosting type) */
+  post?: JsonLdPost;
+
+  /** Site name (required for WebSite type) */
+  siteName?: string;
+
+  /** Site description (optional for WebSite type) */
+  siteDescription?: string;
+}
+
+const SITE_URL = import.meta.env.SITE_URL || import.meta.env.SITE || 'https://example.com';
+
+const { type, post, siteName, siteDescription } = Astro.props;
+
+// Generate appropriate JSON-LD based on type
+let jsonLd: BlogPostingJsonLd | WebSiteJsonLd | null = null;
+
+if (type === 'BlogPosting' && post) {
+  jsonLd = generateBlogPostingJsonLd(post, SITE_URL);
+} else if (type === 'WebSite' && siteName) {
+  jsonLd = generateWebSiteJsonLd(siteName, SITE_URL, siteDescription);
+}
+---
+
+{jsonLd && (
+  <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+)}

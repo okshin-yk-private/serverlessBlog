@@ -95,6 +95,31 @@ resource "aws_iam_role_policy" "lambda_posts_s3_cascade" {
   })
 }
 
+# CodeBuild access for triggering site rebuilds
+# Requirement 10.4: Lambda execution role with codebuild:StartBuild permission
+# Requirement 10.3: ListBuildsForProject and BatchGetBuilds for idempotency handling
+resource "aws_iam_role_policy" "lambda_posts_codebuild" {
+  count = var.codebuild_project_arn != "" ? 1 : 0
+  name  = "blog-lambda-posts-codebuild-policy"
+  role  = aws_iam_role.lambda_posts.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "CodeBuildTrigger"
+        Effect = "Allow"
+        Action = [
+          "codebuild:StartBuild",
+          "codebuild:ListBuildsForProject",
+          "codebuild:BatchGetBuilds"
+        ]
+        Resource = var.codebuild_project_arn
+      }
+    ]
+  })
+}
+
 # ======================
 # Auth Domain IAM Role
 # ======================

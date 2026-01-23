@@ -344,7 +344,39 @@ run "access_logs_bucket_disabled" {
   }
 }
 
-# Test 19: Verify all three buckets are created with correct naming
+# Test 19: Verify public site bucket has versioning enabled for atomic deployment rollback
+# Requirement 6.2: S3 bucket shall have versioning enabled to support rollback
+run "public_site_bucket_versioning" {
+  command = plan
+
+  variables {
+    project_name = "serverless-blog"
+    environment  = "dev"
+  }
+
+  assert {
+    condition     = aws_s3_bucket_versioning.public_site.versioning_configuration[0].status == "Enabled"
+    error_message = "Public site bucket must have versioning enabled for atomic deployment rollback"
+  }
+}
+
+# Test 20: Verify public site bucket has lifecycle policy for old version cleanup
+# Requirement 6.7: Old staging prefixes shall be cleaned up (retain for rollback)
+run "public_site_bucket_lifecycle" {
+  command = plan
+
+  variables {
+    project_name = "serverless-blog"
+    environment  = "dev"
+  }
+
+  assert {
+    condition     = length(aws_s3_bucket_lifecycle_configuration.public_site.rule) > 0
+    error_message = "Public site bucket must have lifecycle rules for version cleanup"
+  }
+}
+
+# Test 21: Verify all three buckets are created with correct naming
 # Note: regional_domain_name and id are computed after apply,
 # so we verify bucket resources directly
 run "all_buckets_created" {

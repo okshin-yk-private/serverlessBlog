@@ -1,0 +1,61 @@
+{
+  "id": "8b353c46-9d21-42c9-849a-a7d233ad66f0",
+  "type": "code_review",
+  "status": "completed",
+  "request": {
+    "files": [
+      "terraform/modules/auth/main.tf",
+      "terraform/modules/lambda/iam.tf",
+      "terraform/modules/lambda/main.tf",
+      "terraform/modules/storage/main.tf"
+    ],
+    "focus_areas": ["security"],
+    "specific_questions": [],
+    "context_summary": "Fix verification for e59902e9-8cde-4257-b951-a2fa42d831dc"
+  },
+  "response": {
+    "completed_at": "2026-01-17T04:46:47Z",
+    "reviewer": "codex/gpt-5",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "terraform/modules/auth/main.tf",
+        "line": 38,
+        "code_snippet": "mfa_configuration = var.environment == \"prd\" ? \"ON\" : var.mfa_configuration\n\n  software_token_mfa_configuration {\n    enabled = var.mfa_configuration != \"OFF\"\n  }",
+        "issue": "prd で MFA を強制する意図に反して、MFA 手段の有効化が var.mfa_configuration に依存しており、var.mfa_configuration=\"OFF\" の場合にソフトウェアトークンが無効化されます。本番で MFA が機能しない（または設定不能になる）リスクがあります。",
+        "suggestion": "prd では必ず MFA 手段を有効化するように制御してください。例: enabled = var.environment == \"prd\" ? true : var.mfa_configuration != \"OFF\"。SMS MFA を使う場合はその設定も追加し、mfa_configuration と整合させるのが安全です。",
+        "category": "security"
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "terraform/modules/storage/main.tf",
+        "line": 190,
+        "code_snippet": "resource \"aws_s3_bucket_policy\" \"images\" {\n  count  = var.cloudfront_distribution_arn != \"\" ? 1 : 0\n  bucket = aws_s3_bucket.images.id\n\n  policy = jsonencode({\n    Version = \"2012-10-17\"\n    Statement = [\n      {\n        Sid    = \"AllowCloudFrontOAC\"\n        Effect = \"Allow\"\n        Principal = {\n          Service = \"cloudfront.amazonaws.com\"\n        }\n        Action   = \"s3:GetObject\"\n        Resource = \"${aws_s3_bucket.images.arn}/*\"\n        Condition = {\n          StringEquals = {\n            \"AWS:SourceArn\" = var.cloudfront_distribution_arn\n          }\n        }\n      }\n    ]\n  })\n}",
+        "issue": "S3 バケットポリシーが CloudFront OAC の Allow のみで、TLS 強制（aws:SecureTransport=false を Deny）がありません。HTTP 経由のアクセスを許容する余地があり、転送中のデータ保護が保証されません。同様の構成が public_site/admin_site にもあります。",
+        "suggestion": "images/public_site/admin_site（必要なら access_logs も含む）に、aws:SecureTransport が false のリクエストを拒否する Deny を追加してください。",
+        "category": "security"
+      },
+      {
+        "severity": "LOW",
+        "file": "terraform/modules/storage/main.tf",
+        "line": 44,
+        "code_snippet": "lifecycle {\n  prevent_destroy = false # Set to true in production\n}",
+        "issue": "アクセスログ用バケットで prevent_destroy が常に false になっており、本番でも削除可能です。監査ログの消失はセキュリティ監視・フォレンジックに影響します。",
+        "suggestion": "prd では prevent_destroy を true に固定する（または環境変数で切り替える）など、ログバケットを保護する制御を追加してください。",
+        "category": "security"
+      },
+      {
+        "severity": "LOW",
+        "file": "terraform/modules/lambda/iam.tf",
+        "line": 125,
+        "code_snippet": "Action = [\n  \"s3:DeleteObject\",\n  \"s3:DeleteObjects\"\n]\nResource = \"${var.bucket_arn}/*\"",
+        "issue": "deletePost の削除カスケード用ポリシーがバケット全体に対する削除権限です。万一の関数侵害時に無関係なオブジェクトまで削除可能になります。",
+        "suggestion": "オブジェクトキーのプレフィックス（例: posts/{postId}/）やタグ条件で削除範囲を制限し、最小権限に寄せてください。",
+        "category": "security"
+      }
+    ],
+    "summary": "セキュリティ観点で 4 件の指摘があります。MFA の本番強制ロジックの整合性、S3 の TLS 強制、アクセスログバケット保護、削除権限の最小化を優先して見直してください。",
+    "approved": false,
+    "specific_answers": []
+  }
+}

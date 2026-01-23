@@ -132,3 +132,17 @@ output "dashboard_name" {
   value       = module.monitoring.dashboard_name
   description = "CloudWatch dashboard name"
 }
+
+#------------------------------------------------------------------------------
+# CodeBuild Outputs
+#------------------------------------------------------------------------------
+
+output "codebuild_project_name" {
+  value       = module.codebuild.codebuild_project_name
+  description = "CodeBuild project name for Astro SSG builds"
+}
+
+output "codebuild_project_arn" {
+  value       = module.codebuild.codebuild_project_arn
+  description = "CodeBuild project ARN"
+}

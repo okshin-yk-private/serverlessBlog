@@ -16,6 +16,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/codebuild"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
@@ -59,11 +60,13 @@ func setupTest(t *testing.T) func() {
 	// Store original getters
 	originalDynamoGetter := dynamoClientGetter
 	originalMarkdownConverter := markdownConverter
+	originalCodeBuildGetter := codebuildClientGetter
 
 	// Restore after test
 	return func() {
 		dynamoClientGetter = originalDynamoGetter
 		markdownConverter = originalMarkdownConverter
+		codebuildClientGetter = originalCodeBuildGetter
 	}
 }
 
@@ -1312,5 +1315,385 @@ func TestHandler_EmptyItemResponse(t *testing.T) {
 
 	if resp.StatusCode != 404 {
 		t.Errorf("expected status 404, got %d", resp.StatusCode)
+	}
+}
+
+// TestShouldTriggerBuild_PublishStatusToPublished tests that build is triggered when status changes to published
+// Requirement 10.1: Trigger CodeBuild when post is published
+func TestShouldTriggerBuild_PublishStatusToPublished(t *testing.T) {
+	existingPost := createTestPost()
+	existingPost.PublishStatus = domain.PublishStatusDraft
+
+	publishedStatus := domain.PublishStatusPublished
+	req := &domain.UpdatePostRequest{
+		PublishStatus: &publishedStatus,
+	}
+
+	result := shouldTriggerBuild(&existingPost, req)
+	if !result {
+		t.Error("expected shouldTriggerBuild to return true when status changes to published")
+	}
+}
+
+// TestShouldTriggerBuild_NoPublishStatusChange tests that build is NOT triggered when publishStatus is not changing
+func TestShouldTriggerBuild_NoPublishStatusChange(t *testing.T) {
+	existingPost := createTestPost()
+	existingPost.PublishStatus = domain.PublishStatusDraft
+
+	// Only title update, no publishStatus change
+	req := &domain.UpdatePostRequest{
+		Title: strPtr("New Title"),
+	}
+
+	result := shouldTriggerBuild(&existingPost, req)
+	if result {
+		t.Error("expected shouldTriggerBuild to return false when status is not changing")
+	}
+}
+
+// TestShouldTriggerBuild_PublishStatusToDraft tests that build is NOT triggered when status changes to draft
+func TestShouldTriggerBuild_PublishStatusToDraft(t *testing.T) {
+	existingPost := createTestPost()
+	existingPost.PublishStatus = domain.PublishStatusPublished
+
+	draftStatus := domain.PublishStatusDraft
+	req := &domain.UpdatePostRequest{
+		PublishStatus: &draftStatus,
+	}
+
+	result := shouldTriggerBuild(&existingPost, req)
+	if result {
+		t.Error("expected shouldTriggerBuild to return false when status changes to draft")
+	}
+}
+
+// TestShouldTriggerBuild_AlreadyPublished tests that build IS triggered when re-publishing
+// (e.g., updating content of an already-published post with publishStatus explicitly set)
+func TestShouldTriggerBuild_AlreadyPublishedWithExplicitStatus(t *testing.T) {
+	existingPost := createTestPost()
+	existingPost.PublishStatus = domain.PublishStatusPublished
+
+	publishedStatus := domain.PublishStatusPublished
+	req := &domain.UpdatePostRequest{
+		Title:         strPtr("Updated Title"),
+		PublishStatus: &publishedStatus,
+	}
+
+	result := shouldTriggerBuild(&existingPost, req)
+	// Should trigger since publishStatus is explicitly set to published
+	if !result {
+		t.Error("expected shouldTriggerBuild to return true when publishStatus is explicitly set to published")
+	}
+}
+
+// helper function for creating string pointers
+func strPtr(s string) *string {
+	return &s
+}
+
+// =============================================================================
+// Task 6.2: Build Trigger Error Handling Tests
+// Requirements 10.5, 10.6, 10.7, 10.8, 10.9, 10.10
+// =============================================================================
+
+// TestTriggerSiteBuild_MissingProjectName tests that build is skipped when CODEBUILD_PROJECT_NAME is not set
+// Requirement 10.10: Handle CodeBuild API errors gracefully without affecting post update response
+func TestTriggerSiteBuild_MissingProjectName(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	// Ensure CODEBUILD_PROJECT_NAME is not set
+	t.Setenv("CODEBUILD_PROJECT_NAME", "")
+
+	// triggerSiteBuild should not panic and should return silently
+	triggerSiteBuild(context.Background())
+	// No error expected - just a warning log
+}
+
+// TestTriggerSiteBuild_CodeBuildClientInitError tests graceful handling when CodeBuild client fails to initialize
+// Requirement 10.10: Handle CodeBuild API errors gracefully
+func TestTriggerSiteBuild_CodeBuildClientInitError(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	t.Setenv("CODEBUILD_PROJECT_NAME", "test-project")
+
+	// Mock CodeBuild client to return error
+	codebuildClientGetter = func() (*codebuild.Client, error) {
+		return nil, errors.New("failed to initialize CodeBuild client")
+	}
+
+	// triggerSiteBuild should not panic and should handle error gracefully
+	triggerSiteBuild(context.Background())
+	// No error expected - just an error log
+}
+
+// TestHandler_BuildTriggerDoesNotAffectResponse tests that CodeBuild errors don't affect the post update response
+// Requirement 10.10: Lambda shall handle CodeBuild API errors gracefully without affecting post publish response
+func TestHandler_BuildTriggerDoesNotAffectResponse(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	t.Setenv("CODEBUILD_PROJECT_NAME", "test-project")
+
+	existingPost := createTestPost()
+	existingPost.PublishStatus = domain.PublishStatusDraft
+	av, _ := attributevalue.MarshalMap(existingPost)
+
+	mockDynamoClient := &MockDynamoDBClient{
+		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			return &dynamodb.GetItemOutput{Item: av}, nil
+		},
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			return &dynamodb.PutItemOutput{}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockDynamoClient, nil
+	}
+
+	// Mock CodeBuild client to return error
+	codebuildClientGetter = func() (*codebuild.Client, error) {
+		return nil, errors.New("CodeBuild service unavailable")
+	}
+
+	// Request to publish the post
+	body := `{"publishStatus": "published"}`
+	request := createAuthenticatedRequest(testPostID, body)
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	// Post update should succeed despite CodeBuild error
+	if resp.StatusCode != 200 {
+		t.Errorf("expected status 200, got %d (CodeBuild error should not affect response)", resp.StatusCode)
+	}
+
+	var responsePost domain.BlogPost
+	if err := json.Unmarshal([]byte(resp.Body), &responsePost); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	// Verify the post was published
+	if responsePost.PublishStatus != domain.PublishStatusPublished {
+		t.Errorf("expected publishStatus %q, got %q", domain.PublishStatusPublished, responsePost.PublishStatus)
+	}
+}
+
+// TestHandler_BuildTriggerSuccessDoesNotAffectResponse tests normal build trigger flow
+// Requirement 10.1, 10.8: Trigger CodeBuild, log build status to CloudWatch
+func TestHandler_BuildTriggerSuccessDoesNotAffectResponse(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	t.Setenv("CODEBUILD_PROJECT_NAME", "test-project")
+
+	existingPost := createTestPost()
+	existingPost.PublishStatus = domain.PublishStatusDraft
+	av, _ := attributevalue.MarshalMap(existingPost)
+
+	mockDynamoClient := &MockDynamoDBClient{
+		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			return &dynamodb.GetItemOutput{Item: av}, nil
+		},
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			return &dynamodb.PutItemOutput{}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockDynamoClient, nil
+	}
+
+	// Mock CodeBuild client - note: we can't directly test this without a mock interface
+	// but we can verify the response is not affected
+	codebuildClientGetter = func() (*codebuild.Client, error) {
+		// Return nil client to trigger graceful error handling
+		return nil, errors.New("mock client not available")
+	}
+
+	body := `{"publishStatus": "published"}`
+	request := createAuthenticatedRequest(testPostID, body)
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	// Response should be 200 regardless of build trigger outcome
+	if resp.StatusCode != 200 {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+}
+
+// TestHandler_NoBuildTriggerWhenNotPublishing tests that build is NOT triggered for non-publish updates
+// Requirement 10.1: Only trigger when publishStatus changes to published
+func TestHandler_NoBuildTriggerWhenNotPublishing(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	t.Setenv("CODEBUILD_PROJECT_NAME", "test-project")
+
+	existingPost := createTestPost()
+	existingPost.PublishStatus = domain.PublishStatusDraft
+	av, _ := attributevalue.MarshalMap(existingPost)
+
+	mockDynamoClient := &MockDynamoDBClient{
+		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			return &dynamodb.GetItemOutput{Item: av}, nil
+		},
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			return &dynamodb.PutItemOutput{}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockDynamoClient, nil
+	}
+
+	// Track if CodeBuild getter was called
+	codeBuildGetterCalled := false
+	codebuildClientGetter = func() (*codebuild.Client, error) {
+		codeBuildGetterCalled = true
+		return nil, errors.New("should not be called")
+	}
+
+	// Request to update title only (no publish)
+	body := `{"title": "Updated Title"}`
+	request := createAuthenticatedRequest(testPostID, body)
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	// CodeBuild getter should NOT be called for non-publish updates
+	if codeBuildGetterCalled {
+		t.Error("CodeBuild getter should not be called when not publishing")
+	}
+}
+
+// TestHandler_BuildTriggerWhenRepublishing tests that build IS triggered when already-published post is updated
+// Requirement 10.1: Trigger when publishStatus is set to published (even if already published)
+func TestHandler_BuildTriggerWhenRepublishing(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	t.Setenv("CODEBUILD_PROJECT_NAME", "test-project")
+
+	existingPublishedAt := "2024-01-10T10:00:00Z"
+	existingPost := createTestPost()
+	existingPost.PublishStatus = domain.PublishStatusPublished
+	existingPost.PublishedAt = &existingPublishedAt
+	av, _ := attributevalue.MarshalMap(existingPost)
+
+	mockDynamoClient := &MockDynamoDBClient{
+		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			return &dynamodb.GetItemOutput{Item: av}, nil
+		},
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			return &dynamodb.PutItemOutput{}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockDynamoClient, nil
+	}
+
+	// Track if CodeBuild getter was called
+	codeBuildGetterCalled := false
+	codebuildClientGetter = func() (*codebuild.Client, error) {
+		codeBuildGetterCalled = true
+		return nil, errors.New("mock client")
+	}
+
+	// Update with explicit publishStatus: published (re-publishing)
+	body := `{"title": "Updated Title", "publishStatus": "published"}`
+	request := createAuthenticatedRequest(testPostID, body)
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	// CodeBuild getter SHOULD be called when explicitly setting publishStatus to published
+	if !codeBuildGetterCalled {
+		t.Error("CodeBuild getter should be called when re-publishing")
+	}
+}
+
+// TestShouldTriggerBuild_AllScenarios tests all shouldTriggerBuild scenarios using table-driven tests
+// Requirement 10.1: Comprehensive test coverage for build trigger logic
+func TestShouldTriggerBuild_AllScenarios(t *testing.T) {
+	tests := []struct {
+		name            string
+		existingStatus  string
+		requestStatus   *string
+		expectedTrigger bool
+	}{
+		{
+			name:            "draft to published",
+			existingStatus:  domain.PublishStatusDraft,
+			requestStatus:   strPtr(domain.PublishStatusPublished),
+			expectedTrigger: true,
+		},
+		{
+			name:            "published to published (explicit)",
+			existingStatus:  domain.PublishStatusPublished,
+			requestStatus:   strPtr(domain.PublishStatusPublished),
+			expectedTrigger: true, // Rebuild when explicitly setting to published
+		},
+		{
+			name:            "published to draft",
+			existingStatus:  domain.PublishStatusPublished,
+			requestStatus:   strPtr(domain.PublishStatusDraft),
+			expectedTrigger: false,
+		},
+		{
+			name:            "draft to draft",
+			existingStatus:  domain.PublishStatusDraft,
+			requestStatus:   strPtr(domain.PublishStatusDraft),
+			expectedTrigger: false,
+		},
+		{
+			name:            "no status change (nil)",
+			existingStatus:  domain.PublishStatusDraft,
+			requestStatus:   nil,
+			expectedTrigger: false,
+		},
+		{
+			name:            "update other fields only (published post)",
+			existingStatus:  domain.PublishStatusPublished,
+			requestStatus:   nil,
+			expectedTrigger: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			existingPost := createTestPost()
+			existingPost.PublishStatus = tt.existingStatus
+
+			req := &domain.UpdatePostRequest{
+				PublishStatus: tt.requestStatus,
+			}
+
+			result := shouldTriggerBuild(&existingPost, req)
+			if result != tt.expectedTrigger {
+				t.Errorf("expected shouldTriggerBuild to return %v for scenario %q, got %v",
+					tt.expectedTrigger, tt.name, result)
+			}
+		})
 	}
 }

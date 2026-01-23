@@ -395,6 +395,7 @@ resource "aws_lambda_function" "list_posts" {
 }
 
 # PUT /admin/posts/{id} - Update Post
+# Requirement 10.1: Trigger CodeBuild when post is published
 resource "aws_lambda_function" "update_post" {
   function_name = local.lambda_functions.update_post.name
   description   = local.lambda_functions.update_post.description
@@ -410,7 +411,10 @@ resource "aws_lambda_function" "update_post" {
   timeout       = 30
 
   environment {
-    variables = local.common_environment
+    # Include common environment plus CodeBuild project name for site rebuild
+    variables = merge(local.common_environment, {
+      CODEBUILD_PROJECT_NAME = var.codebuild_project_name
+    })
   }
 
   tracing_config {

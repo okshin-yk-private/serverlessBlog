@@ -1,0 +1,199 @@
+---
+/**
+ * about.astro - Aboutページ
+ *
+ * Task 2.4: Aboutページと404ページ実装
+ *
+ * Requirements:
+ * - 2.4: Aboutページを静的に生成
+ *   - Aboutページ (`about.astro`) を静的に生成
+ *   - ビルド時に `/about/index.html` として静的生成
+ * - 14.1, 14.2: 日本語対応
+ */
+import Layout from '../layouts/Layout.astro';
+import { getAboutPageContent, getSiteMetadata } from '../lib/staticPageUtils';
+
+const aboutContent = getAboutPageContent();
+const siteMetadata = getSiteMetadata();
+---
+
+<Layout title={aboutContent.title} description={aboutContent.description}>
+  <div class="about-page">
+    <!-- Hero Section -->
+    <div class="hero-section">
+      <h1 class="hero-title">{aboutContent.title}</h1>
+    </div>
+
+    <!-- Main Content -->
+    <main class="content-container">
+      {aboutContent.sections.map((section) => (
+        <section class="about-section">
+          <h2 class="section-heading">{section.heading}</h2>
+          <p class="section-content">{section.content}</p>
+        </section>
+      ))}
+
+      <!-- Author Section -->
+      <section class="author-section">
+        <div class="author-card">
+          <div class="author-avatar">
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </div>
+          <div class="author-info">
+            <h3 class="author-name">{siteMetadata.author.name}</h3>
+            {siteMetadata.author.bio && (
+              <p class="author-bio">{siteMetadata.author.bio}</p>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <!-- Back to Home -->
+      <nav class="navigation">
+        <a href="/" class="back-link">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 12H5"></path>
+            <path d="M12 19l-7-7 7-7"></path>
+          </svg>
+          ホームに戻る
+        </a>
+      </nav>
+    </main>
+  </div>
+</Layout>
+
+<style>
+  .about-page {
+    min-height: 100vh;
+  }
+
+  .hero-section {
+    background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+    padding: 80px 32px 60px;
+    text-align: center;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .hero-title {
+    font-size: 3rem;
+    font-weight: 500;
+    color: #111827;
+    margin: 0;
+    letter-spacing: 0.02em;
+  }
+
+  .content-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 60px 32px;
+  }
+
+  .about-section {
+    margin-bottom: 48px;
+  }
+
+  .section-heading {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #2D2A5A;
+    margin: 0 0 16px 0;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #C9A857;
+  }
+
+  .section-content {
+    font-size: 1.125rem;
+    line-height: 1.8;
+    color: #374151;
+    margin: 0;
+  }
+
+  .author-section {
+    margin-top: 64px;
+    padding-top: 48px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .author-card {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .author-avatar {
+    flex-shrink: 0;
+    width: 80px;
+    height: 80px;
+    background: #f3f4f6;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+  }
+
+  .author-info {
+    flex-grow: 1;
+  }
+
+  .author-name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 8px 0;
+  }
+
+  .author-bio {
+    font-size: 1rem;
+    color: #6b7280;
+    margin: 0;
+    line-height: 1.6;
+  }
+
+  .navigation {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #6b7280;
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: color 0.2s ease;
+  }
+
+  .back-link:hover {
+    color: #C9A857;
+  }
+
+  @media (max-width: 768px) {
+    .hero-section {
+      padding: 60px 20px 40px;
+    }
+
+    .hero-title {
+      font-size: 2rem;
+    }
+
+    .content-container {
+      padding: 40px 20px;
+    }
+
+    .author-card {
+      flex-direction: column;
+      text-align: center;
+    }
+  }
+</style>
