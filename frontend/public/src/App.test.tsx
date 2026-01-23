@@ -2,22 +2,54 @@
  * App Component Tests
  */
 
-import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, cleanup, waitFor } from '@testing-library/react';
 import App from './App';
 
+// APIモック
+vi.mock('./services/api', () => ({
+  fetchPosts: vi.fn().mockResolvedValue({
+    posts: [],
+    pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
+  }),
+  fetchPost: vi.fn().mockResolvedValue(null),
+}));
+
 describe('App', () => {
-  it('renders without crashing', () => {
-    // Act & Assert
-    expect(() => render(<App />)).not.toThrow();
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it('renders BrowserRouter', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('renders without crashing', async () => {
     // Act
-    const { container } = render(<App />);
+    const { unmount } = render(<App />);
+
+    // Wait for async operations
+    await waitFor(() => {
+      expect(document.body).toBeTruthy();
+    });
+
+    // Cleanup
+    unmount();
+  });
+
+  it('renders BrowserRouter', async () => {
+    // Act
+    const { container, unmount } = render(<App />);
+
+    // Wait for async operations
+    await waitFor(() => {
+      expect(container).toBeTruthy();
+    });
 
     // Assert - コンテンツがレンダリングされることを確認
-    expect(container).toBeTruthy();
     expect(container.innerHTML).toBeTruthy();
+
+    // Cleanup
+    unmount();
   });
 });
