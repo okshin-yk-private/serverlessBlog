@@ -118,6 +118,7 @@ describe('PostCreatePage', () => {
       contentMarkdown: 'テスト本文',
       contentHtml: '<p>テスト本文</p>',
       category: 'technology',
+      tags: [],
       publishStatus: 'draft',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -146,6 +147,7 @@ describe('PostCreatePage', () => {
         title: 'テスト記事タイトル',
         contentMarkdown: '# テスト本文\n\nこれはテストです。',
         category: 'tech',
+        tags: [],
         publishStatus: 'draft',
       });
     });
@@ -159,6 +161,7 @@ describe('PostCreatePage', () => {
       contentMarkdown: 'Test',
       contentHtml: '<p>Test</p>',
       category: 'technology',
+      tags: [],
       publishStatus: 'draft',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -434,6 +437,7 @@ describe('PostCreatePage', () => {
       contentMarkdown: 'Test',
       contentHtml: '<p>Test</p>',
       category: 'technology',
+      tags: [],
       publishStatus: 'published',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

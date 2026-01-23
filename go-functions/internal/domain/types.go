@@ -6,6 +6,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
+
+	"github.com/gojp/kana"
+	"github.com/ikawaha/kagome-dict/ipa"
+	"github.com/ikawaha/kagome/v2/tokenizer"
 )
 
 // Publish status constants
@@ -29,6 +34,26 @@ var allowedContentTypes = map[string]bool{
 	"image/png":  true,
 	"image/gif":  true,
 	"image/webp": true,
+}
+
+// japaneseTokenizer is a morphological analyzer for Japanese text.
+// Used to convert kanji to readings for slug generation.
+// Lazy-initialized to avoid loading the dictionary in Lambda functions that don't need it.
+var (
+	japaneseTokenizer     *tokenizer.Tokenizer
+	japaneseTokenizerOnce sync.Once
+)
+
+// getJapaneseTokenizer returns the Japanese tokenizer, initializing it lazily on first use.
+// This avoids the memory and startup time cost in Lambda functions that don't use slug generation.
+func getJapaneseTokenizer() *tokenizer.Tokenizer {
+	japaneseTokenizerOnce.Do(func() {
+		t, err := tokenizer.New(ipa.Dict(), tokenizer.OmitBosEos())
+		if err == nil {
+			japaneseTokenizer = t
+		}
+	})
+	return japaneseTokenizer
 }
 
 // BlogPost represents a blog post entity.
@@ -356,11 +381,51 @@ type InvalidIDsErrorResponse struct {
 	InvalidIDs []string `json:"invalidIds"`
 }
 
+// toRomaji converts Japanese text (kanji/hiragana/katakana) to romaji.
+// Uses morphological analysis to extract readings from kanji.
+func toRomaji(text string) string {
+	tok := getJapaneseTokenizer()
+	if tok == nil {
+		// Fallback: convert hiragana/katakana directly if tokenizer unavailable
+		return kana.KanaToRomaji(text)
+	}
+
+	var result strings.Builder
+	tokens := tok.Tokenize(text)
+
+	for _, token := range tokens {
+		features := token.Features()
+		// features[7] = reading in katakana (カタカナ)
+		// If reading exists and is not "*", use it
+		if len(features) > 7 && features[7] != "*" {
+			// Convert katakana reading to romaji
+			result.WriteString(kana.KanaToRomaji(features[7]))
+		} else {
+			// No reading available - try direct kana conversion first,
+			// then fall back to surface form
+			surface := token.Surface
+			converted := kana.KanaToRomaji(surface)
+			if converted != surface {
+				// Kana was converted to romaji
+				result.WriteString(converted)
+			} else {
+				// Not kana (alphanumeric, symbols, etc.) - use surface form
+				result.WriteString(surface)
+			}
+		}
+	}
+	return result.String()
+}
+
 // GenerateSlug generates a URL-safe slug from the name.
 // Requirement 3.5: Auto-generate slug from name if not provided
+// Supports Japanese text (kanji, hiragana, katakana) by converting to romaji.
 func GenerateSlug(name string) string {
+	// Convert Japanese text to romaji
+	romanized := toRomaji(name)
+
 	// Convert to lowercase
-	slug := strings.ToLower(name)
+	slug := strings.ToLower(romanized)
 
 	// Replace spaces with hyphens
 	slug = strings.ReplaceAll(slug, " ", "-")

@@ -44,6 +44,7 @@ SSM_COGNITO_POOL_ID_TEMPLATE="/serverless-blog/{env}/cognito/user-pool-id"
 SSM_COGNITO_CLIENT_ID_TEMPLATE="/serverless-blog/{env}/cognito/user-pool-client-id"
 SSM_PUBLIC_BUCKET_TEMPLATE="/serverless-blog/{env}/storage/public-site-bucket-name"
 SSM_ADMIN_BUCKET_TEMPLATE="/serverless-blog/{env}/storage/admin-site-bucket-name"
+SSM_CLOUDFLARE_API_TOKEN_TEMPLATE="/serverless-blog/{env}/cloudflare/apikey"
 
 # Astro SSG paths
 ASTRO_PROJECT_PATH="frontend/public-astro"
@@ -679,14 +680,30 @@ run_terraform() {
 
         local basic_auth_user
         local basic_auth_pass
-        if basic_auth_user=$(fetch_ssm "$ssm_user_path" false) && \
+        # Use --with-decryption for both parameters (safe for non-SecureString too)
+        if basic_auth_user=$(fetch_ssm "$ssm_user_path" true) && \
            basic_auth_pass=$(fetch_ssm "$ssm_pass_path" true); then
             export TF_VAR_basic_auth_username="$basic_auth_user"
             export TF_VAR_basic_auth_password="$basic_auth_pass"
-            log_success "Basic Auth credentials loaded (masked)"
+            log_success "Basic Auth credentials loaded from SSM (user: $basic_auth_user)"
         else
             log_warning "Could not fetch Basic Auth credentials, continuing without them"
+            log_warning "Basic Auth will be disabled for this deployment"
         fi
+    fi
+
+    # Fetch Cloudflare API token from SSM (for custom domain configuration)
+    log_info "Checking for Cloudflare API token in SSM..."
+    local ssm_cloudflare_path="${SSM_CLOUDFLARE_API_TOKEN_TEMPLATE//\{env\}/$env}"
+    local cloudflare_api_token
+    if cloudflare_api_token=$(fetch_ssm "$ssm_cloudflare_path" true 2>/dev/null); then
+        export TF_VAR_cloudflare_api_token="$cloudflare_api_token"
+        log_success "Cloudflare API token loaded from SSM"
+    else
+        log_warning "Could not fetch Cloudflare API token from SSM"
+        log_warning "Custom domain configuration will be disabled (set enable_custom_domain=false)"
+        # Export empty string to avoid Terraform variable error
+        export TF_VAR_cloudflare_api_token=""
     fi
 
     # Terraform init

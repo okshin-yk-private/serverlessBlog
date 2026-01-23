@@ -201,6 +201,11 @@ module "cdn" {
   aws_region                              = var.aws_region
   price_class                             = "PriceClass_100"
 
+  # Custom domain configuration
+  use_custom_domain   = var.enable_custom_domain
+  domain_names        = var.enable_custom_domain ? [var.domain_name, "www.${var.domain_name}"] : []
+  acm_certificate_arn = var.enable_custom_domain ? module.acm[0].certificate_arn : ""
+
   tags = local.common_tags
 
   depends_on = [module.storage, module.api]
@@ -339,4 +344,49 @@ module "monitoring" {
   tags = local.common_tags
 
   depends_on = [module.lambda, module.database, module.api]
+}
+
+#------------------------------------------------------------------------------
+# Custom Domain Configuration (Optional)
+# Dependencies: cdn (for CloudFront domain)
+# Enable with: enable_custom_domain = true
+#------------------------------------------------------------------------------
+
+# ACM Certificate (us-east-1 required for CloudFront)
+module "acm" {
+  source = "../../modules/acm"
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  count = var.enable_custom_domain ? 1 : 0
+
+  domain_name               = var.domain_name
+  subject_alternative_names = ["*.${var.domain_name}"] # Wildcard for www and other subdomains
+  environment               = var.environment
+  project_name              = var.project_name
+
+  # Wait for validation after DNS records are created
+  wait_for_validation     = true
+  validation_record_fqdns = var.enable_custom_domain ? module.dns_cloudflare[0].acm_validation_record_fqdns : []
+}
+
+# Cloudflare DNS for production apex domain
+module "dns_cloudflare" {
+  source = "../../modules/dns-cloudflare"
+
+  count = var.enable_custom_domain ? 1 : 0
+
+  zone_name              = var.domain_name # boneofmyfallacy.net
+  cloudfront_domain_name = module.cdn.distribution_domain_name
+  environment            = var.environment
+
+  # Create apex and www records for production
+  create_apex_record = true
+  create_www_record  = true
+
+  # ACM validation records in Cloudflare
+  acm_domain_validation_options = var.enable_custom_domain ? module.acm[0].domain_validation_options : []
+
+  depends_on = [module.cdn]
 }

@@ -41,3 +41,14 @@ output "api_base_url" {
   value       = "https://${aws_cloudfront_distribution.main.domain_name}/api/"
   description = "API base URL (/api/ path)"
 }
+
+# Custom Domain Outputs
+output "custom_domain_names" {
+  value       = var.use_custom_domain ? var.domain_names : []
+  description = "Custom domain names configured for this distribution"
+}
+
+output "custom_domain_url" {
+  value       = var.use_custom_domain && length(var.domain_names) > 0 ? "https://${var.domain_names[0]}" : null
+  description = "Primary custom domain URL (first domain in the list)"
+}

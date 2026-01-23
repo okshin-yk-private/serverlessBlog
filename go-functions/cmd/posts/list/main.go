@@ -14,6 +14,7 @@ import (
 	"errors"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -93,6 +94,9 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// Parse category filter
 	category := queryParams["category"]
 
+	// Parse search query
+	searchQuery := queryParams["q"]
+
 	// Parse nextToken for pagination
 	exclusiveStartKey := parseNextToken(queryParams["nextToken"])
 
@@ -125,6 +129,11 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	// Process results - exclude contentMarkdown
 	items := processResults(result.Items)
+
+	// Apply search filter (post-processing for case-insensitive matching)
+	if searchQuery != "" {
+		items = filterBySearch(items, searchQuery)
+	}
 
 	// Generate next token if there are more results
 	var nextToken *string
@@ -287,6 +296,43 @@ func processResults(items []map[string]types.AttributeValue) []ListPostsResponse
 	}
 
 	return result
+}
+
+// filterBySearch filters posts by search query (title and tags)
+// Performs case-insensitive partial matching on title and tags
+func filterBySearch(items []ListPostsResponseItem, searchQuery string) []ListPostsResponseItem {
+	if searchQuery == "" {
+		return items
+	}
+
+	searchLower := strings.ToLower(strings.TrimSpace(searchQuery))
+	if searchLower == "" {
+		return items
+	}
+
+	filtered := make([]ListPostsResponseItem, 0)
+
+	for i := range items {
+		// Check title (case-insensitive partial match)
+		if strings.Contains(strings.ToLower(items[i].Title), searchLower) {
+			filtered = append(filtered, items[i])
+			continue
+		}
+
+		// Check tags (case-insensitive partial match)
+		matched := false
+		for _, tag := range items[i].Tags {
+			if strings.Contains(strings.ToLower(tag), searchLower) {
+				matched = true
+				break
+			}
+		}
+		if matched {
+			filtered = append(filtered, items[i])
+		}
+	}
+
+	return filtered
 }
 
 // generateNextToken generates a base64-encoded token from LastEvaluatedKey

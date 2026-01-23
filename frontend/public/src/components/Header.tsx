@@ -20,7 +20,7 @@ const Header: React.FC = () => {
             <Link to="/" className="nav-link">
               Articles
             </Link>
-            <Link to="/" className="nav-link">
+            <Link to="/about" className="nav-link">
               About
             </Link>
             <a href="/admin/" className="admin-icon-link" title="Admin">

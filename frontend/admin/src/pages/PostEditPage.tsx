@@ -43,6 +43,7 @@ const PostEditPage = () => {
           title: post.title,
           contentMarkdown: post.contentMarkdown,
           category: post.category,
+          tags: post.tags || [],
           publishStatus: post.publishStatus,
         });
       } catch (err) {
@@ -138,6 +139,7 @@ const PostEditPage = () => {
       <div className="admin-card">
         {initialData && (
           <PostEditor
+            key={id}
             ref={editorRef}
             onSave={handleSave}
             onCancel={handleCancel}

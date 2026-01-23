@@ -179,6 +179,12 @@ module "cdn" {
   basic_auth_username = var.basic_auth_username
   basic_auth_password = var.basic_auth_password
 
+  # Custom domain configuration
+  # Note: acm_certificate_arn should only be set after ACM validation is complete
+  use_custom_domain   = var.enable_custom_domain
+  domain_names        = var.enable_custom_domain ? [var.domain_name] : []
+  acm_certificate_arn = var.enable_custom_domain ? module.acm[0].validated_certificate_arn : ""
+
   tags = local.common_tags
 
   depends_on = [module.storage, module.api]
@@ -319,4 +325,110 @@ module "codebuild" {
   tags = local.common_tags
 
   depends_on = [module.storage, module.cdn]
+}
+
+#------------------------------------------------------------------------------
+# Custom Domain Configuration (Optional)
+# Dependencies: cdn (for CloudFront domain)
+# Enable with: enable_custom_domain = true
+#------------------------------------------------------------------------------
+
+# ACM Certificate (us-east-1 required for CloudFront)
+module "acm" {
+  source = "../../modules/acm"
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  count = var.enable_custom_domain ? 1 : 0
+
+  domain_name               = var.domain_name
+  subject_alternative_names = [] # Single domain only for dev
+  environment               = var.environment
+  project_name              = var.project_name
+
+  # Wait for validation after DNS records are created
+  wait_for_validation     = true
+  validation_record_fqdns = var.enable_custom_domain ? module.dns_route53[0].acm_validation_record_fqdns : []
+}
+
+# Route53 Hosted Zone for dev subdomain
+# Note: cloudfront_domain_name is NOT passed here to avoid circular dependency
+# The A/AAAA records pointing to CloudFront are created separately below
+module "dns_route53" {
+  source = "../../modules/dns-route53"
+
+  count = var.enable_custom_domain ? 1 : 0
+
+  zone_name              = var.domain_name # dev.boneofmyfallacy.net
+  cloudfront_domain_name = ""              # Created separately after CDN to avoid cycle
+  environment            = var.environment
+  project_name           = var.project_name
+
+  # ACM validation records
+  acm_domain_validation_options = var.enable_custom_domain ? module.acm[0].domain_validation_options : []
+}
+
+# Cloudflare NS delegation for dev subdomain
+module "dns_cloudflare" {
+  source = "../../modules/dns-cloudflare"
+
+  count = var.enable_custom_domain ? 1 : 0
+
+  zone_name   = var.parent_domain # boneofmyfallacy.net
+  environment = var.environment
+
+  # NS delegation to Route53
+  enable_ns_delegation  = true
+  subdomain_to_delegate = "dev"
+  route53_ns_records    = module.dns_route53[0].name_servers
+
+  # Don't create apex/www records (those are for prod)
+  create_apex_record = false
+  create_www_record  = false
+
+  # ACM validation handled by Route53 for dev
+  acm_domain_validation_options = []
+
+  depends_on = [module.dns_route53]
+}
+
+#------------------------------------------------------------------------------
+# Route53 A/AAAA Records for CloudFront
+# Created separately to avoid circular dependency:
+# CDN needs validated certificate → ACM needs Route53 validation records →
+# Route53 would need CDN domain (cycle!)
+# By separating these records, the cycle is broken.
+#------------------------------------------------------------------------------
+
+resource "aws_route53_record" "cloudfront_apex" {
+  count = var.enable_custom_domain ? 1 : 0
+
+  zone_id = module.dns_route53[0].zone_id
+  name    = var.domain_name
+  type    = "A"
+
+  alias {
+    name                   = module.cdn.distribution_domain_name
+    zone_id                = "Z2FDTNDATAQYW2" # CloudFront hosted zone ID (constant)
+    evaluate_target_health = false
+  }
+
+  depends_on = [module.cdn]
+}
+
+resource "aws_route53_record" "cloudfront_apex_ipv6" {
+  count = var.enable_custom_domain ? 1 : 0
+
+  zone_id = module.dns_route53[0].zone_id
+  name    = var.domain_name
+  type    = "AAAA"
+
+  alias {
+    name                   = module.cdn.distribution_domain_name
+    zone_id                = "Z2FDTNDATAQYW2" # CloudFront hosted zone ID (constant)
+    evaluate_target_health = false
+  }
+
+  depends_on = [module.cdn]
 }

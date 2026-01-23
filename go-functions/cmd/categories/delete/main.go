@@ -11,6 +11,7 @@ package main
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -31,6 +32,7 @@ type DynamoDBClientInterface interface {
 	GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
 	Query(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
 	DeleteItem(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
+	TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error)
 }
 
 // dynamoClientGetter is a function that returns the DynamoDB client
@@ -97,8 +99,8 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return errorResponse(409, "category is in use by posts")
 	}
 
-	// Requirement 5.1: Delete the category
-	if err := deleteCategory(ctx, dynamoClient, tableName, categoryID); err != nil {
+	// Requirement 5.1: Delete the category and its SLUG_RESERVATION
+	if err := deleteCategory(ctx, dynamoClient, tableName, categoryID, existingCategory.Slug); err != nil {
 		return errorResponse(500, "failed to delete category")
 	}
 
@@ -136,7 +138,13 @@ func extractAuthorID(request events.APIGatewayProxyRequest) string {
 }
 
 // getExistingCategory retrieves a category by ID
+// Returns nil if the ID is a SLUG_RESERVATION ID (starts with "SLUG#")
 func getExistingCategory(ctx context.Context, client DynamoDBClientInterface, tableName, categoryID string) (*domain.Category, error) {
+	// Reject SLUG_RESERVATION IDs - treat as not found
+	if strings.HasPrefix(categoryID, "SLUG#") {
+		return nil, nil
+	}
+
 	getInput := &dynamodb.GetItemInput{
 		TableName: aws.String(tableName),
 		Key: map[string]types.AttributeValue{
@@ -182,16 +190,33 @@ func isCategoryInUse(ctx context.Context, client DynamoDBClientInterface, tableN
 	return result.Count > 0, nil
 }
 
-// deleteCategory deletes a category from DynamoDB
-func deleteCategory(ctx context.Context, client DynamoDBClientInterface, tableName, categoryID string) error {
-	deleteInput := &dynamodb.DeleteItemInput{
-		TableName: aws.String(tableName),
-		Key: map[string]types.AttributeValue{
-			"id": &types.AttributeValueMemberS{Value: categoryID},
+// deleteCategory deletes a category and its SLUG_RESERVATION item from DynamoDB
+// Uses TransactWriteItems to delete both items atomically
+func deleteCategory(ctx context.Context, client DynamoDBClientInterface, tableName, categoryID, slug string) error {
+	slugReservationID := "SLUG#" + slug
+
+	transactInput := &dynamodb.TransactWriteItemsInput{
+		TransactItems: []types.TransactWriteItem{
+			{
+				Delete: &types.Delete{
+					TableName: aws.String(tableName),
+					Key: map[string]types.AttributeValue{
+						"id": &types.AttributeValueMemberS{Value: categoryID},
+					},
+				},
+			},
+			{
+				Delete: &types.Delete{
+					TableName: aws.String(tableName),
+					Key: map[string]types.AttributeValue{
+						"id": &types.AttributeValueMemberS{Value: slugReservationID},
+					},
+				},
+			},
 		},
 	}
 
-	_, err := client.DeleteItem(ctx, deleteInput)
+	_, err := client.TransactWriteItems(ctx, transactInput)
 	return err
 }
 

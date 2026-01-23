@@ -19,6 +19,7 @@ export interface PostData {
   title: string;
   contentMarkdown: string;
   category: string;
+  tags: string[];
   publishStatus: 'draft' | 'published';
 }
 
@@ -95,6 +96,8 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
     const [publishStatus, setPublishStatus] = useState<'draft' | 'published'>(
       initialData?.publishStatus || 'published'
     );
+    const [tags, setTags] = useState<string[]>(initialData?.tags || []);
+    const [tagInput, setTagInput] = useState('');
 
     const [titleError, setTitleError] = useState<string | null>(null);
     const [contentError, setContentError] = useState<string | null>(null);
@@ -141,6 +144,28 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
       [contentMarkdown]
     );
 
+    // タグ追加ハンドラ
+    const addTag = () => {
+      const trimmedTag = tagInput.trim();
+      if (trimmedTag && !tags.includes(trimmedTag)) {
+        setTags([...tags, trimmedTag]);
+        setTagInput('');
+      }
+    };
+
+    // タグ入力キーダウンハンドラ
+    const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        addTag();
+      }
+    };
+
+    // タグ削除ハンドラ
+    const removeTag = (indexToRemove: number) => {
+      setTags(tags.filter((_, index) => index !== indexToRemove));
+    };
+
     // 画像ペーストハンドラ
     const handlePaste = async (e: ClipboardEvent<HTMLTextAreaElement>) => {
       const items = e.clipboardData.items;
@@ -183,6 +208,7 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
           title,
           contentMarkdown,
           category,
+          tags,
           publishStatus,
         });
       } finally {
@@ -320,6 +346,67 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
                   {categoryError}
                 </p>
               )}
+            </div>
+
+            {/* タグ */}
+            <div>
+              <label
+                htmlFor="tags"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                タグ
+              </label>
+              {/* タグ一覧 */}
+              {tags.length > 0 && (
+                <div
+                  className="flex flex-wrap gap-2 mb-2"
+                  data-testid="tags-list"
+                >
+                  {tags.map((tag, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeTag(index)}
+                        className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-blue-400 hover:bg-blue-200 hover:text-blue-600 focus:outline-none"
+                        aria-label={`${tag}を削除`}
+                        data-testid={`remove-tag-${index}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {/* タグ入力 */}
+              <div className="flex gap-2">
+                <input
+                  id="tags"
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={handleTagKeyDown}
+                  placeholder="タグを入力してEnterで追加"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={isSaving}
+                  data-testid="tag-input"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={addTag}
+                  disabled={isSaving || !tagInput.trim()}
+                  data-testid="add-tag-button"
+                >
+                  追加
+                </Button>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                Enterキーまたはカンマで追加
+              </p>
             </div>
 
             {/* 公開状態 */}

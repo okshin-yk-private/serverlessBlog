@@ -7,8 +7,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchPosts } from '../services/api';
-import type { Post } from '../types/post';
+import { fetchPosts, fetchCategories } from '../services/api';
+import type { Post, CategoryListItem } from '../types/post';
 import { SEOHead } from '../components/SEOHead';
 import { PostListSkeleton } from '../components/skeleton';
 
@@ -20,6 +20,7 @@ const PostListPage: React.FC = () => {
   const [category, setCategory] = useState<string>('');
   const [tags, setTags] = useState<string>('');
   const [hasPrevious, setHasPrevious] = useState(false);
+  const [categories, setCategories] = useState<CategoryListItem[]>([]);
 
   const loadPosts = async (
     filters: {
@@ -52,6 +53,10 @@ const PostListPage: React.FC = () => {
       category: category || undefined,
       tags: tags || undefined,
     });
+    // カテゴリー一覧を取得
+    fetchCategories()
+      .then((data) => setCategories(data))
+      .catch((err) => console.error('Failed to fetch categories:', err));
   }, []);
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -153,26 +158,19 @@ const PostListPage: React.FC = () => {
             >
               All
             </button>
-            <button
-              className={`category-pill ${category === 'technology' ? 'active' : ''}`}
-              onClick={() => {
-                setCategory('technology');
-                setHasPrevious(false);
-                loadPosts({ category: 'technology', tags: tags || undefined });
-              }}
-            >
-              Technology
-            </button>
-            <button
-              className={`category-pill ${category === 'life' ? 'active' : ''}`}
-              onClick={() => {
-                setCategory('life');
-                setHasPrevious(false);
-                loadPosts({ category: 'life', tags: tags || undefined });
-              }}
-            >
-              Life
-            </button>
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                className={`category-pill ${category === cat.slug ? 'active' : ''}`}
+                onClick={() => {
+                  setCategory(cat.slug);
+                  setHasPrevious(false);
+                  loadPosts({ category: cat.slug, tags: tags || undefined });
+                }}
+              >
+                {cat.name}
+              </button>
+            ))}
           </div>
 
           <div className="search-box">
@@ -206,12 +204,11 @@ const PostListPage: React.FC = () => {
           <option value="" data-testid="category-option">
             すべて
           </option>
-          <option value="technology" data-testid="category-option">
-            Technology
-          </option>
-          <option value="life" data-testid="category-option">
-            Life
-          </option>
+          {categories.map((cat) => (
+            <option key={cat.id} value={cat.slug} data-testid="category-option">
+              {cat.name}
+            </option>
+          ))}
         </select>
         <button
           onClick={handleTagSearch}

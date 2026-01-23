@@ -91,3 +91,22 @@ variable "basic_auth_password" {
   description = "Basic Auth password (required if enable_basic_auth is true)"
   sensitive   = true
 }
+
+# Custom Domain Configuration
+variable "use_custom_domain" {
+  type        = bool
+  default     = false
+  description = "Enable custom domain configuration. When true, requires acm_certificate_arn and domain_names."
+}
+
+variable "domain_names" {
+  type        = list(string)
+  default     = []
+  description = "Custom domain names (CNAMEs) for CloudFront distribution (e.g., ['example.com', 'www.example.com'])"
+}
+
+variable "acm_certificate_arn" {
+  type        = string
+  default     = ""
+  description = "ACM certificate ARN for custom domains. Must be in us-east-1 region."
+}

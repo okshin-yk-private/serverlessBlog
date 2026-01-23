@@ -49,3 +49,29 @@ variable "basic_auth_password" {
   sensitive   = true
   default     = ""
 }
+
+# Custom Domain Configuration
+variable "enable_custom_domain" {
+  type        = bool
+  description = "Enable custom domain configuration (requires Cloudflare API token)"
+  default     = false
+}
+
+variable "domain_name" {
+  type        = string
+  description = "Custom domain name for dev environment (e.g., dev.boneofmyfallacy.net)"
+  default     = "dev.boneofmyfallacy.net"
+}
+
+variable "parent_domain" {
+  type        = string
+  description = "Parent domain managed by Cloudflare (e.g., boneofmyfallacy.net)"
+  default     = "boneofmyfallacy.net"
+}
+
+variable "cloudflare_api_token" {
+  type        = string
+  description = "Cloudflare API token for DNS management"
+  sensitive   = true
+  default     = ""
+}

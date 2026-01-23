@@ -81,7 +81,7 @@ describe('API Service', () => {
       expect(result).toEqual(mockResponse.data);
     });
 
-    it('タグフィルタで記事一覧を取得する', async () => {
+    it('タグフィルタで記事一覧を取得する（tags→qに変換）', async () => {
       // Arrange
       const mockResponse = {
         data: {
@@ -91,17 +91,17 @@ describe('API Service', () => {
       };
       vi.mocked(axios.get).mockResolvedValueOnce(mockResponse);
 
-      // Act
+      // Act - tags is converted to q parameter for backward compatibility
       const result = await fetchPosts({ tags: 'react' });
 
-      // Assert
+      // Assert - tags is now sent as 'q' parameter
       expect(axios.get).toHaveBeenCalledWith('/api/posts', {
-        params: { tags: 'react' },
+        params: { q: 'react' },
       });
       expect(result).toEqual(mockResponse.data);
     });
 
-    it('カテゴリとタグフィルタで記事一覧を取得する', async () => {
+    it('カテゴリとタグフィルタで記事一覧を取得する（tags→qに変換）', async () => {
       // Arrange
       const mockResponse = {
         data: {
@@ -111,23 +111,23 @@ describe('API Service', () => {
       };
       vi.mocked(axios.get).mockResolvedValueOnce(mockResponse);
 
-      // Act
+      // Act - tags is converted to q parameter
       const result = await fetchPosts({
         category: 'technology',
         tags: 'react',
       });
 
-      // Assert
+      // Assert - tags is now sent as 'q' parameter
       expect(axios.get).toHaveBeenCalledWith('/api/posts', {
         params: {
           category: 'technology',
-          tags: 'react',
+          q: 'react',
         },
       });
       expect(result).toEqual(mockResponse.data);
     });
 
-    it('すべてのフィルタを指定して記事一覧を取得する', async () => {
+    it('すべてのフィルタを指定して記事一覧を取得する（tags→qに変換）', async () => {
       // Arrange
       const mockResponse = {
         data: {
@@ -137,7 +137,7 @@ describe('API Service', () => {
       };
       vi.mocked(axios.get).mockResolvedValueOnce(mockResponse);
 
-      // Act
+      // Act - tags is converted to q parameter
       const result = await fetchPosts({
         category: 'life',
         tags: 'nodejs',
@@ -145,11 +145,11 @@ describe('API Service', () => {
         nextToken: 'token-abc',
       });
 
-      // Assert
+      // Assert - tags is now sent as 'q' parameter
       expect(axios.get).toHaveBeenCalledWith('/api/posts', {
         params: {
           category: 'life',
-          tags: 'nodejs',
+          q: 'nodejs',
           limit: 10,
           nextToken: 'token-abc',
         },

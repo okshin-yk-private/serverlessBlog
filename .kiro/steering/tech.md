@@ -99,6 +99,14 @@
   - アプリクライアント
   - MFA サポート
 
+### ドメイン管理
+- **Cloudflare**
+  - prod
+    - "boneofmyfallacy.net"ドメインをCloudflare取得
+  - dev
+    - サブドメイン"dev.boneofmyfallacy.net"をRoute53で管理
+    - Route53はdev環境のアカウントで管理
+
 ### CDN・配信
 - **Amazon CloudFront**:
   - S3オリジン
@@ -203,6 +211,9 @@
 - CloudTrail: API呼び出しログ
 - CloudWatch Logs: アプリケーションログ
 - X-Ray: トレース情報
+
+### 6. 機密情報
+- SSM Parameter Storeで管理
 
 ## パフォーマンス最適化
 

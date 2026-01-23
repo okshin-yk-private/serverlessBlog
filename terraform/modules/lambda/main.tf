@@ -200,6 +200,9 @@ resource "aws_cloudwatch_log_group" "delete_image" {
 # ======================
 # Archive Data Sources (for Lambda deployment packages)
 # ======================
+# Note: Using a stable output directory to prevent unnecessary Lambda updates.
+# The source_code_hash uses output_base64sha256 from the archive_file,
+# which ensures Lambda is updated when the actual binary changes.
 
 data "archive_file" "create_post" {
   type             = "zip"
@@ -668,6 +671,7 @@ data "archive_file" "create_category" {
 
 # POST /admin/categories - Create Category (Cognito Auth)
 # Requirement 3: Category Creation API
+# Note: Increased memory for Japanese text processing (kagome morphological analyzer)
 resource "aws_lambda_function" "create_category" {
   function_name = local.lambda_functions.create_category.name
   description   = local.lambda_functions.create_category.description
@@ -679,7 +683,7 @@ resource "aws_lambda_function" "create_category" {
   runtime       = "provided.al2023"
   architectures = ["arm64"]
   handler       = "bootstrap"
-  memory_size   = 128
+  memory_size   = 512
   timeout       = 30
 
   environment {

@@ -116,14 +116,17 @@ describe('CategoryEditPage', () => {
       expect(nameInput).toHaveValue('');
       expect(slugInput).toHaveValue('');
       expect(descriptionInput).toHaveValue('');
+
+      // slugフィールドは無効化されている（サーバーで自動生成）
+      expect(slugInput).toBeDisabled();
     });
 
-    it('新規作成時にcreateCategory APIを呼び出す', async () => {
+    it('新規作成時にcreateCategory APIを呼び出す（slugはサーバーで自動生成）', async () => {
       const user = userEvent.setup();
       const newCategory = {
         id: 'new-id',
         name: 'テストカテゴリ',
-        slug: 'test-category',
+        slug: 'test-category', // サーバーで自動生成
         description: 'テスト説明',
         sortOrder: 1,
         createdAt: '2024-01-01T00:00:00Z',
@@ -135,19 +138,18 @@ describe('CategoryEditPage', () => {
       renderCategoryEditPageNewMode();
 
       const nameInput = screen.getByLabelText(/カテゴリ名/i);
-      const slugInput = screen.getByLabelText(/スラッグ/i);
       const descriptionInput = screen.getByLabelText(/説明/i);
       const submitButton = screen.getByRole('button', { name: /保存/i });
 
       await user.type(nameInput, 'テストカテゴリ');
-      await user.type(slugInput, 'test-category');
+      // slugフィールドは無効化されているため入力不可
       await user.type(descriptionInput, 'テスト説明');
       await user.click(submitButton);
 
       await waitFor(() => {
+        // slugはサーバー側で自動生成されるため送信データに含まれない
         expect(mockCreateCategory).toHaveBeenCalledWith({
           name: 'テストカテゴリ',
-          slug: 'test-category',
           description: 'テスト説明',
         });
       });
@@ -206,7 +208,7 @@ describe('CategoryEditPage', () => {
       });
     });
 
-    it('編集モードでupdateCategory APIを呼び出す', async () => {
+    it('編集モードでupdateCategory APIを呼び出す（slugは送信しない）', async () => {
       const user = userEvent.setup();
       const updatedCategory = {
         ...existingCategory,
@@ -232,10 +234,10 @@ describe('CategoryEditPage', () => {
       await user.type(nameInput, '更新後カテゴリ');
       await user.click(submitButton);
 
+      // slugはサーバー側で自動生成されるため送信データに含まれない
       await waitFor(() => {
         expect(mockUpdateCategory).toHaveBeenCalledWith('1', {
           name: '更新後カテゴリ',
-          slug: 'tech',
           description: '技術関連の記事',
         });
       });
@@ -330,30 +332,17 @@ describe('CategoryEditPage', () => {
       expect(mockCreateCategory).not.toHaveBeenCalled();
     });
 
-    it('slugが英数字・ハイフン以外を含む場合はエラーを表示する', async () => {
-      const user = userEvent.setup();
+    // NOTE: slugフィールドは無効化され、サーバーで自動生成されるため、
+    // クライアント側のslugバリデーションテストは不要
+
+    it('slugフィールドが無効化されていることを確認する', () => {
       renderCategoryEditPageNewMode();
 
-      const nameInput = screen.getByLabelText(/カテゴリ名/i);
       const slugInput = screen.getByLabelText(/スラッグ/i);
-
-      await user.type(nameInput, 'テストカテゴリ');
-      await user.type(slugInput, 'invalid_slug!');
-
-      const submitButton = screen.getByRole('button', { name: /保存/i });
-      await user.click(submitButton);
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/スラッグは英数字とハイフンのみ使用できます/i)
-        ).toBeInTheDocument();
-      });
-
-      // APIが呼び出されないことを確認
-      expect(mockCreateCategory).not.toHaveBeenCalled();
+      expect(slugInput).toBeDisabled();
     });
 
-    it('slugが未入力の場合は送信可能（サーバーで自動生成）', async () => {
+    it('slugは送信データに含まれない（サーバーで自動生成）', async () => {
       const user = userEvent.setup();
       const newCategory = {
         id: 'new-id',
@@ -376,10 +365,10 @@ describe('CategoryEditPage', () => {
       await user.click(submitButton);
 
       await waitFor(() => {
+        // slugはサーバー側で自動生成されるため送信データに含まれない
         expect(mockCreateCategory).toHaveBeenCalledWith({
           name: 'テストカテゴリ',
-          slug: '',
-          description: '',
+          description: undefined,
         });
       });
     });
@@ -398,10 +387,9 @@ describe('CategoryEditPage', () => {
       renderCategoryEditPageNewMode();
 
       const nameInput = screen.getByLabelText(/カテゴリ名/i);
-      const slugInput = screen.getByLabelText(/スラッグ/i);
+      // slugフィールドは無効化されているため入力しない
 
       await user.type(nameInput, 'テストカテゴリ');
-      await user.type(slugInput, 'existing-slug');
 
       const submitButton = screen.getByRole('button', { name: /保存/i });
       await user.click(submitButton);
@@ -491,7 +479,7 @@ describe('CategoryEditPage', () => {
       const newCategory = {
         id: 'new-id',
         name: 'テストカテゴリ',
-        slug: 'test',
+        slug: 'test', // サーバーで自動生成
         description: '',
         sortOrder: 1,
         createdAt: '2024-01-01T00:00:00Z',
@@ -503,19 +491,18 @@ describe('CategoryEditPage', () => {
       renderCategoryEditPageNewMode();
 
       const nameInput = screen.getByLabelText(/カテゴリ名/i);
-      const slugInput = screen.getByLabelText(/スラッグ/i);
+      // slugフィールドは無効化されているため入力しない
 
       await user.type(nameInput, 'テストカテゴリ');
-      await user.type(slugInput, 'test');
 
       const submitButton = screen.getByRole('button', { name: /保存/i });
       await user.click(submitButton);
 
+      // slugはサーバー側で自動生成されるため送信データに含まれない
       await waitFor(() => {
         expect(mockCreateCategory).toHaveBeenCalledWith({
           name: 'テストカテゴリ',
-          slug: 'test',
-          description: '',
+          description: undefined,
         });
       });
     });
@@ -563,35 +550,7 @@ describe('CategoryEditPage', () => {
       });
     });
 
-    it('バリデーションエラー後に入力を修正するとエラーがクリアされる（slug）', async () => {
-      const user = userEvent.setup();
-      renderCategoryEditPageNewMode();
-
-      // 無効なslugを入力
-      const nameInput = screen.getByLabelText(/カテゴリ名/i);
-      const slugInput = screen.getByLabelText(/スラッグ/i);
-
-      await user.type(nameInput, 'テストカテゴリ');
-      await user.type(slugInput, 'invalid_slug!');
-
-      const submitButton = screen.getByRole('button', { name: /保存/i });
-      await user.click(submitButton);
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/スラッグは英数字とハイフンのみ使用できます/i)
-        ).toBeInTheDocument();
-      });
-
-      // slugを修正するとエラーがクリアされる
-      await user.clear(slugInput);
-      await user.type(slugInput, 'valid-slug');
-
-      await waitFor(() => {
-        expect(
-          screen.queryByText(/スラッグは英数字とハイフンのみ使用できます/i)
-        ).not.toBeInTheDocument();
-      });
-    });
+    // NOTE: slugフィールドは無効化され、サーバーで自動生成されるため、
+    // slugバリデーションエラーのテストは不要
   });
 });
