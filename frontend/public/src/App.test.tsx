@@ -13,6 +13,7 @@ vi.mock('./services/api', () => ({
     pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
   }),
   fetchPost: vi.fn().mockResolvedValue(null),
+  fetchCategories: vi.fn().mockResolvedValue([]),
 }));
 
 describe('App', () => {

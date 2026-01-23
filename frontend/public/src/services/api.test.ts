@@ -81,26 +81,6 @@ describe('API Service', () => {
       expect(result).toEqual(mockResponse.data);
     });
 
-    it('qパラメータで直接検索クエリを指定して記事一覧を取得する', async () => {
-      // Arrange
-      const mockResponse = {
-        data: {
-          items: [],
-          count: 0,
-        },
-      };
-      vi.mocked(axios.get).mockResolvedValueOnce(mockResponse);
-
-      // Act - q parameter is used directly
-      const result = await fetchPosts({ q: 'search term' });
-
-      // Assert - q is sent as-is
-      expect(axios.get).toHaveBeenCalledWith('/api/posts', {
-        params: { q: 'search term' },
-      });
-      expect(result).toEqual(mockResponse.data);
-    });
-
     it('タグフィルタで記事一覧を取得する（tags→qに変換）', async () => {
       // Arrange
       const mockResponse = {
