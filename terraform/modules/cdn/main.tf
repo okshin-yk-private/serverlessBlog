@@ -627,7 +627,7 @@ resource "aws_cloudfront_distribution" "main" {
 }
 
 #------------------------------------------------------------------------------
-# SSM Parameter for API endpoint (used by Astro SSG build)
+# SSM Parameters for CDN configuration (used by CI/CD)
 #------------------------------------------------------------------------------
 resource "aws_ssm_parameter" "api_endpoint" {
   name        = "/serverless-blog/${var.environment}/api/endpoint"
@@ -638,6 +638,22 @@ resource "aws_ssm_parameter" "api_endpoint" {
   tags = merge(
     {
       Name        = "api-endpoint-${var.environment}"
+      Environment = var.environment
+      Module      = "cdn"
+    },
+    var.tags
+  )
+}
+
+resource "aws_ssm_parameter" "distribution_id" {
+  name        = "/serverless-blog/${var.environment}/cdn/distribution-id"
+  description = "CloudFront distribution ID for ${var.environment} environment"
+  type        = "String"
+  value       = aws_cloudfront_distribution.main.id
+
+  tags = merge(
+    {
+      Name        = "cdn-distribution-id-${var.environment}"
       Environment = var.environment
       Module      = "cdn"
     },

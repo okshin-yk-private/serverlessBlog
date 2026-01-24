@@ -843,15 +843,12 @@ jobs:
       - name: Get deployment config from SSM
         id: config
         run: |
-          # Retrieve bucket and distribution IDs (Requirement 9.7: mask sensitive values)
+          # Retrieve bucket and distribution IDs from SSM (Requirement 9.7: mask sensitive values)
           PUBLIC_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/dev/storage/public-site-bucket-name" --query "Parameter.Value" --output text)
           echo "::add-mask::$PUBLIC_BUCKET"
           echo "bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
 
-          DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?contains(Origins.Items[].DomainName, 'serverless-blog') && contains(Origins.Items[].DomainName, 'dev')].Id" --output text | head -1)
-          if [ -z "$DIST_ID" ]; then
-            DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?contains(Origins.Items[].DomainName, 'serverless-blog')].Id" --output text | head -1)
-          fi
+          DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/dev/cdn/distribution-id" --query "Parameter.Value" --output text)
           echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
 
           echo "✓ Retrieved deployment config from SSM"
@@ -967,15 +964,12 @@ jobs:
       - name: Get deployment config from SSM
         id: config
         run: |
-          # Retrieve bucket and distribution IDs (Requirement 9.7: mask sensitive values)
+          # Retrieve bucket and distribution IDs from SSM (Requirement 9.7: mask sensitive values)
           PUBLIC_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/prd/storage/public-site-bucket-name" --query "Parameter.Value" --output text)
           echo "::add-mask::$PUBLIC_BUCKET"
           echo "bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
 
-          DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?contains(Origins.Items[].DomainName, 'serverless-blog') && contains(Origins.Items[].DomainName, 'prd')].Id" --output text | head -1)
-          if [ -z "$DIST_ID" ]; then
-            DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?contains(Origins.Items[].DomainName, 'serverless-blog')].Id" --output text | head -1)
-          fi
+          DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/prd/cdn/distribution-id" --query "Parameter.Value" --output text)
           echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
 
           echo "✓ Retrieved deployment config from SSM"

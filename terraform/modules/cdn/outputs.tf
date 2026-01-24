@@ -57,3 +57,8 @@ output "api_endpoint_ssm_parameter_name" {
   value       = aws_ssm_parameter.api_endpoint.name
   description = "SSM parameter name for API endpoint"
 }
+
+output "distribution_id_ssm_parameter_name" {
+  value       = aws_ssm_parameter.distribution_id.name
+  description = "SSM parameter name for CloudFront distribution ID"
+}
