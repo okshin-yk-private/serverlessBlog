@@ -556,7 +556,7 @@ jobs:
           NODE_ENV: production
           VITE_COGNITO_USER_POOL_ID: ${{ steps.cognito.outputs.user_pool_id }}
           VITE_COGNITO_USER_POOL_CLIENT_ID: ${{ steps.cognito.outputs.client_id }}
-          VITE_API_URL: ""
+          VITE_API_URL: "/api"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

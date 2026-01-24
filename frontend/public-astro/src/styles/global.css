@@ -1,14 +1,24 @@
 @import "tailwindcss";
 
+/* Design tokens (aligned with admin) */
+:root {
+  --color-primary: #2D2A5A;
+  --color-accent: #C9A857;
+}
+
 /* Custom base styles */
 @layer base {
   html {
-    font-family: system-ui, sans-serif;
+    font-family: 'Shippori Mincho', serif;
     background-color: #f5f5f5;
   }
 
   body {
     @apply text-gray-900 leading-relaxed;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Caveat', cursive;
   }
 }
 
