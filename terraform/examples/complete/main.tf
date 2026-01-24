@@ -44,9 +44,10 @@ locals {
 module "database" {
   source = "../../modules/database"
 
-  table_name  = "${var.project_name}-posts-${var.environment}"
-  environment = var.environment
-  enable_pitr = var.enable_pitr
+  table_name            = "${var.project_name}-posts-${var.environment}"
+  categories_table_name = "${var.project_name}-categories-${var.environment}"
+  environment           = var.environment
+  enable_pitr           = var.enable_pitr
 
   tags = local.common_tags
 }
@@ -102,6 +103,14 @@ module "lambda" {
   enable_xray         = var.enable_xray
   go_binary_path      = var.go_binary_path
 
+  # Categories domain
+  categories_table_name = module.database.categories_table_name
+  categories_table_arn  = module.database.categories_table_arn
+
+  # CodeBuild integration (empty for examples - not using CodeBuild)
+  codebuild_project_name = ""
+  codebuild_project_arn  = ""
+
   tags = local.common_tags
 
   depends_on = [module.database, module.storage, module.auth]
@@ -144,6 +153,18 @@ module "api" {
   lambda_get_upload_url_invoke_arn  = module.lambda.function_invoke_arns["get_upload_url"]
   lambda_delete_image_arn           = module.lambda.function_arns["delete_image"]
   lambda_delete_image_invoke_arn    = module.lambda.function_invoke_arns["delete_image"]
+
+  # Categories Lambda function ARNs
+  lambda_list_categories_arn                     = module.lambda.function_arns["list_categories"]
+  lambda_list_categories_invoke_arn              = module.lambda.function_invoke_arns["list_categories"]
+  lambda_create_category_arn                     = module.lambda.function_arns["create_category"]
+  lambda_create_category_invoke_arn              = module.lambda.function_invoke_arns["create_category"]
+  lambda_update_category_arn                     = module.lambda.function_arns["update_category"]
+  lambda_update_category_invoke_arn              = module.lambda.function_invoke_arns["update_category"]
+  lambda_update_categories_sort_order_arn        = module.lambda.function_arns["update_categories_sort_order"]
+  lambda_update_categories_sort_order_invoke_arn = module.lambda.function_invoke_arns["update_categories_sort_order"]
+  lambda_delete_category_arn                     = module.lambda.function_arns["delete_category"]
+  lambda_delete_category_invoke_arn              = module.lambda.function_invoke_arns["delete_category"]
 
   tags = local.common_tags
 
