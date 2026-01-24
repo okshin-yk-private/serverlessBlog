@@ -5,9 +5,10 @@
  * コンポーネント間で共有されるスタイルを集約
  */
 
-/* ============================================
-   Badge Styles
-   ============================================ */
+@layer components {
+  /* ============================================
+     Badge Styles
+     ============================================ */
 .admin-badge {
   display: inline-flex;
   align-items: center;
@@ -411,12 +412,14 @@
    Responsive
    ============================================ */
 @media (max-width: 768px) {
-  .admin-card {
-    padding: 20px;
-  }
+    .admin-card {
+      padding: 20px;
+    }
 
-  .admin-badge-header {
-    font-size: 0.6rem;
-    padding: 3px 6px;
+    .admin-badge-header {
+      font-size: 0.6rem;
+      padding: 3px 6px;
+    }
   }
 }
+/* End of @layer components */
