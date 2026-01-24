@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
-/* Self-hosted Caveat font - eliminates FOUT */
+/* Self-hosted Caveat font with preload for fast loading */
 @font-face {
   font-family: 'Caveat';
   font-style: normal;
   font-weight: 400 700;
-  font-display: optional;
+  font-display: swap;
   src: url('/fonts/caveat-variable.woff2') format('woff2');
 }
 
