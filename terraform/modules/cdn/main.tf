@@ -626,3 +626,22 @@ resource "aws_cloudfront_distribution" "main" {
   )
 }
 
+#------------------------------------------------------------------------------
+# SSM Parameter for API endpoint (used by Astro SSG build)
+#------------------------------------------------------------------------------
+resource "aws_ssm_parameter" "api_endpoint" {
+  name        = "/serverless-blog/${var.environment}/api/endpoint"
+  description = "API endpoint URL for ${var.environment} environment (via CloudFront)"
+  type        = "String"
+  value       = "https://${aws_cloudfront_distribution.main.domain_name}/api"
+
+  tags = merge(
+    {
+      Name        = "api-endpoint-${var.environment}"
+      Environment = var.environment
+      Module      = "cdn"
+    },
+    var.tags
+  )
+}
+

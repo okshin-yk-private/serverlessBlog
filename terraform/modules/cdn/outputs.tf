@@ -52,3 +52,8 @@ output "custom_domain_url" {
   value       = var.use_custom_domain && length(var.domain_names) > 0 ? "https://${var.domain_names[0]}" : null
   description = "Primary custom domain URL (first domain in the list)"
 }
+
+output "api_endpoint_ssm_parameter_name" {
+  value       = aws_ssm_parameter.api_endpoint.name
+  description = "SSM parameter name for API endpoint"
+}
