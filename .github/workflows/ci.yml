@@ -23,8 +23,8 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write  # Required for actions/labeler to add labels
-  id-token: write       # Required for AWS OIDC authentication
+  pull-requests: write # Required for actions/labeler to add labels
+  id-token: write # Required for AWS OIDC authentication
 
 env:
   GO_VERSION: '1.25.5'

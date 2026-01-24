@@ -11,6 +11,7 @@
 
 import SEO from '../components/SEO.astro';
 import JsonLd from '../components/JsonLd.astro';
+import Header from '../components/Header.astro';
 import type { JsonLdPost } from '../lib/jsonLdUtils';
 
 interface Props {
@@ -97,6 +98,7 @@ const {
     </style>
   </head>
   <body class="min-h-screen bg-gray-50">
+    <Header />
     <slot />
   </body>
 </html>

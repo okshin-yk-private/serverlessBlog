@@ -11,13 +11,20 @@
  * - 15.5: 404ページでもサイトヘッダーとナビゲーションを維持
  */
 
+export interface SocialLink {
+  name: string;
+  url: string;
+}
+
 export interface SiteMetadata {
   siteName: string;
   siteDescription: string;
   author: {
     name: string;
+    role?: string;
     bio?: string;
   };
+  socialLinks: SocialLink[];
 }
 
 export interface AboutPageContent {
@@ -46,13 +53,19 @@ export interface NotFoundPageContent {
  */
 export function getSiteMetadata(): SiteMetadata {
   return {
-    siteName: 'bone of my fallacy',
+    siteName: 'Bone of my fallacy',
     siteDescription:
       'テクノロジー、ライフスタイル、プログラミングなど様々なトピックを扱う個人ブログ。',
     author: {
-      name: 'okshin',
-      bio: 'ソフトウェアエンジニア。クラウドアーキテクチャ、サーバーレス、AIに興味があります。',
+      name: 'okimoto(yokichi)',
+      role: 'Cloud Engineer',
+      bio: 'つくば市 / 2025 Japan All AWS Certifications Engineers / JAWS-UG 茨城運営 / INTJ / 自作キーボード / ルビコン塾',
     },
+    socialLinks: [
+      { name: 'X', url: 'https://x.com/WfallGo' },
+      { name: 'GitHub', url: 'https://github.com/okshn-yk' },
+      { name: 'GitHub Org', url: 'https://github.com/okshin-yk-private' },
+    ],
   };
 }
 
@@ -67,19 +80,9 @@ export function getAboutPageContent(): AboutPageContent {
     description: `${metadata.siteName}について - ${metadata.siteDescription}`,
     sections: [
       {
-        heading: 'このブログについて',
+        heading: 'About This Blog',
         content:
-          'このブログは、テクノロジー、プログラミング、ライフスタイルなど、様々なトピックについて発信する個人ブログです。AWSを使ったサーバーレスアーキテクチャで構築されています。',
-      },
-      {
-        heading: '著者について',
-        content:
-          metadata.author.bio || 'ソフトウェアエンジニアとして活動しています。',
-      },
-      {
-        heading: '技術スタック',
-        content:
-          'このブログはAstro SSG、AWS Lambda（Go）、DynamoDB、CloudFront、S3を使用して構築されています。インフラはTerraformで管理されています。',
+          'Welcome to Bone of my fallacy.\n\nこのサイトの内容は個人の感想です。\n何かを代表したり正しさを担保するものでは全くありません。',
       },
     ],
   };
