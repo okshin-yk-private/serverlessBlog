@@ -27,7 +27,6 @@ import {
 } from '@aws-sdk/client-cloudfront';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { createReadStream } from 'node:fs';
 import { lookup as mimeLookup } from 'mime-types';
 
 // =============================================================================
@@ -327,11 +326,11 @@ async function uploadToStaging(
       continue;
     }
 
-    const fileStream = createReadStream(file.localPath);
+    const fileContent = await fs.promises.readFile(file.localPath);
     const command = new PutObjectCommand({
       Bucket: config.bucketName,
       Key: key,
-      Body: fileStream,
+      Body: fileContent,
       CacheControl: cacheControl,
       ContentType: contentType,
     });
