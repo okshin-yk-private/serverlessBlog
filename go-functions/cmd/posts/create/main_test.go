@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/codebuild"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
@@ -65,12 +66,14 @@ func setupTest(t *testing.T) func() {
 	originalDynamoGetter := dynamoClientGetter
 	originalMarkdownConverter := markdownConverter
 	originalUUIDGenerator := uuidGenerator
+	originalCodeBuildGetter := codebuildClientGetter
 
 	// Restore after test
 	return func() {
 		dynamoClientGetter = originalDynamoGetter
 		markdownConverter = originalMarkdownConverter
 		uuidGenerator = originalUUIDGenerator
+		codebuildClientGetter = originalCodeBuildGetter
 	}
 }
 
@@ -1543,4 +1546,257 @@ func TestHandler_DynamoDBItemStructure(t *testing.T) {
 	if savedPost.UpdatedAt == "" {
 		t.Error("expected updatedAt to be set")
 	}
+}
+
+// =============================================================================
+// CodeBuild Trigger Tests
+// Requirement 10.1: Trigger CodeBuild when post is published
+// =============================================================================
+
+// TestHandler_CreatePublishedPost_TriggersCodeBuild tests that CodeBuild is triggered when creating a published post
+// Requirement 10.1: Trigger CodeBuild when post is published
+func TestHandler_CreatePublishedPost_TriggersCodeBuild(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	t.Setenv("CODEBUILD_PROJECT_NAME", "test-project")
+
+	mockClient := &MockDynamoDBClient{
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			return &dynamodb.PutItemOutput{}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	markdownConverter = func(markdown string) (string, error) {
+		return "<p>test</p>", nil
+	}
+
+	uuidGenerator = func() string {
+		return "test-uuid"
+	}
+
+	// Track if CodeBuild getter was called
+	codeBuildGetterCalled := false
+	codebuildClientGetter = func() (*codebuild.Client, error) {
+		codeBuildGetterCalled = true
+		return nil, errors.New("mock client not available")
+	}
+
+	publishStatus := domain.PublishStatusPublished
+	requestBody := domain.CreatePostRequest{
+		Title:           "Published Post",
+		ContentMarkdown: "# Hello World",
+		Category:        "technology",
+		PublishStatus:   &publishStatus,
+	}
+
+	body, _ := json.Marshal(requestBody)
+	request := events.APIGatewayProxyRequest{
+		Body: string(body),
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{
+				"claims": map[string]interface{}{
+					"sub": testAuthorID,
+				},
+			},
+		},
+	}
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	// Post creation should succeed despite CodeBuild client error
+	if resp.StatusCode != 201 {
+		t.Errorf("expected status 201, got %d", resp.StatusCode)
+	}
+
+	// CodeBuild getter SHOULD be called when creating a published post
+	if !codeBuildGetterCalled {
+		t.Error("CodeBuild getter should be called when creating a published post")
+	}
+
+	var post domain.BlogPost
+	if err := json.Unmarshal([]byte(resp.Body), &post); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if post.PublishStatus != domain.PublishStatusPublished {
+		t.Errorf("expected publishStatus %q, got %q", domain.PublishStatusPublished, post.PublishStatus)
+	}
+}
+
+// TestHandler_CreateDraftPost_DoesNotTriggerCodeBuild tests that CodeBuild is NOT triggered when creating a draft post
+// Requirement 10.1: CodeBuild should only be triggered for published posts
+func TestHandler_CreateDraftPost_DoesNotTriggerCodeBuild(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	t.Setenv("CODEBUILD_PROJECT_NAME", "test-project")
+
+	mockClient := &MockDynamoDBClient{
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			return &dynamodb.PutItemOutput{}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	markdownConverter = func(markdown string) (string, error) {
+		return "<p>test</p>", nil
+	}
+
+	uuidGenerator = func() string {
+		return "test-uuid"
+	}
+
+	// Track if CodeBuild getter was called
+	codeBuildGetterCalled := false
+	codebuildClientGetter = func() (*codebuild.Client, error) {
+		codeBuildGetterCalled = true
+		return nil, errors.New("should not be called")
+	}
+
+	// Create draft post (default behavior when publishStatus is not specified)
+	requestBody := domain.CreatePostRequest{
+		Title:           "Draft Post",
+		ContentMarkdown: "# Hello World",
+		Category:        "technology",
+	}
+
+	body, _ := json.Marshal(requestBody)
+	request := events.APIGatewayProxyRequest{
+		Body: string(body),
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{
+				"claims": map[string]interface{}{
+					"sub": testAuthorID,
+				},
+			},
+		},
+	}
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	if resp.StatusCode != 201 {
+		t.Errorf("expected status 201, got %d", resp.StatusCode)
+	}
+
+	// CodeBuild getter should NOT be called for draft posts
+	if codeBuildGetterCalled {
+		t.Error("CodeBuild getter should not be called when creating a draft post")
+	}
+}
+
+// TestHandler_CodeBuildError_DoesNotAffectCreate tests that CodeBuild errors don't affect post creation
+// Requirement 10.10: Lambda shall handle CodeBuild API errors gracefully without affecting post creation response
+func TestHandler_CodeBuildError_DoesNotAffectCreate(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	t.Setenv("CODEBUILD_PROJECT_NAME", "test-project")
+
+	mockClient := &MockDynamoDBClient{
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			return &dynamodb.PutItemOutput{}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	markdownConverter = func(markdown string) (string, error) {
+		return "<p>test</p>", nil
+	}
+
+	uuidGenerator = func() string {
+		return "test-uuid"
+	}
+
+	// Mock CodeBuild client to return error
+	codebuildClientGetter = func() (*codebuild.Client, error) {
+		return nil, errors.New("CodeBuild service unavailable")
+	}
+
+	publishStatus := domain.PublishStatusPublished
+	requestBody := domain.CreatePostRequest{
+		Title:           "Published Post",
+		ContentMarkdown: "# Hello World",
+		Category:        "technology",
+		PublishStatus:   &publishStatus,
+	}
+
+	body, _ := json.Marshal(requestBody)
+	request := events.APIGatewayProxyRequest{
+		Body: string(body),
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{
+				"claims": map[string]interface{}{
+					"sub": testAuthorID,
+				},
+			},
+		},
+	}
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	// Post creation should succeed despite CodeBuild error
+	if resp.StatusCode != 201 {
+		t.Errorf("expected status 201, got %d (CodeBuild error should not affect response)", resp.StatusCode)
+	}
+
+	var post domain.BlogPost
+	if err := json.Unmarshal([]byte(resp.Body), &post); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if post.PublishStatus != domain.PublishStatusPublished {
+		t.Errorf("expected publishStatus %q, got %q", domain.PublishStatusPublished, post.PublishStatus)
+	}
+}
+
+// TestTriggerSiteBuild_MissingProjectName tests that build is skipped when CODEBUILD_PROJECT_NAME is not set
+// Requirement 10.10: Handle missing configuration gracefully
+func TestTriggerSiteBuild_MissingProjectName(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	// Ensure CODEBUILD_PROJECT_NAME is not set
+	t.Setenv("CODEBUILD_PROJECT_NAME", "")
+
+	// triggerSiteBuild should not panic and should return silently
+	triggerSiteBuild(context.Background())
+	// No error expected - just a warning log
+}
+
+// TestTriggerSiteBuild_CodeBuildClientInitError tests graceful handling when CodeBuild client fails to initialize
+// Requirement 10.10: Handle CodeBuild API errors gracefully
+func TestTriggerSiteBuild_CodeBuildClientInitError(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	t.Setenv("CODEBUILD_PROJECT_NAME", "test-project")
+
+	// Mock CodeBuild client to return error
+	codebuildClientGetter = func() (*codebuild.Client, error) {
+		return nil, errors.New("failed to initialize CodeBuild client")
+	}
+
+	// triggerSiteBuild should not panic and should handle error gracefully
+	triggerSiteBuild(context.Background())
+	// No error expected - just an error log
 }
