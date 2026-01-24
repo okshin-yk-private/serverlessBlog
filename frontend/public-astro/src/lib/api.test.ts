@@ -19,7 +19,7 @@ import {
 
 // Mock global fetch
 const mockFetch = vi.fn();
-global.fetch = mockFetch as unknown as typeof fetch;
+global.fetch = mockFetch;
 
 describe('API Module', () => {
   beforeEach(() => {

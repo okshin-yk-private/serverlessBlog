@@ -27,6 +27,7 @@ import {
 } from '@aws-sdk/client-cloudfront';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { createReadStream } from 'node:fs';
 import { lookup as mimeLookup } from 'mime-types';
 
 // =============================================================================
@@ -302,50 +303,6 @@ async function listFiles(
 // =============================================================================
 
 /**
- * Upload a single file with retry logic
- * Uses buffer instead of stream to avoid AWS SDK v3 "non-retryable streaming request" errors
- */
-async function uploadFileWithRetry(
-  s3Client: S3Client,
-  bucket: string,
-  key: string,
-  localPath: string,
-  cacheControl: string,
-  contentType: string,
-  maxRetries = 3
-): Promise<void> {
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      // Use buffer instead of stream to avoid streaming errors
-      const fileContent = fs.readFileSync(localPath);
-      const command = new PutObjectCommand({
-        Bucket: bucket,
-        Key: key,
-        Body: fileContent,
-        CacheControl: cacheControl,
-        ContentType: contentType,
-      });
-
-      await s3Client.send(command);
-      return;
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      if (attempt < maxRetries) {
-        const delay = Math.pow(2, attempt - 1) * 100;
-        console.warn(
-          `Upload attempt ${attempt} failed for ${key}, retrying in ${delay}ms...`
-        );
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
-  }
-
-  throw lastError || new Error('Upload failed after retries');
-}
-
-/**
  * Upload all files to staging prefix
  * Requirement 6.3
  */
@@ -370,14 +327,16 @@ async function uploadToStaging(
       continue;
     }
 
-    await uploadFileWithRetry(
-      s3Client,
-      config.bucketName,
-      key,
-      file.localPath,
-      cacheControl,
-      contentType
-    );
+    const fileStream = createReadStream(file.localPath);
+    const command = new PutObjectCommand({
+      Bucket: config.bucketName,
+      Key: key,
+      Body: fileStream,
+      CacheControl: cacheControl,
+      ContentType: contentType,
+    });
+
+    await s3Client.send(command);
   }
 }
 
