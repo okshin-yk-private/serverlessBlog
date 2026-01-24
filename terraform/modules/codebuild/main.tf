@@ -272,9 +272,10 @@ resource "aws_codebuild_project" "astro_build" {
   }
 
   # Cache configuration
+  # LOCAL_SOURCE_CACHE is only available when source type is not NO_SOURCE
   cache {
     type  = "LOCAL"
-    modes = ["LOCAL_DOCKER_LAYER_CACHE", "LOCAL_SOURCE_CACHE", "LOCAL_CUSTOM_CACHE"]
+    modes = var.github_repo != "" ? ["LOCAL_DOCKER_LAYER_CACHE", "LOCAL_SOURCE_CACHE", "LOCAL_CUSTOM_CACHE"] : ["LOCAL_DOCKER_LAYER_CACHE", "LOCAL_CUSTOM_CACHE"]
   }
 
   # CloudWatch logs configuration
