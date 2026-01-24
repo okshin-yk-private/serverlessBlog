@@ -12,6 +12,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/google/uuid"
 
+	"serverless-blog/go-functions/internal/buildtrigger"
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/markdown"
@@ -41,6 +43,10 @@ var dynamoClientGetter = func() (DynamoDBClientInterface, error) {
 // markdownConverter is a function that converts markdown to HTML
 // This can be overridden in tests
 var markdownConverter = markdown.ConvertToHTML
+
+// codebuildClientGetter is a function that returns the CodeBuild client
+// This can be overridden in tests
+var codebuildClientGetter = clients.GetCodeBuild
 
 // uuidGenerator is a function that generates a new UUID
 // This can be overridden in tests
@@ -140,6 +146,12 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return errorResponse(500, "failed to create post")
 	}
 
+	// Trigger CodeBuild if post is created as published
+	// Requirement 10.1: Trigger site rebuild when post is published
+	if publishStatus == domain.PublishStatusPublished {
+		triggerSiteBuild(ctx)
+	}
+
 	// Return created post with 201 status
 	return middleware.JSONResponse(201, post)
 }
@@ -176,6 +188,30 @@ func extractAuthorID(request events.APIGatewayProxyRequest) string {
 // errorResponse creates an error response with CORS headers
 func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
 	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
+}
+
+// triggerSiteBuild triggers the Astro SSG build via CodeBuild
+// Requirement 10.1: Trigger CodeBuild when post is published
+func triggerSiteBuild(ctx context.Context) {
+	projectName := os.Getenv("CODEBUILD_PROJECT_NAME")
+	if projectName == "" {
+		slog.Warn("CODEBUILD_PROJECT_NAME not set, skipping build trigger")
+		return
+	}
+
+	client, err := codebuildClientGetter()
+	if err != nil {
+		slog.Error("failed to get CodeBuild client", "error", err)
+		return
+	}
+
+	trigger := buildtrigger.NewBuildTrigger(client, projectName)
+	if err := trigger.TriggerBuild(ctx); err != nil {
+		slog.Error("failed to trigger site build", "error", err, "project", projectName)
+		return
+	}
+
+	slog.Info("site build triggered successfully", "project", projectName)
 }
 
 func main() {
