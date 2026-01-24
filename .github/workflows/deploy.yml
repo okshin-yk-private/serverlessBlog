@@ -588,14 +588,16 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: GitHubActions-FrontendDeploy-DEV
 
-      - name: Get bucket names from SSM
-        id: buckets
+      - name: Get deployment config from SSM
+        id: config
         run: |
           PUBLIC_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/public-site-bucket-name" --query "Parameter.Value" --output text)
           ADMIN_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/admin-site-bucket-name" --query "Parameter.Value" --output text)
+          DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/cdn/distribution-id" --query "Parameter.Value" --output text)
           echo "public_bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
           echo "admin_bucket=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
-          echo "✓ Retrieved bucket names from SSM"
+          echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
+          echo "✓ Retrieved deployment config from SSM"
 
       - name: Download Public Site build
         uses: actions/download-artifact@v4
@@ -612,24 +614,23 @@ jobs:
       - name: Deploy Public Site to S3
         run: |
           echo "Deploying Public Site to S3..."
-          aws s3 sync public-dist/ s3://${{ steps.buckets.outputs.public_bucket }}/ --delete
-          echo "✓ Public site deployed to ${{ steps.buckets.outputs.public_bucket }}"
+          aws s3 sync public-dist/ s3://${{ steps.config.outputs.public_bucket }}/ --delete
+          echo "✓ Public site deployed to ${{ steps.config.outputs.public_bucket }}"
 
       - name: Deploy Admin Site to S3
         run: |
           # Admin files stored under /admin/ prefix to avoid CloudFront cache key collision
           echo "Deploying Admin Site to S3 (under /admin/ prefix)..."
-          aws s3 sync admin-dist/ s3://${{ steps.buckets.outputs.admin_bucket }}/admin/ --delete
-          echo "✓ Admin site deployed to ${{ steps.buckets.outputs.admin_bucket }}/admin/"
+          aws s3 sync admin-dist/ s3://${{ steps.config.outputs.admin_bucket }}/admin/ --delete
+          echo "✓ Admin site deployed to ${{ steps.config.outputs.admin_bucket }}/admin/"
 
       - name: Invalidate CloudFront Cache
         run: |
-          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?contains(Origins.Items[].DomainName, 'serverless-blog')].Id" --output text | head -1)
-          if [ -n "$DISTRIBUTION_ID" ]; then
-            aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*"
-            echo "✓ CloudFront cache invalidated"
+          if [ -n "${{ steps.config.outputs.distribution_id }}" ]; then
+            aws cloudfront create-invalidation --distribution-id "${{ steps.config.outputs.distribution_id }}" --paths "/*"
+            echo "✓ CloudFront cache invalidated (Distribution: ${{ steps.config.outputs.distribution_id }})"
           else
-            echo "⚠ CloudFront distribution not found, skipping invalidation"
+            echo "⚠ CloudFront distribution ID not found in SSM, skipping invalidation"
           fi
 
   # =======================================
@@ -656,14 +657,16 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: GitHubActions-FrontendDeploy-PRD
 
-      - name: Get bucket names from SSM
-        id: buckets
+      - name: Get deployment config from SSM
+        id: config
         run: |
           PUBLIC_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/public-site-bucket-name" --query "Parameter.Value" --output text)
           ADMIN_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/admin-site-bucket-name" --query "Parameter.Value" --output text)
+          DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/cdn/distribution-id" --query "Parameter.Value" --output text)
           echo "public_bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
           echo "admin_bucket=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
-          echo "✓ Retrieved bucket names from SSM"
+          echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
+          echo "✓ Retrieved deployment config from SSM"
 
       - name: Download Public Site build
         uses: actions/download-artifact@v4
@@ -680,24 +683,23 @@ jobs:
       - name: Deploy Public Site to S3
         run: |
           echo "⚠️ Deploying Public Site to PRODUCTION S3..."
-          aws s3 sync public-dist/ s3://${{ steps.buckets.outputs.public_bucket }}/ --delete
-          echo "✓ Public site deployed to ${{ steps.buckets.outputs.public_bucket }}"
+          aws s3 sync public-dist/ s3://${{ steps.config.outputs.public_bucket }}/ --delete
+          echo "✓ Public site deployed to ${{ steps.config.outputs.public_bucket }}"
 
       - name: Deploy Admin Site to S3
         run: |
           # Admin files stored under /admin/ prefix to avoid CloudFront cache key collision
           echo "⚠️ Deploying Admin Site to PRODUCTION S3 (under /admin/ prefix)..."
-          aws s3 sync admin-dist/ s3://${{ steps.buckets.outputs.admin_bucket }}/admin/ --delete
-          echo "✓ Admin site deployed to ${{ steps.buckets.outputs.admin_bucket }}/admin/"
+          aws s3 sync admin-dist/ s3://${{ steps.config.outputs.admin_bucket }}/admin/ --delete
+          echo "✓ Admin site deployed to ${{ steps.config.outputs.admin_bucket }}/admin/"
 
       - name: Invalidate CloudFront Cache
         run: |
-          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?contains(Origins.Items[].DomainName, 'serverless-blog')].Id" --output text | head -1)
-          if [ -n "$DISTRIBUTION_ID" ]; then
-            aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*"
-            echo "✓ CloudFront cache invalidated"
+          if [ -n "${{ steps.config.outputs.distribution_id }}" ]; then
+            aws cloudfront create-invalidation --distribution-id "${{ steps.config.outputs.distribution_id }}" --paths "/*"
+            echo "✓ CloudFront cache invalidated (Distribution: ${{ steps.config.outputs.distribution_id }})"
           else
-            echo "⚠ CloudFront distribution not found, skipping invalidation"
+            echo "⚠ CloudFront distribution ID not found in SSM, skipping invalidation"
           fi
 
   # =======================================
