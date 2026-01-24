@@ -30,16 +30,13 @@ export const validatePostContent = (content: string): string | null => {
 
 /**
  * カテゴリのバリデーション
+ * カテゴリが選択されているかのみを検証（有効なカテゴリはAPIから動的に取得されるため）
  * @param category カテゴリ文字列
  * @returns エラーメッセージ（正常な場合はnull）
  */
 export const validateCategory = (category: string): string | null => {
-  const validCategories = ['Technology', 'tech', 'life', 'business', 'other'];
-  if (!category) {
+  if (!category || category.trim().length === 0) {
     return 'カテゴリは必須です';
-  }
-  if (!validCategories.includes(category)) {
-    return `カテゴリは ${validCategories.join(', ')} のいずれかを選択してください`;
   }
   return null;
 };

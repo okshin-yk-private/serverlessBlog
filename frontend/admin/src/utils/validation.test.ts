@@ -57,25 +57,13 @@ describe('validateCategory', () => {
     expect(validateCategory('')).toBe('カテゴリは必須です');
   });
 
-  it('無効なカテゴリの場合はエラーメッセージを返す', () => {
-    expect(validateCategory('invalid')).toContain(
-      'tech, life, business, other'
-    );
+  it('スペースのみの場合はエラーメッセージを返す', () => {
+    expect(validateCategory('   ')).toBe('カテゴリは必須です');
   });
 
-  it('techカテゴリの場合はnullを返す', () => {
+  it('任意のカテゴリ文字列の場合はnullを返す（動的カテゴリ対応）', () => {
     expect(validateCategory('tech')).toBeNull();
-  });
-
-  it('lifeカテゴリの場合はnullを返す', () => {
-    expect(validateCategory('life')).toBeNull();
-  });
-
-  it('businessカテゴリの場合はnullを返す', () => {
-    expect(validateCategory('business')).toBeNull();
-  });
-
-  it('otherカテゴリの場合はnullを返す', () => {
-    expect(validateCategory('other')).toBeNull();
+    expect(validateCategory('Think')).toBeNull();
+    expect(validateCategory('custom-category')).toBeNull();
   });
 });
