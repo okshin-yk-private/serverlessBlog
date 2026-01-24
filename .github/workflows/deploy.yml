@@ -104,7 +104,8 @@ jobs:
               echo "infrastructure=false" >> $GITHUB_OUTPUT
             fi
 
-            if echo "$CHANGED" | grep -qE "^frontend/(public|admin)/"; then
+            # Admin frontend only - public site is now handled by Astro SSG
+            if echo "$CHANGED" | grep -qE "^frontend/admin/"; then
               echo "frontend=true" >> $GITHUB_OUTPUT
             else
               echo "frontend=false" >> $GITHUB_OUTPUT
@@ -469,46 +470,8 @@ jobs:
           echo "API: ${{ steps.outputs.outputs.api_endpoint }}"
 
   # =======================================
-  # Build Frontend (Public Site)
-  # =======================================
-  build-frontend-public:
-    name: Build Frontend (Public)
-    runs-on: ubuntu-latest
-    needs: [detect-changes]
-    if: needs.detect-changes.outputs.deploy-frontend == 'true'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        working-directory: frontend/public
-        run: bun install --frozen-lockfile
-
-      - name: Build
-        working-directory: frontend/public
-        run: bun run build
-        env:
-          NODE_ENV: production
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-public-build
-          path: frontend/public/dist/
-          retention-days: 1
-
-  # =======================================
   # Build Frontend (Admin Site)
+  # Public site is now handled by Astro SSG (build-astro job)
   # =======================================
   build-frontend-admin:
     name: Build Frontend (Admin)
@@ -566,18 +529,18 @@ jobs:
           retention-days: 1
 
   # =======================================
-  # Deploy Frontend (DEV)
+  # Deploy Admin Site (DEV)
+  # Public site is deployed by deploy-astro-dev job
   # =======================================
-  deploy-frontend-dev:
-    name: Deploy Frontend (DEV)
+  deploy-admin-dev:
+    name: Deploy Admin (DEV)
     runs-on: ubuntu-latest
-    needs: [detect-changes, build-frontend-public, build-frontend-admin, deploy-infrastructure-dev]
+    needs: [detect-changes, build-frontend-admin, deploy-infrastructure-dev]
     environment: dev
     if: |
       always() &&
       needs.detect-changes.outputs.deploy-frontend == 'true' &&
       needs.detect-changes.outputs.target-env == 'dev' &&
-      needs.build-frontend-public.result == 'success' &&
       needs.build-frontend-admin.result == 'success' &&
       (needs.deploy-infrastructure-dev.result == 'success' || needs.deploy-infrastructure-dev.result == 'skipped')
     steps:
@@ -586,36 +549,22 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-          role-session-name: GitHubActions-FrontendDeploy-DEV
+          role-session-name: GitHubActions-AdminDeploy-DEV
 
       - name: Get deployment config from SSM
         id: config
         run: |
-          PUBLIC_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/public-site-bucket-name" --query "Parameter.Value" --output text)
           ADMIN_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/admin-site-bucket-name" --query "Parameter.Value" --output text)
           DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/cdn/distribution-id" --query "Parameter.Value" --output text)
-          echo "public_bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
           echo "admin_bucket=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
           echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
           echo "✓ Retrieved deployment config from SSM"
-
-      - name: Download Public Site build
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-public-build
-          path: public-dist/
 
       - name: Download Admin Site build
         uses: actions/download-artifact@v4
         with:
           name: frontend-admin-build
           path: admin-dist/
-
-      - name: Deploy Public Site to S3
-        run: |
-          echo "Deploying Public Site to S3..."
-          aws s3 sync public-dist/ s3://${{ steps.config.outputs.public_bucket }}/ --delete
-          echo "✓ Public site deployed to ${{ steps.config.outputs.public_bucket }}"
 
       - name: Deploy Admin Site to S3
         run: |
@@ -624,29 +573,29 @@ jobs:
           aws s3 sync admin-dist/ s3://${{ steps.config.outputs.admin_bucket }}/admin/ --delete
           echo "✓ Admin site deployed to ${{ steps.config.outputs.admin_bucket }}/admin/"
 
-      - name: Invalidate CloudFront Cache
+      - name: Invalidate CloudFront Cache (Admin paths only)
         run: |
           if [ -n "${{ steps.config.outputs.distribution_id }}" ]; then
-            aws cloudfront create-invalidation --distribution-id "${{ steps.config.outputs.distribution_id }}" --paths "/*"
-            echo "✓ CloudFront cache invalidated (Distribution: ${{ steps.config.outputs.distribution_id }})"
+            aws cloudfront create-invalidation --distribution-id "${{ steps.config.outputs.distribution_id }}" --paths "/admin/*"
+            echo "✓ CloudFront cache invalidated for /admin/* (Distribution: ${{ steps.config.outputs.distribution_id }})"
           else
             echo "⚠ CloudFront distribution ID not found in SSM, skipping invalidation"
           fi
 
   # =======================================
-  # Deploy Frontend (PRD) - Requires Approval
+  # Deploy Admin Site (PRD) - Requires Approval
+  # Public site is deployed by deploy-astro-prd job
   # =======================================
-  deploy-frontend-prd:
-    name: Deploy Frontend (PRD)
+  deploy-admin-prd:
+    name: Deploy Admin (PRD)
     runs-on: ubuntu-latest
-    needs: [detect-changes, build-frontend-public, build-frontend-admin, deploy-infrastructure-prd]
+    needs: [detect-changes, build-frontend-admin, deploy-infrastructure-prd]
     environment:
       name: prod
     if: |
       always() &&
       needs.detect-changes.outputs.deploy-frontend == 'true' &&
       needs.detect-changes.outputs.target-env == 'prd' &&
-      needs.build-frontend-public.result == 'success' &&
       needs.build-frontend-admin.result == 'success' &&
       (needs.deploy-infrastructure-prd.result == 'success' || needs.deploy-infrastructure-prd.result == 'skipped')
     steps:
@@ -655,36 +604,22 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-          role-session-name: GitHubActions-FrontendDeploy-PRD
+          role-session-name: GitHubActions-AdminDeploy-PRD
 
       - name: Get deployment config from SSM
         id: config
         run: |
-          PUBLIC_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/public-site-bucket-name" --query "Parameter.Value" --output text)
           ADMIN_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/admin-site-bucket-name" --query "Parameter.Value" --output text)
           DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/cdn/distribution-id" --query "Parameter.Value" --output text)
-          echo "public_bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
           echo "admin_bucket=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
           echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
           echo "✓ Retrieved deployment config from SSM"
-
-      - name: Download Public Site build
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-public-build
-          path: public-dist/
 
       - name: Download Admin Site build
         uses: actions/download-artifact@v4
         with:
           name: frontend-admin-build
           path: admin-dist/
-
-      - name: Deploy Public Site to S3
-        run: |
-          echo "⚠️ Deploying Public Site to PRODUCTION S3..."
-          aws s3 sync public-dist/ s3://${{ steps.config.outputs.public_bucket }}/ --delete
-          echo "✓ Public site deployed to ${{ steps.config.outputs.public_bucket }}"
 
       - name: Deploy Admin Site to S3
         run: |
@@ -693,11 +628,11 @@ jobs:
           aws s3 sync admin-dist/ s3://${{ steps.config.outputs.admin_bucket }}/admin/ --delete
           echo "✓ Admin site deployed to ${{ steps.config.outputs.admin_bucket }}/admin/"
 
-      - name: Invalidate CloudFront Cache
+      - name: Invalidate CloudFront Cache (Admin paths only)
         run: |
           if [ -n "${{ steps.config.outputs.distribution_id }}" ]; then
-            aws cloudfront create-invalidation --distribution-id "${{ steps.config.outputs.distribution_id }}" --paths "/*"
-            echo "✓ CloudFront cache invalidated (Distribution: ${{ steps.config.outputs.distribution_id }})"
+            aws cloudfront create-invalidation --distribution-id "${{ steps.config.outputs.distribution_id }}" --paths "/admin/*"
+            echo "✓ CloudFront cache invalidated for /admin/* (Distribution: ${{ steps.config.outputs.distribution_id }})"
           else
             echo "⚠ CloudFront distribution ID not found in SSM, skipping invalidation"
           fi
@@ -1064,8 +999,8 @@ jobs:
       - detect-changes
       - deploy-infrastructure-dev
       - deploy-infrastructure-prd
-      - deploy-frontend-dev
-      - deploy-frontend-prd
+      - deploy-admin-dev
+      - deploy-admin-prd
       - deploy-astro-dev
       - deploy-astro-prd
     if: always()
@@ -1082,11 +1017,11 @@ jobs:
           echo "  DEV: ${{ needs.deploy-infrastructure-dev.result }}"
           echo "  PRD: ${{ needs.deploy-infrastructure-prd.result }}"
           echo ""
-          echo "--- Frontend (Legacy) ---"
-          echo "  DEV: ${{ needs.deploy-frontend-dev.result }}"
-          echo "  PRD: ${{ needs.deploy-frontend-prd.result }}"
+          echo "--- Admin Site ---"
+          echo "  DEV: ${{ needs.deploy-admin-dev.result }}"
+          echo "  PRD: ${{ needs.deploy-admin-prd.result }}"
           echo ""
-          echo "--- Astro SSG ---"
+          echo "--- Public Site (Astro SSG) ---"
           echo "  DEV: ${{ needs.deploy-astro-dev.result }}"
           echo "  PRD: ${{ needs.deploy-astro-prd.result }}"
           echo ""
@@ -1095,8 +1030,8 @@ jobs:
           # Check for failures
           if [ "${{ needs.deploy-infrastructure-dev.result }}" == "failure" ] || \
              [ "${{ needs.deploy-infrastructure-prd.result }}" == "failure" ] || \
-             [ "${{ needs.deploy-frontend-dev.result }}" == "failure" ] || \
-             [ "${{ needs.deploy-frontend-prd.result }}" == "failure" ] || \
+             [ "${{ needs.deploy-admin-dev.result }}" == "failure" ] || \
+             [ "${{ needs.deploy-admin-prd.result }}" == "failure" ] || \
              [ "${{ needs.deploy-astro-dev.result }}" == "failure" ] || \
              [ "${{ needs.deploy-astro-prd.result }}" == "failure" ]; then
             echo "❌ One or more deployments failed"
