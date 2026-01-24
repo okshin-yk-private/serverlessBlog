@@ -339,6 +339,14 @@ jobs:
           echo "TF_VAR_basic_auth_password=$PASSWORD" >> $GITHUB_ENV
           echo "✓ Basic Auth credentials loaded from SSM"
 
+      - name: Get Cloudflare API Token from SSM
+        run: |
+          CLOUDFLARE_TOKEN=$(aws ssm get-parameter --name "/serverless-blog/dev/cloudflare/apikey" --with-decryption --query "Parameter.Value" --output text)
+          echo "::add-mask::$CLOUDFLARE_TOKEN"
+          echo "TF_VAR_cloudflare_api_token=$CLOUDFLARE_TOKEN" >> $GITHUB_ENV
+          echo "TF_VAR_enable_custom_domain=true" >> $GITHUB_ENV
+          echo "✓ Cloudflare API token loaded from SSM"
+
       - name: Terraform Init
         working-directory: terraform/environments/dev
         run: terraform init
@@ -408,6 +416,14 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: GitHubActions-TerraformApply-PRD
+
+      - name: Get Cloudflare API Token from SSM
+        run: |
+          CLOUDFLARE_TOKEN=$(aws ssm get-parameter --name "/serverless-blog/prd/cloudflare/apikey" --with-decryption --query "Parameter.Value" --output text)
+          echo "::add-mask::$CLOUDFLARE_TOKEN"
+          echo "TF_VAR_cloudflare_api_token=$CLOUDFLARE_TOKEN" >> $GITHUB_ENV
+          echo "TF_VAR_enable_custom_domain=true" >> $GITHUB_ENV
+          echo "✓ Cloudflare API token loaded from SSM"
 
       - name: Terraform Init
         working-directory: terraform/environments/prd
