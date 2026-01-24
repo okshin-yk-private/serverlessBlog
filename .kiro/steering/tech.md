@@ -44,6 +44,17 @@
   - `bun.lock` によるロックファイル管理
   - npm/yarn互換のpackage.json使用
 
+### フロントエンドフレームワーク
+- **Astro 5.x**: 公開サイトのSSG（Static Site Generation）
+  - SSGモード（`output: 'static'`）による静的HTML生成
+  - Tailwind CSS 4.x（Viteプラグイン経由）
+  - サイトマップ自動生成（`@astrojs/sitemap`）
+  - RSSフィード生成（`@astrojs/rss`）
+  - Vitestによるユニットテスト
+- **React/Vite**: 管理画面SPA（admin）
+  - Vite 6.x ビルドツール
+  - Tailwind CSS 4.x
+
 ### Infrastructure as Code
 - **Terraform**: HCLによるインフラ定義（CDKから移行完了）
 - **モジュール構成**: api, auth, cdn, database, lambda, monitoring, storage

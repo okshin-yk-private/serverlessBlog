@@ -238,7 +238,7 @@ go:
 
 ---
 
-*Last Updated: 2026-01-06 (Migration Complete)*
+*Last Updated: 2026-01-25 (Migration Complete - Archived)*
 
 ---
 

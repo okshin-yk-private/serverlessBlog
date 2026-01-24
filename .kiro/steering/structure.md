@@ -2,13 +2,14 @@
 
 ## 現在の実装状況
 
-**Last Updated**: 2026-01-10 (Steering Sync - Terraform Migration Complete)
+**Last Updated**: 2026-01-25 (Steering Sync - Astro SSG Migration)
 
 ### ✅ 実装完了
 - Terraform移行完了（CDKは削除済み）
 - Go Lambda実装完了（バックエンドはGo単一構成）
 - フロントエンド（public/admin）主要機能の実装完了
 - テスト基盤（Goテスト、フロントエンドユニット/統合/E2E）の整備完了
+- **Astro SSG移行進行中**: `frontend/public-astro/`（React SPAからAstro静的サイトへ）
 
 ### ✅ 最近完了したタスク
 - 旧Node.js/LambdaテストとLayersは削除済み（Goへの統一により不要）
@@ -315,7 +316,16 @@ serverless_blog/
 │   ├── .golangci.yml      # リンター設定
 │   └── Makefile
 ├── frontend/              # フロントエンドアプリケーション
-│   ├── public/            # 公開ブログサイト
+│   ├── public-astro/      # 公開ブログサイト (Astro SSG) ← 新規
+│   │   ├── src/
+│   │   │   ├── components/   # Astroコンポーネント
+│   │   │   ├── layouts/      # レイアウト
+│   │   │   ├── pages/        # ページ（SSG）
+│   │   │   ├── lib/          # ユーティリティ
+│   │   │   └── styles/       # CSS
+│   │   ├── public/
+│   │   └── package.json
+│   ├── public/            # 公開ブログサイト (React SPA) ← 旧実装
 │   │   ├── src/
 │   │   ├── public/
 │   │   └── package.json
@@ -437,8 +447,31 @@ Terraformテスト（Terratest等）。
 ### frontend/
 フロントエンドアプリケーション。
 
-#### public/
-公開ブログサイト（React/Next.js）。
+#### public-astro/ (新規: Astro SSG)
+公開ブログサイト（Astro 5.x SSG）。React SPAからの移行中。
+
+**技術スタック:**
+- **Astro 5.x**: Static Site Generation
+- **Tailwind CSS 4.x**: Viteプラグイン経由
+- **Vitest**: ユニットテスト
+
+**主要機能:**
+- 記事一覧表示（`pages/index.astro`）
+- 記事詳細表示（`pages/posts/[id].astro`）
+- Aboutページ（`pages/about.astro`）
+- 404ページ（`pages/404.astro`）
+- RSS フィード（`pages/rss.xml.ts`）
+- サイトマップ自動生成
+
+**ディレクトリ構成:**
+- `components/`: 再利用可能なAstroコンポーネント（Header, PostCard, SEO, JsonLd）
+- `layouts/`: ページレイアウト（Layout.astro）
+- `pages/`: ルーティング（ファイルベース）
+- `lib/`: ユーティリティ関数（api, seoUtils, postUtils等）
+- `styles/`: グローバルCSS
+
+#### public/ (旧実装: React SPA)
+公開ブログサイト（React/Vite）。Astro移行完了後に削除予定。
 - 記事一覧表示
 - 記事詳細表示
 - カテゴリ別表示
