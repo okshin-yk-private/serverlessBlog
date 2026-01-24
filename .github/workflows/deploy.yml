@@ -227,6 +227,16 @@ jobs:
             path: images/get_upload_url
           - function: images-delete
             path: images/delete
+          - function: categories-list
+            path: categories/list
+          - function: categories-create
+            path: categories/create
+          - function: categories-update
+            path: categories/update
+          - function: categories-bulk_sort
+            path: categories/bulk_sort
+          - function: categories-delete
+            path: categories/delete
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -697,9 +707,14 @@ jobs:
   build-astro:
     name: Build Astro SSG
     runs-on: ubuntu-latest
-    needs: [detect-changes]
+    # SSG build must run AFTER infrastructure is deployed because it fetches posts from the API
+    needs: [detect-changes, deploy-infrastructure-dev, deploy-infrastructure-prd]
     environment: ${{ needs.detect-changes.outputs.target-env }}
-    if: needs.detect-changes.outputs.deploy-astro == 'true'
+    if: |
+      always() &&
+      needs.detect-changes.outputs.deploy-astro == 'true' &&
+      (needs.deploy-infrastructure-dev.result == 'success' || needs.deploy-infrastructure-dev.result == 'skipped') &&
+      (needs.deploy-infrastructure-prd.result == 'success' || needs.deploy-infrastructure-prd.result == 'skipped')
     steps:
       - name: Checkout code
         # Pin to specific commit SHA for security (Requirement 9.8)
