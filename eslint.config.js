@@ -111,6 +111,13 @@ export default [
       ],
     },
   },
+  // Deploy scripts (CLI tools)
+  {
+    files: ['scripts/deploy/**/*.ts'],
+    rules: {
+      'no-console': 'off', // CLI scripts use console for user output
+    },
+  },
   // Test files
   {
     files: ['**/*.test.ts', '**/*.spec.ts', '**/tests/**/*.ts', '**/test/**/*.ts'],

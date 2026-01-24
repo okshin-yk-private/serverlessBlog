@@ -58,6 +58,7 @@ export interface AuthContextType {
  * 認証コンテキスト
  * useAuthフックを通じてのみアクセスすべき
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<AuthContextType | undefined>(
   undefined
 );

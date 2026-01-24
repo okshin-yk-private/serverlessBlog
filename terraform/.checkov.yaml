@@ -221,6 +221,55 @@ skip-check:
   # Justification: Same as CKV_TF_1 - version pinning over commit hashes.
   - CKV_TF_2
 
+  # --------------------------------------
+  # CloudFront Rules (Additional)
+  # --------------------------------------
+
+  # CKV_AWS_310: Ensure CloudFront distribution has origin failover configured
+  # Justification: Single-region blog application. S3 provides 99.99% availability.
+  # Cross-region origin failover adds cost and complexity without matching
+  # business requirement for this non-critical content site.
+  # Mitigation: S3 versioning enabled; monitoring and alerts configured
+  - CKV_AWS_310
+
+  # CKV_AWS_374: Ensure CloudFront distribution has geo restrictions configured
+  # Justification: Public blog intended for global accessibility. No regulatory
+  # requirement for geo-blocking. Content is not region-specific.
+  # Mitigation: CloudFront rate limiting; WAF consideration for production
+  - CKV_AWS_374
+
+  # --------------------------------------
+  # API Gateway Rules (Additional)
+  # --------------------------------------
+
+  # CKV_AWS_120: Ensure API Gateway caching is enabled
+  # Justification: CloudFront provides edge caching for /api/* paths.
+  # Lambda functions provide consistent sub-100ms responses. Adding API Gateway
+  # caching would duplicate CloudFront caching with minimal benefit.
+  # Mitigation: CloudFront edge caching; Lambda performance monitoring
+  - CKV_AWS_120
+
+  # CKV_AWS_59: Ensure API methods do not have public access
+  # Justification: Intentionally public endpoints for blog functionality:
+  # - GET /posts, /posts/{id} - public blog content
+  # - GET /categories - public category listing
+  # - POST /admin/auth/login, /admin/auth/refresh - authentication endpoints
+  # - OPTIONS methods - CORS preflight requests
+  # Protected admin endpoints use Cognito authorizers.
+  # Mitigation: Cognito protects sensitive endpoints; CloudFront rate limiting
+  - CKV_AWS_59
+
+  # --------------------------------------
+  # CloudWatch Rules (Additional)
+  # --------------------------------------
+
+  # CKV_AWS_338: Ensure CloudWatch log groups have retention period less than 1 year
+  # Justification: 90-day log retention is sufficient for operational needs.
+  # No compliance requirement for 1-year retention. Extended retention adds
+  # storage costs without proportional benefit for blog application.
+  # Mitigation: CloudTrail for audit trail; metrics for long-term trends
+  - CKV_AWS_338
+
 # ======================================
 # External Check Configuration
 # ======================================

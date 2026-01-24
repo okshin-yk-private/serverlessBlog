@@ -24,6 +24,10 @@ resource "aws_api_gateway_rest_api" "main" {
   }
 
   tags = local.common_tags
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # ======================
