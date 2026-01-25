@@ -65,28 +65,11 @@ phases:
     commands:
       - echo "Deploying to S3..."
       - DEPLOY_VERSION="v$(date +%s)"
-      - echo "Deploy version: $DEPLOY_VERSION"
-      # Sync static assets with long cache (1 year, immutable)
-      - |
-        aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --delete \
-          --cache-control "public,max-age=31536000,immutable" \
-          --exclude "*.html" --exclude "sitemap*.xml" --exclude "rss.xml" --exclude "robots.txt" --exclude "404.html"
-      # Sync HTML/XML files with must-revalidate
-      - |
-        aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" \
-          --cache-control "public,max-age=0,must-revalidate" \
-          --exclude "*" \
-          --include "*.html" --include "sitemap*.xml" --include "rss.xml" --include "robots.txt"
+      - echo "Deploy version - $DEPLOY_VERSION"
+      - aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --delete --cache-control "public,max-age=31536000,immutable" --exclude "*.html" --exclude "sitemap*.xml" --exclude "rss.xml" --exclude "robots.txt" --exclude "404.html"
+      - aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --cache-control "public,max-age=0,must-revalidate" --exclude "*" --include "*.html" --include "sitemap*.xml" --include "rss.xml" --include "robots.txt"
       - echo "S3 sync completed"
-      # CloudFront cache invalidation (limited to changed paths when possible)
-      - |
-        if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
-          echo "Invalidating CloudFront cache..."
-          aws cloudfront create-invalidation \
-            --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
-            --paths "/*"
-          echo "CloudFront invalidation initiated"
-        fi
+      - if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then echo "Invalidating CloudFront cache..." && aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*" && echo "CloudFront invalidation initiated"; fi
       - echo "Deployment completed successfully"
 
 cache:
