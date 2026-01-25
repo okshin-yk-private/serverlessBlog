@@ -1,0 +1,286 @@
+---
+/**
+ * SearchBar.astro - 検索バーコンポーネント
+ *
+ * クライアントサイドでの記事検索機能を提供
+ * - タイトル、カテゴリー、タグを対象に部分一致検索
+ * - デバウンス処理（200ms）でリアルタイムフィルタリング
+ * - 検索結果に応じてPostCardの表示/非表示を切り替え
+ */
+
+import type { SearchablePost } from '../lib/searchUtils';
+
+interface Props {
+  posts: SearchablePost[];
+}
+
+const { posts } = Astro.props;
+---
+
+<div class="search-container" data-testid="search-container">
+  <div class="search-input-wrapper">
+    <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
+    </svg>
+    <input
+      type="text"
+      id="search-input"
+      class="search-input"
+      placeholder="タイトル・カテゴリー・タグで検索..."
+      data-testid="search-input"
+      autocomplete="off"
+    />
+    <button
+      type="button"
+      id="search-clear"
+      class="search-clear"
+      aria-label="検索をクリア"
+      data-testid="search-clear"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+      </svg>
+    </button>
+  </div>
+</div>
+
+<div id="no-results-message" class="no-results-message" data-testid="no-results-message" style="display: none;">
+  検索結果がありません
+</div>
+
+<!-- 検索用データを埋め込み -->
+<script id="search-data" type="application/json" set:html={JSON.stringify(posts)} />
+
+<script>
+  /**
+   * 検索ロジック（クライアントサイド）
+   */
+  (function() {
+    // DOM要素の取得
+    const searchInput = document.getElementById('search-input') as HTMLInputElement;
+    const searchClear = document.getElementById('search-clear') as HTMLButtonElement;
+    const noResultsMessage = document.getElementById('no-results-message') as HTMLElement;
+    const searchDataScript = document.getElementById('search-data') as HTMLScriptElement;
+
+    if (!searchInput || !searchClear || !noResultsMessage || !searchDataScript) {
+      console.error('Search elements not found');
+      return;
+    }
+
+    // 検索データの解析
+    interface SearchablePost {
+      id: string;
+      title: string;
+      category: string;
+      tags: string[];
+    }
+
+    let posts: SearchablePost[] = [];
+    try {
+      posts = JSON.parse(searchDataScript.textContent || '[]');
+    } catch (e) {
+      console.error('Failed to parse search data:', e);
+      return;
+    }
+
+    /**
+     * 記事を検索
+     */
+    function searchPosts(query: string): string[] {
+      if (!query.trim()) {
+        return posts.map(p => p.id);
+      }
+
+      const normalizedQuery = query.toLowerCase().trim();
+
+      return posts
+        .filter(post => {
+          if (post.title.toLowerCase().includes(normalizedQuery)) return true;
+          if (post.category.toLowerCase().includes(normalizedQuery)) return true;
+          if (post.tags.some(tag => tag.toLowerCase().includes(normalizedQuery))) return true;
+          return false;
+        })
+        .map(p => p.id);
+    }
+
+    /**
+     * デバウンス関数
+     */
+    function debounce<T extends (...args: any[]) => void>(func: T, wait: number): (...args: Parameters<T>) => void {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      return function(...args: Parameters<T>): void {
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+        }
+        timeoutId = setTimeout(() => {
+          func(...args);
+        }, wait);
+      };
+    }
+
+    /**
+     * 検索結果の反映
+     */
+    function applySearchResults(matchedIds: string[]): void {
+      const postCards = document.querySelectorAll('[data-post-id]');
+      let visibleCount = 0;
+
+      postCards.forEach(card => {
+        const postId = card.getAttribute('data-post-id');
+        const isMatch = postId && matchedIds.includes(postId);
+
+        if (isMatch) {
+          (card as HTMLElement).style.display = '';
+          visibleCount++;
+        } else {
+          (card as HTMLElement).style.display = 'none';
+        }
+      });
+
+      // 「検索結果がありません」メッセージの表示/非表示
+      const query = searchInput.value.trim();
+      if (query && visibleCount === 0) {
+        noResultsMessage.style.display = 'block';
+      } else {
+        noResultsMessage.style.display = 'none';
+      }
+    }
+
+    /**
+     * 検索の実行
+     */
+    function performSearch(): void {
+      const query = searchInput.value;
+      const matchedIds = searchPosts(query);
+      applySearchResults(matchedIds);
+
+      // クリアボタンの表示/非表示
+      if (query.trim()) {
+        searchClear.style.display = 'flex';
+      } else {
+        searchClear.style.display = 'none';
+      }
+    }
+
+    // デバウンスされた検索関数
+    const debouncedSearch = debounce(performSearch, 200);
+
+    // イベントリスナーの設定
+    searchInput.addEventListener('input', debouncedSearch);
+
+    searchClear.addEventListener('click', () => {
+      searchInput.value = '';
+      performSearch();
+      searchInput.focus();
+    });
+
+    // Escキーで検索クリア
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        searchInput.value = '';
+        performSearch();
+      }
+    });
+
+    // 初期状態でクリアボタンを非表示
+    searchClear.style.display = 'none';
+  })();
+</script>
+
+<style>
+  .search-container {
+    max-width: 600px;
+    margin: 0 auto 32px;
+    padding: 0 16px;
+  }
+
+  .search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 16px;
+    width: 20px;
+    height: 20px;
+    color: #9ca3af;
+    pointer-events: none;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 14px 48px 14px 48px;
+    font-size: 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: white;
+    color: #111827;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .search-input:focus {
+    outline: none;
+    border-color: #C9A857;
+    box-shadow: 0 0 0 3px rgba(201, 168, 87, 0.15), 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .search-input::placeholder {
+    color: #9ca3af;
+  }
+
+  .search-clear {
+    position: absolute;
+    right: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #9ca3af;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+  }
+
+  .search-clear:hover {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+
+  .search-clear svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .no-results-message {
+    text-align: center;
+    color: #6b7280;
+    font-size: 1rem;
+    padding: 40px 20px;
+    background: #f9fafb;
+    border-radius: 12px;
+    margin-bottom: 24px;
+  }
+
+  @media (max-width: 768px) {
+    .search-container {
+      margin-bottom: 24px;
+    }
+
+    .search-input {
+      padding: 12px 44px 12px 44px;
+      font-size: 0.95rem;
+    }
+
+    .search-icon {
+      width: 18px;
+      height: 18px;
+    }
+  }
+</style>

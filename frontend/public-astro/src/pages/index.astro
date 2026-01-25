@@ -22,8 +22,10 @@
  */
 import Layout from '../layouts/Layout.astro';
 import PostCard from '../components/PostCard.astro';
+import SearchBar from '../components/SearchBar.astro';
 import { fetchAllPosts, type Post } from '../lib/api';
 import { sortPostsByDate } from '../lib/postUtils';
+import type { SearchablePost } from '../lib/searchUtils';
 
 // ビルド時に公開記事を取得
 let posts: Post[] = [];
@@ -36,6 +38,14 @@ try {
   console.error('Failed to fetch posts:', e);
   error = e instanceof Error ? e.message : 'Unknown error';
 }
+
+// 検索用のデータを生成（最小限のフィールドのみ）
+const searchablePosts: SearchablePost[] = posts.map((post) => ({
+  id: post.id,
+  title: post.title,
+  category: post.category,
+  tags: post.tags || [],
+}));
 ---
 
 <Layout
@@ -47,6 +57,13 @@ try {
   <div class="hero-section">
     <h1 class="hero-title">I am the bone of my fallacy</h1>
   </div>
+
+  <!-- Search Section -->
+  {posts.length > 0 && (
+    <div class="search-section">
+      <SearchBar posts={searchablePosts} />
+    </div>
+  )}
 
   <div class="container">
     {error ? (
@@ -80,6 +97,12 @@ try {
     margin: 0 0 24px 0;
     letter-spacing: 0.02em;
     font-family: 'Caveat', cursive;
+  }
+
+  .search-section {
+    padding: 32px 32px 0;
+    max-width: 1200px;
+    margin: 0 auto;
   }
 
   .container {
@@ -134,6 +157,10 @@ try {
 
     .hero-title {
       font-size: 2rem;
+    }
+
+    .search-section {
+      padding: 24px 20px 0;
     }
 
     .container {
