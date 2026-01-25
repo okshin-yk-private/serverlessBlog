@@ -447,7 +447,9 @@ resource "aws_lambda_function" "delete_post" {
   timeout       = 30
 
   environment {
-    variables = local.common_environment
+    variables = merge(local.common_environment, {
+      CODEBUILD_PROJECT_NAME = var.codebuild_project_name
+    })
   }
 
   tracing_config {
