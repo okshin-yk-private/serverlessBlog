@@ -64,7 +64,6 @@ export function getSiteMetadata(): SiteMetadata {
     socialLinks: [
       { name: 'X', url: 'https://x.com/WfallGo' },
       { name: 'GitHub', url: 'https://github.com/okshn-yk' },
-      { name: 'GitHub Org', url: 'https://github.com/okshin-yk-private' },
     ],
   };
 }
