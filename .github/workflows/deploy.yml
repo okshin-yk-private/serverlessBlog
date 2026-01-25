@@ -512,6 +512,15 @@ jobs:
         working-directory: frontend/admin
         run: bun install --frozen-lockfile
 
+      - name: Set CloudFront URL
+        id: cloudfront
+        run: |
+          if [ "${{ needs.detect-changes.outputs.target-env }}" == "prd" ]; then
+            echo "url=https://boneofmyfallacy.net" >> $GITHUB_OUTPUT
+          else
+            echo "url=https://dev.boneofmyfallacy.net" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build
         working-directory: frontend/admin
         run: bun run build
@@ -520,6 +529,7 @@ jobs:
           VITE_COGNITO_USER_POOL_ID: ${{ steps.cognito.outputs.user_pool_id }}
           VITE_COGNITO_USER_POOL_CLIENT_ID: ${{ steps.cognito.outputs.client_id }}
           VITE_API_URL: "/api"
+          VITE_CLOUDFRONT_URL: ${{ steps.cloudfront.outputs.url }}
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
