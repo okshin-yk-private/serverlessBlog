@@ -20,7 +20,7 @@ const excerpt = generateExcerpt(post.contentHtml, 100);
 const formattedDate = formatDateJa(post.createdAt);
 ---
 
-<article class="post-card" data-testid="article-card">
+<article class="post-card" data-testid="article-card" data-post-id={post.id}>
   <a href={`/posts/${post.id}`} class="post-link">
     <h2 class="post-title" data-testid="article-title">{post.title}</h2>
     <div class="post-meta">
