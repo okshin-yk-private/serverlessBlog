@@ -69,8 +69,8 @@ phases:
   post_build:
     commands:
       - echo "Deploying to S3..."
-      - cd "$CODEBUILD_SRC_DIR/frontend/public-astro" && aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --delete --cache-control "public,max-age=31536000,immutable" --exclude "*.html" --exclude "sitemap*.xml" --exclude "rss.xml" --exclude "robots.txt" --exclude "404.html"
-      - cd "$CODEBUILD_SRC_DIR/frontend/public-astro" && aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --cache-control "public,max-age=0,must-revalidate" --exclude "*" --include "*.html" --include "sitemap*.xml" --include "rss.xml" --include "robots.txt"
+      - cd "$CODEBUILD_SRC_DIR/frontend/public-astro" && aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --delete --size-only --cache-control "public,max-age=31536000,immutable" --exclude "*.html" --exclude "sitemap*.xml" --exclude "rss.xml" --exclude "robots.txt" --exclude "404.html"
+      - cd "$CODEBUILD_SRC_DIR/frontend/public-astro" && aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --size-only --cache-control "public,max-age=0,must-revalidate" --exclude "*" --include "*.html" --include "sitemap*.xml" --include "rss.xml" --include "robots.txt"
       - echo "S3 sync completed"
       - |
         if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
@@ -236,9 +236,10 @@ resource "aws_codebuild_project" "astro_build" {
   # For Lambda-triggered builds, use NO_SOURCE with inline buildspec
   # For GitHub-triggered builds, use GITHUB source
   source {
-    type      = var.github_repo != "" ? "GITHUB" : "NO_SOURCE"
-    location  = var.github_repo != "" ? var.github_repo : null
-    buildspec = local.buildspec
+    type            = var.github_repo != "" ? "GITHUB" : "NO_SOURCE"
+    location        = var.github_repo != "" ? var.github_repo : null
+    git_clone_depth = var.github_repo != "" ? 1 : null
+    buildspec       = local.buildspec
 
     dynamic "git_submodules_config" {
       for_each = var.github_repo != "" ? [1] : []
