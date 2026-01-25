@@ -322,6 +322,10 @@ module "codebuild" {
   cloudfront_distribution_id = module.cdn.distribution_id
   api_url                    = module.cdn.api_base_url
 
+  # GitHub source configuration for Astro SSG builds
+  github_repo   = "https://github.com/okshin-yk-private/serverlessBlog.git"
+  github_branch = "develop"
+
   tags = local.common_tags
 
   depends_on = [module.storage, module.cdn]

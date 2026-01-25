@@ -248,6 +248,9 @@ resource "aws_codebuild_project" "astro_build" {
     }
   }
 
+  # Source version (branch/tag/commit) - only used when github_repo is set
+  source_version = var.github_repo != "" ? var.github_branch : null
+
   # No artifacts - deploy directly to S3
   artifacts {
     type = "NO_ARTIFACTS"
