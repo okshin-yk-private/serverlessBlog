@@ -32,6 +32,7 @@ locals {
 
   # BuildSpec inline YAML for Astro build and deploy
   # Requirements: 9.1, 9.2 - Bun build step, S3 deployment
+  # Note: Uses CODEBUILD_SRC_DIR for reliable absolute paths across phases
   buildspec = <<-BUILDSPEC
 version: 0.2
 
@@ -40,6 +41,7 @@ env:
     PUBLIC_API_URL: "${var.api_url}"
     DEPLOYMENT_BUCKET: "${var.public_site_bucket_name}"
     CLOUDFRONT_DISTRIBUTION_ID: "${var.cloudfront_distribution_id}"
+  shell: bash
 
 phases:
   install:
@@ -48,41 +50,36 @@ phases:
     commands:
       - echo "Installing Bun..."
       - curl -fsSL https://bun.sh/install | bash
-      - export PATH="$HOME/.bun/bin:$PATH"
+      - export BUN_INSTALL="$HOME/.bun"
+      - export PATH="$BUN_INSTALL/bin:$PATH"
       - bun --version
+      - echo "Working directory: $CODEBUILD_SRC_DIR"
   pre_build:
     commands:
-      - echo "Installing dependencies..."
-      - cd frontend/public-astro && bun install --frozen-lockfile
+      - export PATH="$HOME/.bun/bin:$PATH"
+      - echo "Installing dependencies in $CODEBUILD_SRC_DIR/frontend/public-astro"
+      - cd "$CODEBUILD_SRC_DIR/frontend/public-astro" && bun install --frozen-lockfile
   build:
     commands:
+      - export PATH="$HOME/.bun/bin:$PATH"
       - echo "Building Astro site..."
-      - cd frontend/public-astro && bun run build
+      - cd "$CODEBUILD_SRC_DIR/frontend/public-astro" && bun run build
       - echo "Build completed. Output size:"
-      - du -sh frontend/public-astro/dist
+      - du -sh "$CODEBUILD_SRC_DIR/frontend/public-astro/dist"
   post_build:
     commands:
       - echo "Deploying to S3..."
       - DEPLOY_VERSION="v$(date +%s)"
       - echo "Deploy version - $DEPLOY_VERSION"
-      - cd frontend/public-astro && aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --delete --cache-control "public,max-age=31536000,immutable" --exclude "*.html" --exclude "sitemap*.xml" --exclude "rss.xml" --exclude "robots.txt" --exclude "404.html"
-      - cd frontend/public-astro && aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --cache-control "public,max-age=0,must-revalidate" --exclude "*" --include "*.html" --include "sitemap*.xml" --include "rss.xml" --include "robots.txt"
+      - cd "$CODEBUILD_SRC_DIR/frontend/public-astro" && aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --delete --cache-control "public,max-age=31536000,immutable" --exclude "*.html" --exclude "sitemap*.xml" --exclude "rss.xml" --exclude "robots.txt" --exclude "404.html"
+      - cd "$CODEBUILD_SRC_DIR/frontend/public-astro" && aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --cache-control "public,max-age=0,must-revalidate" --exclude "*" --include "*.html" --include "sitemap*.xml" --include "rss.xml" --include "robots.txt"
       - echo "S3 sync completed"
       - if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then echo "Invalidating CloudFront cache..." && aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*" && echo "CloudFront invalidation initiated"; fi
       - echo "Deployment completed successfully"
 
 cache:
   paths:
-    - 'frontend/public-astro/node_modules/**/*'
-    - 'frontend/public-astro/.astro/**/*'
     - '$HOME/.bun/install/cache/**/*'
-
-reports:
-  BuildReport:
-    files:
-      - '**/*'
-    base-directory: 'frontend/public-astro/dist'
-    discard-paths: yes
 BUILDSPEC
 }
 
