@@ -234,6 +234,14 @@ layers/**/*.js
 .codex/log/
 .codex/sessions/
 
+# ===================================
+# AI Context (Claude Code / Codex handoff)
+# ===================================
+.ai-context/.processed_requests
+.ai-context/active-session.json
+.ai-context/requests/
+.ai-context/responses/
+
 # CloudFormation templates (generated)
 *.template.json
 *.template.yaml
