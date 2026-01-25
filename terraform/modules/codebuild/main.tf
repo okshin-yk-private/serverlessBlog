@@ -38,7 +38,7 @@ version: 0.2
 
 env:
   variables:
-    PUBLIC_API_URL: "${var.api_url}"
+    API_URL: "${var.api_url}"
     DEPLOYMENT_BUCKET: "${var.public_site_bucket_name}"
     CLOUDFRONT_DISTRIBUTION_ID: "${var.cloudfront_distribution_id}"
   shell: bash
@@ -53,7 +53,7 @@ phases:
       - export BUN_INSTALL="$HOME/.bun"
       - export PATH="$BUN_INSTALL/bin:$PATH"
       - bun --version
-      - echo "Working directory: $CODEBUILD_SRC_DIR"
+      - echo "Working directory is $CODEBUILD_SRC_DIR"
   pre_build:
     commands:
       - export PATH="$HOME/.bun/bin:$PATH"
@@ -64,22 +64,25 @@ phases:
       - export PATH="$HOME/.bun/bin:$PATH"
       - echo "Building Astro site..."
       - cd "$CODEBUILD_SRC_DIR/frontend/public-astro" && bun run build
-      - echo "Build completed. Output size:"
+      - echo "Build completed. Output size is below"
       - du -sh "$CODEBUILD_SRC_DIR/frontend/public-astro/dist"
   post_build:
     commands:
       - echo "Deploying to S3..."
-      - DEPLOY_VERSION="v$(date +%s)"
-      - echo "Deploy version - $DEPLOY_VERSION"
       - cd "$CODEBUILD_SRC_DIR/frontend/public-astro" && aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --delete --cache-control "public,max-age=31536000,immutable" --exclude "*.html" --exclude "sitemap*.xml" --exclude "rss.xml" --exclude "robots.txt" --exclude "404.html"
       - cd "$CODEBUILD_SRC_DIR/frontend/public-astro" && aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --cache-control "public,max-age=0,must-revalidate" --exclude "*" --include "*.html" --include "sitemap*.xml" --include "rss.xml" --include "robots.txt"
       - echo "S3 sync completed"
-      - if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then echo "Invalidating CloudFront cache..." && aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*" && echo "CloudFront invalidation initiated"; fi
+      - |
+        if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
+          echo "Invalidating CloudFront cache..."
+          aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*"
+          echo "CloudFront invalidation initiated"
+        fi
       - echo "Deployment completed successfully"
 
 cache:
   paths:
-    - '$HOME/.bun/install/cache/**/*'
+    - $HOME/.bun/install/cache/**/*
 BUILDSPEC
 }
 
@@ -209,7 +212,7 @@ resource "aws_codebuild_project" "astro_build" {
 
     # Environment variables
     environment_variable {
-      name  = "PUBLIC_API_URL"
+      name  = "API_URL"
       value = var.api_url
     }
 
