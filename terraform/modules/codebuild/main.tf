@@ -53,21 +53,20 @@ phases:
   pre_build:
     commands:
       - echo "Installing dependencies..."
-      - cd frontend/public-astro
-      - bun install --frozen-lockfile
+      - cd frontend/public-astro && bun install --frozen-lockfile
   build:
     commands:
       - echo "Building Astro site..."
-      - bun run build
+      - cd frontend/public-astro && bun run build
       - echo "Build completed. Output size:"
-      - du -sh ./dist
+      - du -sh frontend/public-astro/dist
   post_build:
     commands:
       - echo "Deploying to S3..."
       - DEPLOY_VERSION="v$(date +%s)"
       - echo "Deploy version - $DEPLOY_VERSION"
-      - aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --delete --cache-control "public,max-age=31536000,immutable" --exclude "*.html" --exclude "sitemap*.xml" --exclude "rss.xml" --exclude "robots.txt" --exclude "404.html"
-      - aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --cache-control "public,max-age=0,must-revalidate" --exclude "*" --include "*.html" --include "sitemap*.xml" --include "rss.xml" --include "robots.txt"
+      - cd frontend/public-astro && aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --delete --cache-control "public,max-age=31536000,immutable" --exclude "*.html" --exclude "sitemap*.xml" --exclude "rss.xml" --exclude "robots.txt" --exclude "404.html"
+      - cd frontend/public-astro && aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --cache-control "public,max-age=0,must-revalidate" --exclude "*" --include "*.html" --include "sitemap*.xml" --include "rss.xml" --include "robots.txt"
       - echo "S3 sync completed"
       - if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then echo "Invalidating CloudFront cache..." && aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*" && echo "CloudFront invalidation initiated"; fi
       - echo "Deployment completed successfully"
