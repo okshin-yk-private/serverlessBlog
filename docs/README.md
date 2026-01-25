@@ -4,6 +4,7 @@
 
 ## まず読む
 - [デプロイメントガイド](./deployment.md)
+- [CodeBuildアーキテクチャ](./codebuild-architecture.md) - Astro SSGビルド・デプロイ
 - [テスト戦略](./testing-strategy.md)
 - [カバレッジガイド](./coverage.md)
 
