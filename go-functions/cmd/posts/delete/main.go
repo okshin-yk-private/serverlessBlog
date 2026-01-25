@@ -6,10 +6,15 @@
 //   - 記事IDが存在しない場合、DeletePost LambdaはHTTP 404を返す
 //   - リクエストに有効な認証がない場合、DeletePost LambdaはHTTP 401を返す
 //   - 削除が成功したとき、DeletePost LambdaはHTTP 204 No Contentを返す
+//
+// Requirement 10.11: 公開済み記事削除時にCodeBuildトリガー
+//   - 削除された記事がpublishStatus="published"の場合、CodeBuildプロジェクトを起動してサイトを再ビルドする
+//   - ビルドは非同期で実行され、Lambda応答には影響しない
 package main
 
 import (
 	"context"
+	"log/slog"
 	"net/url"
 	"os"
 	"strings"
@@ -22,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
+	"serverless-blog/go-functions/internal/buildtrigger"
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/middleware"
@@ -49,6 +55,10 @@ var dynamoClientGetter = func() (DynamoDBClientInterface, error) {
 var s3ClientGetter = func() (S3ClientInterface, error) {
 	return clients.GetS3()
 }
+
+// codebuildClientGetter is a function that returns the CodeBuild client
+// This can be overridden in tests
+var codebuildClientGetter = clients.GetCodeBuild
 
 // Handler handles DELETE /posts/:id requests
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
@@ -123,6 +133,12 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return errorResponse(500, "failed to delete post")
 	}
 
+	// Trigger site rebuild if the deleted post was published
+	// Requirement 10.11: Only trigger build for published posts
+	if existingPost.PublishStatus == domain.PublishStatusPublished {
+		triggerSiteBuild(ctx)
+	}
+
 	// Return 204 No Content
 	return events.APIGatewayProxyResponse{
 		StatusCode: 204,
@@ -184,6 +200,30 @@ func deletePostImages(ctx context.Context, post domain.BlogPost) *events.APIGate
 	}
 
 	return nil
+}
+
+// triggerSiteBuild triggers the Astro SSG build via CodeBuild
+// Requirement 10.11: Trigger CodeBuild when a published post is deleted
+func triggerSiteBuild(ctx context.Context) {
+	projectName := os.Getenv("CODEBUILD_PROJECT_NAME")
+	if projectName == "" {
+		slog.Warn("CODEBUILD_PROJECT_NAME not set, skipping build trigger")
+		return
+	}
+
+	client, err := codebuildClientGetter()
+	if err != nil {
+		slog.Error("failed to get CodeBuild client", "error", err)
+		return
+	}
+
+	trigger := buildtrigger.NewBuildTrigger(client, projectName)
+	if err := trigger.TriggerBuild(ctx); err != nil {
+		slog.Error("failed to trigger site build", "error", err, "project", projectName)
+		return
+	}
+
+	slog.Info("site build triggered successfully", "project", projectName)
 }
 
 // extractS3KeyFromURL extracts the S3 key from a full URL
