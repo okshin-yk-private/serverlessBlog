@@ -16,6 +16,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/codebuild"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -75,11 +76,13 @@ func setupTest(t *testing.T) func() {
 	// Store original getters
 	originalDynamoGetter := dynamoClientGetter
 	originalS3Getter := s3ClientGetter
+	originalCodeBuildGetter := codebuildClientGetter
 
 	// Restore after test
 	return func() {
 		dynamoClientGetter = originalDynamoGetter
 		s3ClientGetter = originalS3Getter
+		codebuildClientGetter = originalCodeBuildGetter
 	}
 }
 
@@ -1010,4 +1013,183 @@ func TestHandler_UnmarshalError(t *testing.T) {
 	if errResp.Message != "failed to parse post data" {
 		t.Errorf("expected error message %q, got %q", "failed to parse post data", errResp.Message)
 	}
+}
+
+// TestHandler_BuildTriggerWhenPublishedPostDeleted tests that CodeBuild is triggered when a published post is deleted
+// Requirement 10.11: 公開済み記事削除時にCodeBuildトリガー
+func TestHandler_BuildTriggerWhenPublishedPostDeleted(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+	t.Setenv("CODEBUILD_PROJECT_NAME", "test-project")
+
+	// Create a published post
+	existingPost := createTestPostWithImages() // This has PublishStatus = published
+	av := marshalPost(t, existingPost)
+
+	var codeBuildCalled bool
+
+	mockDynamoClient := &MockDynamoDBClient{
+		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			return &dynamodb.GetItemOutput{Item: av}, nil
+		},
+		DeleteItemFunc: func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+			return &dynamodb.DeleteItemOutput{}, nil
+		},
+	}
+
+	mockS3Client := &MockS3Client{
+		DeleteObjectsFunc: func(ctx context.Context, params *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error) {
+			return &s3.DeleteObjectsOutput{}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockDynamoClient, nil
+	}
+	s3ClientGetter = func() (S3ClientInterface, error) {
+		return mockS3Client, nil
+	}
+	codebuildClientGetter = func() (*codebuild.Client, error) {
+		codeBuildCalled = true
+		return nil, errors.New("mock codebuild called") // Return error to prevent actual API call
+	}
+
+	request := createAuthenticatedRequest(testPostID)
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	// Delete should still succeed even if CodeBuild fails
+	if resp.StatusCode != 204 {
+		t.Errorf("expected status 204, got %d", resp.StatusCode)
+	}
+
+	// CodeBuild should have been called for published post
+	if !codeBuildCalled {
+		t.Error("expected CodeBuild to be triggered when deleting published post")
+	}
+}
+
+// TestHandler_NoBuildTriggerWhenDraftDeleted tests that CodeBuild is NOT triggered when a draft post is deleted
+// Requirement 10.11: Only trigger build for published posts
+func TestHandler_NoBuildTriggerWhenDraftDeleted(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+	t.Setenv("CODEBUILD_PROJECT_NAME", "test-project")
+
+	// Create a draft post
+	existingPost := createTestPost() // This has PublishStatus = draft
+	av := marshalPost(t, existingPost)
+
+	var codeBuildCalled bool
+
+	mockDynamoClient := &MockDynamoDBClient{
+		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			return &dynamodb.GetItemOutput{Item: av}, nil
+		},
+		DeleteItemFunc: func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+			return &dynamodb.DeleteItemOutput{}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockDynamoClient, nil
+	}
+	codebuildClientGetter = func() (*codebuild.Client, error) {
+		codeBuildCalled = true
+		return nil, errors.New("should not be called")
+	}
+
+	request := createAuthenticatedRequest(testPostID)
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	if resp.StatusCode != 204 {
+		t.Errorf("expected status 204, got %d", resp.StatusCode)
+	}
+
+	// CodeBuild should NOT have been called for draft post
+	if codeBuildCalled {
+		t.Error("expected CodeBuild NOT to be triggered when deleting draft post")
+	}
+}
+
+// TestHandler_BuildTriggerErrorDoesNotAffectResponse tests that CodeBuild errors don't affect the delete response
+// Requirement 10.11: Build errors should not affect Lambda response
+func TestHandler_BuildTriggerErrorDoesNotAffectResponse(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+	t.Setenv("CODEBUILD_PROJECT_NAME", "test-project")
+
+	// Create a published post
+	existingPost := createTestPostWithImages()
+	av := marshalPost(t, existingPost)
+
+	mockDynamoClient := &MockDynamoDBClient{
+		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			return &dynamodb.GetItemOutput{Item: av}, nil
+		},
+		DeleteItemFunc: func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+			return &dynamodb.DeleteItemOutput{}, nil
+		},
+	}
+
+	mockS3Client := &MockS3Client{
+		DeleteObjectsFunc: func(ctx context.Context, params *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error) {
+			return &s3.DeleteObjectsOutput{}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockDynamoClient, nil
+	}
+	s3ClientGetter = func() (S3ClientInterface, error) {
+		return mockS3Client, nil
+	}
+	codebuildClientGetter = func() (*codebuild.Client, error) {
+		return nil, errors.New("CodeBuild client error")
+	}
+
+	request := createAuthenticatedRequest(testPostID)
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+
+	// Response should still be 204 even though CodeBuild failed
+	if resp.StatusCode != 204 {
+		t.Errorf("expected status 204, got %d", resp.StatusCode)
+	}
+}
+
+// TestTriggerSiteBuild_MissingProjectName tests that triggerSiteBuild handles missing project name gracefully
+func TestTriggerSiteBuild_MissingProjectName(t *testing.T) {
+	// Ensure CODEBUILD_PROJECT_NAME is not set
+	t.Setenv("CODEBUILD_PROJECT_NAME", "")
+
+	// triggerSiteBuild should not panic and should return silently
+	triggerSiteBuild(context.Background())
+}
+
+// TestTriggerSiteBuild_ClientError tests that triggerSiteBuild handles client errors gracefully
+func TestTriggerSiteBuild_ClientError(t *testing.T) {
+	t.Setenv("CODEBUILD_PROJECT_NAME", "test-project")
+
+	originalCodeBuildGetter := codebuildClientGetter
+	defer func() {
+		codebuildClientGetter = originalCodeBuildGetter
+	}()
+
+	codebuildClientGetter = func() (*codebuild.Client, error) {
+		return nil, errors.New("failed to get client")
+	}
+
+	// triggerSiteBuild should not panic and should handle error gracefully
+	triggerSiteBuild(context.Background())
 }
