@@ -9,33 +9,139 @@ CodeBuild is responsible for:
 2. Deploying the built assets to S3
 3. Invalidating CloudFront cache to serve updated content
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Article Publish → Public Site Update Flow                       │
-└─────────────────────────────────────────────────────────────────┘
+## Admin Article Update/Delete → Public Site Reflection Flow
 
-1. Admin UI: Create/Update/Delete post (publishStatus = "published")
-      ↓
-2. Lambda (create/update/delete)
-   ├── Save article to DynamoDB
-   └── Trigger CodeBuild via StartBuild API  ← ★ Trigger point
-      ↓
-3. CodeBuild execution
-   ├── Clone source from GitHub  ← ★ Source needed here
-   ├── bun install (requires package.json)
-   ├── bun run build
-   │     ↓
-   │   During Astro build, API is called
-   │     ↓
-   │   GET /posts?publishStatus=published
-   │     ↓
-   │   Fetch published articles from DynamoDB  ← ★ DB reference
-   │     ↓
-   │   Generate static HTML
-   └── Deploy to S3 + CloudFront invalidation
-      ↓
-4. Reflected on public site
+The following diagram shows the complete flow from Admin operations to public site updates:
+
 ```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Admin画面                                                                │
+│ ┌──────────────┐     ┌──────────────┐                                   │
+│ │ 記事更新      │     │ 記事削除      │                                   │
+│ │ PUT /posts/:id│     │ DELETE /posts/:id│                              │
+│ └──────┬───────┘     └──────┬───────┘                                   │
+└────────┼───────────────────┼────────────────────────────────────────────┘
+         │                   │
+         ▼                   ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Lambda関数                                                               │
+│                                                                          │
+│  Update Handler                     Delete Handler                       │
+│  ┌─────────────────────┐           ┌─────────────────────┐              │
+│  │ 1. DynamoDB更新     │           │ 1. S3画像削除        │              │
+│  │ 2. publishStatus    │           │ 2. DynamoDB削除      │              │
+│  │    == "published"?  │           │    (ハードデリート)    │              │
+│  │    → CodeBuild起動  │           │ 3. publishStatus     │              │
+│  └─────────────────────┘           │    == "published"?   │              │
+│           │                        │    → CodeBuild起動   │              │
+│           │                        └─────────────────────┘              │
+│           │                                  │                           │
+└───────────┼──────────────────────────────────┼───────────────────────────┘
+            │                                  │
+            └──────────────┬───────────────────┘
+                           ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ CodeBuild (Astro SSG Build)                                             │
+│                                                                          │
+│  1. GitHub clone (develop branch)                                        │
+│  2. bun install                                                          │
+│  3. bun run build                                                        │
+│     ┌─────────────────────────────────────────────┐                     │
+│     │ Astro Build Process                          │                     │
+│     │ - GET /posts?publishStatus=published         │                     │
+│     │ - 公開済み記事のみ取得                         │                     │
+│     │ - 各記事のHTML生成 (/posts/[id]/index.html)  │                     │
+│     └─────────────────────────────────────────────┘                     │
+│  4. S3 sync (静的ファイルアップロード)                                    │
+│  5. CloudFront invalidation                                              │
+└─────────────────────────────────────────────────────────────────────────┘
+            │
+            ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 公開サイト (S3 + CloudFront)                                             │
+│ - 更新された記事が反映                                                    │
+│ - 削除された記事のページは生成されない                                     │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+## Lambda Trigger Details
+
+### Update Lambda (`go-functions/cmd/posts/update/main.go`)
+
+| Item | Value |
+|------|-------|
+| CodeBuild Trigger Condition | When `publishStatus` is set to `"published"` |
+| Trigger Timing | After successful update (async) |
+| Error Handling | Log output only (request does not fail) |
+
+```go
+// lines 225-231
+func shouldTriggerBuild(_, req *domain.UpdatePostRequest) bool {
+    return req.PublishStatus != nil && *req.PublishStatus == domain.PublishStatusPublished
+}
+```
+
+### Delete Lambda (`go-functions/cmd/posts/delete/main.go`)
+
+| Item | Value |
+|------|-------|
+| Delete Type | **Hard delete** (completely removed from DynamoDB) |
+| CodeBuild Trigger Condition | When deleted post had `publishStatus == "published"` |
+| S3 Images | Related images are also deleted |
+
+```go
+// lines 136-140
+if existingPost.PublishStatus == domain.PublishStatusPublished {
+    triggerSiteBuild(ctx)
+}
+```
+
+### Build Trigger (`go-functions/internal/buildtrigger/buildtrigger.go`)
+
+| Feature | Description |
+|---------|-------------|
+| Coalescing | Minimum 1-minute interval (suppresses rapid consecutive updates) |
+| Deduplication | Skips new trigger if build is already in progress |
+| Async Execution | Does not block Lambda response |
+
+## Deleted Article Reflection Mechanism
+
+1. **DynamoDB**: Article record is hard deleted
+2. **CodeBuild**: Automatically triggered when published article is deleted
+3. **Astro Build**: Deleted articles are not fetched due to `publishStatus=published` filter
+4. **S3**: Old HTML files are deleted via `--delete` option in `s3 sync`
+5. **CloudFront**: Cache is immediately cleared via invalidation
+
+## Astro Build Process
+
+### Data Fetching
+
+```typescript
+// src/lib/api.ts
+export async function fetchAllPosts(): Promise<Post[]> {
+  const url = `${apiUrl}/posts?publishStatus=published`;
+  // Only fetches published posts
+}
+```
+
+### Page Generation
+
+```typescript
+// src/pages/posts/[id].astro
+export async function getStaticPaths() {
+  const posts = await fetchAllPosts();  // Published posts only
+  return posts.map((post) => ({
+    params: { id: post.id },
+    props: { post },
+  }));
+}
+```
+
+### Generated Files
+
+- `/index.html` - Top page (article list)
+- `/posts/[id]/index.html` - Individual article pages
+- `/rss.xml` - RSS feed
 
 ## Build Commands (buildspec.yaml)
 
@@ -84,6 +190,15 @@ cache:
 ```
 
 **Important**: Environment variables like `PATH` don't persist between phases in CodeBuild, so each phase must re-export the Bun path.
+
+## Notes and Limitations
+
+| Item | Description |
+|------|-------------|
+| Reflection Delay | CodeBuild execution time (~1-2 min) + CloudFront invalidation |
+| Build Interval | Minimum 1 minute (consecutive operations are batched) |
+| Draft Deletion | CodeBuild is NOT triggered (no impact on public site) |
+| On Failure | Log output only, manual re-execution required |
 
 ## GitHub Integration: Required or Not?
 
@@ -281,6 +396,17 @@ aws codebuild batch-get-builds --ids <build-id>
 # View build logs
 aws logs tail /aws/codebuild/serverless-blog-astro-build-dev --follow
 ```
+
+## Related Files
+
+| File | Role |
+|------|------|
+| `go-functions/cmd/posts/update/main.go` | Update Lambda |
+| `go-functions/cmd/posts/delete/main.go` | Delete Lambda |
+| `go-functions/internal/buildtrigger/buildtrigger.go` | CodeBuild trigger logic |
+| `frontend/public-astro/src/lib/api.ts` | Astro API client |
+| `frontend/public-astro/src/pages/posts/[id].astro` | Article detail page |
+| `terraform/modules/codebuild/main.tf` | CodeBuild configuration |
 
 ## Related Documentation
 
