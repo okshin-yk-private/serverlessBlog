@@ -5,8 +5,12 @@
 GOOS := linux
 GOARCH := arm64
 CGO_ENABLED := 0
-LDFLAGS := -s -w
+# Reproducible build flags: -buildvcs=false removes git info, -buildid= removes build ID
+BUILD_FLAGS := -trimpath -buildvcs=false
+LDFLAGS := -s -w -buildid=
 BUILD_TAGS := lambda.norpc
+# Fixed timestamp for reproducible builds (2020-01-01 00:00:00)
+FIXED_TIMESTAMP := 202001010000.00
 
 # Directories
 BIN_DIR := bin
@@ -43,8 +47,9 @@ build:
 		name=$$(echo $$func | tr '/' '-'); \
 		echo "  Building $$name..."; \
 		CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
-			go build -trimpath -ldflags="$(LDFLAGS)" -tags="$(BUILD_TAGS)" \
+			go build $(BUILD_FLAGS) -ldflags="$(LDFLAGS)" -tags="$(BUILD_TAGS)" \
 			-o $(BIN_DIR)/$$name/bootstrap ./$(CMD_DIR)/$$func || exit 1; \
+		touch -t $(FIXED_TIMESTAMP) $(BIN_DIR)/$$name/bootstrap; \
 	done
 	@echo "Build complete!"
 
@@ -56,8 +61,9 @@ endif
 	@name=$$(echo $(FUNC) | tr '/' '-'); \
 	echo "Building $$name for $(GOOS)/$(GOARCH)..."; \
 	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
-		go build -trimpath -ldflags="$(LDFLAGS)" -tags="$(BUILD_TAGS)" \
-		-o $(BIN_DIR)/$$name/bootstrap ./$(CMD_DIR)/$(FUNC)
+		go build $(BUILD_FLAGS) -ldflags="$(LDFLAGS)" -tags="$(BUILD_TAGS)" \
+		-o $(BIN_DIR)/$$name/bootstrap ./$(CMD_DIR)/$(FUNC); \
+	touch -t $(FIXED_TIMESTAMP) $(BIN_DIR)/$$name/bootstrap
 
 # Run tests with race detector
 test:

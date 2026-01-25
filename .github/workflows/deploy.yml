@@ -166,7 +166,7 @@ jobs:
             echo "cache-hit=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          FUNCS="posts-create posts-get posts-get_public posts-list posts-update posts-delete auth-login auth-logout auth-refresh images-get_upload_url images-delete"
+          FUNCS="posts-create posts-get posts-get_public posts-list posts-update posts-delete auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete"
           COUNT=0
           for f in $FUNCS; do
             if [ -f "go-functions/bin/$f/bootstrap" ]; then
@@ -176,11 +176,11 @@ jobs:
               echo "✗ $f - MISSING"
             fi
           done
-          if [ $COUNT -eq 11 ]; then
-            echo "✓ All 11 binaries restored from cache"
+          if [ $COUNT -eq 16 ]; then
+            echo "✓ All 16 binaries restored from cache"
             echo "cache-hit=true" >> $GITHUB_OUTPUT
           else
-            echo "Only $COUNT of 11 binaries found - will rebuild"
+            echo "Only $COUNT of 16 binaries found - will rebuild"
             echo "cache-hit=false" >> $GITHUB_OUTPUT
           fi
 
@@ -254,8 +254,10 @@ jobs:
         run: |
           mkdir -p bin/${{ matrix.function }}
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
-            go build -trimpath -ldflags="-s -w" -tags="lambda.norpc" \
+            go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -tags="lambda.norpc" \
             -o bin/${{ matrix.function }}/bootstrap ./cmd/${{ matrix.path }}
+          # Normalize timestamp for reproducible builds
+          touch -t 202001010000.00 bin/${{ matrix.function }}/bootstrap
           echo "✓ ${{ matrix.function }} built"
 
       - name: Upload Lambda binary
