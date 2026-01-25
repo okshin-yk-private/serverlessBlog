@@ -297,6 +297,10 @@ function handler(event) {
   return request;
 }
 EOF
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # CloudFront Function for API path rewriting
