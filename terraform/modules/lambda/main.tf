@@ -157,7 +157,7 @@ locals {
 
   # Mindmaps domain environment variables
   mindmaps_environment = {
-    MINDMAPS_TABLE_NAME = var.mindmaps_table_name
+    TABLE_NAME = var.mindmaps_table_name
   }
 }
 
