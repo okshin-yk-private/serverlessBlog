@@ -35,7 +35,7 @@ for file in $STAGED_FILES; do
     frontend/admin/*)
       HAS_FRONTEND_ADMIN=true
       ;;
-    frontend/public/*)
+    frontend/public/*|frontend/public-astro/*)
       HAS_FRONTEND_PUBLIC=true
       ;;
   esac
@@ -99,6 +99,17 @@ if [ "$HAS_GO" = true ]; then
     echo -e "${RED}  ✗ Go lint or tests failed${NC}"
     FAILED=true
   fi
+
+  # Check Go coverage threshold (90% minimum, matching CI)
+  if [ "$FAILED" = false ] && [ -f go-functions/coverage.out ]; then
+    COVERAGE=$(cd go-functions && go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+    if [ -n "$COVERAGE" ] && [ "$(echo "$COVERAGE < 90" | bc -l)" -eq 1 ]; then
+      echo -e "${RED}  ✗ Go coverage ${COVERAGE}% is below 90% threshold${NC}"
+      FAILED=true
+    else
+      echo -e "${GREEN}  ✓ Go coverage ${COVERAGE}% meets 90% threshold${NC}"
+    fi
+  fi
 else
   echo -e "${YELLOW}[2/4] Go Lambda: No changes, skipping${NC}"
 fi
@@ -107,7 +118,15 @@ fi
 # Frontend Admin Tests
 # =========================================
 if [ "$HAS_FRONTEND_ADMIN" = true ]; then
-  echo -e "${BLUE}[3/4] Running Frontend Admin tests...${NC}"
+  echo -e "${BLUE}[3/4] Running Frontend Admin lint + tests...${NC}"
+
+  # Run ESLint from frontend/admin using its own config (root config ignores frontend/)
+  if (cd frontend/admin && bun run lint); then
+    echo -e "${GREEN}  ✓ Frontend Admin lint passed${NC}"
+  else
+    echo -e "${RED}  ✗ Frontend Admin lint failed${NC}"
+    FAILED=true
+  fi
 
   if (cd frontend/admin && npm run test -- --run); then
     echo -e "${GREEN}  ✓ Frontend Admin tests passed${NC}"

@@ -166,7 +166,9 @@ jobs:
             echo "cache-hit=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          FUNCS="posts-create posts-get posts-get_public posts-list posts-update posts-delete auth-login auth-logout auth-refresh images-get_upload_url images-delete"
+          FUNCS="posts-create posts-get posts-get_public posts-list posts-update posts-delete auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete mindmaps-create mindmaps-get mindmaps-get_public mindmaps-list mindmaps-list_public mindmaps-update mindmaps-delete"
+          TOTAL=0
+          for f in $FUNCS; do TOTAL=$((TOTAL + 1)); done
           COUNT=0
           for f in $FUNCS; do
             if [ -f "go-functions/bin/$f/bootstrap" ]; then
@@ -176,11 +178,11 @@ jobs:
               echo "✗ $f - MISSING"
             fi
           done
-          if [ $COUNT -eq 11 ]; then
-            echo "✓ All 11 binaries restored from cache"
+          if [ $COUNT -eq $TOTAL ]; then
+            echo "✓ All $TOTAL binaries restored from cache"
             echo "cache-hit=true" >> $GITHUB_OUTPUT
           else
-            echo "Only $COUNT of 11 binaries found - will rebuild"
+            echo "Only $COUNT of $TOTAL binaries found - will rebuild"
             echo "cache-hit=false" >> $GITHUB_OUTPUT
           fi
 
@@ -238,6 +240,20 @@ jobs:
             path: categories/bulk_sort
           - function: categories-delete
             path: categories/delete
+          - function: mindmaps-create
+            path: mindmaps/create
+          - function: mindmaps-get
+            path: mindmaps/get
+          - function: mindmaps-get_public
+            path: mindmaps/get_public
+          - function: mindmaps-list
+            path: mindmaps/list
+          - function: mindmaps-list_public
+            path: mindmaps/list_public
+          - function: mindmaps-update
+            path: mindmaps/update
+          - function: mindmaps-delete
+            path: mindmaps/delete
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
