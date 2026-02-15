@@ -13,9 +13,14 @@
  * - 9.7: モバイルデバイスでの閲覧に対応するレスポンシブデザイン
  */
 
-import { hierarchy, tree, type HierarchyPointNode } from 'd3-hierarchy';
+import {
+  hierarchy,
+  tree,
+  type HierarchyPointNode,
+  type HierarchyPointLink,
+} from 'd3-hierarchy';
 import { select } from 'd3-selection';
-import { zoom, type ZoomBehavior } from 'd3-zoom';
+import { zoom, type ZoomBehavior, type D3ZoomEvent } from 'd3-zoom';
 
 // --- Types ---
 
@@ -33,7 +38,6 @@ export interface MindmapNode {
 const NODE_WIDTH = 160;
 const NODE_HEIGHT = 40;
 const NODE_PADDING_X = 12;
-const NODE_PADDING_Y = 8;
 const NODE_RX = 8;
 const DEFAULT_NODE_COLOR = '#f3f4f6';
 const ROOT_NODE_COLOR = '#2D2A5A';
@@ -70,10 +74,13 @@ export function parseMindmapData(): MindmapNode | null {
  */
 export function computeTreeLayout(
   root: MindmapNode,
-  width: number,
+  _width: number,
   height: number
 ): HierarchyPointNode<MindmapNode> {
-  const rootHierarchy = hierarchy<MindmapNode>(root, (d) => d.children);
+  const rootHierarchy = hierarchy<MindmapNode>(
+    root,
+    (d: MindmapNode) => d.children
+  );
 
   const treeLayout = tree<MindmapNode>().nodeSize([
     NODE_HEIGHT + 20,
@@ -204,8 +211,8 @@ export function renderMindmap(container: HTMLElement, data: MindmapNode): void {
     unknown
   >()
     .scaleExtent([0.2, 3])
-    .on('zoom', (event) => {
-      zoomGroup.attr('transform', event.transform);
+    .on('zoom', (event: D3ZoomEvent<SVGSVGElement, unknown>) => {
+      zoomGroup.attr('transform', event.transform.toString());
     });
 
   svg.call(zoomBehavior);
@@ -229,7 +236,7 @@ export function renderMindmap(container: HTMLElement, data: MindmapNode): void {
     .enter()
     .append('path')
     .attr('class', 'mindmap-edge')
-    .attr('d', (d) => {
+    .attr('d', (d: HierarchyPointLink<MindmapNode>) => {
       const sourceX = d.source.y + NODE_WIDTH / 2;
       const sourceY = d.source.x;
       const targetX = d.target.y - NODE_WIDTH / 2;
@@ -252,9 +259,10 @@ export function renderMindmap(container: HTMLElement, data: MindmapNode): void {
     .attr('class', 'mindmap-node')
     .attr(
       'transform',
-      (d) => `translate(${d.y - NODE_WIDTH / 2}, ${d.x - NODE_HEIGHT / 2})`
+      (d: HierarchyPointNode<MindmapNode>) =>
+        `translate(${d.y - NODE_WIDTH / 2}, ${d.x - NODE_HEIGHT / 2})`
     )
-    .attr('data-node-id', (d) => d.data.id);
+    .attr('data-node-id', (d: HierarchyPointNode<MindmapNode>) => d.data.id);
 
   // Node background rect
   nodeGroups
@@ -263,11 +271,13 @@ export function renderMindmap(container: HTMLElement, data: MindmapNode): void {
     .attr('height', NODE_HEIGHT)
     .attr('rx', NODE_RX)
     .attr('ry', NODE_RX)
-    .attr('fill', (d) => {
+    .attr('fill', (d: HierarchyPointNode<MindmapNode>) => {
       if (d.data.color) return d.data.color;
       return d.depth === 0 ? ROOT_NODE_COLOR : DEFAULT_NODE_COLOR;
     })
-    .attr('stroke', (d) => (d.depth === 0 ? ROOT_NODE_COLOR : '#e5e7eb'))
+    .attr('stroke', (d: HierarchyPointNode<MindmapNode>) =>
+      d.depth === 0 ? ROOT_NODE_COLOR : '#e5e7eb'
+    )
     .attr('stroke-width', 1.5);
 
   // Node text
@@ -276,16 +286,21 @@ export function renderMindmap(container: HTMLElement, data: MindmapNode): void {
     .attr('x', NODE_PADDING_X)
     .attr('y', NODE_HEIGHT / 2)
     .attr('dy', '0.35em')
-    .attr('fill', (d) => {
+    .attr('fill', (d: HierarchyPointNode<MindmapNode>) => {
       if (d.data.color) return getContrastColor(d.data.color);
       return d.depth === 0 ? ROOT_TEXT_COLOR : TEXT_COLOR;
     })
     .attr('font-size', '13px')
     .attr('font-family', "'Caveat', cursive")
-    .text((d) => truncateText(d.data.text, 18));
+    .text((d: HierarchyPointNode<MindmapNode>) =>
+      truncateText(d.data.text, 18)
+    );
 
   // Icons area (positioned at right side of node) (Finding 2: use .each for direct access)
-  nodeGroups.each(function (d) {
+  nodeGroups.each(function (
+    this: SVGGElement,
+    d: HierarchyPointNode<MindmapNode>
+  ) {
     const nodeGroup = select(this);
     const nodeData = d.data;
     let iconOffsetX = NODE_WIDTH - NODE_PADDING_X;
@@ -346,7 +361,7 @@ export function renderMindmap(container: HTMLElement, data: MindmapNode): void {
   });
 
   // Node click for highlight (Req 3.5)
-  nodeGroups.on('click', function (event: MouseEvent) {
+  nodeGroups.on('click', function (this: SVGGElement, event: MouseEvent) {
     event.stopPropagation();
     removeHighlight(container);
     select(this).classed('highlighted', true);
