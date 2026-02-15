@@ -35,7 +35,6 @@ const createProps = (
     parentId: undefined,
     width: 180,
     height: 40,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 };
 

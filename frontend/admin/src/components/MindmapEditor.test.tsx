@@ -29,7 +29,7 @@ vi.mock('@xyflow/react', () => {
         data-node-count={(nodes as unknown[])?.length}
         data-edge-count={(edges as unknown[])?.length}
         data-nodes-json={JSON.stringify(nodes)}
-        data-has-drag-handler={!!onNodeDragStop ? 'true' : 'false'}
+        data-has-drag-handler={onNodeDragStop ? 'true' : 'false'}
         {...props}
       >
         {children}

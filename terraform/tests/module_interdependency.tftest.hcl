@@ -36,6 +36,7 @@ run "database_outputs_for_lambda" {
   variables {
     table_name            = "test-blog-posts"
     categories_table_name = "test-blog-categories"
+    mindmaps_table_name   = "test-blog-mindmaps"
     environment           = "dev"
   }
 
@@ -167,6 +168,22 @@ run "api_outputs_for_cdn_and_lambda" {
     lambda_update_categories_sort_order_invoke_arn = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-categories-sort-go/invocations"
     lambda_delete_category_arn                     = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-category-go"
     lambda_delete_category_invoke_arn              = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-category-go/invocations"
+
+    # Mindmaps Lambda function ARNs
+    lambda_create_mindmap_arn              = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-mindmap-go"
+    lambda_create_mindmap_invoke_arn       = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-mindmap-go/invocations"
+    lambda_get_mindmap_arn                 = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-mindmap-go"
+    lambda_get_mindmap_invoke_arn          = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-mindmap-go/invocations"
+    lambda_list_mindmaps_arn               = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-mindmaps-go"
+    lambda_list_mindmaps_invoke_arn        = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-mindmaps-go/invocations"
+    lambda_update_mindmap_arn              = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-mindmap-go"
+    lambda_update_mindmap_invoke_arn       = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-mindmap-go/invocations"
+    lambda_delete_mindmap_arn              = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-mindmap-go"
+    lambda_delete_mindmap_invoke_arn       = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-mindmap-go/invocations"
+    lambda_get_public_mindmap_arn          = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-public-mindmap-go"
+    lambda_get_public_mindmap_invoke_arn   = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-public-mindmap-go/invocations"
+    lambda_list_public_mindmaps_arn        = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-public-mindmaps-go"
+    lambda_list_public_mindmaps_invoke_arn = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-public-mindmaps-go/invocations"
   }
 
   # Verify stage_name output matches input (known value)
@@ -204,8 +221,8 @@ run "lambda_outputs_for_monitoring" {
 
   # Verify function_names has expected count (known during plan)
   assert {
-    condition     = length(output.function_names) == 16
-    error_message = "Lambda module must export all 16 function names"
+    condition     = length(output.function_names) == 23
+    error_message = "Lambda module must export all 23 function names"
   }
 
   # Verify role name outputs match expected values
@@ -280,6 +297,7 @@ run "dependency_chain_database" {
   variables {
     table_name            = "chain-test-posts"
     categories_table_name = "chain-test-categories"
+    mindmaps_table_name   = "chain-test-mindmaps"
     environment           = "dev"
   }
 
@@ -370,6 +388,7 @@ run "output_compatibility_database_naming" {
   variables {
     table_name            = "serverless-blog-posts-dev"
     categories_table_name = "serverless-blog-categories-dev"
+    mindmaps_table_name   = "serverless-blog-mindmaps-dev"
     environment           = "dev"
   }
 
