@@ -7,7 +7,10 @@ export interface MindmapNodeData {
   color?: string;
   linkUrl?: string;
   note?: string;
+  height?: number;
   onTextChange?: (newText: string) => void;
+  isEditing?: boolean;
+  onEditingChange?: (editing: boolean) => void;
   [key: string]: unknown;
 }
 
@@ -288,6 +291,60 @@ export function findNodeInTree(
 }
 
 /**
+ * ツリー内で指定ノードの親ノードを検索する
+ * ルートノードの場合はnullを返す
+ */
+export function findParentInTree(
+  tree: MindmapNode,
+  childId: string
+): MindmapNode | null {
+  if (tree.id === childId) return null; // root has no parent
+
+  for (const child of tree.children) {
+    if (child.id === childId) return tree;
+    const found = findParentInTree(child, childId);
+    if (found) return found;
+  }
+  return null;
+}
+
+/**
+ * ツリーに兄弟ノードを追加する（イミュータブル）
+ * ルートノードには兄弟追加不可（nullを返す）
+ * 選択ノードの直後に新ノードを挿入する
+ */
+export function addSiblingToTree(
+  tree: MindmapNode,
+  siblingOfId: string,
+  newNodeId: string
+): MindmapNode | null {
+  // Root node cannot have siblings
+  if (tree.id === siblingOfId) return null;
+
+  const parent = findParentInTree(tree, siblingOfId);
+  if (!parent) return null;
+
+  function insertSibling(node: MindmapNode): MindmapNode {
+    if (node.id === parent!.id) {
+      const idx = node.children.findIndex((c) => c.id === siblingOfId);
+      const newChildren = [...node.children];
+      newChildren.splice(idx + 1, 0, {
+        id: newNodeId,
+        text: 'New Node',
+        children: [],
+      });
+      return { ...node, children: newChildren };
+    }
+    return {
+      ...node,
+      children: node.children.map((child) => insertSibling(child)),
+    };
+  }
+
+  return insertSibling(tree);
+}
+
+/**
  * ツリー内のノードのメタデータを更新する（イミュータブル）
  */
 export function updateNodeMetadataInTree(
@@ -351,7 +408,10 @@ export function applyDagreLayout(
   });
 
   for (const node of nodes) {
-    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+    const nodeHeight =
+      (node.data as MindmapNodeData & { height?: number }).height ??
+      NODE_HEIGHT;
+    g.setNode(node.id, { width: NODE_WIDTH, height: nodeHeight });
   }
 
   for (const edge of edges) {
@@ -362,11 +422,14 @@ export function applyDagreLayout(
 
   return nodes.map((node) => {
     const dagreNode = g.node(node.id);
+    const nodeHeight =
+      (node.data as MindmapNodeData & { height?: number }).height ??
+      NODE_HEIGHT;
     return {
       ...node,
       position: {
         x: dagreNode.x - NODE_WIDTH / 2,
-        y: dagreNode.y - NODE_HEIGHT / 2,
+        y: dagreNode.y - nodeHeight / 2,
       },
     };
   });

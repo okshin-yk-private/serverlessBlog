@@ -5,6 +5,8 @@ import {
   convertReactFlowToTree,
   applyDagreLayout,
   addChildToTree,
+  addSiblingToTree,
+  findParentInTree,
   updateNodeTextInTree,
   deleteNodeFromTree,
   isDescendantOf,
@@ -722,6 +724,87 @@ describe('updateNodeMetadataInTree', () => {
     // Tree should be structurally the same (though new references)
     expect(result.children).toHaveLength(2);
     expect(result.children[0].color).toBeUndefined();
+  });
+});
+
+describe('findParentInTree', () => {
+  it('should return null for the root node (root has no parent)', () => {
+    const root = createSimpleTree();
+    expect(findParentInTree(root, 'root')).toBeNull();
+  });
+
+  it('should find the parent of a direct child', () => {
+    const root = createSimpleTree();
+    const parent = findParentInTree(root, 'child-1');
+    expect(parent).not.toBeNull();
+    expect(parent!.id).toBe('root');
+  });
+
+  it('should find the parent of a grandchild', () => {
+    const root = createSimpleTree();
+    const parent = findParentInTree(root, 'grandchild-1');
+    expect(parent).not.toBeNull();
+    expect(parent!.id).toBe('child-2');
+  });
+
+  it('should return null for a non-existent node', () => {
+    const root = createSimpleTree();
+    expect(findParentInTree(root, 'nonexistent')).toBeNull();
+  });
+});
+
+describe('addSiblingToTree', () => {
+  it('should return null when adding a sibling to the root node', () => {
+    const root = createSimpleTree();
+    const result = addSiblingToTree(root, 'root', 'new-sibling');
+    expect(result).toBeNull();
+  });
+
+  it('should insert a sibling right after the selected node', () => {
+    const root = createSimpleTree();
+    const result = addSiblingToTree(root, 'child-1', 'new-sibling');
+
+    expect(result).not.toBeNull();
+    expect(result!.children).toHaveLength(3);
+    expect(result!.children[0].id).toBe('child-1');
+    expect(result!.children[1].id).toBe('new-sibling');
+    expect(result!.children[1].text).toBe('New Node');
+    expect(result!.children[2].id).toBe('child-2');
+  });
+
+  it('should insert a sibling after the last child', () => {
+    const root = createSimpleTree();
+    const result = addSiblingToTree(root, 'child-2', 'new-sibling');
+
+    expect(result).not.toBeNull();
+    expect(result!.children).toHaveLength(3);
+    expect(result!.children[2].id).toBe('new-sibling');
+  });
+
+  it('should insert a sibling in a deeply nested position', () => {
+    const root = createSimpleTree();
+    const result = addSiblingToTree(root, 'grandchild-1', 'new-sibling');
+
+    expect(result).not.toBeNull();
+    const child2 = result!.children.find((c) => c.id === 'child-2');
+    expect(child2!.children).toHaveLength(2);
+    expect(child2!.children[0].id).toBe('grandchild-1');
+    expect(child2!.children[1].id).toBe('new-sibling');
+  });
+
+  it('should not mutate the original tree', () => {
+    const root = createSimpleTree();
+    const originalChildCount = root.children.length;
+
+    addSiblingToTree(root, 'child-1', 'new-sibling');
+
+    expect(root.children).toHaveLength(originalChildCount);
+  });
+
+  it('should return null for a non-existent node', () => {
+    const root = createSimpleTree();
+    const result = addSiblingToTree(root, 'nonexistent', 'new-sibling');
+    expect(result).toBeNull();
   });
 });
 
