@@ -14,6 +14,7 @@ locals {
 # SNS Topic for Alarm Notifications
 # =============================================================================
 
+#trivy:ignore:AVD-AWS-0095 Alarm notifications contain non-sensitive operational data; CMK adds cost
 resource "aws_sns_topic" "alarms" {
   count = var.enable_alarms ? 1 : 0
 

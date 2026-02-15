@@ -51,6 +51,8 @@ interface PostEditorProps {
   categoriesError?: string | null;
   /** カテゴリ再取得関数 */
   onCategoriesRefetch?: () => void;
+  /** マインドマップ挿入ボタンクリック時のコールバック */
+  onMindmapInsertClick?: () => void;
 }
 
 const PUBLISH_STATUS = [
@@ -70,6 +72,7 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
       categoriesLoading = false,
       categoriesError = null,
       onCategoriesRefetch,
+      onMindmapInsertClick,
     },
     ref
   ) => {
@@ -250,12 +253,26 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
 
             {/* 本文 */}
             <div>
-              <label
-                htmlFor="content"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                本文（Markdown）
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label
+                  htmlFor="content"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  本文（Markdown）
+                </label>
+                {onMindmapInsertClick && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={onMindmapInsertClick}
+                    disabled={isSaving}
+                    data-testid="mindmap-insert-button"
+                    className="text-sm"
+                  >
+                    マインドマップ挿入
+                  </Button>
+                )}
+              </div>
               <div className="relative">
                 <textarea
                   ref={textareaRef}

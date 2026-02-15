@@ -204,3 +204,77 @@ variable "lambda_delete_category_invoke_arn" {
   type        = string
   description = "Delete Category Lambda function invoke ARN"
 }
+
+# ======================
+# Mindmaps Lambda Function ARNs
+# ======================
+
+variable "lambda_create_mindmap_arn" {
+  type        = string
+  description = "Create Mindmap Lambda function ARN"
+}
+
+variable "lambda_create_mindmap_invoke_arn" {
+  type        = string
+  description = "Create Mindmap Lambda function invoke ARN"
+}
+
+variable "lambda_get_mindmap_arn" {
+  type        = string
+  description = "Get Mindmap Lambda function ARN"
+}
+
+variable "lambda_get_mindmap_invoke_arn" {
+  type        = string
+  description = "Get Mindmap Lambda function invoke ARN"
+}
+
+variable "lambda_list_mindmaps_arn" {
+  type        = string
+  description = "List Mindmaps Lambda function ARN"
+}
+
+variable "lambda_list_mindmaps_invoke_arn" {
+  type        = string
+  description = "List Mindmaps Lambda function invoke ARN"
+}
+
+variable "lambda_update_mindmap_arn" {
+  type        = string
+  description = "Update Mindmap Lambda function ARN"
+}
+
+variable "lambda_update_mindmap_invoke_arn" {
+  type        = string
+  description = "Update Mindmap Lambda function invoke ARN"
+}
+
+variable "lambda_delete_mindmap_arn" {
+  type        = string
+  description = "Delete Mindmap Lambda function ARN"
+}
+
+variable "lambda_delete_mindmap_invoke_arn" {
+  type        = string
+  description = "Delete Mindmap Lambda function invoke ARN"
+}
+
+variable "lambda_get_public_mindmap_arn" {
+  type        = string
+  description = "Get Public Mindmap Lambda function ARN"
+}
+
+variable "lambda_get_public_mindmap_invoke_arn" {
+  type        = string
+  description = "Get Public Mindmap Lambda function invoke ARN"
+}
+
+variable "lambda_list_public_mindmaps_arn" {
+  type        = string
+  description = "List Public Mindmaps Lambda function ARN"
+}
+
+variable "lambda_list_public_mindmaps_invoke_arn" {
+  type        = string
+  description = "List Public Mindmaps Lambda function invoke ARN"
+}

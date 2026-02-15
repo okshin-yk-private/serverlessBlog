@@ -5,6 +5,7 @@
  * Task 2.3: 記事詳細ページ実装
  * Task 3.1: SEOメタタグ実装
  * Task 3.2: JSON-LD構造化データ実装
+ * Task 11.2: 記事埋め込みマインドマップの描画実装
  *
  * Requirements:
  * - 2.3: 記事詳細ページ実装
@@ -19,9 +20,12 @@
  * - 4.1: JSON-LD structured data with @type: "BlogPosting" schema
  * - 4.2: Include headline, datePublished, dateModified, and author properties
  * - 4.3: If the post has images, include image property
+ * - 5.3: 埋め込みマーカーをインタラクティブなマインドマップビューに置換
+ * - 5.4: Astro SSGビルド時に埋め込み対象のマインドマップデータをJSON形式で埋め込む
+ * - 5.5: 埋め込み対象が削除/非公開の場合フォールバックメッセージを表示
  */
 import Layout from '../../layouts/Layout.astro';
-import { fetchAllPosts, type Post } from '../../lib/api';
+import { fetchAllPosts, fetchPublicMindmap, type Post, type PublicMindmap } from '../../lib/api';
 import {
   generateDescription,
   formatPublishedDate,
@@ -29,6 +33,26 @@ import {
   getPostImageUrls,
 } from '../../lib/postDetailUtils';
 import type { JsonLdPost } from '../../lib/jsonLdUtils';
+
+/**
+ * Extract mindmap IDs from HTML content containing embed divs.
+ * Matches: data-mindmap-id="UUID" or data-mindmap-id='UUID'
+ * Supports optional whitespace around '=' and both quote styles.
+ */
+function extractMindmapIds(html: string): string[] {
+  if (!html) return [];
+  const pattern = /data-mindmap-id\s*=\s*(?:"([^"]+)"|'([^']+)')/g;
+  const ids: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(html)) !== null) {
+    // match[1] is double-quoted value, match[2] is single-quoted value
+    const id = match[1] || match[2];
+    if (id && !ids.includes(id)) {
+      ids.push(id);
+    }
+  }
+  return ids;
+}
 
 /**
  * getStaticPaths: 全公開記事のパスを生成
@@ -66,6 +90,24 @@ const jsonLdPost: JsonLdPost = {
   authorName: post.authorId || 'Anonymous',
   imageUrl: firstImage,
 };
+
+// Task 11.2: Fetch embedded mindmap data at build time (Req 5.4)
+const embeddedMindmapIds = extractMindmapIds(post.contentHtml);
+const embeddedMindmaps: Map<string, PublicMindmap> = new Map();
+
+// Fetch all embedded mindmaps in parallel to reduce SSG build time
+await Promise.all(
+  embeddedMindmapIds.map(async (mmId) => {
+    try {
+      const mindmap = await fetchPublicMindmap(mmId);
+      embeddedMindmaps.set(mmId, mindmap);
+    } catch {
+      // Mindmap not found or unpublished — will show fallback (Req 5.5)
+    }
+  })
+);
+
+const hasEmbeddedMindmaps = embeddedMindmapIds.length > 0;
 ---
 
 <Layout
@@ -104,6 +146,24 @@ const jsonLdPost: JsonLdPost = {
 
     {/* Article Content - Sanitized HTML */}
     <div class="post-content" data-testid="post-content" set:html={post.contentHtml} />
+
+    {/* Task 11.2: Embedded mindmap data as JSON (Req 5.4) */}
+    {Array.from(embeddedMindmaps.entries()).map(([mmId, mindmap]) => (
+      <script
+        is:inline
+        type="application/json"
+        data-embed-mindmap-id={mmId}
+        set:html={mindmap.nodes.replace(/</g, '\\u003c')}
+      />
+    ))}
+
+    {/* Task 11.2: Mindmap embed viewer script (Req 5.3) */}
+    {hasEmbeddedMindmaps && (
+      <script>
+        import { initMindmapEmbeds } from '../../scripts/mindmap-embed-viewer';
+        document.addEventListener('DOMContentLoaded', initMindmapEmbeds);
+      </script>
+    )}
 
     {/* Article Images Gallery (if multiple images) */}
     {images.length > 1 && (
@@ -330,6 +390,51 @@ const jsonLdPost: JsonLdPost = {
     color: #C9A857;
   }
 
+  /* Task 11.2: Embedded mindmap styles (compact, fixed height) */
+  .post-content :global(.mindmap-embed) {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 1.5rem 0;
+    height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .post-content :global(.mindmap-embed-rendered) {
+    display: block;
+  }
+
+  .post-content :global(.mindmap-embed-rendered svg) {
+    width: 100%;
+    height: 400px;
+    display: block;
+  }
+
+  .post-content :global(.mindmap-embed-fallback) {
+    color: #9ca3af;
+    font-size: 0.9rem;
+    font-style: italic;
+    text-align: center;
+    padding: 2rem;
+  }
+
+  .post-content :global(.mindmap-embed .mindmap-node) {
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  }
+
+  .post-content :global(.mindmap-embed .mindmap-node:hover rect) {
+    filter: brightness(0.95);
+  }
+
+  .post-content :global(.mindmap-embed .mindmap-node.highlighted rect) {
+    stroke: #C9A857;
+    stroke-width: 2.5;
+  }
+
   @media (max-width: 768px) {
     .post-detail {
       padding: 40px 20px;
@@ -341,6 +446,10 @@ const jsonLdPost: JsonLdPost = {
 
     .post-content {
       font-size: 1rem;
+    }
+
+    .post-content :global(.mindmap-embed) {
+      height: 300px;
     }
   }
 </style>

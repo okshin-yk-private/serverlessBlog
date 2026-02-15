@@ -234,6 +234,129 @@ resource "aws_iam_role_policy_attachment" "lambda_categories_xray" {
   policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
 }
 
+# ======================
+# Mindmaps Domain IAM Role (Admin: read/write + CodeBuild)
+# Used by: create, get, list, update, delete
+# ======================
+
+resource "aws_iam_role" "lambda_mindmaps" {
+  name               = "blog-lambda-mindmaps-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+  tags               = local.common_tags
+}
+
+# Basic execution policy for CloudWatch Logs
+resource "aws_iam_role_policy_attachment" "lambda_mindmaps_basic_execution" {
+  role       = aws_iam_role.lambda_mindmaps.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+# X-Ray policy (prd only)
+resource "aws_iam_role_policy_attachment" "lambda_mindmaps_xray" {
+  count      = var.enable_xray ? 1 : 0
+  role       = aws_iam_role.lambda_mindmaps.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
+# DynamoDB read/write access policy for Mindmaps admin domain
+resource "aws_iam_role_policy" "lambda_mindmaps_dynamodb" {
+  name = "blog-lambda-mindmaps-dynamodb-policy"
+  role = aws_iam_role.lambda_mindmaps.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DynamoDBMindmapsTableAccess"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ]
+        Resource = [
+          var.mindmaps_table_arn,
+          "${var.mindmaps_table_arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
+
+# CodeBuild access for triggering site rebuilds (create/update/delete mindmaps)
+resource "aws_iam_role_policy" "lambda_mindmaps_codebuild" {
+  count = var.codebuild_project_arn != "" ? 1 : 0
+  name  = "blog-lambda-mindmaps-codebuild-policy"
+  role  = aws_iam_role.lambda_mindmaps.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "CodeBuildTrigger"
+        Effect = "Allow"
+        Action = [
+          "codebuild:StartBuild",
+          "codebuild:ListBuildsForProject",
+          "codebuild:BatchGetBuilds"
+        ]
+        Resource = var.codebuild_project_arn
+      }
+    ]
+  })
+}
+
+# ======================
+# Mindmaps Public Domain IAM Role (read-only)
+# Used by: get_public, list_public
+# ======================
+
+resource "aws_iam_role" "lambda_mindmaps_public" {
+  name               = "blog-lambda-mindmaps-public-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+  tags               = local.common_tags
+}
+
+# Basic execution policy for CloudWatch Logs
+resource "aws_iam_role_policy_attachment" "lambda_mindmaps_public_basic_execution" {
+  role       = aws_iam_role.lambda_mindmaps_public.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+# X-Ray policy (prd only)
+resource "aws_iam_role_policy_attachment" "lambda_mindmaps_public_xray" {
+  count      = var.enable_xray ? 1 : 0
+  role       = aws_iam_role.lambda_mindmaps_public.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
+# DynamoDB read-only access policy for Mindmaps public domain
+resource "aws_iam_role_policy" "lambda_mindmaps_public_dynamodb" {
+  name = "blog-lambda-mindmaps-public-dynamodb-policy"
+  role = aws_iam_role.lambda_mindmaps_public.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DynamoDBMindmapsTableReadOnly"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:Query"
+        ]
+        Resource = [
+          var.mindmaps_table_arn,
+          "${var.mindmaps_table_arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
+
 # DynamoDB access policy for Categories domain
 # Requirement 2.2, 3.2, 4.2, 5.2: Scan, PutItem, GetItem, UpdateItem, DeleteItem, Query permissions for Categories table
 # Requirement 4.2, 5.2: Query, UpdateItem permissions for BlogPosts table (for category slug update cascade and delete validation)

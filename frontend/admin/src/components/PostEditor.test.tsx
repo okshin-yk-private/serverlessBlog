@@ -950,4 +950,79 @@ describe('PostEditor', () => {
       expect(addButton).not.toBeDisabled();
     });
   });
+
+  describe('マインドマップ挿入ボタン', () => {
+    it('onMindmapInsertClickが渡された場合はマインドマップ挿入ボタンが表示される', () => {
+      const mockOnMindmapInsertClick = vi.fn();
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+          onMindmapInsertClick={mockOnMindmapInsertClick}
+        />
+      );
+
+      expect(screen.getByTestId('mindmap-insert-button')).toBeInTheDocument();
+    });
+
+    it('onMindmapInsertClickが渡されない場合はマインドマップ挿入ボタンが表示されない', () => {
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
+      );
+
+      expect(
+        screen.queryByTestId('mindmap-insert-button')
+      ).not.toBeInTheDocument();
+    });
+
+    it('マインドマップ挿入ボタンをクリックするとonMindmapInsertClickが呼ばれる', async () => {
+      const user = userEvent.setup();
+      const mockOnMindmapInsertClick = vi.fn();
+      render(
+        <PostEditor
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+          onMindmapInsertClick={mockOnMindmapInsertClick}
+        />
+      );
+
+      await user.click(screen.getByTestId('mindmap-insert-button'));
+
+      expect(mockOnMindmapInsertClick).toHaveBeenCalledTimes(1);
+    });
+
+    it('保存中はマインドマップ挿入ボタンが無効化される', async () => {
+      const user = userEvent.setup();
+      const slowSave = vi.fn(
+        () => new Promise<void>((resolve) => setTimeout(resolve, 100))
+      );
+      const mockOnMindmapInsertClick = vi.fn();
+      render(
+        <PostEditor
+          onSave={slowSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+          onMindmapInsertClick={mockOnMindmapInsertClick}
+        />
+      );
+
+      await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
+      await user.type(screen.getByLabelText(/本文/i), 'テスト本文');
+      await user.selectOptions(screen.getByLabelText(/カテゴリ/i), 'tech');
+
+      await user.click(screen.getByRole('button', { name: /保存/i }));
+
+      expect(screen.getByTestId('mindmap-insert-button')).toBeDisabled();
+
+      await waitFor(() => {
+        expect(screen.getByTestId('mindmap-insert-button')).not.toBeDisabled();
+      });
+    });
+  });
 });

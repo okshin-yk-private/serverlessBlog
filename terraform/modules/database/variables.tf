@@ -44,3 +44,17 @@ variable "categories_table_name" {
     error_message = "Categories table name must be between 3 and 255 characters"
   }
 }
+
+#------------------------------------------------------------------------------
+# Mindmaps Table Variables
+# Requirements: Mindmap Feature 4.1, 4.3, 9.5
+#------------------------------------------------------------------------------
+
+variable "mindmaps_table_name" {
+  type        = string
+  description = "Name of the Mindmaps DynamoDB table"
+  validation {
+    condition     = length(var.mindmaps_table_name) >= 3 && length(var.mindmaps_table_name) <= 255
+    error_message = "Mindmaps table name must be between 3 and 255 characters"
+  }
+}

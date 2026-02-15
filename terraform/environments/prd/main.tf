@@ -1,6 +1,9 @@
 # Main configuration for prd environment
 # Requirements: 1.6 - Module calls with environment-specific variables
 
+# Get current AWS account ID for constructing ARNs
+data "aws_caller_identity" "current" {}
+
 locals {
   common_tags = {
     Project     = var.project_name
@@ -19,6 +22,7 @@ module "database" {
 
   table_name            = "${var.project_name}-posts-${var.environment}"
   categories_table_name = "${var.project_name}-categories-${var.environment}"
+  mindmaps_table_name   = "${var.project_name}-mindmaps-${var.environment}"
   environment           = var.environment
   enable_pitr           = true
 
@@ -126,6 +130,35 @@ data "aws_lambda_function" "delete_category" {
   function_name = "blog-delete-category-go"
 }
 
+# Mindmaps domain
+data "aws_lambda_function" "create_mindmap" {
+  function_name = "blog-create-mindmap-go"
+}
+
+data "aws_lambda_function" "get_mindmap" {
+  function_name = "blog-get-mindmap-go"
+}
+
+data "aws_lambda_function" "list_mindmaps" {
+  function_name = "blog-list-mindmaps-go"
+}
+
+data "aws_lambda_function" "update_mindmap" {
+  function_name = "blog-update-mindmap-go"
+}
+
+data "aws_lambda_function" "delete_mindmap" {
+  function_name = "blog-delete-mindmap-go"
+}
+
+data "aws_lambda_function" "get_public_mindmap" {
+  function_name = "blog-get-public-mindmap-go"
+}
+
+data "aws_lambda_function" "list_public_mindmaps" {
+  function_name = "blog-list-public-mindmaps-go"
+}
+
 #------------------------------------------------------------------------------
 # Module 4: API Gateway
 # Dependencies: auth (for Cognito Authorizer), Lambda data sources
@@ -175,6 +208,22 @@ module "api" {
   lambda_update_categories_sort_order_invoke_arn = data.aws_lambda_function.update_categories_sort_order.invoke_arn
   lambda_delete_category_arn                     = data.aws_lambda_function.delete_category.arn
   lambda_delete_category_invoke_arn              = data.aws_lambda_function.delete_category.invoke_arn
+
+  # Mindmaps Lambda function ARNs
+  lambda_create_mindmap_arn              = data.aws_lambda_function.create_mindmap.arn
+  lambda_create_mindmap_invoke_arn       = data.aws_lambda_function.create_mindmap.invoke_arn
+  lambda_get_mindmap_arn                 = data.aws_lambda_function.get_mindmap.arn
+  lambda_get_mindmap_invoke_arn          = data.aws_lambda_function.get_mindmap.invoke_arn
+  lambda_list_mindmaps_arn               = data.aws_lambda_function.list_mindmaps.arn
+  lambda_list_mindmaps_invoke_arn        = data.aws_lambda_function.list_mindmaps.invoke_arn
+  lambda_update_mindmap_arn              = data.aws_lambda_function.update_mindmap.arn
+  lambda_update_mindmap_invoke_arn       = data.aws_lambda_function.update_mindmap.invoke_arn
+  lambda_delete_mindmap_arn              = data.aws_lambda_function.delete_mindmap.arn
+  lambda_delete_mindmap_invoke_arn       = data.aws_lambda_function.delete_mindmap.invoke_arn
+  lambda_get_public_mindmap_arn          = data.aws_lambda_function.get_public_mindmap.arn
+  lambda_get_public_mindmap_invoke_arn   = data.aws_lambda_function.get_public_mindmap.invoke_arn
+  lambda_list_public_mindmaps_arn        = data.aws_lambda_function.list_public_mindmaps.arn
+  lambda_list_public_mindmaps_invoke_arn = data.aws_lambda_function.list_public_mindmaps.invoke_arn
 
   tags = local.common_tags
 
@@ -318,6 +367,14 @@ module "lambda" {
   categories_table_name = module.database.categories_table_name
   categories_table_arn  = module.database.categories_table_arn
 
+  # Mindmaps domain
+  mindmaps_table_name = module.database.mindmaps_table_name
+  mindmaps_table_arn  = module.database.mindmaps_table_arn
+
+  # CodeBuild integration for post/mindmap create/update/delete Lambda
+  codebuild_project_name = "${var.project_name}-astro-build-${var.environment}"
+  codebuild_project_arn  = "arn:aws:codebuild:${var.aws_region}:${data.aws_caller_identity.current.account_id}:project/${var.project_name}-astro-build-${var.environment}"
+
   tags = local.common_tags
 
   depends_on = [module.database, module.storage, module.auth, module.cdn]
@@ -336,7 +393,7 @@ module "monitoring" {
   project_name          = var.project_name
   alarm_email           = var.alarm_email
   lambda_function_names = module.lambda.function_names
-  dynamodb_table_names  = [module.database.table_name]
+  dynamodb_table_names  = [module.database.table_name, module.database.mindmaps_table_name]
   api_gateway_name      = "${var.project_name}-api-${var.environment}"
   api_gateway_stage     = var.environment
   enable_alarms         = true # Alarms enabled for prd

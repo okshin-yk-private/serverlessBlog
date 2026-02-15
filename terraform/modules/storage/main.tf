@@ -46,6 +46,7 @@ resource "aws_s3_bucket" "access_logs" {
   }
 }
 
+#trivy:ignore:AVD-AWS-0132 S3 access logging target buckets do not support SSE-KMS
 resource "aws_s3_bucket_server_side_encryption_configuration" "access_logs" {
   count  = var.enable_access_logs ? 1 : 0
   bucket = aws_s3_bucket.access_logs[0].id
@@ -112,6 +113,7 @@ resource "aws_s3_bucket_versioning" "images" {
 }
 
 # Requirement 3.2: Configure SSE-S3 encryption
+#trivy:ignore:AVD-AWS-0132 SSE-S3 is sufficient for blog images; KMS adds cost with pre-signed URL complexity
 resource "aws_s3_bucket_server_side_encryption_configuration" "images" {
   bucket = aws_s3_bucket.images.id
 
@@ -234,6 +236,7 @@ resource "aws_s3_bucket_versioning" "public_site" {
 }
 
 # Requirement 3.2: Configure SSE-S3 encryption
+#trivy:ignore:AVD-AWS-0132 SSE-S3 is sufficient for static site assets served via CloudFront
 resource "aws_s3_bucket_server_side_encryption_configuration" "public_site" {
   bucket = aws_s3_bucket.public_site.id
 
@@ -326,6 +329,7 @@ resource "aws_s3_bucket" "admin_site" {
 }
 
 # Requirement 3.2: Configure SSE-S3 encryption
+#trivy:ignore:AVD-AWS-0132 SSE-S3 is sufficient for admin SPA assets served via CloudFront
 resource "aws_s3_bucket_server_side_encryption_configuration" "admin_site" {
   bucket = aws_s3_bucket.admin_site.id
 

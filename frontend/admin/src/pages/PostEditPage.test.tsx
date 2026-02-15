@@ -84,17 +84,26 @@ vi.mock('../components/PostEditor', () => ({
   ),
 }));
 vi.mock('../components/ImageUploader', () => ({
-  ImageUploader: ({ onUploadComplete }: any) => (
+  ImageUploader: ({ onUploadComplete, onDelete }: any) => (
     <div data-testid="image-uploader">
       <button onClick={() => onUploadComplete('https://example.com/image.jpg')}>
         Upload Image
       </button>
+      {onDelete && (
+        <button
+          data-testid="mock-delete-image-button"
+          onClick={() => onDelete('https://example.com/image.jpg')}
+        >
+          Delete Image
+        </button>
+      )}
     </div>
   ),
 }));
 
 const mockGetPost = postsApi.getPost as ReturnType<typeof vi.fn>;
 const mockUpdatePost = postsApi.updatePost as ReturnType<typeof vi.fn>;
+const mockDeleteImage = postsApi.deleteImage as ReturnType<typeof vi.fn>;
 
 // MemoryRouter版のヘルパー
 const renderWithRouter = (postId: string = '1') => {
@@ -437,6 +446,38 @@ describe('PostEditPage', () => {
       await waitFor(() => {
         expect(
           screen.getByText(/記事の更新に失敗しました/i)
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('画像削除に失敗した場合エラーメッセージを表示する', async () => {
+      const mockPost = {
+        id: '1',
+        title: 'Test Post',
+        contentMarkdown: 'Test content',
+        contentHtml: '<p>Test content</p>',
+        category: 'tech',
+        tags: [],
+        publishStatus: 'draft' as const,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      };
+
+      mockGetPost.mockResolvedValue(mockPost);
+      mockDeleteImage.mockRejectedValue(new Error('Delete failed'));
+
+      renderWithRouter('1');
+
+      await waitFor(() => {
+        expect(screen.getByTestId('image-uploader')).toBeInTheDocument();
+      });
+
+      const deleteButton = screen.getByTestId('mock-delete-image-button');
+      fireEvent.click(deleteButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/画像の削除に失敗しました/i)
         ).toBeInTheDocument();
       });
     });

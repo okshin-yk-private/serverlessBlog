@@ -45,7 +45,7 @@ repos:
       - id: trivy-config
         name: Trivy IaC Scan
         description: Scan Terraform configuration for security vulnerabilities
-        entry: bash -c 'cd terraform && trivy config --severity=HIGH,CRITICAL --exit-code=1 --ignorefile=.trivyignore --format=table --skip-dirs=.terraform --skip-dirs=docs --skip-dirs=examples .'
+        entry: bash -c 'cd terraform && trivy config --severity=HIGH,CRITICAL --exit-code=1 --ignorefile=.trivyignore --format=table --skip-dirs=.terraform --skip-dirs=docs --skip-dirs=examples --skip-files="**/tfplan" --skip-files="**/tfplan.binary" .'
         language: system
         types: [terraform]
         pass_filenames: false

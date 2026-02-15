@@ -5,12 +5,18 @@ import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import PostCreatePage from './PostCreatePage';
 import * as postsApi from '../api/posts';
+import * as mindmapsApi from '../api/mindmaps';
 import { AuthProvider } from '../contexts/AuthContext';
 
 // モック
 vi.mock('../api/posts', () => ({
   createPost: vi.fn(),
   uploadImage: vi.fn(),
+  deleteImage: vi.fn(),
+}));
+
+vi.mock('../api/mindmaps', () => ({
+  listMindmaps: vi.fn(),
 }));
 
 // カテゴリAPIのモック
@@ -538,6 +544,134 @@ describe('PostCreatePage', () => {
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/posts');
+    });
+  });
+
+  // マインドマップ挿入
+  describe('マインドマップ挿入機能', () => {
+    it('マインドマップ挿入ボタンが表示される', () => {
+      render(
+        <BrowserRouter>
+          <AuthProvider>
+            <PostCreatePage />
+          </AuthProvider>
+        </BrowserRouter>
+      );
+
+      expect(screen.getByTestId('mindmap-insert-button')).toBeInTheDocument();
+    });
+
+    it('マインドマップ挿入ボタンをクリックするとピッカーモーダルが表示される', async () => {
+      const user = userEvent.setup();
+      vi.mocked(mindmapsApi.listMindmaps).mockResolvedValue({
+        items: [
+          {
+            id: 'mm-1',
+            title: 'テストマインドマップ',
+            nodes: { id: 'root', text: 'Root', children: [] },
+            publishStatus: 'published',
+            authorId: 'user-1',
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+        count: 1,
+      });
+
+      render(
+        <BrowserRouter>
+          <AuthProvider>
+            <PostCreatePage />
+          </AuthProvider>
+        </BrowserRouter>
+      );
+
+      await user.click(screen.getByTestId('mindmap-insert-button'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('mindmap-picker-modal')).toBeInTheDocument();
+      });
+    });
+
+    it('マインドマップを選択するとマーカーがエディタに挿入される', async () => {
+      const user = userEvent.setup();
+      vi.mocked(mindmapsApi.listMindmaps).mockResolvedValue({
+        items: [
+          {
+            id: 'mm-test-id',
+            title: 'テストマインドマップ',
+            nodes: { id: 'root', text: 'Root', children: [] },
+            publishStatus: 'published',
+            authorId: 'user-1',
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+        count: 1,
+      });
+
+      render(
+        <BrowserRouter>
+          <AuthProvider>
+            <PostCreatePage />
+          </AuthProvider>
+        </BrowserRouter>
+      );
+
+      await user.click(screen.getByTestId('mindmap-insert-button'));
+
+      await waitFor(() => {
+        expect(screen.getByText('テストマインドマップ')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText('テストマインドマップ'));
+
+      await waitFor(() => {
+        const textarea = screen.getByTestId(
+          'post-content-editor'
+        ) as HTMLTextAreaElement;
+        expect(textarea.value).toContain('{{mindmap:mm-test-id}}');
+      });
+    });
+
+    it('マインドマップ選択後にモーダルが閉じる', async () => {
+      const user = userEvent.setup();
+      vi.mocked(mindmapsApi.listMindmaps).mockResolvedValue({
+        items: [
+          {
+            id: 'mm-1',
+            title: 'テストマインドマップ',
+            nodes: { id: 'root', text: 'Root', children: [] },
+            publishStatus: 'published',
+            authorId: 'user-1',
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+        count: 1,
+      });
+
+      render(
+        <BrowserRouter>
+          <AuthProvider>
+            <PostCreatePage />
+          </AuthProvider>
+        </BrowserRouter>
+      );
+
+      await user.click(screen.getByTestId('mindmap-insert-button'));
+
+      await waitFor(() => {
+        expect(screen.getByText('テストマインドマップ')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText('テストマインドマップ'));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId('mindmap-picker-modal')
+        ).not.toBeInTheDocument();
+      });
     });
   });
 });

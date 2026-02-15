@@ -13,8 +13,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   fetchAllPosts,
   fetchPost,
+  fetchAllPublicMindmaps,
+  fetchPublicMindmap,
   type Post,
   type PostListResponse,
+  type PublicMindmap,
+  type MindmapListResponse,
 } from './api';
 
 // Mock global fetch
@@ -330,6 +334,244 @@ describe('API Module', () => {
 
       expect(mockFetch).toHaveBeenCalledTimes(2);
       expect(result).toEqual(mockPost);
+    });
+  });
+
+  describe('fetchAllPublicMindmaps', () => {
+    it('should fetch all published mindmaps from public API', async () => {
+      const mockMindmaps: PublicMindmap[] = [
+        {
+          id: 'mm-1',
+          title: 'Test Mindmap 1',
+          nodes: '{"id":"root","text":"Root","children":[]}',
+          publishStatus: 'published',
+          authorId: 'author1',
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-01T00:00:00Z',
+        },
+      ];
+
+      const mockResponse: MindmapListResponse = {
+        items: mockMindmaps,
+        count: 1,
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      });
+
+      const result = await fetchAllPublicMindmaps();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/public/mindmaps',
+        expect.objectContaining({
+          method: 'GET',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+          }),
+        })
+      );
+      expect(result).toEqual(mockMindmaps);
+    });
+
+    it('should handle pagination and fetch all pages', async () => {
+      const page1Mindmaps: PublicMindmap[] = [
+        {
+          id: 'mm-1',
+          title: 'Mindmap 1',
+          nodes: '{"id":"root","text":"Root","children":[]}',
+          publishStatus: 'published',
+          authorId: 'author1',
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-01T00:00:00Z',
+        },
+      ];
+
+      const page2Mindmaps: PublicMindmap[] = [
+        {
+          id: 'mm-2',
+          title: 'Mindmap 2',
+          nodes: '{"id":"root","text":"Root2","children":[]}',
+          publishStatus: 'published',
+          authorId: 'author1',
+          createdAt: '2024-01-02T00:00:00Z',
+          updatedAt: '2024-01-02T00:00:00Z',
+        },
+      ];
+
+      const page1Response: MindmapListResponse = {
+        items: page1Mindmaps,
+        count: 1,
+        nextToken: 'mmtoken123',
+      };
+
+      const page2Response: MindmapListResponse = {
+        items: page2Mindmaps,
+        count: 1,
+      };
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => page1Response,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => page2Response,
+        });
+
+      const result = await fetchAllPublicMindmaps();
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        'https://api.example.com/public/mindmaps',
+        expect.any(Object)
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        'https://api.example.com/public/mindmaps?nextToken=mmtoken123',
+        expect.any(Object)
+      );
+      expect(result).toEqual([...page1Mindmaps, ...page2Mindmaps]);
+    });
+
+    it('should retry with exponential backoff on network failure', async () => {
+      const mockMindmaps: PublicMindmap[] = [
+        {
+          id: 'mm-1',
+          title: 'Test Mindmap',
+          nodes: '{"id":"root","text":"Root","children":[]}',
+          publishStatus: 'published',
+          authorId: 'author1',
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-01T00:00:00Z',
+        },
+      ];
+
+      const mockResponse: MindmapListResponse = {
+        items: mockMindmaps,
+        count: 1,
+      };
+
+      mockFetch
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockResponse,
+        });
+
+      const result = await fetchAllPublicMindmaps();
+
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect(result).toEqual(mockMindmaps);
+    });
+
+    it('should fail after max retries (3)', async () => {
+      mockFetch.mockRejectedValue(new Error('Network error'));
+
+      await expect(fetchAllPublicMindmaps()).rejects.toThrow(
+        'Failed to fetch posts after 3 retries'
+      );
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it('should fail with clear error message when API returns error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+      });
+
+      await expect(fetchAllPublicMindmaps()).rejects.toThrow(
+        'API request failed: 500 Internal Server Error'
+      );
+    });
+
+    it('should return empty array when no mindmaps exist', async () => {
+      const mockResponse: MindmapListResponse = {
+        items: [],
+        count: 0,
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      });
+
+      const result = await fetchAllPublicMindmaps();
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('fetchPublicMindmap', () => {
+    it('should fetch a single published mindmap by ID', async () => {
+      const mockMindmap: PublicMindmap = {
+        id: 'mm-123',
+        title: 'Test Mindmap',
+        nodes: '{"id":"root","text":"Root","children":[]}',
+        publishStatus: 'published',
+        authorId: 'author1',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockMindmap,
+      });
+
+      const result = await fetchPublicMindmap('mm-123');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/public/mindmaps/mm-123',
+        expect.objectContaining({
+          method: 'GET',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+          }),
+        })
+      );
+      expect(result).toEqual(mockMindmap);
+    });
+
+    it('should throw error for non-existent mindmap', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+      });
+
+      await expect(fetchPublicMindmap('nonexistent')).rejects.toThrow(
+        'API request failed: 404 Not Found'
+      );
+    });
+
+    it('should retry on network failure and succeed', async () => {
+      const mockMindmap: PublicMindmap = {
+        id: 'mm-123',
+        title: 'Test Mindmap',
+        nodes: '{"id":"root","text":"Root","children":[]}',
+        publishStatus: 'published',
+        authorId: 'author1',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      };
+
+      mockFetch
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockMindmap,
+        });
+
+      const result = await fetchPublicMindmap('mm-123');
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(result).toEqual(mockMindmap);
     });
   });
 });

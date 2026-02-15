@@ -458,3 +458,260 @@ func TestConvertToHTML_HeadingsHaveIDs(t *testing.T) {
 		t.Errorf("ConvertToHTML() should add id to headings, got: %s", result)
 	}
 }
+
+func TestConvertMindmapMarkers_SingleMarker(t *testing.T) {
+	input := `<p>{{mindmap:550e8400-e29b-41d4-a716-446655440000}}</p>`
+	expected := `<div class="mindmap-embed" data-mindmap-id="550e8400-e29b-41d4-a716-446655440000"></div>`
+	result := ConvertMindmapMarkers(input)
+	if result != expected {
+		t.Errorf("ConvertMindmapMarkers() = %q, want %q", result, expected)
+	}
+}
+
+func TestConvertMindmapMarkers_MultipleMarkers(t *testing.T) {
+	input := `<p>Some text</p>
+<p>{{mindmap:550e8400-e29b-41d4-a716-446655440000}}</p>
+<p>More text</p>
+<p>{{mindmap:660e8400-e29b-41d4-a716-446655440001}}</p>`
+	result := ConvertMindmapMarkers(input)
+	if strings.Contains(result, "{{mindmap:550e8400") {
+		t.Error("First marker was not converted")
+	}
+	if strings.Contains(result, "{{mindmap:660e8400") {
+		t.Error("Second marker was not converted")
+	}
+	if !strings.Contains(result, `data-mindmap-id="550e8400-e29b-41d4-a716-446655440000"`) {
+		t.Error("First div not found in result")
+	}
+	if !strings.Contains(result, `data-mindmap-id="660e8400-e29b-41d4-a716-446655440001"`) {
+		t.Error("Second div not found in result")
+	}
+	if !strings.Contains(result, "<p>Some text</p>") {
+		t.Error("Surrounding text should be preserved")
+	}
+	if !strings.Contains(result, "<p>More text</p>") {
+		t.Error("Surrounding text should be preserved")
+	}
+}
+
+func TestConvertMindmapMarkers_InvalidID(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "not a UUID format",
+			input: `<p>{{mindmap:not-a-uuid}}</p>`,
+		},
+		{
+			name:  "empty ID",
+			input: `<p>{{mindmap:}}</p>`,
+		},
+		{
+			name:  "UUID with uppercase (still valid)",
+			input: `<p>{{mindmap:550E8400-E29B-41D4-A716-446655440000}}</p>`,
+		},
+		{
+			name:  "too short UUID",
+			input: `<p>{{mindmap:550e8400-e29b}}</p>`,
+		},
+		{
+			name:  "spaces in ID",
+			input: `<p>{{mindmap: 550e8400-e29b-41d4-a716-446655440000 }}</p>`,
+		},
+		{
+			name:  "SQL injection attempt",
+			input: `<p>{{mindmap:'; DROP TABLE mindmaps;--}}</p>`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ConvertMindmapMarkers(tt.input)
+			// Invalid IDs should leave the marker unchanged
+			if tt.name == "UUID with uppercase (still valid)" {
+				// Uppercase UUIDs are valid
+				if !strings.Contains(result, `data-mindmap-id="550E8400-E29B-41D4-A716-446655440000"`) {
+					t.Errorf("Uppercase UUID should be converted, got: %q", result)
+				}
+			} else {
+				if strings.Contains(result, "mindmap-embed") {
+					t.Errorf("Invalid ID should not be converted, got: %q", result)
+				}
+			}
+		})
+	}
+}
+
+func TestConvertMindmapMarkers_NoMarkers(t *testing.T) {
+	input := `<p>This is regular content with no markers.</p>
+<p>Another paragraph.</p>`
+	result := ConvertMindmapMarkers(input)
+	if result != input {
+		t.Errorf("Content without markers should be unchanged.\nGot:  %q\nWant: %q", result, input)
+	}
+}
+
+func TestConvertMindmapMarkers_EmptyInput(t *testing.T) {
+	result := ConvertMindmapMarkers("")
+	if result != "" {
+		t.Errorf("Empty input should return empty string, got: %q", result)
+	}
+}
+
+func TestConvertMindmapMarkers_MarkerInStandaloneParagraph(t *testing.T) {
+	// When a marker is the sole content of a <p> tag, the <p> wrapper should be removed
+	input := `<p>{{mindmap:550e8400-e29b-41d4-a716-446655440000}}</p>`
+	result := ConvertMindmapMarkers(input)
+	if strings.Contains(result, "<p>") {
+		t.Errorf("Standalone marker paragraph should not have <p> wrapper, got: %q", result)
+	}
+	if !strings.Contains(result, `<div class="mindmap-embed"`) {
+		t.Errorf("Should contain mindmap-embed div, got: %q", result)
+	}
+}
+
+func TestConvertMindmapMarkers_SkipsCodeBlocks(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		contains    []string
+		notContains []string
+	}{
+		{
+			name:  "marker inside inline code preserved",
+			input: `<p>Use <code>{{mindmap:550e8400-e29b-41d4-a716-446655440000}}</code> to embed</p>`,
+			contains: []string{
+				"{{mindmap:550e8400-e29b-41d4-a716-446655440000}}",
+				"<code>",
+			},
+			notContains: []string{
+				"mindmap-embed",
+			},
+		},
+		{
+			name:  "marker inside pre/code block preserved",
+			input: "<pre><code>{{mindmap:550e8400-e29b-41d4-a716-446655440000}}\n</code></pre>",
+			contains: []string{
+				"{{mindmap:550e8400-e29b-41d4-a716-446655440000}}",
+				"<pre><code>",
+			},
+			notContains: []string{
+				"mindmap-embed",
+			},
+		},
+		{
+			name: "marker outside code is converted but inside code is preserved",
+			input: `<p>{{mindmap:550e8400-e29b-41d4-a716-446655440000}}</p>
+<pre><code>{{mindmap:660e8400-e29b-41d4-a716-446655440001}}
+</code></pre>`,
+			contains: []string{
+				`data-mindmap-id="550e8400-e29b-41d4-a716-446655440000"`,
+				"{{mindmap:660e8400-e29b-41d4-a716-446655440001}}",
+			},
+			notContains: []string{
+				`data-mindmap-id="660e8400-e29b-41d4-a716-446655440001"`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ConvertMindmapMarkers(tt.input)
+			for _, contain := range tt.contains {
+				if !strings.Contains(result, contain) {
+					t.Errorf("ConvertMindmapMarkers() = %q, want containing %q", result, contain)
+				}
+			}
+			for _, notContain := range tt.notContains {
+				if strings.Contains(result, notContain) {
+					t.Errorf("ConvertMindmapMarkers() = %q, should not contain %q", result, notContain)
+				}
+			}
+		})
+	}
+}
+
+func TestConvertToHTML_MindmapMarkerIntegration(t *testing.T) {
+	// Test that ConvertToHTML processes mindmap markers in the full pipeline
+	tests := []struct {
+		name        string
+		input       string
+		contains    []string
+		notContains []string
+	}{
+		{
+			name:  "marker on its own line",
+			input: "Some text\n\n{{mindmap:550e8400-e29b-41d4-a716-446655440000}}\n\nMore text",
+			contains: []string{
+				`<div class="mindmap-embed" data-mindmap-id="550e8400-e29b-41d4-a716-446655440000"></div>`,
+				"<p>Some text</p>",
+				"<p>More text</p>",
+			},
+			notContains: []string{
+				"{{mindmap:",
+			},
+		},
+		{
+			name:  "marker with no surrounding content",
+			input: "{{mindmap:550e8400-e29b-41d4-a716-446655440000}}",
+			contains: []string{
+				`<div class="mindmap-embed" data-mindmap-id="550e8400-e29b-41d4-a716-446655440000"></div>`,
+			},
+			notContains: []string{
+				"{{mindmap:",
+			},
+		},
+		{
+			name:  "invalid marker preserved",
+			input: "{{mindmap:not-valid}}",
+			contains: []string{
+				"{{mindmap:not-valid}}",
+			},
+			notContains: []string{
+				"mindmap-embed",
+			},
+		},
+		{
+			name:  "marker inside inline code is not converted",
+			input: "Use `{{mindmap:550e8400-e29b-41d4-a716-446655440000}}` to embed",
+			contains: []string{
+				"{{mindmap:550e8400-e29b-41d4-a716-446655440000}}",
+				"<code>",
+			},
+			notContains: []string{
+				"mindmap-embed",
+			},
+		},
+		{
+			name:  "marker inside fenced code block is not converted",
+			input: "```\n{{mindmap:550e8400-e29b-41d4-a716-446655440000}}\n```",
+			contains: []string{
+				"{{mindmap:550e8400-e29b-41d4-a716-446655440000}}",
+				"<pre>",
+			},
+			notContains: []string{
+				"mindmap-embed",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ConvertToHTML(tt.input)
+			if err != nil {
+				t.Fatalf("ConvertToHTML() error = %v", err)
+			}
+			for _, contain := range tt.contains {
+				if !strings.Contains(result, contain) {
+					t.Errorf("ConvertToHTML() = %q, want containing %q", result, contain)
+				}
+			}
+			for _, notContain := range tt.notContains {
+				if strings.Contains(result, notContain) {
+					t.Errorf("ConvertToHTML() = %q, should not contain %q", result, notContain)
+				}
+			}
+		})
+	}
+}

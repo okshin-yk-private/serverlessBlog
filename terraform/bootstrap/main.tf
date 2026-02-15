@@ -33,6 +33,7 @@ resource "aws_s3_bucket_versioning" "terraform_state" {
 }
 
 # Server-side encryption with SSE-S3
+#trivy:ignore:AVD-AWS-0132 SSE-S3 is sufficient for personal project tfstate; KMS adds cost overhead
 resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
   bucket = aws_s3_bucket.terraform_state.id
   rule {

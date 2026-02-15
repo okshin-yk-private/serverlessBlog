@@ -143,3 +143,72 @@ resource "aws_dynamodb_table" "categories" {
     prevent_destroy = false # Set to true in production via environment-specific configuration
   }
 }
+
+#------------------------------------------------------------------------------
+# Mindmaps DynamoDB Table
+# Requirements: Mindmap Feature
+# - 4.1: Partition key `id` (String, UUID)
+# - 4.3: PublishStatusIndex GSI for efficient public mindmap queries
+# - 9.5: Terraform module definition
+#------------------------------------------------------------------------------
+
+resource "aws_dynamodb_table" "mindmaps" {
+  name         = var.mindmaps_table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "id"
+
+  # Partition key attribute
+  attribute {
+    name = "id"
+    type = "S"
+  }
+
+  # GSI attributes
+  attribute {
+    name = "publishStatus"
+    type = "S"
+  }
+
+  attribute {
+    name = "createdAt"
+    type = "S"
+  }
+
+  # PublishStatusIndex GSI
+  # Partition key: publishStatus, Sort key: createdAt
+  # Used to efficiently query published mindmaps
+  global_secondary_index {
+    name            = "PublishStatusIndex"
+    hash_key        = "publishStatus"
+    range_key       = "createdAt"
+    projection_type = "ALL"
+  }
+
+  # Point-in-Time Recovery
+  point_in_time_recovery {
+    enabled = var.enable_pitr
+  }
+
+  # Server-side encryption (AWS managed key)
+  server_side_encryption {
+    enabled = true
+  }
+
+  # Prevent accidental deletion in production
+  deletion_protection_enabled = var.environment == "prd" ? true : false
+
+  # Tags
+  tags = merge(
+    {
+      Name        = var.mindmaps_table_name
+      Environment = var.environment
+      Module      = "database"
+      ManagedBy   = "terraform"
+    },
+    var.tags
+  )
+
+  lifecycle {
+    prevent_destroy = false # Set to true in production via environment-specific configuration
+  }
+}
