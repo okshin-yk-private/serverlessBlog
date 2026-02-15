@@ -1,0 +1,223 @@
+---
+/**
+ * [id].astro - マインドマップ詳細ページ
+ *
+ * Task 10.2: マインドマップ詳細ページの実装
+ *
+ * Requirements:
+ * - 3.2: Astro SSGビルド時にAPIからマインドマップデータを取得し、静的HTMLにノードデータをJSON形式で埋め込む
+ * - 3.6: マインドマップ詳細ページにOGPメタタグとJSON-LD構造化データを含める
+ */
+import Layout from '../../layouts/Layout.astro';
+import { fetchAllPublicMindmaps, type PublicMindmap } from '../../lib/api';
+import { formatDateJa } from '../../lib/postUtils';
+import type { JsonLdMindmap } from '../../lib/jsonLdUtils';
+
+/**
+ * getStaticPaths: 全公開マインドマップのパスを生成
+ */
+export async function getStaticPaths() {
+  const mindmaps = await fetchAllPublicMindmaps();
+
+  return mindmaps.map((mindmap) => ({
+    params: { id: mindmap.id },
+    props: { mindmap },
+  }));
+}
+
+interface Props {
+  mindmap: PublicMindmap;
+}
+
+const { mindmap } = Astro.props;
+const formattedDate = formatDateJa(mindmap.publishedAt ?? mindmap.createdAt);
+
+// Generate description from mindmap title
+const description = `${mindmap.title} - マインドマップ`;
+
+// SEO: publishedAt or createdAt
+const articlePublishedAt = mindmap.publishedAt ?? mindmap.createdAt;
+const articleModifiedAt = mindmap.updatedAt;
+
+// JSON-LD: CreativeWork structured data
+const jsonLdMindmap: JsonLdMindmap = {
+  id: mindmap.id,
+  title: mindmap.title,
+  description: description,
+  publishedAt: articlePublishedAt,
+  updatedAt: articleModifiedAt,
+  authorName: mindmap.authorId || 'Anonymous',
+};
+---
+
+<Layout
+  title={mindmap.title}
+  description={description}
+  type="article"
+  publishedAt={articlePublishedAt}
+  modifiedAt={articleModifiedAt}
+  jsonLdMindmap={jsonLdMindmap}
+>
+  <article class="mindmap-detail">
+    <header class="mindmap-header">
+      <div class="mindmap-meta">
+        <span class="type-badge" data-testid="mindmap-type">Mindmap</span>
+        <time class="date" datetime={mindmap.publishedAt ?? mindmap.createdAt} data-testid="mindmap-date">
+          {formattedDate}
+        </time>
+      </div>
+      <h1 class="mindmap-title" data-testid="mindmap-title">{mindmap.title}</h1>
+    </header>
+
+    <!-- Mindmap Viewer Container -->
+    <div class="mindmap-viewer-container" data-testid="mindmap-viewer">
+      <div id="mindmap-canvas" class="mindmap-canvas"></div>
+    </div>
+
+    <!-- Node data embedded as JSON for client-side rendering -->
+    <script
+      is:inline
+      type="application/json"
+      id="mindmap-data"
+      data-mindmap-id={mindmap.id}
+      set:html={mindmap.nodes.replace(/</g, '\\u003c')}
+    />
+
+    <!-- D3.js Mindmap Viewer Script (Task 11.1) -->
+    <script>
+      import { initMindmapViewer } from '../../scripts/mindmap-viewer';
+      document.addEventListener('DOMContentLoaded', initMindmapViewer);
+    </script>
+
+    <!-- Back to Mindmaps Link -->
+    <nav class="mindmap-navigation">
+      <a href="/mindmaps" class="back-link">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 12H5"></path>
+          <path d="M12 19l-7-7 7-7"></path>
+        </svg>
+        Back to Mindmaps
+      </a>
+    </nav>
+  </article>
+</Layout>
+
+<style>
+  .mindmap-detail {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 60px 32px;
+  }
+
+  .mindmap-header {
+    margin-bottom: 32px;
+    text-align: center;
+  }
+
+  .mindmap-meta {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+
+  .type-badge {
+    background: #2D2A5A;
+    padding: 6px 16px;
+    border-radius: 6px;
+    color: white;
+    font-weight: 500;
+    font-size: 0.875rem;
+  }
+
+  .date {
+    color: #6b7280;
+    font-size: 0.875rem;
+  }
+
+  .mindmap-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #111827;
+    line-height: 1.3;
+    margin: 0;
+    font-family: 'Caveat', cursive;
+  }
+
+  .mindmap-viewer-container {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+
+  .mindmap-canvas {
+    width: 100%;
+    min-height: 500px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9ca3af;
+    font-size: 1rem;
+  }
+
+  .mindmap-navigation {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #6b7280;
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: color 0.2s ease;
+  }
+
+  .back-link:hover {
+    color: #C9A857;
+  }
+
+  /* D3.js Mindmap Viewer styles (Task 11.1) */
+  .mindmap-canvas :global(svg) {
+    display: block;
+  }
+
+  .mindmap-canvas :global(.mindmap-node) {
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  }
+
+  .mindmap-canvas :global(.mindmap-node:hover rect) {
+    filter: brightness(0.95);
+  }
+
+  .mindmap-canvas :global(.mindmap-node.highlighted rect) {
+    stroke: #C9A857;
+    stroke-width: 2.5;
+  }
+
+  .mindmap-canvas :global(.mindmap-edge) {
+    transition: stroke 0.2s ease;
+  }
+
+  @media (max-width: 768px) {
+    .mindmap-detail {
+      padding: 40px 20px;
+    }
+
+    .mindmap-title {
+      font-size: 1.75rem;
+    }
+
+    .mindmap-canvas {
+      min-height: 350px;
+    }
+  }
+</style>

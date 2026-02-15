@@ -55,3 +55,28 @@ output "categories_slug_index_name" {
   value       = "SlugIndex"
   description = "SlugIndex GSI name for Categories table"
 }
+
+#------------------------------------------------------------------------------
+# Mindmaps Table Outputs
+# Requirements: Mindmap Feature 4.1, 4.3, 9.5
+#------------------------------------------------------------------------------
+
+output "mindmaps_table_name" {
+  value       = aws_dynamodb_table.mindmaps.name
+  description = "Mindmaps DynamoDB table name"
+}
+
+output "mindmaps_table_arn" {
+  value       = aws_dynamodb_table.mindmaps.arn
+  description = "Mindmaps DynamoDB table ARN"
+}
+
+output "mindmaps_table_id" {
+  value       = aws_dynamodb_table.mindmaps.id
+  description = "Mindmaps DynamoDB table ID"
+}
+
+output "mindmaps_publish_status_index_name" {
+  value       = "PublishStatusIndex"
+  description = "PublishStatusIndex GSI name for Mindmaps table"
+}

@@ -12,7 +12,7 @@
 import SEO from '../components/SEO.astro';
 import JsonLd from '../components/JsonLd.astro';
 import Header from '../components/Header.astro';
-import type { JsonLdPost } from '../lib/jsonLdUtils';
+import type { JsonLdPost, JsonLdMindmap } from '../lib/jsonLdUtils';
 
 interface Props {
   /** Page title */
@@ -33,6 +33,8 @@ interface Props {
   noindex?: boolean;
   /** JSON-LD post data (for article pages) */
   jsonLdPost?: JsonLdPost;
+  /** JSON-LD mindmap data (for mindmap pages) */
+  jsonLdMindmap?: JsonLdMindmap;
   /** Show WebSite JSON-LD (for home page) */
   showWebSiteJsonLd?: boolean;
 }
@@ -50,6 +52,7 @@ const {
   modifiedAt,
   noindex = false,
   jsonLdPost,
+  jsonLdMindmap,
   showWebSiteJsonLd = false,
 } = Astro.props;
 ---
@@ -87,6 +90,9 @@ const {
     <!-- JSON-LD Structured Data (Task 3.2) -->
     {jsonLdPost && (
       <JsonLd type="BlogPosting" post={jsonLdPost} />
+    )}
+    {jsonLdMindmap && (
+      <JsonLd type="CreativeWork" mindmap={jsonLdMindmap} />
     )}
     {showWebSiteJsonLd && (
       <JsonLd type="WebSite" siteName={SITE_NAME} siteDescription={description} />

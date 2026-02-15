@@ -463,6 +463,8 @@ EOF
 
 # Unified CloudFront Distribution
 # Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6
+#trivy:ignore:AVD-AWS-0045 WAF is not cost-effective for a personal blog
+#trivy:ignore:AVD-AWS-0011 Access logging managed separately via S3 bucket logging
 resource "aws_cloudfront_distribution" "main" {
   enabled             = true
   is_ipv6_enabled     = true

@@ -34,6 +34,16 @@ output "dynamodb_table_arn" {
   description = "DynamoDB table ARN"
 }
 
+output "mindmaps_table_name" {
+  value       = module.database.mindmaps_table_name
+  description = "Mindmaps DynamoDB table name"
+}
+
+output "mindmaps_table_arn" {
+  value       = module.database.mindmaps_table_arn
+  description = "Mindmaps DynamoDB table ARN"
+}
+
 #------------------------------------------------------------------------------
 # Auth Outputs
 #------------------------------------------------------------------------------

@@ -76,6 +76,39 @@ export interface WebSiteJsonLd {
 }
 
 /**
+ * Input data for generating CreativeWork JSON-LD (for mindmap pages)
+ */
+export interface JsonLdMindmap {
+  /** Mindmap ID */
+  id: string;
+  /** Mindmap title */
+  title: string;
+  /** Mindmap description */
+  description: string;
+  /** Publication date (ISO 8601) */
+  publishedAt: string;
+  /** Last modification date (ISO 8601) - optional */
+  updatedAt?: string;
+  /** Author name */
+  authorName: string;
+}
+
+/**
+ * CreativeWork JSON-LD schema
+ * https://schema.org/CreativeWork
+ */
+export interface CreativeWorkJsonLd {
+  '@context': 'https://schema.org';
+  '@type': 'CreativeWork';
+  name: string;
+  description: string;
+  datePublished: string;
+  dateModified: string;
+  author: PersonSchema;
+  mainEntityOfPage: WebPageSchema;
+}
+
+/**
  * Maximum headline length for BlogPosting schema
  * Google recommends keeping headlines under 110 characters
  */
@@ -183,4 +216,48 @@ export function generateWebSiteJsonLd(
   }
 
   return jsonLd;
+}
+
+/**
+ * Build mindmap URL from mindmap ID and site URL
+ *
+ * @param mindmapId - The mindmap ID
+ * @param siteUrl - The base site URL
+ * @returns Full mindmap URL
+ */
+function buildMindmapUrl(mindmapId: string, siteUrl: string): string {
+  const baseUrl = normalizeUrl(siteUrl);
+  return `${baseUrl}/mindmaps/${mindmapId}`;
+}
+
+/**
+ * Generate CreativeWork JSON-LD schema for mindmap pages
+ *
+ * @param mindmap - Mindmap data for JSON-LD generation
+ * @param siteUrl - Base site URL
+ * @returns CreativeWork JSON-LD object
+ */
+export function generateCreativeWorkJsonLd(
+  mindmap: JsonLdMindmap,
+  siteUrl: string
+): CreativeWorkJsonLd {
+  const mindmapUrl = buildMindmapUrl(mindmap.id, siteUrl);
+  const dateModified = mindmap.updatedAt ?? mindmap.publishedAt;
+
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'CreativeWork',
+    name: truncateHeadline(mindmap.title),
+    description: mindmap.description,
+    datePublished: mindmap.publishedAt,
+    dateModified: dateModified,
+    author: {
+      '@type': 'Person',
+      name: mindmap.authorName,
+    },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': mindmapUrl,
+    },
+  };
 }

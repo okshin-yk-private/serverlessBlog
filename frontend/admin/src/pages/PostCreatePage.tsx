@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PostEditor, type PostEditorHandle } from '../components/PostEditor';
 import { ImageUploader } from '../components/ImageUploader';
+import MindmapPickerModal from '../components/MindmapPickerModal';
 import { createPost, uploadImage, deleteImage } from '../api/posts';
 import AdminLayout from '../components/AdminLayout';
 import { useCategories } from '../hooks/useCategories';
@@ -11,6 +12,7 @@ const PostCreatePage = () => {
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [isMindmapPickerOpen, setIsMindmapPickerOpen] = useState(false);
   const editorRef = useRef<PostEditorHandle>(null);
 
   // カテゴリを動的に取得
@@ -52,10 +54,22 @@ const PostCreatePage = () => {
 
   // 画像削除ハンドラー
   const handleImageDelete = async (imageUrl: string) => {
-    await deleteImage(imageUrl);
-    setUploadedImages((prev) => prev.filter((url) => url !== imageUrl));
-    // エディタからも画像タグを削除
-    editorRef.current?.removeImageUrl(imageUrl);
+    try {
+      await deleteImage(imageUrl);
+      setUploadedImages((prev) => prev.filter((url) => url !== imageUrl));
+      // エディタからも画像タグを削除
+      editorRef.current?.removeImageUrl(imageUrl);
+    } catch (err) {
+      console.error('画像削除エラー:', err);
+      setError('画像の削除に失敗しました');
+    }
+  };
+
+  // マインドマップ選択ハンドラー
+  const handleMindmapSelect = (mindmapId: string) => {
+    const marker = `\n{{mindmap:${mindmapId}}}\n`;
+    editorRef.current?.insertAtCursor(marker);
+    setIsMindmapPickerOpen(false);
   };
 
   // ペーストによる画像アップロード
@@ -106,8 +120,15 @@ const PostCreatePage = () => {
           categoriesLoading={categoriesLoading}
           categoriesError={categoriesError}
           onCategoriesRefetch={refetchCategories}
+          onMindmapInsertClick={() => setIsMindmapPickerOpen(true)}
         />
       </div>
+
+      <MindmapPickerModal
+        isOpen={isMindmapPickerOpen}
+        onSelect={handleMindmapSelect}
+        onClose={() => setIsMindmapPickerOpen(false)}
+      />
     </AdminLayout>
   );
 };

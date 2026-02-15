@@ -24,6 +24,13 @@ FUNCTIONS := \
 	posts/list \
 	posts/update \
 	posts/delete \
+	mindmaps/create \
+	mindmaps/get \
+	mindmaps/get_public \
+	mindmaps/list \
+	mindmaps/list_public \
+	mindmaps/update \
+	mindmaps/delete \
 	auth/login \
 	auth/logout \
 	auth/refresh \

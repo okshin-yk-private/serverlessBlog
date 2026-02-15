@@ -16,9 +16,12 @@ import { describe, it, expect } from 'vitest';
 import {
   generateBlogPostingJsonLd,
   generateWebSiteJsonLd,
+  generateCreativeWorkJsonLd,
   type BlogPostingJsonLd,
   type WebSiteJsonLd,
+  type CreativeWorkJsonLd,
   type JsonLdPost,
+  type JsonLdMindmap,
 } from './jsonLdUtils';
 
 const SITE_NAME = 'bone of my fallacy';
@@ -309,6 +312,157 @@ describe('jsonLdUtils', () => {
     });
   });
 
+  describe('generateCreativeWorkJsonLd', () => {
+    it('should generate CreativeWork schema with required fields', () => {
+      const mindmap: JsonLdMindmap = {
+        id: 'mm-123',
+        title: 'My Mindmap',
+        description: 'A mindmap about programming concepts',
+        publishedAt: '2024-01-15T10:00:00Z',
+        updatedAt: '2024-01-16T12:00:00Z',
+        authorName: 'John Doe',
+      };
+
+      const result = generateCreativeWorkJsonLd(mindmap, SITE_URL);
+
+      expect(result['@context']).toBe('https://schema.org');
+      expect(result['@type']).toBe('CreativeWork');
+      expect(result.name).toBe('My Mindmap');
+      expect(result.description).toBe('A mindmap about programming concepts');
+      expect(result.datePublished).toBe('2024-01-15T10:00:00Z');
+      expect(result.dateModified).toBe('2024-01-16T12:00:00Z');
+    });
+
+    it('should include author as Person type', () => {
+      const mindmap: JsonLdMindmap = {
+        id: 'mm-123',
+        title: 'My Mindmap',
+        description: 'Description',
+        publishedAt: '2024-01-15T10:00:00Z',
+        updatedAt: '2024-01-16T12:00:00Z',
+        authorName: 'John Doe',
+      };
+
+      const result = generateCreativeWorkJsonLd(mindmap, SITE_URL);
+
+      expect(result.author).toEqual({
+        '@type': 'Person',
+        name: 'John Doe',
+      });
+    });
+
+    it('should include mainEntityOfPage with correct mindmap URL', () => {
+      const mindmap: JsonLdMindmap = {
+        id: 'mm-123',
+        title: 'My Mindmap',
+        description: 'Description',
+        publishedAt: '2024-01-15T10:00:00Z',
+        updatedAt: '2024-01-16T12:00:00Z',
+        authorName: 'John Doe',
+      };
+
+      const result = generateCreativeWorkJsonLd(mindmap, SITE_URL);
+
+      expect(result.mainEntityOfPage).toEqual({
+        '@type': 'WebPage',
+        '@id': 'https://example.com/mindmaps/mm-123',
+      });
+    });
+
+    it('should use publishedAt as dateModified when updatedAt is not provided', () => {
+      const mindmap: JsonLdMindmap = {
+        id: 'mm-123',
+        title: 'My Mindmap',
+        description: 'Description',
+        publishedAt: '2024-01-15T10:00:00Z',
+        authorName: 'John Doe',
+      };
+
+      const result = generateCreativeWorkJsonLd(mindmap, SITE_URL);
+
+      expect(result.dateModified).toBe('2024-01-15T10:00:00Z');
+    });
+
+    it('should truncate name longer than 110 characters', () => {
+      const mindmap: JsonLdMindmap = {
+        id: 'mm-123',
+        title: 'A'.repeat(150),
+        description: 'Description',
+        publishedAt: '2024-01-15T10:00:00Z',
+        updatedAt: '2024-01-16T12:00:00Z',
+        authorName: 'John Doe',
+      };
+
+      const result = generateCreativeWorkJsonLd(mindmap, SITE_URL);
+
+      expect(result.name.length).toBeLessThanOrEqual(110);
+      expect(result.name.endsWith('...')).toBe(true);
+    });
+
+    it('should handle Japanese characters in name and description', () => {
+      const mindmap: JsonLdMindmap = {
+        id: 'mm-456',
+        title: 'プログラミング概念マインドマップ',
+        description:
+          'プログラミングの基本概念を視覚的にまとめたマインドマップです。',
+        publishedAt: '2024-01-15T10:00:00Z',
+        updatedAt: '2024-01-16T12:00:00Z',
+        authorName: '山田太郎',
+      };
+
+      const result = generateCreativeWorkJsonLd(mindmap, SITE_URL);
+
+      expect(result.name).toBe('プログラミング概念マインドマップ');
+      expect(result.description).toBe(
+        'プログラミングの基本概念を視覚的にまとめたマインドマップです。'
+      );
+      expect(result.author).toEqual({
+        '@type': 'Person',
+        name: '山田太郎',
+      });
+    });
+
+    it('should handle site URL with trailing slash', () => {
+      const mindmap: JsonLdMindmap = {
+        id: 'mm-123',
+        title: 'My Mindmap',
+        description: 'Description',
+        publishedAt: '2024-01-15T10:00:00Z',
+        updatedAt: '2024-01-16T12:00:00Z',
+        authorName: 'John Doe',
+      };
+
+      const result = generateCreativeWorkJsonLd(
+        mindmap,
+        'https://example.com/'
+      );
+
+      expect(result.mainEntityOfPage['@id']).toBe(
+        'https://example.com/mindmaps/mm-123'
+      );
+    });
+
+    it('should generate valid JSON string', () => {
+      const mindmap: JsonLdMindmap = {
+        id: 'mm-123',
+        title: 'Test Mindmap',
+        description: 'Test description',
+        publishedAt: '2024-01-15T10:00:00Z',
+        updatedAt: '2024-01-16T12:00:00Z',
+        authorName: 'John Doe',
+      };
+
+      const jsonLd = generateCreativeWorkJsonLd(mindmap, SITE_URL);
+      const jsonString = JSON.stringify(jsonLd);
+
+      expect(() => JSON.parse(jsonString)).not.toThrow();
+
+      const parsed = JSON.parse(jsonString);
+      expect(parsed['@context']).toBe('https://schema.org');
+      expect(parsed['@type']).toBe('CreativeWork');
+    });
+  });
+
   describe('Type exports', () => {
     it('should export BlogPostingJsonLd type', () => {
       const blogPosting: BlogPostingJsonLd = {
@@ -337,6 +491,24 @@ describe('jsonLdUtils', () => {
       };
 
       expect(webSite['@type']).toBe('WebSite');
+    });
+
+    it('should export CreativeWorkJsonLd type', () => {
+      const creativeWork: CreativeWorkJsonLd = {
+        '@context': 'https://schema.org',
+        '@type': 'CreativeWork',
+        name: 'Test Mindmap',
+        description: 'Test',
+        datePublished: '2024-01-15T10:00:00Z',
+        dateModified: '2024-01-15T10:00:00Z',
+        author: { '@type': 'Person', name: 'Test' },
+        mainEntityOfPage: {
+          '@type': 'WebPage',
+          '@id': 'https://example.com/mindmaps/1',
+        },
+      };
+
+      expect(creativeWork['@type']).toBe('CreativeWork');
     });
   });
 });

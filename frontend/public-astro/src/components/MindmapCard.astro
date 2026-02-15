@@ -1,0 +1,86 @@
+---
+/**
+ * MindmapCard.astro - マインドマップカードコンポーネント
+ *
+ * Requirements:
+ * - 3.1: 公開済みマインドマップのタイトル一覧をカード形式で表示
+ */
+
+import type { PublicMindmap } from '../lib/api';
+import { formatDateJa } from '../lib/postUtils';
+
+interface Props {
+  mindmap: PublicMindmap;
+}
+
+const { mindmap } = Astro.props;
+const formattedDate = formatDateJa(mindmap.createdAt);
+---
+
+<article class="mindmap-card" data-testid="mindmap-card" data-mindmap-id={mindmap.id}>
+  <a href={`/mindmaps/${mindmap.id}`} class="mindmap-link">
+    <div class="mindmap-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+      </svg>
+    </div>
+    <h2 class="mindmap-title" data-testid="mindmap-title">{mindmap.title}</h2>
+    <div class="mindmap-meta">
+      <span class="date">{formattedDate}</span>
+    </div>
+  </a>
+</article>
+
+<style>
+  .mindmap-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+    transition: all 0.2s ease;
+    height: 100%;
+  }
+
+  .mindmap-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(45, 42, 90, 0.15);
+    border-color: #C9A857;
+  }
+
+  .mindmap-link {
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .mindmap-icon {
+    color: #C9A857;
+    margin-bottom: 12px;
+  }
+
+  .mindmap-title {
+    margin: 0 0 12px 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #2D2A5A;
+    line-height: 1.4;
+    flex-grow: 1;
+  }
+
+  .mindmap-link:hover .mindmap-title {
+    color: #C9A857;
+  }
+
+  .mindmap-meta {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 0.875rem;
+  }
+
+  .date {
+    color: #9ca3af;
+  }
+</style>

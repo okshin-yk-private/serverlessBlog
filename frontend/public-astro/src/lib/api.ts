@@ -39,6 +39,29 @@ export interface PostListResponse {
 }
 
 /**
+ * 公開マインドマップの型定義
+ */
+export interface PublicMindmap {
+  id: string;
+  title: string;
+  nodes: string;
+  publishStatus: 'draft' | 'published';
+  authorId: string;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt?: string;
+}
+
+/**
+ * マインドマップ一覧レスポンスの型定義
+ */
+export interface MindmapListResponse {
+  items: PublicMindmap[];
+  count: number;
+  nextToken?: string;
+}
+
+/**
  * 最大リトライ回数
  */
 const MAX_RETRIES = 3;
@@ -158,6 +181,53 @@ export async function fetchPost(id: string): Promise<Post> {
   const url = `${apiUrl}/posts/${id}`;
 
   return fetchWithRetry<Post>(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
+/**
+ * 全ての公開マインドマップを取得する
+ *
+ * カーソルベースのページネーションを使用して全マインドマップを再帰的に取得する
+ * Requirements: 3.1, 3.2
+ */
+export async function fetchAllPublicMindmaps(): Promise<PublicMindmap[]> {
+  const apiUrl = getApiUrl();
+  const allMindmaps: PublicMindmap[] = [];
+  let nextToken: string | undefined;
+
+  do {
+    const url = nextToken
+      ? `${apiUrl}/public/mindmaps?nextToken=${nextToken}`
+      : `${apiUrl}/public/mindmaps`;
+
+    const response = await fetchWithRetry<MindmapListResponse>(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    allMindmaps.push(...response.items);
+    nextToken = response.nextToken;
+  } while (nextToken);
+
+  return allMindmaps;
+}
+
+/**
+ * 特定の公開マインドマップを取得する
+ *
+ * Requirements: 3.2
+ */
+export async function fetchPublicMindmap(id: string): Promise<PublicMindmap> {
+  const apiUrl = getApiUrl();
+  const url = `${apiUrl}/public/mindmaps/${id}`;
+
+  return fetchWithRetry<PublicMindmap>(url, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',

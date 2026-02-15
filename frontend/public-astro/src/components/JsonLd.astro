@@ -14,17 +14,23 @@
 import {
   generateBlogPostingJsonLd,
   generateWebSiteJsonLd,
+  generateCreativeWorkJsonLd,
   type JsonLdPost,
+  type JsonLdMindmap,
   type BlogPostingJsonLd,
   type WebSiteJsonLd,
+  type CreativeWorkJsonLd,
 } from '../lib/jsonLdUtils';
 
 export interface Props {
   /** Type of JSON-LD schema to generate */
-  type: 'BlogPosting' | 'WebSite';
+  type: 'BlogPosting' | 'WebSite' | 'CreativeWork';
 
   /** Post data (required for BlogPosting type) */
   post?: JsonLdPost;
+
+  /** Mindmap data (required for CreativeWork type) */
+  mindmap?: JsonLdMindmap;
 
   /** Site name (required for WebSite type) */
   siteName?: string;
@@ -35,18 +41,20 @@ export interface Props {
 
 const SITE_URL = import.meta.env.SITE_URL || import.meta.env.SITE || 'https://example.com';
 
-const { type, post, siteName, siteDescription } = Astro.props;
+const { type, post, mindmap, siteName, siteDescription } = Astro.props;
 
 // Generate appropriate JSON-LD based on type
-let jsonLd: BlogPostingJsonLd | WebSiteJsonLd | null = null;
+let jsonLd: BlogPostingJsonLd | WebSiteJsonLd | CreativeWorkJsonLd | null = null;
 
 if (type === 'BlogPosting' && post) {
   jsonLd = generateBlogPostingJsonLd(post, SITE_URL);
 } else if (type === 'WebSite' && siteName) {
   jsonLd = generateWebSiteJsonLd(siteName, SITE_URL, siteDescription);
+} else if (type === 'CreativeWork' && mindmap) {
+  jsonLd = generateCreativeWorkJsonLd(mindmap, SITE_URL);
 }
 ---
 
 {jsonLd && (
-  <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd).replace(/</g, '\\u003c')} />
 )}
