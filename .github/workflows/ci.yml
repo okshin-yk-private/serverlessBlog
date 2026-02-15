@@ -349,6 +349,16 @@ jobs:
             path: images/get_upload_url
           - function: images-delete
             path: images/delete
+          - function: categories-list
+            path: categories/list
+          - function: categories-create
+            path: categories/create
+          - function: categories-update
+            path: categories/update
+          - function: categories-bulk_sort
+            path: categories/bulk_sort
+          - function: categories-delete
+            path: categories/delete
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -376,8 +386,10 @@ jobs:
           echo "========================================="
           mkdir -p bin/${{ matrix.function }}
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
-            go build -trimpath -ldflags="-s -w" -tags="lambda.norpc" \
+            go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -tags="lambda.norpc" \
             -o bin/${{ matrix.function }}/bootstrap ./cmd/${{ matrix.path }}
+          # Normalize timestamp for reproducible builds
+          touch -t 202001010000.00 bin/${{ matrix.function }}/bootstrap
           echo "✓ ${{ matrix.function }} built successfully"
 
       - name: Cache hit status
@@ -435,7 +447,7 @@ jobs:
           echo "========================================="
           echo "Verifying Lambda Binaries"
           echo "========================================="
-          FUNCS="posts-create posts-get posts-get_public posts-list posts-update posts-delete auth-login auth-logout auth-refresh images-get_upload_url images-delete"
+          FUNCS="posts-create posts-get posts-get_public posts-list posts-update posts-delete auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete"
           MISSING=0
           for f in $FUNCS; do
             if [ -f "go-functions/bin/$f/bootstrap" ]; then
@@ -449,7 +461,7 @@ jobs:
             echo "ERROR: $MISSING binaries missing!"
             exit 1
           fi
-          echo "✓ All 11 binaries verified"
+          echo "✓ All 16 binaries verified"
 
       - name: Save combined Lambda cache
         uses: actions/cache/save@v4
