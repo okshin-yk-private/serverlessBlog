@@ -8,24 +8,35 @@ function MindmapCustomNodeComponent({ data, selected }: NodeProps) {
   const bgColor = nodeData.color ?? '#ffffff';
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(nodeData.label);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Focus textarea when entering edit mode
   useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.select();
     }
   }, [isEditing]);
+
+  // External editing trigger: when data.isEditing becomes true
+  useEffect(() => {
+    if (nodeData.isEditing && !isEditing) {
+      setEditText(nodeData.label);
+      setIsEditing(true);
+    }
+  }, [nodeData.isEditing, isEditing, nodeData.label]);
 
   const handleDoubleClick = useCallback(() => {
     if (nodeData.onTextChange) {
       setEditText(nodeData.label);
       setIsEditing(true);
+      nodeData.onEditingChange?.(true);
     }
-  }, [nodeData.onTextChange, nodeData.label]);
+  }, [nodeData]);
 
   const commitEdit = useCallback(() => {
     setIsEditing(false);
+    nodeData.onEditingChange?.(false);
     if (nodeData.onTextChange && editText !== nodeData.label) {
       nodeData.onTextChange(editText);
     }
@@ -33,14 +44,18 @@ function MindmapCustomNodeComponent({ data, selected }: NodeProps) {
 
   const cancelEdit = useCallback(() => {
     setIsEditing(false);
+    nodeData.onEditingChange?.(false);
     setEditText(nodeData.label);
-  }, [nodeData.label]);
+  }, [nodeData]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         commitEdit();
+      } else if (e.key === 'Enter' && e.shiftKey) {
+        // Allow Shift+Enter for newline in textarea (natural behavior)
+        e.stopPropagation();
       } else if (e.key === 'Escape') {
         e.preventDefault();
         cancelEdit();
@@ -48,6 +63,8 @@ function MindmapCustomNodeComponent({ data, selected }: NodeProps) {
     },
     [commitEdit, cancelEdit]
   );
+
+  const rows = Math.max(1, editText.split('\n').length);
 
   return (
     <div
@@ -73,25 +90,28 @@ function MindmapCustomNodeComponent({ data, selected }: NodeProps) {
     >
       <Handle
         type="target"
-        position={Position.Top}
+        position={Position.Left}
         style={{ visibility: 'hidden' }}
       />
 
       {isEditing ? (
-        <input
-          ref={inputRef}
+        <textarea
+          ref={textareaRef}
           value={editText}
           onChange={(e) => setEditText(e.target.value)}
           onBlur={commitEdit}
           onKeyDown={handleKeyDown}
+          rows={rows}
           style={{
             border: 'none',
             outline: 'none',
             background: 'transparent',
             textAlign: 'center',
             fontSize: '14px',
+            fontFamily: 'inherit',
             width: '100%',
             flex: 1,
+            resize: 'none',
           }}
         />
       ) : (
@@ -100,7 +120,8 @@ function MindmapCustomNodeComponent({ data, selected }: NodeProps) {
           style={{
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
             flex: 1,
           }}
         >
@@ -125,7 +146,7 @@ function MindmapCustomNodeComponent({ data, selected }: NodeProps) {
 
       <Handle
         type="source"
-        position={Position.Bottom}
+        position={Position.Right}
         style={{ visibility: 'hidden' }}
       />
     </div>

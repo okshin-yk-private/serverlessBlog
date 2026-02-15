@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useCallback, useRef } from 'react';
+import { useMemo, useEffect, useCallback, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -22,6 +22,7 @@ import {
   convertReactFlowToTree,
   applyDagreLayout,
   addChildToTree,
+  addSiblingToTree,
   updateNodeTextInTree,
   deleteNodeFromTree,
   moveNodeInTree,
@@ -55,6 +56,8 @@ function MindmapEditorInner({
   onNodeSelect,
 }: MindmapEditorProps) {
   const { getIntersectingNodes } = useReactFlow();
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const lastAddedNodeIdRef = useRef<string | null>(null);
 
   const computeLayout = useCallback(
     (tree: MindmapNode) => {
@@ -66,18 +69,22 @@ function MindmapEditorInner({
       };
 
       const { nodes, edges } = convertTreeToReactFlow(tree);
-      // Inject onTextChange callback into each node's data
+      // Inject callbacks into each node's data
       const nodesWithCallbacks = nodes.map((node) => ({
         ...node,
         data: {
           ...node.data,
           onTextChange: onTextChange(node.id),
+          isEditing: node.id === editingNodeId,
+          onEditingChange: (editing: boolean) => {
+            setEditingNodeId(editing ? node.id : null);
+          },
         },
       }));
-      const layoutedNodes = applyDagreLayout(nodesWithCallbacks, edges, 'TB');
+      const layoutedNodes = applyDagreLayout(nodesWithCallbacks, edges, 'LR');
       return { nodes: layoutedNodes, edges };
     },
-    [onNodesChangeProp]
+    [onNodesChangeProp, editingNodeId]
   );
 
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
@@ -92,12 +99,30 @@ function MindmapEditorInner({
   // Sync internal state when rootNode prop changes
   const prevRootNodeRef = useRef(rootNode);
   useEffect(() => {
-    if (prevRootNodeRef.current === rootNode) return;
+    if (prevRootNodeRef.current === rootNode && !lastAddedNodeIdRef.current)
+      return;
     prevRootNodeRef.current = rootNode;
+
+    // Auto-edit mode for newly added nodes
+    const newNodeId = lastAddedNodeIdRef.current;
+    if (newNodeId) {
+      lastAddedNodeIdRef.current = null;
+      onNodeSelect?.(newNodeId);
+      setEditingNodeId(newNodeId);
+    }
+
     const { nodes: newNodes, edges: newEdges } = computeLayout(rootNode);
     setNodes(newNodes);
     setEdges(newEdges);
-  }, [rootNode, setNodes, setEdges, computeLayout]);
+  }, [rootNode, setNodes, setEdges, computeLayout, onNodeSelect]);
+
+  // Re-compute layout when editingNodeId changes (to update isEditing in data)
+  useEffect(() => {
+    const { nodes: newNodes, edges: newEdges } = computeLayout(rootNode);
+    setNodes(newNodes);
+    setEdges(newEdges);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingNodeId]);
 
   // Notify parent of tree changes via onNodesChange callback
   // Skip tree conversion for position-only or select-only changes (performance)
@@ -153,8 +178,20 @@ function MindmapEditorInner({
   const handleAddChild = useCallback(() => {
     if (!selectedNodeId || !onNodesChangeProp) return;
     const newNodeId = generateNodeId();
+    lastAddedNodeIdRef.current = newNodeId;
     const updated = addChildToTree(rootNode, selectedNodeId, newNodeId);
     onNodesChangeProp(updated);
+  }, [selectedNodeId, rootNode, onNodesChangeProp]);
+
+  const handleAddSibling = useCallback(() => {
+    if (!selectedNodeId || !onNodesChangeProp || selectedNodeId === rootNode.id)
+      return;
+    const newNodeId = generateNodeId();
+    const updated = addSiblingToTree(rootNode, selectedNodeId, newNodeId);
+    if (updated) {
+      lastAddedNodeIdRef.current = newNodeId;
+      onNodesChangeProp(updated);
+    }
   }, [selectedNodeId, rootNode, onNodesChangeProp]);
 
   const handleDelete = useCallback(() => {
@@ -195,10 +232,43 @@ function MindmapEditorInner({
     [rootNode, onNodesChangeProp]
   );
 
+  // Keyboard shortcut handler
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      // Skip shortcuts when editing a node
+      if (editingNodeId) return;
+      // Skip if no node is selected
+      if (!selectedNodeId) return;
+
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        handleAddChild();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        handleAddSibling();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        handleDelete();
+      }
+    },
+    [
+      editingNodeId,
+      selectedNodeId,
+      handleAddChild,
+      handleAddSibling,
+      handleDelete,
+    ]
+  );
+
   const isDeleteDisabled = !selectedNodeId || selectedNodeId === rootNode.id;
 
   return (
-    <div data-testid="mindmap-editor">
+    <div
+      data-testid="mindmap-editor"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      style={{ outline: 'none' }}
+    >
       <div
         style={{
           display: 'flex',
@@ -221,6 +291,26 @@ function MindmapEditorInner({
           }}
         >
           Add Child
+        </button>
+        <button
+          onClick={handleAddSibling}
+          disabled={!selectedNodeId || selectedNodeId === rootNode.id}
+          style={{
+            padding: '4px 12px',
+            borderRadius: '4px',
+            border: '1px solid #d1d5db',
+            backgroundColor:
+              !selectedNodeId || selectedNodeId === rootNode.id
+                ? '#f3f4f6'
+                : '#ffffff',
+            cursor:
+              !selectedNodeId || selectedNodeId === rootNode.id
+                ? 'not-allowed'
+                : 'pointer',
+            fontSize: '13px',
+          }}
+        >
+          Add Sibling
         </button>
         <button
           onClick={handleDelete}

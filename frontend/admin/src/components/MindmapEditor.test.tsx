@@ -428,6 +428,163 @@ describe('MindmapEditor', () => {
     expect(onNodesChange).not.toHaveBeenCalled();
   });
 
+  // Add Sibling button tests
+  it('should render Add Sibling button', () => {
+    render(
+      <MindmapEditor rootNode={defaultRootNode} onNodesChange={vi.fn()} />
+    );
+
+    expect(
+      screen.getByRole('button', { name: /add sibling/i })
+    ).toBeInTheDocument();
+  });
+
+  it('should disable Add Sibling button when root node is selected', () => {
+    render(
+      <MindmapEditor
+        rootNode={defaultRootNode}
+        onNodesChange={vi.fn()}
+        selectedNodeId="root"
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /add sibling/i })).toBeDisabled();
+  });
+
+  it('should enable Add Sibling button when a non-root node is selected', () => {
+    const treeWithChildren: MindmapNode = {
+      id: 'root',
+      text: 'Root',
+      children: [{ id: 'child-1', text: 'Child 1', children: [] }],
+    };
+
+    render(
+      <MindmapEditor
+        rootNode={treeWithChildren}
+        onNodesChange={vi.fn()}
+        selectedNodeId="child-1"
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /add sibling/i })).toBeEnabled();
+  });
+
+  it('should call onNodesChange with sibling when Add Sibling is clicked', async () => {
+    const user = userEvent.setup();
+    const onNodesChange = vi.fn();
+    const treeWithChildren: MindmapNode = {
+      id: 'root',
+      text: 'Root',
+      children: [{ id: 'child-1', text: 'Child 1', children: [] }],
+    };
+
+    render(
+      <MindmapEditor
+        rootNode={treeWithChildren}
+        onNodesChange={onNodesChange}
+        selectedNodeId="child-1"
+      />
+    );
+
+    const addSiblingButton = screen.getByRole('button', {
+      name: /add sibling/i,
+    });
+    await user.click(addSiblingButton);
+
+    expect(onNodesChange).toHaveBeenCalledTimes(1);
+    const newTree = onNodesChange.mock.calls[0][0];
+    expect(newTree.children).toHaveLength(2);
+    expect(newTree.children[1].text).toBe('New Node');
+  });
+
+  // Keyboard shortcut tests
+  it('should add child node on Tab key when a node is selected', async () => {
+    const user = userEvent.setup();
+    const onNodesChange = vi.fn();
+
+    render(
+      <MindmapEditor
+        rootNode={defaultRootNode}
+        onNodesChange={onNodesChange}
+        selectedNodeId="root"
+      />
+    );
+
+    const editor = screen.getByTestId('mindmap-editor');
+    editor.focus();
+    await user.keyboard('{Tab}');
+
+    expect(onNodesChange).toHaveBeenCalled();
+    const newTree = onNodesChange.mock.calls[0][0];
+    expect(newTree.children).toHaveLength(1);
+    expect(newTree.children[0].text).toBe('New Node');
+  });
+
+  it('should add sibling node on Enter key when a non-root node is selected', async () => {
+    const user = userEvent.setup();
+    const onNodesChange = vi.fn();
+    const treeWithChildren: MindmapNode = {
+      id: 'root',
+      text: 'Root',
+      children: [{ id: 'child-1', text: 'Child 1', children: [] }],
+    };
+
+    render(
+      <MindmapEditor
+        rootNode={treeWithChildren}
+        onNodesChange={onNodesChange}
+        selectedNodeId="child-1"
+      />
+    );
+
+    const editor = screen.getByTestId('mindmap-editor');
+    editor.focus();
+    await user.keyboard('{Enter}');
+
+    expect(onNodesChange).toHaveBeenCalled();
+    const newTree = onNodesChange.mock.calls[0][0];
+    expect(newTree.children).toHaveLength(2);
+  });
+
+  it('should not add sibling on Enter key when root node is selected', async () => {
+    const user = userEvent.setup();
+    const onNodesChange = vi.fn();
+
+    render(
+      <MindmapEditor
+        rootNode={defaultRootNode}
+        onNodesChange={onNodesChange}
+        selectedNodeId="root"
+      />
+    );
+
+    const editor = screen.getByTestId('mindmap-editor');
+    editor.focus();
+    await user.keyboard('{Enter}');
+
+    expect(onNodesChange).not.toHaveBeenCalled();
+  });
+
+  it('should not trigger shortcuts when no node is selected', async () => {
+    const user = userEvent.setup();
+    const onNodesChange = vi.fn();
+
+    render(
+      <MindmapEditor
+        rootNode={defaultRootNode}
+        onNodesChange={onNodesChange}
+        selectedNodeId={null}
+      />
+    );
+
+    const editor = screen.getByTestId('mindmap-editor');
+    editor.focus();
+    await user.keyboard('{Tab}');
+    await user.keyboard('{Enter}');
+
+    expect(onNodesChange).not.toHaveBeenCalled();
+  });
+
   it('should not move a node to its own descendant', () => {
     const onNodesChange = vi.fn();
     const treeWithChildren: MindmapNode = {
