@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getMindmap, updateMindmap } from '../api/mindmaps';
 import type { MindmapNode } from '../api/mindmaps';
 import { MindmapEditor } from '../components/MindmapEditor';
+import { useMindmapHistory } from '../hooks/useMindmapHistory';
 import AdminLayout from '../components/AdminLayout';
 import { MindmapEditSkeleton } from '../components/skeleton';
 
@@ -20,6 +21,9 @@ const MindmapEditPage = () => {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const defaultNode: MindmapNode = { id: 'root', text: '', children: [] };
+  const history = useMindmapHistory(defaultNode);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -36,6 +40,8 @@ const MindmapEditPage = () => {
         setTitle(mindmap.title);
         setPublishStatus(mindmap.publishStatus);
         setRootNode(mindmap.nodes);
+        // Reset history with the loaded data as the initial state
+        history.reset(mindmap.nodes);
       } catch (err) {
         if (cancelled) return;
         console.error('マインドマップ取得エラー:', err);
@@ -52,11 +58,16 @@ const MindmapEditPage = () => {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const handleNodesChange = useCallback((updatedRoot: MindmapNode) => {
-    setRootNode(updatedRoot);
-  }, []);
+  const handleNodesChange = useCallback(
+    (updatedRoot: MindmapNode) => {
+      history.pushState(updatedRoot);
+      setRootNode(updatedRoot);
+    },
+    [history]
+  );
 
   const handleSave = async () => {
     setValidationError(null);
@@ -181,6 +192,10 @@ const MindmapEditPage = () => {
               onNodesChange={handleNodesChange}
               selectedNodeId={selectedNodeId}
               onNodeSelect={setSelectedNodeId}
+              onUndo={history.undo}
+              onRedo={history.redo}
+              canUndo={history.canUndo}
+              canRedo={history.canRedo}
             />
           )}
 

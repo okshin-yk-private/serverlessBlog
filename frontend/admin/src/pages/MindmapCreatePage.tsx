@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { createMindmap } from '../api/mindmaps';
 import type { MindmapNode } from '../api/mindmaps';
 import { MindmapEditor } from '../components/MindmapEditor';
+import { useMindmapHistory } from '../hooks/useMindmapHistory';
 import AdminLayout from '../components/AdminLayout';
 
 const defaultRootNode: MindmapNode = {
@@ -22,10 +23,15 @@ const MindmapCreatePage = () => {
   const [error, setError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const history = useMindmapHistory(defaultRootNode);
 
-  const handleNodesChange = useCallback((updatedRoot: MindmapNode) => {
-    setRootNode(updatedRoot);
-  }, []);
+  const handleNodesChange = useCallback(
+    (updatedRoot: MindmapNode) => {
+      history.pushState(updatedRoot);
+      setRootNode(updatedRoot);
+    },
+    [history]
+  );
 
   const handleSave = async () => {
     setValidationError(null);
@@ -127,6 +133,10 @@ const MindmapCreatePage = () => {
             onNodesChange={handleNodesChange}
             selectedNodeId={selectedNodeId}
             onNodeSelect={setSelectedNodeId}
+            onUndo={history.undo}
+            onRedo={history.redo}
+            canUndo={history.canUndo}
+            canRedo={history.canRedo}
           />
 
           {/* ボタン */}

@@ -115,4 +115,65 @@ describe('MindmapCustomNode', () => {
 
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
+
+  it('should allow newline with Ctrl+Enter (not Shift+Enter)', async () => {
+    const onTextChange = vi.fn();
+    const user = userEvent.setup();
+    render(<MindmapCustomNode {...createProps({ onTextChange })} />);
+
+    const textSpan = screen.getByText('Test Node');
+    await user.dblClick(textSpan);
+
+    const input = screen.getByRole('textbox');
+    // Ctrl+Enter should NOT commit (allows newline)
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true });
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
+    expect(onTextChange).not.toHaveBeenCalled();
+  });
+
+  it('should show drop target styling when isDropTarget is true', () => {
+    const props = createProps({ isDropTarget: true });
+    render(<MindmapCustomNode {...props} />);
+
+    const node = screen.getByTestId('mindmap-custom-node');
+    // jsdom doesn't serialize shorthand 'border' property; check the unique drop target box-shadow
+    const style = node.getAttribute('style') ?? '';
+    expect(style).toContain('rgba(34, 197, 94, 0.5)');
+  });
+
+  it('should show collapse toggle when node has children and isCollapsed is set', () => {
+    const onToggleCollapse = vi.fn();
+    const props = createProps({
+      isCollapsed: false,
+      childCount: 3,
+      onToggleCollapse,
+    });
+    render(<MindmapCustomNode {...props} />);
+
+    const toggle = screen.getByTestId('collapse-toggle');
+    expect(toggle).toBeInTheDocument();
+  });
+
+  it('should show child count when collapsed', () => {
+    const props = createProps({
+      isCollapsed: true,
+      childCount: 5,
+      onToggleCollapse: vi.fn(),
+    });
+    render(<MindmapCustomNode {...props} />);
+
+    const toggle = screen.getByTestId('collapse-toggle');
+    expect(toggle.textContent).toBe('+5');
+  });
+
+  it('should not show collapse toggle when childCount is 0', () => {
+    const props = createProps({
+      isCollapsed: false,
+      childCount: 0,
+      onToggleCollapse: vi.fn(),
+    });
+    render(<MindmapCustomNode {...props} />);
+
+    expect(screen.queryByTestId('collapse-toggle')).not.toBeInTheDocument();
+  });
 });
