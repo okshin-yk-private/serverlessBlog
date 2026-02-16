@@ -6,6 +6,7 @@ import {
   applyDagreLayout,
   addChildToTree,
   addSiblingToTree,
+  addSiblingBeforeToTree,
   findParentInTree,
   updateNodeTextInTree,
   deleteNodeFromTree,
@@ -14,6 +15,10 @@ import {
   findNodeInTree,
   updateNodeMetadataInTree,
   convertTreeToMarkdown,
+  getAdjacentNodeId,
+  getNavigationTarget,
+  reorderNodeInTree,
+  cloneSubtreeWithNewIds,
 } from './mindmapLayout';
 
 const createSimpleTree = (): MindmapNode => ({
@@ -957,5 +962,291 @@ describe('convertTreeToMarkdown', () => {
 
     const result = convertTreeToMarkdown(root);
     expect(result).toBe('- Root\n');
+  });
+});
+
+describe('addSiblingBeforeToTree', () => {
+  it('should return null when adding a sibling before the root node', () => {
+    const root = createSimpleTree();
+    const result = addSiblingBeforeToTree(root, 'root', 'new-sibling');
+    expect(result).toBeNull();
+  });
+
+  it('should insert a sibling right before the selected node', () => {
+    const root = createSimpleTree();
+    const result = addSiblingBeforeToTree(root, 'child-2', 'new-sibling');
+
+    expect(result).not.toBeNull();
+    expect(result!.children).toHaveLength(3);
+    expect(result!.children[0].id).toBe('child-1');
+    expect(result!.children[1].id).toBe('new-sibling');
+    expect(result!.children[1].text).toBe('New Node');
+    expect(result!.children[2].id).toBe('child-2');
+  });
+
+  it('should insert a sibling before the first child', () => {
+    const root = createSimpleTree();
+    const result = addSiblingBeforeToTree(root, 'child-1', 'new-sibling');
+
+    expect(result).not.toBeNull();
+    expect(result!.children).toHaveLength(3);
+    expect(result!.children[0].id).toBe('new-sibling');
+    expect(result!.children[1].id).toBe('child-1');
+  });
+
+  it('should insert a sibling before a deeply nested node', () => {
+    const root = createSimpleTree();
+    const result = addSiblingBeforeToTree(root, 'grandchild-1', 'new-sibling');
+
+    expect(result).not.toBeNull();
+    const child2 = result!.children.find((c) => c.id === 'child-2');
+    expect(child2!.children).toHaveLength(2);
+    expect(child2!.children[0].id).toBe('new-sibling');
+    expect(child2!.children[1].id).toBe('grandchild-1');
+  });
+
+  it('should not mutate the original tree', () => {
+    const root = createSimpleTree();
+    addSiblingBeforeToTree(root, 'child-1', 'new-sibling');
+    expect(root.children).toHaveLength(2);
+  });
+
+  it('should return null for a non-existent node', () => {
+    const root = createSimpleTree();
+    const result = addSiblingBeforeToTree(root, 'nonexistent', 'new-sibling');
+    expect(result).toBeNull();
+  });
+});
+
+describe('getAdjacentNodeId', () => {
+  it('should return previous sibling when deleting a non-first child', () => {
+    const root = createSimpleTree();
+    const result = getAdjacentNodeId(root, 'child-2');
+    expect(result).toBe('child-1');
+  });
+
+  it('should return next sibling when deleting the first child', () => {
+    const root: MindmapNode = {
+      id: 'root',
+      text: 'Root',
+      children: [
+        { id: 'child-1', text: 'Child 1', children: [] },
+        { id: 'child-2', text: 'Child 2', children: [] },
+      ],
+    };
+    const result = getAdjacentNodeId(root, 'child-1');
+    expect(result).toBe('child-2');
+  });
+
+  it('should return parent when deleting the only child', () => {
+    const root: MindmapNode = {
+      id: 'root',
+      text: 'Root',
+      children: [{ id: 'child-1', text: 'Child 1', children: [] }],
+    };
+    const result = getAdjacentNodeId(root, 'child-1');
+    expect(result).toBe('root');
+  });
+
+  it('should return null for the root node', () => {
+    const root = createSimpleTree();
+    const result = getAdjacentNodeId(root, 'root');
+    expect(result).toBeNull();
+  });
+
+  it('should return null for a non-existent node', () => {
+    const root = createSimpleTree();
+    const result = getAdjacentNodeId(root, 'nonexistent');
+    expect(result).toBeNull();
+  });
+});
+
+describe('getNavigationTarget', () => {
+  const createNavTree = (): MindmapNode => ({
+    id: 'root',
+    text: 'Root',
+    children: [
+      { id: 'child-1', text: 'Child 1', children: [] },
+      {
+        id: 'child-2',
+        text: 'Child 2',
+        children: [
+          { id: 'gc-1', text: 'GC 1', children: [] },
+          { id: 'gc-2', text: 'GC 2', children: [] },
+        ],
+      },
+      { id: 'child-3', text: 'Child 3', children: [] },
+    ],
+  });
+
+  it('left should navigate to parent', () => {
+    const tree = createNavTree();
+    expect(getNavigationTarget(tree, 'child-2', 'left')).toBe('root');
+  });
+
+  it('left from root should return null', () => {
+    const tree = createNavTree();
+    expect(getNavigationTarget(tree, 'root', 'left')).toBeNull();
+  });
+
+  it('right should navigate to first child', () => {
+    const tree = createNavTree();
+    expect(getNavigationTarget(tree, 'child-2', 'right')).toBe('gc-1');
+  });
+
+  it('right on leaf should return null', () => {
+    const tree = createNavTree();
+    expect(getNavigationTarget(tree, 'child-1', 'right')).toBeNull();
+  });
+
+  it('up should navigate to previous sibling', () => {
+    const tree = createNavTree();
+    expect(getNavigationTarget(tree, 'child-2', 'up')).toBe('child-1');
+  });
+
+  it('up from first sibling should return null', () => {
+    const tree = createNavTree();
+    expect(getNavigationTarget(tree, 'child-1', 'up')).toBeNull();
+  });
+
+  it('down should navigate to next sibling', () => {
+    const tree = createNavTree();
+    expect(getNavigationTarget(tree, 'child-2', 'down')).toBe('child-3');
+  });
+
+  it('down from last sibling should return null', () => {
+    const tree = createNavTree();
+    expect(getNavigationTarget(tree, 'child-3', 'down')).toBeNull();
+  });
+
+  it('up/down from root should return null', () => {
+    const tree = createNavTree();
+    expect(getNavigationTarget(tree, 'root', 'up')).toBeNull();
+    expect(getNavigationTarget(tree, 'root', 'down')).toBeNull();
+  });
+});
+
+describe('reorderNodeInTree', () => {
+  it('should swap a node up with its previous sibling', () => {
+    const root = createSimpleTree();
+    const result = reorderNodeInTree(root, 'child-2', 'up');
+
+    expect(result).not.toBeNull();
+    expect(result!.children[0].id).toBe('child-2');
+    expect(result!.children[1].id).toBe('child-1');
+  });
+
+  it('should swap a node down with its next sibling', () => {
+    const root = createSimpleTree();
+    const result = reorderNodeInTree(root, 'child-1', 'down');
+
+    expect(result).not.toBeNull();
+    expect(result!.children[0].id).toBe('child-2');
+    expect(result!.children[1].id).toBe('child-1');
+  });
+
+  it('should return null when trying to move the first child up', () => {
+    const root = createSimpleTree();
+    const result = reorderNodeInTree(root, 'child-1', 'up');
+    expect(result).toBeNull();
+  });
+
+  it('should return null when trying to move the last child down', () => {
+    const root = createSimpleTree();
+    const result = reorderNodeInTree(root, 'child-2', 'down');
+    expect(result).toBeNull();
+  });
+
+  it('should return null for the root node', () => {
+    const root = createSimpleTree();
+    const result = reorderNodeInTree(root, 'root', 'up');
+    expect(result).toBeNull();
+  });
+
+  it('should not mutate the original tree', () => {
+    const root = createSimpleTree();
+    reorderNodeInTree(root, 'child-2', 'up');
+    expect(root.children[0].id).toBe('child-1');
+    expect(root.children[1].id).toBe('child-2');
+  });
+
+  it('should reorder deeply nested nodes', () => {
+    const root: MindmapNode = {
+      id: 'root',
+      text: 'Root',
+      children: [
+        {
+          id: 'parent',
+          text: 'Parent',
+          children: [
+            { id: 'a', text: 'A', children: [] },
+            { id: 'b', text: 'B', children: [] },
+            { id: 'c', text: 'C', children: [] },
+          ],
+        },
+      ],
+    };
+    const result = reorderNodeInTree(root, 'c', 'up');
+    expect(result).not.toBeNull();
+    const parent = result!.children[0];
+    expect(parent.children.map((c) => c.id)).toEqual(['a', 'c', 'b']);
+  });
+});
+
+describe('cloneSubtreeWithNewIds', () => {
+  it('should clone a single node with a new id', () => {
+    const node: MindmapNode = {
+      id: 'original',
+      text: 'Test',
+      children: [],
+    };
+    let counter = 0;
+    const cloned = cloneSubtreeWithNewIds(node, () => `new-${++counter}`);
+
+    expect(cloned.id).toBe('new-1');
+    expect(cloned.text).toBe('Test');
+    expect(cloned.children).toHaveLength(0);
+  });
+
+  it('should deep clone with new ids for all descendants', () => {
+    const subtree: MindmapNode = {
+      id: 'p',
+      text: 'Parent',
+      children: [
+        {
+          id: 'c1',
+          text: 'Child 1',
+          children: [{ id: 'gc1', text: 'GC 1', children: [] }],
+        },
+        { id: 'c2', text: 'Child 2', children: [] },
+      ],
+    };
+    let counter = 0;
+    const cloned = cloneSubtreeWithNewIds(subtree, () => `clone-${++counter}`);
+
+    expect(cloned.id).toBe('clone-1');
+    expect(cloned.children[0].id).toBe('clone-2');
+    expect(cloned.children[0].children[0].id).toBe('clone-3');
+    expect(cloned.children[1].id).toBe('clone-4');
+
+    // Text should be preserved
+    expect(cloned.text).toBe('Parent');
+    expect(cloned.children[0].text).toBe('Child 1');
+    expect(cloned.children[0].children[0].text).toBe('GC 1');
+  });
+
+  it('should preserve metadata', () => {
+    const node: MindmapNode = {
+      id: 'orig',
+      text: 'Test',
+      color: '#FF0000',
+      linkUrl: 'https://example.com',
+      note: 'A note',
+      children: [],
+    };
+    const cloned = cloneSubtreeWithNewIds(node, () => 'new-id');
+    expect(cloned.color).toBe('#FF0000');
+    expect(cloned.linkUrl).toBe('https://example.com');
+    expect(cloned.note).toBe('A note');
   });
 });

@@ -11,6 +11,10 @@ export interface MindmapNodeData {
   onTextChange?: (newText: string) => void;
   isEditing?: boolean;
   onEditingChange?: (editing: boolean) => void;
+  isDropTarget?: boolean;
+  isCollapsed?: boolean;
+  childCount?: number;
+  onToggleCollapse?: () => void;
   [key: string]: unknown;
 }
 
@@ -342,6 +346,148 @@ export function addSiblingToTree(
   }
 
   return insertSibling(tree);
+}
+
+/**
+ * ツリーに兄弟ノードを追加する（選択ノードの直前に挿入、イミュータブル）
+ * ルートノードには兄弟追加不可（nullを返す）
+ */
+export function addSiblingBeforeToTree(
+  tree: MindmapNode,
+  siblingOfId: string,
+  newNodeId: string
+): MindmapNode | null {
+  if (tree.id === siblingOfId) return null;
+
+  const parent = findParentInTree(tree, siblingOfId);
+  if (!parent) return null;
+
+  function insertSiblingBefore(node: MindmapNode): MindmapNode {
+    if (node.id === parent!.id) {
+      const idx = node.children.findIndex((c) => c.id === siblingOfId);
+      const newChildren = [...node.children];
+      newChildren.splice(idx, 0, {
+        id: newNodeId,
+        text: 'New Node',
+        children: [],
+      });
+      return { ...node, children: newChildren };
+    }
+    return {
+      ...node,
+      children: node.children.map((child) => insertSiblingBefore(child)),
+    };
+  }
+
+  return insertSiblingBefore(tree);
+}
+
+/**
+ * 削除対象ノードの隣接ノードIDを返す（前の兄弟 > 次の兄弟 > 親）
+ */
+export function getAdjacentNodeId(
+  tree: MindmapNode,
+  nodeId: string
+): string | null {
+  const parent = findParentInTree(tree, nodeId);
+  if (!parent) return null;
+
+  const idx = parent.children.findIndex((c) => c.id === nodeId);
+  if (idx < 0) return null;
+
+  // Previous sibling
+  if (idx > 0) return parent.children[idx - 1].id;
+  // Next sibling
+  if (idx < parent.children.length - 1) return parent.children[idx + 1].id;
+  // Parent
+  return parent.id;
+}
+
+/**
+ * ツリー内でのナビゲーションターゲットを返す（LRレイアウト前提）
+ * left=親, right=最初の子, up=前の兄弟, down=次の兄弟
+ */
+export function getNavigationTarget(
+  tree: MindmapNode,
+  currentId: string,
+  direction: 'up' | 'down' | 'left' | 'right'
+): string | null {
+  if (direction === 'left') {
+    const parent = findParentInTree(tree, currentId);
+    return parent?.id ?? null;
+  }
+
+  if (direction === 'right') {
+    const node = findNodeInTree(tree, currentId);
+    if (!node || node.children.length === 0) return null;
+    return node.children[0].id;
+  }
+
+  // up/down = previous/next sibling
+  const parent = findParentInTree(tree, currentId);
+  if (!parent) return null;
+
+  const idx = parent.children.findIndex((c) => c.id === currentId);
+  if (idx < 0) return null;
+
+  if (direction === 'up' && idx > 0) return parent.children[idx - 1].id;
+  if (direction === 'down' && idx < parent.children.length - 1)
+    return parent.children[idx + 1].id;
+
+  return null;
+}
+
+/**
+ * ツリー内でノードの兄弟間順序を入れ替える（イミュータブル）
+ * direction: 'up' = 前の兄弟と入れ替え, 'down' = 次の兄弟と入れ替え
+ */
+export function reorderNodeInTree(
+  tree: MindmapNode,
+  nodeId: string,
+  direction: 'up' | 'down'
+): MindmapNode | null {
+  const parent = findParentInTree(tree, nodeId);
+  if (!parent) return null;
+
+  const idx = parent.children.findIndex((c) => c.id === nodeId);
+  if (idx < 0) return null;
+  if (direction === 'up' && idx === 0) return null;
+  if (direction === 'down' && idx === parent.children.length - 1) return null;
+
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+
+  function reorder(node: MindmapNode): MindmapNode {
+    if (node.id === parent!.id) {
+      const newChildren = [...node.children];
+      [newChildren[idx], newChildren[swapIdx]] = [
+        newChildren[swapIdx],
+        newChildren[idx],
+      ];
+      return { ...node, children: newChildren };
+    }
+    return {
+      ...node,
+      children: node.children.map((child) => reorder(child)),
+    };
+  }
+
+  return reorder(tree);
+}
+
+/**
+ * サブツリーをディープクローンして新しいIDを付与する
+ */
+export function cloneSubtreeWithNewIds(
+  subtree: MindmapNode,
+  idGenerator: () => string
+): MindmapNode {
+  return {
+    ...subtree,
+    id: idGenerator(),
+    children: subtree.children.map((child) =>
+      cloneSubtreeWithNewIds(child, idGenerator)
+    ),
+  };
 }
 
 /**

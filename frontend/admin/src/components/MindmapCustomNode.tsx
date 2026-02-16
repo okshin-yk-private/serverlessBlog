@@ -50,12 +50,12 @@ function MindmapCustomNodeComponent({ data, selected }: NodeProps) {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        // Ctrl+Enter / Cmd+Enter for newline in textarea
+        e.stopPropagation();
+      } else if (e.key === 'Enter') {
         e.preventDefault();
         commitEdit();
-      } else if (e.key === 'Enter' && e.shiftKey) {
-        // Allow Shift+Enter for newline in textarea (natural behavior)
-        e.stopPropagation();
       } else if (e.key === 'Escape') {
         e.preventDefault();
         cancelEdit();
@@ -66,22 +66,33 @@ function MindmapCustomNodeComponent({ data, selected }: NodeProps) {
 
   const rows = Math.max(1, editText.split('\n').length);
 
+  // Determine border style based on drop target / selected state
+  const isDropTarget = nodeData.isDropTarget ?? false;
+  const borderStyle = isDropTarget
+    ? '2px dashed #22c55e'
+    : selected
+      ? '2px solid #3b82f6'
+      : '1px solid #d1d5db';
+  const boxShadowStyle = isDropTarget
+    ? '0 0 8px rgba(34, 197, 94, 0.5)'
+    : selected
+      ? '0 0 0 2px rgba(59, 130, 246, 0.3)'
+      : '0 1px 3px rgba(0,0,0,0.1)';
+
   return (
     <div
       data-testid="mindmap-custom-node"
       style={{
         padding: '8px 16px',
         borderRadius: '8px',
-        border: selected ? '2px solid #3b82f6' : '1px solid #d1d5db',
+        border: borderStyle,
         backgroundColor: bgColor,
         minWidth: '120px',
         maxWidth: '220px',
         textAlign: 'center',
         fontSize: '14px',
         cursor: 'pointer',
-        boxShadow: selected
-          ? '0 0 0 2px rgba(59, 130, 246, 0.3)'
-          : '0 1px 3px rgba(0,0,0,0.1)',
+        boxShadow: boxShadowStyle,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -142,6 +153,38 @@ function MindmapCustomNodeComponent({ data, selected }: NodeProps) {
         <span title={nodeData.note} style={{ fontSize: '12px', flexShrink: 0 }}>
           📝
         </span>
+      )}
+
+      {/* Collapse/expand toggle for nodes with children */}
+      {nodeData.isCollapsed !== undefined && (nodeData.childCount ?? 0) > 0 && (
+        <button
+          data-testid="collapse-toggle"
+          onClick={(e) => {
+            e.stopPropagation();
+            nodeData.onToggleCollapse?.();
+          }}
+          style={{
+            fontSize: '10px',
+            flexShrink: 0,
+            border: '1px solid #d1d5db',
+            borderRadius: '50%',
+            width: '20px',
+            height: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            backgroundColor: '#f9fafb',
+            padding: 0,
+          }}
+          title={
+            nodeData.isCollapsed
+              ? `Expand (${nodeData.childCount} children)`
+              : 'Collapse'
+          }
+        >
+          {nodeData.isCollapsed ? `+${nodeData.childCount}` : '−'}
+        </button>
       )}
 
       <Handle
