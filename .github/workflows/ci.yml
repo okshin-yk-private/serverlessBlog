@@ -195,14 +195,14 @@ jobs:
           args: --timeout=5m
 
   # =======================================
-  # Job 2.6b: Go Tests - conditional on 'go' label
-  # Requirement 6.2: go-testsジョブ - go test -race -coverprofile実行
+  # Job 2.6b: Go Tests - Coverage (conditional on 'go' label)
+  # Runs tests WITHOUT -race for fast coverage collection
+  # Requirement 6.2: go-testsジョブ - go test -coverprofile実行
   # Requirement 6.3: 100%カバレッジ未満での失敗設定
-  # Requirement 6.6: Go Tests失敗時のPRマージブロック
   # =======================================
-  go-tests:
+  go-tests-coverage:
     needs: [setup-labels]
-    name: Go Unit Tests
+    name: Go Tests (Coverage)
     runs-on: ubuntu-latest
     if: needs.setup-labels.outputs.has-go == 'true'
 
@@ -217,7 +217,7 @@ jobs:
           check-latest: true
           cache-dependency-path: go-functions/go.sum
 
-      - name: Run Go tests with race detector and coverage
+      - name: Run Go tests with coverage
         working-directory: go-functions
         run: |
           echo "========================================="
@@ -226,11 +226,11 @@ jobs:
           go version
           go env GOVERSION
           echo ""
-          echo "Running Go tests with race detector and coverage..."
+          echo "Running Go tests with coverage (no race detector)..."
           # Exclude benchmark package as it has no statements to cover
           # (benchmarks only contain test code, causing coverage profile issues in Go 1.25)
           # See: https://github.com/golang/go/issues/70244
-          go list ./... | grep -v '/tests/benchmark$' | xargs go test -race -coverprofile=coverage.out -covermode=atomic -v
+          go list ./... | grep -v '/tests/benchmark$' | xargs go test -p 4 -coverprofile=coverage.out -covermode=atomic -v
           echo ""
           echo "Verifying coverage file..."
           if [ -f coverage.out ]; then
@@ -279,6 +279,76 @@ jobs:
           name: go-coverage
           path: go-functions/coverage.out
           retention-days: 30
+
+  # =======================================
+  # Job 2.6c: Go Tests - Race Detection (conditional on 'go' label)
+  # Runs tests WITH -race but WITHOUT coverage for focused race detection
+  # Requirement 6.2: go-testsジョブ - go test -race実行
+  # Requirement 6.6: Go Tests失敗時のPRマージブロック
+  # =======================================
+  go-tests-race:
+    needs: [setup-labels]
+    name: Go Tests (Race Detection)
+    runs-on: ubuntu-latest
+    if: needs.setup-labels.outputs.has-go == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+          cache-dependency-path: go-functions/go.sum
+
+      - name: Run Go tests with race detector
+        working-directory: go-functions
+        run: |
+          echo "========================================="
+          echo "Go Environment Info"
+          echo "========================================="
+          go version
+          go env GOVERSION
+          echo ""
+          echo "Running Go tests with race detector (no coverage)..."
+          # Exclude benchmark package (same as coverage job)
+          # Use -p 2 (matching vCPU count) since -race increases memory usage 5-10x
+          go list ./... | grep -v '/tests/benchmark$' | xargs go test -race -p 2 -v
+        env:
+          CI: true
+
+  # =======================================
+  # Job 2.6d: Go Tests Gate (conditional on 'go' label)
+  # Aggregates go-tests-coverage and go-tests-race results
+  # Keeps 'go-tests' name for downstream compatibility (coverage-check, ci-success)
+  # Requirement 6.6: Go Tests失敗時のPRマージブロック
+  # =======================================
+  go-tests:
+    needs: [setup-labels, go-tests-coverage, go-tests-race]
+    name: Go Unit Tests
+    runs-on: ubuntu-latest
+    if: |
+      always() &&
+      needs.setup-labels.outputs.has-go == 'true'
+
+    steps:
+      - name: Verify both jobs passed
+        run: |
+          echo "========================================="
+          echo "Go Tests Gate"
+          echo "========================================="
+          echo ""
+          echo "Coverage job: ${{ needs.go-tests-coverage.result }}"
+          echo "Race detection job: ${{ needs.go-tests-race.result }}"
+          echo ""
+          if [ "${{ needs.go-tests-coverage.result }}" != "success" ] || \
+             [ "${{ needs.go-tests-race.result }}" != "success" ]; then
+            echo "❌ Go tests did not pass (failure/cancelled/skipped)"
+            exit 1
+          fi
+          echo "✓ All Go tests passed"
 
   # =======================================
   # Terraform CI Jobs (conditional on 'terraform' label)
