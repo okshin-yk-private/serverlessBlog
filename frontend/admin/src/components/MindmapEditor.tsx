@@ -58,6 +58,7 @@ function MindmapEditorInner({
   const { getIntersectingNodes } = useReactFlow();
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const lastAddedNodeIdRef = useRef<string | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   const computeLayout = useCallback(
     (tree: MindmapNode) => {
@@ -239,6 +240,17 @@ function MindmapEditorInner({
       if (editingNodeId) return;
       // Skip if no node is selected
       if (!selectedNodeId) return;
+      // Only handle shortcuts when the wrapper div or ReactFlow canvas has focus
+      // (not toolbar buttons, inputs, etc.) to preserve keyboard navigation
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'BUTTON' ||
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT'
+      ) {
+        return;
+      }
 
       if (e.key === 'Tab') {
         e.preventDefault();
@@ -264,6 +276,7 @@ function MindmapEditorInner({
 
   return (
     <div
+      ref={wrapperRef}
       data-testid="mindmap-editor"
       tabIndex={0}
       onKeyDown={handleKeyDown}
@@ -342,6 +355,11 @@ function MindmapEditorInner({
             fitViewOptions={{ padding: 0.2 }}
             onNodeClick={(_event, node) => {
               onNodeSelect?.(node.id);
+              // Refocus wrapper so keyboard shortcuts work after clicking a node
+              // Skip when editing to avoid stealing focus from textarea
+              if (!editingNodeId) {
+                setTimeout(() => wrapperRef.current?.focus(), 0);
+              }
             }}
             onPaneClick={() => {
               onNodeSelect?.(null);
