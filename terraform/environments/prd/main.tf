@@ -55,8 +55,9 @@ module "storage" {
 
   project_name                = var.project_name
   environment                 = var.environment
-  enable_access_logs          = true # Access logs enabled for prd
-  cloudfront_distribution_arn = ""   # Bucket policy set separately to avoid circular dependency
+  enable_access_logs          = true                           # Access logs enabled for prd
+  cloudfront_distribution_arn = ""                             # Bucket policy set separately to avoid circular dependency
+  cors_allow_origins          = ["https://${var.domain_name}"] # Restrict CORS to custom domain
 
   tags = local.common_tags
 }
@@ -171,7 +172,7 @@ module "api" {
   environment           = var.environment
   stage_name            = var.environment
   cognito_user_pool_arn = module.auth.user_pool_arn
-  cors_allow_origins    = ["*"]
+  cors_allow_origins    = ["https://${var.domain_name}"]
 
   # Lambda function ARNs (from data sources)
   lambda_create_post_arn            = data.aws_lambda_function.create_post.arn
@@ -360,6 +361,7 @@ module "lambda" {
   user_pool_arn       = module.auth.user_pool_arn
   user_pool_client_id = module.auth.user_pool_client_id
   cloudfront_domain   = module.cdn.distribution_domain_name
+  cors_allowed_origin = "https://${var.domain_name}"
   enable_xray         = true # X-Ray enabled for prd
   go_binary_path      = "${path.module}/../../../go-functions/bin"
 

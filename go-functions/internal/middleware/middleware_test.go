@@ -3,14 +3,35 @@ package middleware
 import (
 	"encoding/json"
 	"math"
+	"os"
 	"testing"
 )
 
-func TestCORSHeaders(t *testing.T) {
+func TestCORSHeaders_Default(t *testing.T) {
+	os.Unsetenv("ALLOWED_ORIGIN")
+	headers := CORSHeaders()
+
+	if got := headers["Access-Control-Allow-Origin"]; got != "*" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want %q", got, "*")
+	}
+}
+
+func TestCORSHeaders_WithEnvVar(t *testing.T) {
+	os.Setenv("ALLOWED_ORIGIN", "https://example.com")
+	defer os.Unsetenv("ALLOWED_ORIGIN")
+
+	headers := CORSHeaders()
+
+	if got := headers["Access-Control-Allow-Origin"]; got != "https://example.com" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want %q", got, "https://example.com")
+	}
+}
+
+func TestCORSHeaders_StaticHeaders(t *testing.T) {
+	os.Unsetenv("ALLOWED_ORIGIN")
 	headers := CORSHeaders()
 
 	expected := map[string]string{
-		"Access-Control-Allow-Origin":  "*",
 		"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
 		"Access-Control-Allow-Headers": "Content-Type, Authorization",
 		"Content-Type":                 "application/json",

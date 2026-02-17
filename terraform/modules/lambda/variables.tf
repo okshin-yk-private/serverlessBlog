@@ -51,6 +51,12 @@ variable "cloudfront_domain" {
   description = "CloudFront domain name (optional, can be updated after initial deployment)"
 }
 
+variable "cors_allowed_origin" {
+  type        = string
+  default     = "*"
+  description = "Allowed origin for CORS (passed to Lambda as ALLOWED_ORIGIN env var)"
+}
+
 variable "enable_xray" {
   type        = bool
   default     = false
