@@ -59,6 +59,7 @@ module "storage" {
   environment                 = var.environment
   enable_access_logs          = false # Access logs not enabled for dev
   cloudfront_distribution_arn = ""    # Bucket policy set separately to avoid circular dependency
+  cors_allow_origins          = ["*"] # Dev uses wildcard (protected by Basic Auth)
 
   tags = local.common_tags
 }
@@ -73,6 +74,7 @@ module "lambda" {
   source = "../../modules/lambda"
 
   environment         = var.environment
+  cors_allowed_origin = "*" # Dev uses wildcard (protected by Basic Auth)
   table_name          = module.database.table_name
   table_arn           = module.database.table_arn
   bucket_name         = module.storage.image_bucket_name

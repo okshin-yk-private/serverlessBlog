@@ -3,14 +3,21 @@ package middleware
 
 import (
 	"encoding/json"
+	"os"
 
 	"github.com/aws/aws-lambda-go/events"
 )
 
 // CORSHeaders returns standard CORS headers.
+// The Access-Control-Allow-Origin value is read from the ALLOWED_ORIGIN
+// environment variable. If not set, it falls back to "*" for local development.
 func CORSHeaders() map[string]string {
+	origin := os.Getenv("ALLOWED_ORIGIN")
+	if origin == "" {
+		origin = "*"
+	}
 	return map[string]string{
-		"Access-Control-Allow-Origin":  "*",
+		"Access-Control-Allow-Origin":  origin,
 		"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
 		"Access-Control-Allow-Headers": "Content-Type, Authorization",
 		"Content-Type":                 "application/json",

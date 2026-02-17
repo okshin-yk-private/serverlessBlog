@@ -22,6 +22,7 @@ locals {
     USER_POOL_ID        = var.user_pool_id
     USER_POOL_CLIENT_ID = var.user_pool_client_id
     CLOUDFRONT_DOMAIN   = "https://${var.cloudfront_domain}"
+    ALLOWED_ORIGIN      = var.cors_allowed_origin
   }
 
   common_tags = merge(var.tags, {
@@ -153,11 +154,13 @@ locals {
   # Categories domain environment variables
   categories_environment = {
     CATEGORIES_TABLE_NAME = var.categories_table_name
+    ALLOWED_ORIGIN        = var.cors_allowed_origin
   }
 
   # Mindmaps domain environment variables
   mindmaps_environment = {
-    TABLE_NAME = var.mindmaps_table_name
+    TABLE_NAME     = var.mindmaps_table_name
+    ALLOWED_ORIGIN = var.cors_allowed_origin
   }
 }
 

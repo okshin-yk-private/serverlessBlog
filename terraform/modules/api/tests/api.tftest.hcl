@@ -5,6 +5,56 @@
 # Mock provider for testing without AWS credentials
 mock_provider "aws" {}
 
+# Global variables for all Lambda ARNs (required by API module)
+variables {
+  lambda_create_post_arn                         = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-post-go"
+  lambda_create_post_invoke_arn                  = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-post-go/invocations"
+  lambda_list_posts_arn                          = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-posts-go"
+  lambda_list_posts_invoke_arn                   = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-posts-go/invocations"
+  lambda_get_post_arn                            = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-post-go"
+  lambda_get_post_invoke_arn                     = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-post-go/invocations"
+  lambda_get_public_post_arn                     = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-public-post-go"
+  lambda_get_public_post_invoke_arn              = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-public-post-go/invocations"
+  lambda_update_post_arn                         = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-post-go"
+  lambda_update_post_invoke_arn                  = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-post-go/invocations"
+  lambda_delete_post_arn                         = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-post-go"
+  lambda_delete_post_invoke_arn                  = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-post-go/invocations"
+  lambda_login_arn                               = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go"
+  lambda_login_invoke_arn                        = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go/invocations"
+  lambda_logout_arn                              = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-logout-go"
+  lambda_logout_invoke_arn                       = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-logout-go/invocations"
+  lambda_refresh_arn                             = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-refresh-go"
+  lambda_refresh_invoke_arn                      = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-refresh-go/invocations"
+  lambda_get_upload_url_arn                      = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-upload-url-go"
+  lambda_get_upload_url_invoke_arn               = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-upload-url-go/invocations"
+  lambda_delete_image_arn                        = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-image-go"
+  lambda_delete_image_invoke_arn                 = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-image-go/invocations"
+  lambda_list_categories_arn                     = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-categories-go"
+  lambda_list_categories_invoke_arn              = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-categories-go/invocations"
+  lambda_create_category_arn                     = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-category-go"
+  lambda_create_category_invoke_arn              = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-category-go/invocations"
+  lambda_update_category_arn                     = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-category-go"
+  lambda_update_category_invoke_arn              = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-category-go/invocations"
+  lambda_update_categories_sort_order_arn        = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-categories-sort-order-go"
+  lambda_update_categories_sort_order_invoke_arn = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-categories-sort-order-go/invocations"
+  lambda_delete_category_arn                     = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-category-go"
+  lambda_delete_category_invoke_arn              = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-category-go/invocations"
+  lambda_create_mindmap_arn                      = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-mindmap-go"
+  lambda_create_mindmap_invoke_arn               = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-mindmap-go/invocations"
+  lambda_get_mindmap_arn                         = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-mindmap-go"
+  lambda_get_mindmap_invoke_arn                  = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-mindmap-go/invocations"
+  lambda_list_mindmaps_arn                       = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-mindmaps-go"
+  lambda_list_mindmaps_invoke_arn                = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-mindmaps-go/invocations"
+  lambda_update_mindmap_arn                      = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-mindmap-go"
+  lambda_update_mindmap_invoke_arn               = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-mindmap-go/invocations"
+  lambda_delete_mindmap_arn                      = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-mindmap-go"
+  lambda_delete_mindmap_invoke_arn               = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-mindmap-go/invocations"
+  lambda_get_public_mindmap_arn                  = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-public-mindmap-go"
+  lambda_get_public_mindmap_invoke_arn           = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-public-mindmap-go/invocations"
+  lambda_list_public_mindmaps_arn                = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-public-mindmaps-go"
+  lambda_list_public_mindmaps_invoke_arn         = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-public-mindmaps-go/invocations"
+}
+
 # ======================
 # REST API Creation Tests
 # ======================
@@ -470,7 +520,7 @@ run "gateway_response_4xx_cors_header" {
   }
 
   assert {
-    condition     = aws_api_gateway_gateway_response.default_4xx.response_parameters["gatewayresponse.header.Access-Control-Allow-Origin"] == "'*'"
+    condition     = aws_api_gateway_gateway_response.default_4xx.response_parameters["gatewayresponse.header.Access-Control-Allow-Origin"] == "'${var.cors_allow_origins[0]}'"
     error_message = "4xx Gateway Response must have Access-Control-Allow-Origin header"
   }
 }

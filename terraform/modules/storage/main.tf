@@ -165,7 +165,7 @@ resource "aws_s3_bucket_cors_configuration" "images" {
   cors_rule {
     allowed_headers = ["*"]
     allowed_methods = ["PUT"]
-    allowed_origins = ["*"]
+    allowed_origins = var.cors_allow_origins
     max_age_seconds = 3000
   }
 }

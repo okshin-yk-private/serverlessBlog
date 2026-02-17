@@ -27,6 +27,12 @@ variable "cloudfront_distribution_arn" {
   description = "CloudFront distribution ARN for OAC policy"
 }
 
+variable "cors_allow_origins" {
+  type        = list(string)
+  default     = ["*"]
+  description = "CORS allowed origins for S3 image bucket"
+}
+
 variable "tags" {
   type        = map(string)
   default     = {}
