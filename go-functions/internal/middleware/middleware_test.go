@@ -35,6 +35,9 @@ func TestCORSHeaders_StaticHeaders(t *testing.T) {
 		"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
 		"Access-Control-Allow-Headers": "Content-Type, Authorization",
 		"Content-Type":                 "application/json",
+		"X-Content-Type-Options":       "nosniff",
+		"X-Frame-Options":              "DENY",
+		"Cache-Control":                "no-store",
 	}
 
 	for key, want := range expected {
@@ -45,6 +48,31 @@ func TestCORSHeaders_StaticHeaders(t *testing.T) {
 		}
 		if got != want {
 			t.Errorf("header %q = %q, want %q", key, got, want)
+		}
+	}
+}
+
+func TestCORSHeaders_SecurityHeaders(t *testing.T) {
+	os.Unsetenv("ALLOWED_ORIGIN")
+	headers := CORSHeaders()
+
+	tests := []struct {
+		header string
+		want   string
+	}{
+		{"X-Content-Type-Options", "nosniff"},
+		{"X-Frame-Options", "DENY"},
+		{"Cache-Control", "no-store"},
+	}
+
+	for _, tt := range tests {
+		got, ok := headers[tt.header]
+		if !ok {
+			t.Errorf("missing security header %q", tt.header)
+			continue
+		}
+		if got != tt.want {
+			t.Errorf("header %q = %q, want %q", tt.header, got, tt.want)
 		}
 	}
 }

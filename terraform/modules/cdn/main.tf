@@ -461,6 +461,41 @@ EOF
   }
 }
 
+# Security Response Headers Policy
+# Adds security headers to all CloudFront responses
+resource "aws_cloudfront_response_headers_policy" "security_headers" {
+  name    = "BlogSecurityHeaders-${var.environment}"
+  comment = "Security response headers for blog CDN"
+
+  security_headers_config {
+    content_type_options {
+      override = true
+    }
+
+    frame_options {
+      frame_option = "DENY"
+      override     = true
+    }
+
+    strict_transport_security {
+      access_control_max_age_sec = 31536000
+      include_subdomains         = true
+      preload                    = true
+      override                   = true
+    }
+
+    content_security_policy {
+      content_security_policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.amazonaws.com"
+      override                = true
+    }
+
+    referrer_policy {
+      referrer_policy = "strict-origin-when-cross-origin"
+      override        = true
+    }
+  }
+}
+
 # Unified CloudFront Distribution
 # Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6
 #trivy:ignore:AVD-AWS-0045 WAF is not cost-effective for a personal blog
@@ -478,12 +513,13 @@ resource "aws_cloudfront_distribution" "main" {
   # Default behavior: Public Site (S3 origin with OAC)
   # Requirements: 7.1, 7.2, 7.3, 7.6, 7.8, 7.9
   default_cache_behavior {
-    allowed_methods        = ["GET", "HEAD"]
-    cached_methods         = ["GET", "HEAD"]
-    target_origin_id       = "public-site"
-    viewer_protocol_policy = "redirect-to-https"
-    compress               = true
-    cache_policy_id        = aws_cloudfront_cache_policy.html_pages.id
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    target_origin_id           = "public-site"
+    viewer_protocol_policy     = "redirect-to-https"
+    compress                   = true
+    cache_policy_id            = aws_cloudfront_cache_policy.html_pages.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
 
     # Use combined function (auth + SSG) for dev, SSG-only for production
     function_association {
@@ -531,25 +567,27 @@ resource "aws_cloudfront_distribution" "main" {
   # /_astro/* behavior - Astro static assets with 1-year TTL
   # Requirement 7.7: Cache static assets with content-based hash for 1 year
   ordered_cache_behavior {
-    path_pattern           = "/_astro/*"
-    allowed_methods        = ["GET", "HEAD"]
-    cached_methods         = ["GET", "HEAD"]
-    target_origin_id       = "public-site"
-    viewer_protocol_policy = "redirect-to-https"
-    compress               = true
-    cache_policy_id        = aws_cloudfront_cache_policy.astro_assets.id
+    path_pattern               = "/_astro/*"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    target_origin_id           = "public-site"
+    viewer_protocol_policy     = "redirect-to-https"
+    compress                   = true
+    cache_policy_id            = aws_cloudfront_cache_policy.astro_assets.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
     # No function association - static assets don't need URL rewriting
   }
 
   # /admin/* behavior
   ordered_cache_behavior {
-    path_pattern           = "/admin/*"
-    allowed_methods        = ["GET", "HEAD"]
-    cached_methods         = ["GET", "HEAD"]
-    target_origin_id       = "admin-site"
-    viewer_protocol_policy = "redirect-to-https"
-    compress               = true
-    cache_policy_id        = local.cache_policy_caching_optimized
+    path_pattern               = "/admin/*"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    target_origin_id           = "admin-site"
+    viewer_protocol_policy     = "redirect-to-https"
+    compress                   = true
+    cache_policy_id            = local.cache_policy_caching_optimized
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
 
     # Use combined function (auth + SPA) for dev, SPA-only for production
     function_association {
@@ -561,13 +599,14 @@ resource "aws_cloudfront_distribution" "main" {
   # /images/* behavior
   # Requirement 7.4: Cache behavior with appropriate TTL settings
   ordered_cache_behavior {
-    path_pattern           = "/images/*"
-    allowed_methods        = ["GET", "HEAD"]
-    cached_methods         = ["GET", "HEAD"]
-    target_origin_id       = "images"
-    viewer_protocol_policy = "redirect-to-https"
-    compress               = true
-    cache_policy_id        = aws_cloudfront_cache_policy.images.id
+    path_pattern               = "/images/*"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    target_origin_id           = "images"
+    viewer_protocol_policy     = "redirect-to-https"
+    compress                   = true
+    cache_policy_id            = aws_cloudfront_cache_policy.images.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
 
     function_association {
       event_type   = "viewer-request"
@@ -578,13 +617,14 @@ resource "aws_cloudfront_distribution" "main" {
   # /api/* behavior
   # Requirement 7.6: API Gateway proxy
   ordered_cache_behavior {
-    path_pattern           = "/api/*"
-    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
-    cached_methods         = ["GET", "HEAD"]
-    target_origin_id       = "api-gateway"
-    viewer_protocol_policy = "redirect-to-https"
-    compress               = true
-    cache_policy_id        = local.cache_policy_caching_disabled
+    path_pattern               = "/api/*"
+    allowed_methods            = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods             = ["GET", "HEAD"]
+    target_origin_id           = "api-gateway"
+    viewer_protocol_policy     = "redirect-to-https"
+    compress                   = true
+    cache_policy_id            = local.cache_policy_caching_disabled
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
     # Use AWS managed policy: AllViewerExceptHostHeader (forwards Authorization header)
     origin_request_policy_id = local.origin_request_policy_all_viewer_except_host
 
