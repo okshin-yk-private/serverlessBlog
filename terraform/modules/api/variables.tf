@@ -280,6 +280,22 @@ variable "lambda_list_public_mindmaps_invoke_arn" {
 }
 
 # ======================
+# API Gateway Throttling
+# ======================
+
+variable "throttling_rate_limit" {
+  description = "API Gateway default throttling rate limit (requests per second)"
+  type        = number
+  default     = 100
+}
+
+variable "throttling_burst_limit" {
+  description = "API Gateway default throttling burst limit"
+  type        = number
+  default     = 200
+}
+
+# ======================
 # CloudWatch Logs Encryption
 # ======================
 

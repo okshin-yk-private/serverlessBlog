@@ -1818,8 +1818,10 @@ resource "aws_api_gateway_method_settings" "all" {
   method_path = "*/*"
 
   settings {
-    metrics_enabled = local.is_production
-    logging_level   = local.is_production ? "INFO" : "OFF"
+    metrics_enabled        = local.is_production
+    logging_level          = local.is_production ? "INFO" : "OFF"
+    throttling_rate_limit  = var.throttling_rate_limit
+    throttling_burst_limit = var.throttling_burst_limit
   }
 }
 
