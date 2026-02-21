@@ -294,6 +294,81 @@ describe('applyDagreLayout', () => {
     expect(layoutedNodes).toHaveLength(1);
     expect(layoutedNodes[0].position).toBeDefined();
   });
+
+  it('should order children Y positions matching array order in LR layout', () => {
+    const root: MindmapNode = {
+      id: 'root',
+      text: 'Root',
+      children: [
+        { id: 'child-1', text: 'Child 1', children: [] },
+        { id: 'child-2', text: 'Child 2', children: [] },
+        { id: 'child-3', text: 'Child 3', children: [] },
+      ],
+    };
+
+    const { nodes, edges } = convertTreeToReactFlow(root);
+    const layoutedNodes = applyDagreLayout(nodes, edges, 'LR');
+
+    const child1 = layoutedNodes.find((n) => n.id === 'child-1');
+    const child2 = layoutedNodes.find((n) => n.id === 'child-2');
+    const child3 = layoutedNodes.find((n) => n.id === 'child-3');
+
+    // children[0] should have smallest Y (top), children[2] largest Y (bottom)
+    expect(child1!.position.y).toBeLessThan(child2!.position.y);
+    expect(child2!.position.y).toBeLessThan(child3!.position.y);
+  });
+
+  it('should maintain correct Y order for deeply nested children in LR layout', () => {
+    const root: MindmapNode = {
+      id: 'root',
+      text: 'Root',
+      children: [
+        {
+          id: 'child-1',
+          text: 'Child 1',
+          children: [
+            { id: 'gc-1', text: 'GC 1', children: [] },
+            { id: 'gc-2', text: 'GC 2', children: [] },
+            { id: 'gc-3', text: 'GC 3', children: [] },
+          ],
+        },
+        { id: 'child-2', text: 'Child 2', children: [] },
+      ],
+    };
+
+    const { nodes, edges } = convertTreeToReactFlow(root);
+    const layoutedNodes = applyDagreLayout(nodes, edges, 'LR');
+
+    const gc1 = layoutedNodes.find((n) => n.id === 'gc-1');
+    const gc2 = layoutedNodes.find((n) => n.id === 'gc-2');
+    const gc3 = layoutedNodes.find((n) => n.id === 'gc-3');
+
+    // Grandchildren should also maintain array order in Y position
+    expect(gc1!.position.y).toBeLessThan(gc2!.position.y);
+    expect(gc2!.position.y).toBeLessThan(gc3!.position.y);
+  });
+
+  it('should not affect TB layout when mirroring LR Y coordinates', () => {
+    const root: MindmapNode = {
+      id: 'root',
+      text: 'Root',
+      children: [
+        { id: 'child-1', text: 'Child 1', children: [] },
+        { id: 'child-2', text: 'Child 2', children: [] },
+      ],
+    };
+
+    const { nodes, edges } = convertTreeToReactFlow(root);
+    const layoutedNodes = applyDagreLayout(nodes, edges, 'TB');
+
+    const rootNode = layoutedNodes.find((n) => n.id === 'root');
+    const child1 = layoutedNodes.find((n) => n.id === 'child-1');
+    const child2 = layoutedNodes.find((n) => n.id === 'child-2');
+
+    // Root should still be above children in TB layout
+    expect(rootNode!.position.y).toBeLessThan(child1!.position.y);
+    expect(rootNode!.position.y).toBeLessThan(child2!.position.y);
+  });
 });
 
 describe('addChildToTree', () => {
