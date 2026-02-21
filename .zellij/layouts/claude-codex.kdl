@@ -12,13 +12,16 @@ layout {
     tab name="AI Dev" focus=true {
         pane split_direction="vertical" {
             // Left pane: Claude Code (60% width)
+            // Wrapper provides restart menu when Claude exits
             pane size="60%" name="Claude Code" {
-                command "claude"
+                command "bash"
+                args "-c" "./scripts/run-claude.sh"
             }
             // Right pane: Codex Review Daemon (40% width)
+            // Wrapper provides restart menu when daemon exits
             pane size="40%" name="Codex Daemon" {
                 command "bash"
-                args "-c" "./scripts/codex-review-daemon.sh"
+                args "-c" "./scripts/run-codex-daemon.sh"
             }
         }
     }

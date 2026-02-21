@@ -62,6 +62,11 @@ echo "  Ctrl+p → p    : Switch to previous pane"
 echo "  Ctrl+p → d    : Detach session"
 echo "  Ctrl+p → q    : Quit"
 echo ""
+echo "Tips:"
+echo "  - Claude 終了後にメニューで再起動/更新/AWS認証更新が可能"
+echo "  - Codex Daemon も同様に個別再起動が可能"
+echo "  - Shell タブで手動操作（aws sso login 等）も可能"
+echo ""
 
 # Start Zellij with the layout
 exec zellij --layout "$LAYOUT_FILE"
