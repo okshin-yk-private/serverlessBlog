@@ -228,6 +228,9 @@ layers/**/*.js
 .serena/memories/
 .serena/cache/
 
+# Claude Code Agent Teams worktrees
+.claude/worktrees/
+
 # Codex CLI (local state / secrets)
 .codex/auth.json
 .codex/history.jsonl

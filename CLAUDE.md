@@ -105,3 +105,36 @@ Users can also invoke directly:
 - Direct MCP calls accumulate in this conversation's context
 - Task tool runs in separate context, returning only summary
 - This significantly reduces token usage for long conversations
+
+### Language
+- 英語で考え出力は日本語
+
+## Agent Teams (Parallel Issue Implementation)
+
+### Usage
+```
+/team-implement <issue1> <issue2> [issue3] ... [-y]
+```
+
+### Architecture
+- **Commander** (lead session): Issue取得、コンフリクト分析、TaskList管理、PR作成
+- **Executor** (teammate): 各Issueを独立したGit worktreeでTDD実装
+
+### Conflict Detection (Two-Layer)
+1. **Structured**: Issue本文の「対象ファイル」セクションからファイルパス抽出
+2. **AI Analysis**: 修正方針から影響を受ける追加ファイルを推測
+
+### Conflict Resolution Rules
+- 同一ファイルを複数Issueが編集 → 逐次実行（blockedBy依存）
+- 同一ディレクトリ、別ファイル → 並列実行
+- 完全独立 → 完全並列
+
+### Worktree Convention
+- 場所: `.claude/worktrees/` （.gitignore済み）
+- ブランチ: `fix/issue-<N>` or `feat/issue-<N>`
+- ベース: 常に `origin/develop`
+
+### Constraints
+- 最大同時Executor: 3
+- Teammateモード: auto（tmux検出時はsplit-pane、それ以外はin-process）
+- 環境変数: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`（settings.jsonで設定済み）
