@@ -138,3 +138,9 @@ Users can also invoke directly:
 - 最大同時Executor: 3
 - Teammateモード: auto（tmux検出時はsplit-pane、それ以外はin-process）
 - 環境変数: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`（settings.jsonで設定済み）
+
+### Model Selection
+- **デフォルト**: Sonnet（コスト効率重視）
+- **動的選択**: Commander が Issue 複雑度を自動評価し Opus/Sonnet を選択
+- **手動オーバーライド**: Issue番号に `:opus` / `:sonnet` サフィックスを付与
+- **判定基準**: クロスドメイン変更、ファイル数、アーキテクチャキーワード、`complexity:high` ラベル
