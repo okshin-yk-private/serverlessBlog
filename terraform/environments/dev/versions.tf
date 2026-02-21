@@ -48,5 +48,5 @@ provider "aws" {
 # but the provider still validates the token format. Use a dummy 40-char placeholder
 # when the feature is disabled to allow CI to run without Cloudflare credentials.
 provider "cloudflare" {
-  api_token = var.enable_custom_domain ? var.cloudflare_api_token : "placeholder-token-for-disabled-feature00"
+  api_token = var.enable_custom_domain ? var.cloudflare_api_token : "placeholdertokenfordisabledfeature000000"
 }
