@@ -1,0 +1,29 @@
+name: 'Setup Bun + Dependencies'
+description: 'Setup Bun runtime and install frontend dependencies with caching'
+inputs:
+  bun-version:
+    description: 'Bun version to install'
+    default: '1.2.0'
+  working-directory:
+    description: 'Directory containing package.json'
+    default: 'frontend'
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@4bc047b3673842c9d15b4e47cf5fced4484e3593 # v2.0.2
+      with:
+        bun-version: ${{ inputs.bun-version }}
+    - name: Cache Bun dependencies
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: |
+          ${{ inputs.working-directory }}/node_modules
+          ~/.bun/install/cache
+        key: bun-deps-${{ runner.os }}-${{ hashFiles(format('{0}/bun.lockb', inputs.working-directory)) }}
+        restore-keys: |
+          bun-deps-${{ runner.os }}-
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: bun install --frozen-lockfile
