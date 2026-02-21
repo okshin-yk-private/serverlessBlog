@@ -1613,10 +1613,14 @@ resource "aws_api_gateway_gateway_response" "default_5xx" {
 # ======================
 
 # CloudWatch Log Group for API Gateway Access Logs
+# Security: Enabled ONLY in production for security audit trail
+# - dev: Disabled to reduce costs and noise
+# - prd: Enabled with 90-day retention for security audit trail
 resource "aws_cloudwatch_log_group" "api_access_logs" {
   count             = local.is_production ? 1 : 0
   name              = "/aws/apigateway/${var.api_name}"
   retention_in_days = 90
+  kms_key_id        = var.log_encryption_key_arn
 
   tags = local.common_tags
 }
@@ -1779,18 +1783,23 @@ resource "aws_api_gateway_stage" "main" {
     content {
       destination_arn = aws_cloudwatch_log_group.api_access_logs[0].arn
       format = jsonencode({
-        requestId         = "$context.requestId"
-        ip                = "$context.identity.sourceIp"
-        caller            = "$context.identity.caller"
-        user              = "$context.identity.user"
-        requestTime       = "$context.requestTime"
-        httpMethod        = "$context.httpMethod"
-        resourcePath      = "$context.resourcePath"
-        status            = "$context.status"
-        protocol          = "$context.protocol"
-        responseLength    = "$context.responseLength"
-        integrationError  = "$context.integrationErrorMessage"
-        integrationStatus = "$context.integrationStatus"
+        requestId          = "$context.requestId"
+        extendedRequestId  = "$context.extendedRequestId"
+        ip                 = "$context.identity.sourceIp"
+        caller             = "$context.identity.caller"
+        user               = "$context.identity.user"
+        userAgent          = "$context.identity.userAgent"
+        requestTime        = "$context.requestTime"
+        httpMethod         = "$context.httpMethod"
+        resourcePath       = "$context.resourcePath"
+        status             = "$context.status"
+        protocol           = "$context.protocol"
+        responseLength     = "$context.responseLength"
+        integrationError   = "$context.integrationErrorMessage"
+        integrationStatus  = "$context.integrationStatus"
+        authorizerError    = "$context.authorizer.error"
+        integrationLatency = "$context.integrationLatency"
+        responseLatency    = "$context.responseLatency"
       })
     }
   }

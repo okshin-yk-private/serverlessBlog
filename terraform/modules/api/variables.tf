@@ -294,3 +294,13 @@ variable "throttling_burst_limit" {
   type        = number
   default     = 200
 }
+
+# ======================
+# CloudWatch Logs Encryption
+# ======================
+
+variable "log_encryption_key_arn" {
+  description = "KMS key ARN for encrypting API Gateway access logs (optional, null to disable)"
+  type        = string
+  default     = null
+}
