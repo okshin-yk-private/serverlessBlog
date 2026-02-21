@@ -547,14 +547,10 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+      - name: Setup Bun + Install Dependencies (admin)
+        uses: ./.github/actions/setup-bun-deps
         with:
-          bun-version: latest
-
-      - name: Install dependencies
-        working-directory: frontend/admin
-        run: bun install --frozen-lockfile
+          working-directory: frontend/admin
 
       - name: Set CloudFront URL
         id: cloudfront
@@ -735,17 +731,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Bun
+      - name: Setup Bun + Install Dependencies (public-astro)
         # Pin to specific commit SHA for security (Requirement 9.8)
-        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+        uses: ./.github/actions/setup-bun-deps
         with:
-          bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Install dependencies
-        working-directory: frontend/public-astro
-        run: |
-          bun install --frozen-lockfile
-          echo "✓ Dependencies installed"
+          working-directory: frontend/public-astro
 
       - name: Build Astro project
         working-directory: frontend/public-astro
@@ -857,15 +847,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Bun
+      - name: Setup Bun + Install Dependencies (deploy scripts)
         # Pin to specific commit SHA (Requirement 9.8)
-        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+        uses: ./.github/actions/setup-bun-deps
         with:
-          bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Install deploy script dependencies
-        working-directory: scripts/deploy
-        run: bun install --frozen-lockfile
+          working-directory: scripts/deploy
 
       - name: Deploy to S3 (Atomic Deployment)
         id: deploy
@@ -978,15 +964,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Bun
+      - name: Setup Bun + Install Dependencies (deploy scripts)
         # Pin to specific commit SHA (Requirement 9.8)
-        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+        uses: ./.github/actions/setup-bun-deps
         with:
-          bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Install deploy script dependencies
-        working-directory: scripts/deploy
-        run: bun install --frozen-lockfile
+          working-directory: scripts/deploy
 
       - name: Deploy to S3 (Atomic Deployment)
         id: deploy

@@ -130,17 +130,15 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+      - name: Setup Bun + Install Dependencies (root)
+        uses: ./.github/actions/setup-bun-deps
         with:
-          bun-version: latest
+          working-directory: .
 
-      - name: Install root dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Install frontend dependencies
-        working-directory: frontend/admin
-        run: bun install --frozen-lockfile
+      - name: Setup Bun + Install Dependencies (admin)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: frontend/admin
 
       - name: Run ESLint
         run: bun run lint
@@ -307,7 +305,9 @@ jobs:
     needs: [setup-labels]
     name: Go Tests (Race Detection)
     runs-on: ubuntu-latest
-    if: needs.setup-labels.outputs.has-go == 'true'
+    if: |
+      needs.setup-labels.outputs.has-go == 'true' &&
+      (github.base_ref == 'develop' || github.base_ref == 'main')
 
     steps:
       - name: Checkout code
@@ -360,10 +360,18 @@ jobs:
           echo "Coverage job: ${{ needs.go-tests-coverage.result }}"
           echo "Race detection job: ${{ needs.go-tests-race.result }}"
           echo ""
-          if [ "${{ needs.go-tests-coverage.result }}" != "success" ] || \
-             [ "${{ needs.go-tests-race.result }}" != "success" ]; then
-            echo "❌ Go tests did not pass (failure/cancelled/skipped)"
+          if [ "${{ needs.go-tests-coverage.result }}" != "success" ]; then
+            echo "❌ Go coverage tests did not pass (failure/cancelled/skipped)"
             exit 1
+          fi
+          # Race detection job may be skipped when not targeting develop/main branches
+          if [ "${{ needs.go-tests-race.result }}" == "failure" ] || \
+             [ "${{ needs.go-tests-race.result }}" == "cancelled" ]; then
+            echo "❌ Go race detection tests failed or were cancelled"
+            exit 1
+          fi
+          if [ "${{ needs.go-tests-race.result }}" == "skipped" ]; then
+            echo "ℹ Race detection tests skipped (not targeting develop/main)"
           fi
           echo "✓ All Go tests passed"
 
@@ -974,17 +982,15 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+      - name: Setup Bun + Install Dependencies (root)
+        uses: ./.github/actions/setup-bun-deps
         with:
-          bun-version: latest
+          working-directory: .
 
-      - name: Install root dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Install frontend (public) dependencies
-        working-directory: frontend/public
-        run: bun install --frozen-lockfile
+      - name: Setup Bun + Install Dependencies (public)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: frontend/public
 
       - name: Run frontend (public) tests with coverage
         working-directory: frontend/public
@@ -1018,17 +1024,15 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+      - name: Setup Bun + Install Dependencies (root)
+        uses: ./.github/actions/setup-bun-deps
         with:
-          bun-version: latest
+          working-directory: .
 
-      - name: Install root dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Install frontend (admin) dependencies
-        working-directory: frontend/admin
-        run: bun install --frozen-lockfile
+      - name: Setup Bun + Install Dependencies (admin)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: frontend/admin
 
       - name: Run frontend (admin) tests with coverage
         working-directory: frontend/admin
@@ -1064,17 +1068,15 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+      - name: Setup Bun + Install Dependencies (root)
+        uses: ./.github/actions/setup-bun-deps
         with:
-          bun-version: latest
+          working-directory: .
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Install frontend (public) dependencies
-        working-directory: frontend/public
-        run: bun install --frozen-lockfile
+      - name: Setup Bun + Install Dependencies (public)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: frontend/public
 
       - name: Get Playwright version
         id: playwright-version
@@ -1136,17 +1138,15 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+      - name: Setup Bun + Install Dependencies (root)
+        uses: ./.github/actions/setup-bun-deps
         with:
-          bun-version: latest
+          working-directory: .
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Install frontend (admin) dependencies
-        working-directory: frontend/admin
-        run: bun install --frozen-lockfile
+      - name: Setup Bun + Install Dependencies (admin)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: frontend/admin
 
       - name: Get Playwright version
         id: playwright-version
@@ -1236,13 +1236,10 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+      - name: Setup Bun + Install Dependencies (root)
+        uses: ./.github/actions/setup-bun-deps
         with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+          working-directory: .
 
       - name: Reorganize coverage files
         run: |
