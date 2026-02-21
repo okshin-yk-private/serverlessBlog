@@ -61,6 +61,28 @@ bash scripts/analyze-issue-conflicts.sh <Issue番号1> <Issue番号2> ...
 2. **同一ディレクトリ、別ファイル** → 並列実行
 3. **完全独立** → 完全並列
 
+### 1d. 複雑度評価 & モデル選択
+
+各Issueの複雑度を評価し、Executor に使用するモデル（Opus / Sonnet）を決定する。
+
+**手動オーバーライド:**
+Issue番号にサフィックスを付与して強制指定可能。手動指定がある場合、スコアリングをスキップする。
+```
+/team-implement 127:opus 129 130:sonnet
+```
+
+**スコアリングルール（手動指定がない場合）:**
+
+| シグナル | ポイント | 判定方法 |
+|---------|---------|---------|
+| ラベル `complexity:high` | +5 (自動Opus) | Issue labels に含まれるか |
+| クロスドメイン変更 | +3 | 対象ファイルが `go-functions/`, `frontend/`, `terraform/`, `.github/` のうち2つ以上にまたがる |
+| 対象ファイル数 >= 6 | +2 | 「対象ファイル」セクションのファイル数 |
+| アーキテクチャキーワード | +2 | Issue本文に refactor, migration, redesign, architecture, breaking change を含む |
+| 複数テストスコープ | +1 | Go + Frontend 等、2つ以上のテストスコープに該当 |
+
+**閾値:** スコア >= 5 → Opus / スコア < 5 → Sonnet（デフォルト）
+
 ## Phase 2: 実行計画の提示
 
 以下の形式でユーザーに実行計画を提示する:
@@ -69,14 +91,17 @@ bash scripts/analyze-issue-conflicts.sh <Issue番号1> <Issue番号2> ...
 ## 実行計画
 
 ### 並列グループ 1（同時実行）
-- #42: <タイトル> → fix/issue-42
+- #42: <タイトル> → fix/issue-42 [Sonnet]
   対象: go-functions/internal/handler/posts.go
-- #57: <タイトル> → feat/issue-57
-  対象: go-functions/internal/handler/auth.go
+  複雑度スコア: 2
+- #57: <タイトル> → feat/issue-57 [Opus]
+  対象: go-functions/internal/handler/auth.go, terraform/modules/auth/main.tf
+  複雑度スコア: 5 (クロスドメイン+アーキテクチャキーワード)
 
 ### 逐次グループ（#42完了後）
-- #63: <タイトル> → fix/issue-63
+- #63: <タイトル> → fix/issue-63 [Sonnet]
   対象: go-functions/internal/handler/posts.go, terraform/modules/api/main.tf
+  複雑度スコア: 3
   ⚠️ #42とposts.goが競合 → #42完了後に実行
 
 最大同時実行: 3 Executors
@@ -84,21 +109,58 @@ bash scripts/analyze-issue-conflicts.sh <Issue番号1> <Issue番号2> ...
 
 `-y` フラグがない場合、ユーザーの承認を待つ。
 
-## Phase 3: TaskList作成
+## Phase 3: チーム作成 & TaskList作成
 
-TaskCreateで各Issueのタスクエントリを作成する。コンフリクトがある場合は `blockedBy` で依存関係を設定する。
+**重要: Issue数に関係なく（1つでも複数でも）、必ず `TeamCreate` でチームを作成すること。**
+これにより tmux 環境で Executor が別ペインで起動されることが保証される。
+`TeamCreate` を省略すると、Executor が in-process サブエージェントとして実行され、tmux ペインが開かない。
+
+```
+TeamCreate(
+  team_name="team-implement-<Issue番号をハイフン区切り>",
+  description="Implement issues #<N1>, #<N2>, ..."
+)
+```
+
+続けて TaskCreate で各Issueのタスクエントリを作成する。コンフリクトがある場合は `blockedBy` で依存関係を設定する。
 
 ## Phase 4: Executor Teammateの生成
 
 **ブロックされていないタスクから順に**、最大3つまで同時にExecutor teammateを生成する。
 
-各Executorの生成時に渡す情報:
+**重要: 必ず `team_name` パラメータを指定すること。** `team_name` がないと通常のサブエージェントとして実行され、tmux ペインが開かない。
+
+各Executorの生成時に渡す情報。Phase 1dで決定したモデルに応じてTask()の引数を変える:
 
 ```
+# Opus選択時 (スコア >= 5 または手動 :opus 指定)
 Task(
-  subagent_type="general-purpose",
+  subagent_type="executor",
+  team_name="team-implement-<Issue番号をハイフン区切り>",
+  isolation="worktree",
+  model="opus",
+  prompt="""
+  あなたはExecutor Agentです。以下のGitHub Issueを TDD で実装してください。
+  ... (下記共通プロンプト参照)
+  """
+)
+
+# Sonnet選択時 (スコア < 5, デフォルト)
+Task(
+  subagent_type="executor",
+  team_name="team-implement-<Issue番号をハイフン区切り>",
   isolation="worktree",
   prompt="""
+  あなたはExecutor Agentです。以下のGitHub Issueを TDD で実装してください。
+  ... (下記共通プロンプト参照)
+  """
+)
+# model省略 → executor.md の model: sonnet が適用される
+```
+
+**共通プロンプト:**
+
+```
   あなたはExecutor Agentです。以下のGitHub Issueを TDD で実装してください。
 
   ## Issue情報
@@ -133,8 +195,6 @@ Task(
   - 変更ファイル一覧
   - テスト結果（件数、成否）
   - コミット一覧
-  """
-)
 ```
 
 **制約:**
@@ -212,11 +272,11 @@ EOF
 ```
 ## Team Implement 完了レポート
 
-| Issue | タイトル | ステータス | ブランチ | PR |
-|-------|---------|-----------|---------|-----|
-| #42 | Fix posts handler | ✅ SUCCESS | fix/issue-42 | #XXX |
-| #57 | Add auth feature | ✅ SUCCESS | feat/issue-57 | #YYY |
-| #63 | Fix posts & API | ✅ SUCCESS | fix/issue-63 | #ZZZ |
+| Issue | タイトル | モデル | ステータス | ブランチ | PR |
+|-------|---------|--------|-----------|---------|-----|
+| #42 | Fix posts handler | Sonnet | ✅ SUCCESS | fix/issue-42 | #XXX |
+| #57 | Add auth feature | Opus | ✅ SUCCESS | feat/issue-57 | #YYY |
+| #63 | Fix posts & API | Sonnet | ✅ SUCCESS | fix/issue-63 | #ZZZ |
 
 ### コンフリクト解決
 - #63は#42完了後に逐次実行（posts.go競合）
@@ -226,6 +286,7 @@ EOF
 - 成功: 3 / 失敗: 0
 - 並列実行: 2グループ
 - 総PR数: 3
+- モデル別: Opus 1件 / Sonnet 2件
 ```
 
 ## エラーハンドリング
