@@ -118,6 +118,15 @@ skip-check:
   # Mitigation: GitHub branch protection; OIDC-authenticated deployments
   - CKV_AWS_272
 
+  # CKV_AWS_117: Ensure that AWS Lambda function is configured inside a VPC
+  # Justification: Fully serverless architecture - Lambda functions only access
+  # AWS managed services (DynamoDB, S3, Cognito) via IAM roles. No private
+  # resources (RDS, ElastiCache, etc.) require VPC placement.
+  # VPC would add NAT Gateway cost (~$65/mo per AZ), increase cold start
+  # latency, and provide no security benefit for this architecture.
+  # Mitigation: IAM least-privilege policies; service-level access controls
+  - CKV_AWS_117
+
   # --------------------------------------
   # API Gateway Rules
   # --------------------------------------
@@ -150,9 +159,13 @@ skip-check:
   # CloudFront Rules
   # --------------------------------------
 
-  # CKV_AWS_174: Ensure CloudFront uses secure ciphers
-  # Note: This check is enabled. CloudFront uses TLSv1.2 minimum.
-  # Our CDN module configures security_policy = "TLSv1.2_2021"
+  # CKV_AWS_174: Ensure CloudFront Distribution Viewer Certificate is using TLS v1.2+
+  # Justification: Production uses ACM certificate with minimum_protocol_version
+  # "TLSv1.2_2021" enforcing TLS 1.2+. Dev environment uses CloudFront default
+  # certificate where AWS manages TLS settings (minimum_protocol_version is ignored).
+  # Modern browsers negotiate TLS 1.2+ by default; dev is protected by Basic Auth.
+  # Mitigation: Production enforces TLS 1.2; dev access restricted via Basic Auth
+  - CKV_AWS_174
 
   # CKV_AWS_86: Ensure CloudFront distribution has WAF enabled
   # Justification: WAF adds cost for this blog application. Rate limiting

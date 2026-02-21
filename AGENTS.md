@@ -105,3 +105,6 @@ Users can also invoke directly:
 - Direct MCP calls accumulate in this conversation's context
 - Task tool runs in separate context, returning only summary
 - This significantly reduces token usage for long conversations
+
+### Language
+- 英語で考え出力は日本語
