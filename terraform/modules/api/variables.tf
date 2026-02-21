@@ -278,3 +278,13 @@ variable "lambda_list_public_mindmaps_invoke_arn" {
   type        = string
   description = "List Public Mindmaps Lambda function invoke ARN"
 }
+
+# ======================
+# CloudWatch Logs Encryption
+# ======================
+
+variable "log_encryption_key_arn" {
+  description = "KMS key ARN for encrypting API Gateway access logs (optional, null to disable)"
+  type        = string
+  default     = null
+}
