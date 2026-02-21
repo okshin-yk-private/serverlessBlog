@@ -566,6 +566,22 @@ export function applyDagreLayout(
 
   dagre.layout(g);
 
+  // Mirror Y coordinates for LR layout so children[0] is at top (smallest Y)
+  if (direction === 'LR') {
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const node of nodes) {
+      const y = g.node(node.id).y;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    const centerY = (minY + maxY) / 2;
+    for (const node of nodes) {
+      const dagreNode = g.node(node.id);
+      dagreNode.y = 2 * centerY - dagreNode.y;
+    }
+  }
+
   return nodes.map((node) => {
     const dagreNode = g.node(node.id);
     const nodeHeight =
