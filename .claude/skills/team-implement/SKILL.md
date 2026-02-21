@@ -141,6 +141,40 @@ Task(
 - 最大同時Executor数: **3**（API rate limit考慮）
 - 各Executorは `isolation: "worktree"` で独立したworktreeで動作
 
+### Worktree Executor権限要件
+
+Worktree分離モード（`isolation: "worktree"`）のExecutorは、`.claude/settings.local.json` の `permissions.allow` ホワイトリストを継承する。以下のBashコマンドパターンが `permissions.allow` に登録されている必要がある:
+
+**Git操作（必須）:**
+- `Bash(git fetch:*)` - リモートブランチ取得
+- `Bash(git checkout:*)` - ブランチ作成・切り替え
+- `Bash(git push:*)` - リモートへのプッシュ
+- `Bash(git stash:*)` - 変更の一時退避
+- `Bash(git status:*)` - 状態確認
+- `Bash(git diff:*)` - 差分確認
+- `Bash(git log:*)` - ログ確認
+- `Bash(git branch:*)` - ブランチ管理
+- `Bash(git commit:*)` - コミット
+- `Bash(git add:*)` - ステージング
+
+**ビルド・テスト（プロジェクト依存）:**
+- `Bash(go test:*)` - Goテスト
+- `Bash(gofmt:*)` - Goフォーマット
+- `Bash(go mod:*)` - Goモジュール管理
+- `Bash(go install:*)` - Goツールインストール
+- `Bash(terraform fmt:*)` - Terraformフォーマット
+- `Bash(terraform init:*)` - Terraform初期化
+- `Bash(terraform validate:*)` - Terraform検証
+- `Bash(bun run test:*)` - フロントエンドテスト
+- `Bash(bun install:*)` - 依存関係インストール
+- `Bash(bun run format:check:*)` - フォーマットチェック
+
+**PR作成:**
+- `Bash(gh pr:*)` - GitHub PR操作
+
+**フォールバック戦略:**
+権限不足によりExecutorが失敗した場合、Commanderが逐次実装にフォールバックする。エラーログに「Bashツールが拒否」等のメッセージが含まれる場合は、`settings.local.json` のパーミッション設定を確認すること。
+
 ## Phase 5: 進捗監視 & 逐次タスクのアンブロック
 
 - TaskListを定期的に確認し、完了したタスクを検出
