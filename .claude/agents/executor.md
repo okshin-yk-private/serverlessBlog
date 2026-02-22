@@ -61,6 +61,49 @@ Issueの修正方針に従い、対象ファイルを修正する:
 | Frontend Public | `cd frontend/public && bun run test:coverage` | 100% |
 | Terraform | `cd terraform && terraform fmt -check -recursive && terraform validate` | N/A |
 
+### 6. REVIEW: CodexへReview依頼（MANDATORY - push前に必ず実行）
+
+このステップは**必須**であり、スキップしてはならない。push前にCodexによるレビューを実行する。
+
+#### 6a. 変更ファイルの特定
+
+```bash
+git diff --name-only origin/develop...HEAD
+```
+
+出力されたファイル一覧をスペース区切りで連結する。
+
+#### 6b. レビュー実行
+
+```
+Skill("codex:review", "<file1> <file2> ... --focus all")
+```
+
+- ファイル数が20件を超える場合は、スコープごとに分割して複数回実行する
+- `--focus all` で総合レビューを実施
+
+#### 6c. レビュー結果への対応
+
+- **HIGH / MEDIUM severity の指摘がある場合**:
+  1. 指摘箇所を修正する
+  2. テストを再実行して GREEN を確認する（Step 5 VERIFY と同じコマンド）
+  3. 修正を Conventional Commits でコミットする（type: `fix` or `refactor`）
+  4. 再度 `Skill("codex:review", ...)` を実行して指摘が解消されたことを確認する（最大2サイクル）
+- **LOW severity のみ、または指摘なしの場合**: 次のステップ（push）に進む
+
+#### 6d. エラーハンドリング
+
+- Codex MCP が利用不可（タイムアウト、接続エラー等）の場合:
+  - 警告メッセージをログに記録する
+  - pushをブロックしない（レビューは best-effort）
+  - 完了報告に「Review: SKIPPED (MCP unavailable)」を記載する
+
+### 7. PUSH: リモートへプッシュ
+
+```bash
+git push -u origin <branch-name>
+```
+
 ## ブランチ・コミット規約
 
 ### ブランチ名
@@ -105,6 +148,9 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 ### テスト結果
 - テスト数: N件
 - 結果: 全件GREEN / X件FAILED
+
+### レビュー結果
+- ステータス: APPROVED / FIXED (N件修正) / SKIPPED (理由)
 
 ### コミット履歴
 - <commit-hash> <message>
