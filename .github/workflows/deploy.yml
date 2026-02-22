@@ -1033,6 +1033,7 @@ jobs:
     name: Post-Deploy E2E Tests (DEV)
     runs-on: ubuntu-latest
     needs: [detect-changes, deploy-admin-dev, deploy-astro-dev]
+    environment: dev
     if: |
       always() &&
       needs.detect-changes.outputs.target-env == 'dev' &&
