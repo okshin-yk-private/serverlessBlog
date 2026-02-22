@@ -176,54 +176,6 @@ describe('API Service', () => {
       });
       expect(result).toEqual(mockResponse.data);
     });
-
-    it('simulateErrorパラメータを指定して記事一覧を取得する', async () => {
-      // Arrange
-      const mockResponse = {
-        data: {
-          items: [],
-          count: 0,
-        },
-      };
-      vi.mocked(axios.get).mockResolvedValueOnce(mockResponse);
-
-      // Act
-      const result = await fetchPosts({
-        simulateError: 'network',
-      });
-
-      // Assert
-      expect(axios.get).toHaveBeenCalledWith('/api/posts', {
-        params: {
-          simulateError: 'network',
-        },
-      });
-      expect(result).toEqual(mockResponse.data);
-    });
-
-    it('simulateRetryパラメータを指定して記事一覧を取得する', async () => {
-      // Arrange
-      const mockResponse = {
-        data: {
-          items: [],
-          count: 0,
-        },
-      };
-      vi.mocked(axios.get).mockResolvedValueOnce(mockResponse);
-
-      // Act
-      const result = await fetchPosts({
-        simulateRetry: 'true',
-      });
-
-      // Assert
-      expect(axios.get).toHaveBeenCalledWith('/api/posts', {
-        params: {
-          simulateRetry: 'true',
-        },
-      });
-      expect(result).toEqual(mockResponse.data);
-    });
   });
 
   describe('fetchPost', () => {

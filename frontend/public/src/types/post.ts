@@ -28,9 +28,6 @@ export interface PostListFilters {
   q?: string; // Search query parameter
   limit?: number;
   nextToken?: string;
-  // テスト用のエラーシミュレーションパラメータ
-  simulateError?: string;
-  simulateRetry?: string;
 }
 
 /**

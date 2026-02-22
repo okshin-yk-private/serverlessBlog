@@ -39,13 +39,6 @@ export const fetchPosts = async (
   if (filters.nextToken) {
     params.nextToken = filters.nextToken;
   }
-  // テスト用のエラーシミュレーションパラメータ
-  if (filters.simulateError) {
-    params.simulateError = filters.simulateError;
-  }
-  if (filters.simulateRetry) {
-    params.simulateRetry = filters.simulateRetry;
-  }
 
   const response = await axios.get<PostListResponse>(`${API_BASE_URL}/posts`, {
     params,
