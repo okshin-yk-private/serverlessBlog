@@ -191,6 +191,7 @@ export DEV_BASIC_AUTH_PASSWORD=your-password
 | Layer 2 (Contract) | ~10秒 | PR毎（Goジョブ内） |
 | Layer 3 (AWS E2E) | ~3-5分 | デプロイ後 |
 
+
 ## AI Agents ワークフロー
 
 Playwright v1.56+ の AI Test Agents を活用し、テストの作成・修復をAI駆動で効率化します。
