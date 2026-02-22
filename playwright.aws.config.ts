@@ -7,12 +7,20 @@ import { defineConfig, devices } from '@playwright/test';
  * MSWモックは無効化され、実際のバックエンドAPIに対してテストを実行します。
  *
  * 使用方法:
- * - ローカル: BASE_URL=https://your-public-site.com npx playwright test --config=playwright.aws.config.ts
+ * - ローカル: BASE_URL=https://your-dev-site.com bun run test:e2e:aws
  * - GitHub Actions: 自動的に環境変数が設定されます
+ *
+ * テストデータ:
+ * - テストデータは [E2E-TEST] prefixで作成される
+ * - global-teardownで自動クリーンアップされる
  */
 
 export default defineConfig({
   testDir: './tests/e2e',
+
+  // グローバルセットアップ・ティアダウン（テストデータ管理）
+  globalSetup: './tests/e2e/global-setup.ts',
+  globalTeardown: './tests/e2e/global-teardown.ts',
 
   // テストタイムアウト（実AWS環境ではネットワーク遅延を考慮）
   timeout: 60 * 1000,
@@ -54,6 +62,17 @@ export default defineConfig({
     // ネットワーク遅延考慮
     navigationTimeout: 30 * 1000,
     actionTimeout: 15 * 1000,
+
+    // DEV環境Basic認証（playwright.config.ts:67-74を参考）
+    // GitHub Actions環境変数から認証情報を取得してBase64エンコード
+    extraHTTPHeaders:
+      process.env.DEV_BASIC_AUTH_USERNAME && process.env.DEV_BASIC_AUTH_PASSWORD
+        ? {
+            Authorization: `Basic ${Buffer.from(
+              `${process.env.DEV_BASIC_AUTH_USERNAME}:${process.env.DEV_BASIC_AUTH_PASSWORD}`
+            ).toString('base64')}`,
+          }
+        : undefined,
   },
 
   // プロジェクト設定（Chromiumのみ - 最小限E2Eテスト戦略）

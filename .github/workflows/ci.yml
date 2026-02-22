@@ -1122,7 +1122,7 @@ jobs:
   # Job 7: E2E Tests - Admin Site (always runs if frontend tests passed)
   # =======================================
   e2e-admin-tests:
-    name: E2E Tests (Admin - Auth & Security)
+    name: E2E Tests (Admin - Auth, CRUD & Security)
     runs-on: ubuntu-latest
     needs: [frontend-admin-tests]
     if: |
@@ -1175,8 +1175,8 @@ jobs:
           sudo rm -f /etc/apt/sources.list.d/azure-cli.list || true
           bunx playwright install-deps chromium
 
-      - name: Run E2E tests (Admin - Auth & Security) - Chromium only
-        run: bun run test:e2e:admin -- tests/e2e/specs/admin-auth.spec.ts tests/e2e/specs/admin-unauthorized-access.spec.ts --project=chromium --workers=1
+      - name: Run E2E tests (Admin - Auth, CRUD & Security) - Chromium only
+        run: bun run test:e2e:admin -- tests/e2e/specs/admin-auth.spec.ts tests/e2e/specs/admin-crud.spec.ts tests/e2e/specs/admin-unauthorized-access.spec.ts --project=chromium --workers=1
         env:
           CI: true
 
