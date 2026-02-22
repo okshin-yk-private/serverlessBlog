@@ -127,7 +127,7 @@ const hasEmbeddedMindmaps = embeddedMindmapIds.length > 0;
           {publishedDate}
         </time>
       </div>
-      <h1 class="post-title" data-testid="post-title">{post.title}</h1>
+      <h1 class="post-title" data-testid="article-title">{post.title}</h1>
       {post.tags && post.tags.length > 0 && (
         <div class="tags" data-testid="post-tags">
           {post.tags.map((tag) => (
@@ -145,7 +145,7 @@ const hasEmbeddedMindmaps = embeddedMindmapIds.length > 0;
     )}
 
     {/* Article Content - Sanitized HTML */}
-    <div class="post-content" data-testid="post-content" set:html={post.contentHtml} />
+    <div class="post-content" data-testid="article-content" set:html={post.contentHtml} />
 
     {/* Task 11.2: Embedded mindmap data as JSON (Req 5.4) */}
     {Array.from(embeddedMindmaps.entries()).map(([mmId, mindmap]) => (
