@@ -1,5 +1,9 @@
 # 監視とロギング
 
+> **⚠️ 要更新**: このドキュメントの一部はCDK/Node.js Lambda Powertools時代のものです。
+> 現在のLambda関数はGoで実装されており、ログ/トレース/メトリクスは`go-functions/internal/middleware/`で管理されています。
+> インフラはTerraformで管理されています（`terraform/modules/monitoring/`）。
+
 ## 概要
 
 このドキュメントでは、Serverless Blog Platformの監視とロギングの実装について説明します。

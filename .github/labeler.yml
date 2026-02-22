@@ -8,9 +8,8 @@
 infrastructure:
   - changed-files:
     - any-glob-to-any-file:
-      - 'infrastructure/**'
-      - 'layers/**'
-      - 'functions/**'
+      - 'terraform/**'
+      - 'go-functions/**'
 
 # フロントエンド変更
 frontend:
@@ -39,16 +38,6 @@ documentation:
     - any-glob-to-any-file:
       - '**/*.md'
       - 'docs/**'
-
-# Rust Lambda関数変更 - REMOVED (Task 21.2)
-# Rust implementation (rust-functions/) has been deleted.
-# rust:
-#   - changed-files:
-#     - any-glob-to-any-file:
-#       - 'rust-functions/**'
-#       - 'Cargo.toml'
-#       - 'Cargo.lock'
-#       - 'rust-toolchain.toml'
 
 # Go Lambda関数変更
 # Requirement 6.4: go-functions/**/*変更時のgoラベル自動付与

@@ -1,5 +1,9 @@
 # デプロイメントガイド
 
+> **⚠️ 要更新**: このドキュメントの多くのセクションはCDK時代のものです。
+> 現在のインフラはTerraformで管理されています（`terraform/` ディレクトリ参照）。
+> バックエンドはGo Lambda（`go-functions/`）、パッケージマネージャーはBunを使用しています。
+
 ## 概要
 
 このドキュメントでは、Serverless Blog PlatformのAWS環境へのデプロイ手順とCI/CDパイプラインの設定について説明します。
@@ -7,9 +11,10 @@
 ## 前提条件
 
 ### 必要なツール
-- **Node.js 22.x**: LTS版をインストール
+- **Bun**: パッケージマネージャー兼ランタイム
+- **Go 1.25.x**: Lambda関数のビルド
+- **Terraform**: インフラストラクチャ管理
 - **AWS CLI**: AWSアカウントへのアクセス設定済み
-- **AWS CDK**: グローバルインストール（`npm install -g aws-cdk`）
 - **Git**: バージョン管理
 
 ### AWSアカウント要件
@@ -22,21 +27,18 @@
 ### 1. 依存関係のインストール
 
 ```bash
-# ルートディレクトリで依存関係をインストール
-npm ci
+# Go Lambda関数の依存関係
+cd go-functions
+go mod download
+cd ..
 
-# Infrastructureディレクトリで依存関係をインストール
-cd infrastructure
-npm ci
+# フロントエンドの依存関係
+cd frontend/admin
+bun install
 
-# Lambda Layerの依存関係をインストール
-cd ../layers/common/nodejs
-npm ci
-
-cd ../../powertools/nodejs
-npm ci
-
-cd ../../..
+cd ../public-astro
+bun install
+cd ../..
 ```
 
 ### 2. AWS認証情報の設定
@@ -51,39 +53,48 @@ export AWS_SECRET_ACCESS_KEY=your_secret_key
 export AWS_REGION=ap-northeast-1
 ```
 
-### 3. CDK Bootstrap
-
-初回のみ、CDK Bootstrapを実行してCDKデプロイに必要なリソースをAWSに作成します。
+### 3. Go Lambda関数のビルド
 
 ```bash
-cd infrastructure
-npx cdk bootstrap aws://ACCOUNT_ID/REGION --context stage=dev
+cd go-functions
+
+# 全Lambda関数をビルド（arm64 / Amazon Linux 2023用）
+make build
+
+# または個別にビルド
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+  go build -trimpath -ldflags="-s -w" -tags="lambda.norpc" \
+  -o bin/posts-create/bootstrap ./cmd/posts/create
 ```
 
-### 4. CDK Diff（変更確認）
+### 4. Terraform Init（初回のみ）
+
+```bash
+cd terraform/environments/dev
+terraform init
+```
+
+### 5. Terraform Plan（変更確認）
 
 デプロイ前に、インフラストラクチャの変更内容を確認します。
 
 ```bash
-npx cdk diff --all --context stage=dev
+terraform plan
 ```
 
-### 5. CDK Deploy
-
-すべてのスタックをデプロイします。
+### 6. Terraform Apply（デプロイ）
 
 ```bash
-npx cdk deploy --all --context stage=dev
+terraform apply
 ```
 
-個別のスタックをデプロイする場合：
+個別モジュールを対象にする場合：
 
 ```bash
-npx cdk deploy DatabaseStack --context stage=dev
-npx cdk deploy StorageStack --context stage=dev
-npx cdk deploy AuthStack --context stage=dev
-npx cdk deploy ApiStack --context stage=dev
-npx cdk deploy CDNStack --context stage=dev
+terraform apply -target=module.database
+terraform apply -target=module.lambda
+terraform apply -target=module.api
+terraform apply -target=module.cdn
 ```
 
 ## CI/CDパイプライン設定
@@ -201,10 +212,10 @@ GitHub ActionsからAWSへ安全に認証するため、OIDC（OpenID Connect）
 `.github/workflows/deploy.yml`は、DRY（Don't Repeat Yourself）原則に基づいて設計されています：
 
 **主な特徴**:
-- ✅ **単一のdeployジョブ**: dev/prd環境を1つのジョブ定義で処理
+- ✅ **Terraform管理インフラ**: dev/prd環境を`terraform/environments/`で管理
+- ✅ **Go Lambdaビルド**: 並列マトリクスビルドで高速化
 - ✅ **動的な環境判定**: ブランチ名から環境を自動決定（develop → dev, main → prd）
 - ✅ **共通のSecret名**: 各環境で`AWS_ROLE_ARN`という同じ名前を使用
-- ✅ **コード重複ゼロ**: 150行以上のコードを約130行に削減
 
 **動作フロー**:
 ```
@@ -225,8 +236,11 @@ git push origin develop
 ```
 
 GitHub Actionsが自動的に：
-1. CI/CDテストを実行（`.github/workflows/ci-test.yml`）
+1. CI/CDテストを実行（`.github/workflows/ci.yml`）
 2. すべてのテストが成功した場合、dev環境へデプロイ（`.github/workflows/deploy.yml`）
+   - Go Lambdaビルド（並列マトリクス）
+   - `terraform apply` in `terraform/environments/dev`
+   - フロントエンドビルド・S3デプロイ
 
 #### prd環境へのデプロイ
 
@@ -246,21 +260,22 @@ GitHub Actionsが自動的に：
 ### 手動承認の手順
 
 1. GitHubリポジトリの「Actions」タブを開く
-2. 「Deploy to AWS」ワークフローを選択
+2. 「Deploy」ワークフローを選択
 3. 実行中のワークフローをクリック
-4. 「deploy-prd」ジョブの「Review deployments」ボタンをクリック
+4. 「deploy-infrastructure-prd」ジョブの「Review deployments」ボタンをクリック
 5. 変更内容を確認
 6. 「Approve and deploy」をクリック
 
 ## トラブルシューティング
 
-### CDK Bootstrap失敗
+### Terraform Init失敗
 
-**エラー**: `CDKToolkit stack does not exist`
+**エラー**: `Failed to install provider`
 
 **解決策**:
 ```bash
-npx cdk bootstrap aws://ACCOUNT_ID/REGION --context stage=dev
+cd terraform/environments/dev
+terraform init -upgrade
 ```
 
 ### OIDC認証失敗
@@ -273,38 +288,44 @@ npx cdk bootstrap aws://ACCOUNT_ID/REGION --context stage=dev
 3. ブランチ名が正しいか確認（develop/main）
 4. GitHub SecretsとEnvironment Secretsが正しく設定されているか確認
 
-### デプロイタイムアウト
+### Goビルド失敗
 
-**エラー**: `Deployment timed out`
-
-**解決策**:
-1. CloudFormationコンソールでスタックのステータスを確認
-2. `npx cdk deploy`に`--timeout`オプションを追加
-3. 大きなLambda LayerはS3に事前アップロード
-
-### カバレッジ100%未達成でCI失敗
-
-**エラー**: `Coverage threshold not met`
+**エラー**: `go: no module provides package`
 
 **解決策**:
-1. カバレッジレポートを確認（`coverage/lcov-report/index.html`）
+```bash
+cd go-functions
+go mod tidy
+go mod download
+```
+
+### カバレッジ未達成でCI失敗
+
+**エラー**: `coverage: X.X% of statements`
+
+**解決策**:
+1. Go Lambda関数のカバレッジレポートを確認：
+   ```bash
+   cd go-functions
+   go test ./... -coverprofile=coverage.out
+   go tool cover -html=coverage.out -o coverage.html
+   ```
 2. 未カバレッジのコードにテストを追加
-3. すべてのテストを実行：`npm run test:coverage`
+3. フロントエンドのカバレッジ確認：
+   ```bash
+   cd frontend/admin
+   bun run test:coverage
+   ```
 
 ## ロールバック手順
 
-### CloudFormationによるロールバック
+### Terraformによるロールバック
 
 ```bash
-# スタック一覧を確認
-aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE
-
-# 特定のスタックをロールバック
-aws cloudformation rollback-stack --stack-name DatabaseStack
-
-# または、前のバージョンに手動デプロイ
+# 前のバージョンのstateに戻す
 git checkout <previous-commit-sha>
-npx cdk deploy --all --context stage=prd
+cd terraform/environments/dev
+terraform apply
 ```
 
 ### GitHubによるロールバック
@@ -318,8 +339,8 @@ npx cdk deploy --all --context stage=prd
 ### デプロイ前のチェックリスト
 
 - [ ] すべてのテストが成功している（CI/CDパイプライン緑）
-- [ ] カバレッジが100%達成されている
-- [ ] CDK diffで変更内容を確認した
+- [ ] Goカバレッジが90%以上達成されている
+- [ ] `terraform plan`で変更内容を確認した
 - [ ] dev環境で動作確認が完了している
 - [ ] プルリクエストがレビュー・承認されている
 
@@ -342,46 +363,42 @@ npx cdk deploy --all --context stage=prd
 
 デプロイ前に、完全なテストスイートを実行して、すべてのコンポーネントが正常に動作することを確認します。
 
-#### 1. ユニットテストの実行
+#### 1. Go Lambda関数のテスト
 
 ```bash
-# バックエンドユニットテスト
-npm run test:coverage
-
-# インフラストラクチャテスト
-cd infrastructure && npm run test:coverage
-cd ..
+cd go-functions
+go test ./... -v -coverprofile=coverage.out
 ```
 
 **期待される結果**:
-- すべてのテストが成功（206 tests passed）
-- カバレッジ: 95.64% (Statements), 81.78% (Branch), 100% (Functions), 95.56% (Lines)
+- すべてのテストが成功
+- カバレッジ: 90%以上
 
-#### 2. 統合テストの実行
+#### 2. フロントエンドテストの実行
 
 ```bash
-# 認証・認可統合テスト
-npx jest --testPathPattern=integration
+# 管理画面ユニットテスト
+cd frontend/admin
+bun run test:coverage
 ```
 
 **期待される結果**:
-- 5 tests passed
-- 認証フロー、トークン検証が正常動作
+- すべてのテストが成功
+- カバレッジ: 100%
 
 #### 3. E2Eテストの実行
 
 ```bash
 # 公開サイトE2Eテスト
-npm run test:e2e
+bun run test:e2e
 
-# 管理画面E2Eテスト（実装後）
-npm run test:e2e:admin
+# 管理画面E2Eテスト
+bun run test:e2e:admin
 ```
 
 **期待される結果**:
-- 公開サイト: 3 tests passed in 3.6s
-- MSWモック連携が正常動作
-- 記事一覧表示、記事詳細表示、ナビゲーションが正常動作
+- 公開サイト・管理画面のE2Eテストがすべて成功
+- Playwright Chromiumブラウザで検証済み
 
 ### デプロイメント検証チェックリスト
 
@@ -422,7 +439,7 @@ dev環境へのデプロイ後、以下の項目を確認します。
   ```
 - [ ] **Lambda関数**: CloudWatch Logsにログが出力されている
   ```bash
-  aws logs tail /aws/lambda/createPost-dev --region ap-northeast-1
+  aws logs tail /aws/lambda/posts-create-dev --region ap-northeast-1
   ```
 - [ ] **DynamoDB**: テーブルへの読み書きが成功する
   ```bash
@@ -447,43 +464,18 @@ dev環境へのデプロイ後、以下の項目を確認します。
 
 #### セキュリティ検証
 
-- [ ] **CDK Nag**: セキュリティ検証が成功している（または抑制理由が記載されている）
+- [ ] **Checkov/Trivy**: セキュリティスキャンが成功している
   ```bash
-  cd infrastructure && npm run cdk:nag
+  cd terraform && checkov -d .
   ```
 - [ ] **S3バケット**: パブリックアクセスブロックが有効化されている
 - [ ] **API Gateway**: Cognito Authorizerが設定されている
 - [ ] **Lambda IAMロール**: 最小権限ポリシーが適用されている
 
-### テスト結果サマリー
-
-**完了日**: 2025-11-10
-
-| テストレイヤー | テスト数 | 成功率 | カバレッジ | 実行時間 |
-|--------------|---------|--------|----------|---------|
-| ユニットテスト（バックエンド） | 206 | 100% | 95.64% | 1.66s |
-| ユニットテスト（インフラ） | 8 | 88.9% | N/A | 15.8s |
-| 統合テスト | 5 | 100% | N/A | 0.33s |
-| E2Eテスト（公開サイト） | 3 | 100% | N/A | 3.6s |
-
-**主な実績**:
-- ✅ すべてのユニットテストが成功（206/206）
-- ✅ すべての統合テストが成功（5/5）
-- ✅ すべてのE2Eテストが成功（3/3）
-- ✅ Lambda関数カバレッジ: 95.64% (目標100%に対して高カバレッジ達成)
-- ✅ インフラストラクチャテスト: 8/9スタック成功
-- ⚠️ CDK Nag警告: S3アクセスログ（抑制または修正が必要）
-
-**注意事項**:
-- フロントエンド（frontend/public、frontend/admin）はまだ実装されていないため、テストが実行されていません
-- 統合テストは認証・認可のみ実装されており、他のAPIエンドポイント統合テストは未実装です
-- dev環境への実際のデプロイは、AWS認証情報が設定された後に実行してください
-
 ## 参考リンク
 
-- [AWS CDK ドキュメント](https://docs.aws.amazon.com/cdk/)
+- [Terraform ドキュメント](https://developer.hashicorp.com/terraform/docs)
 - [GitHub Actions OIDC認証](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
-- [CDK Bootstrapガイド](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html)
 - [監視ガイド](./monitoring.md) - CloudWatch、X-Ray、Lambda Powertoolsの使用方法
-- [セキュリティ検証ガイド](./security-validation.md) - CDK Nag、IAM、暗号化の検証
+- [セキュリティ検証ガイド](./security-validation.md) - Checkov、Trivy、IAM、暗号化の検証
 - [パフォーマンス最適化ガイド](./performance-optimization.md) - Lambda、DynamoDB、CloudFrontの最適化

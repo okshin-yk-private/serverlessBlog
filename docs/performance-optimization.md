@@ -1,5 +1,10 @@
 # パフォーマンス最適化ガイド
 
+> **⚠️ 要更新**: このドキュメントの一部はCDK/Node.js Lambda時代のものです。
+> 現在のLambda関数はGoで実装されています（`go-functions/`）。
+> インフラはTerraformで管理されています（`terraform/modules/`）。
+> `infrastructure/lib/` や `functions/` への参照は古い情報です。
+
 ## 概要
 
 このドキュメントでは、Serverless Blog Platformのパフォーマンス最適化手法、ベンチマーク方法、および推奨設定について説明します。
