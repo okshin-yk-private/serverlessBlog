@@ -11,8 +11,8 @@ import { BasePage } from './BasePage';
 export class ArticlePage extends BasePage {
   // ページ要素のセレクター
   private readonly selectors = {
-    articleTitle: '[data-testid="article-title"]',
-    articleContent: '[data-testid="article-content"]',
+    articleTitle: '[data-testid="post-title"]',
+    articleContent: '[data-testid="post-content"]',
     articleMeta: '[data-testid="article-meta"]',
     articleAuthor: '[data-testid="article-author"]',
     articleDate: '[data-testid="article-date"]',
@@ -34,7 +34,7 @@ export class ArticlePage extends BasePage {
   async waitForPageLoad(): Promise<void> {
     await super.waitForPageLoad();
 
-    // 記事ページでは article-title が表示されるまで待つ
+    // 記事ページでは post-title が表示されるまで待つ
     // SSGプリレンダリングページでもSPA遷移ページでも安定して動作する
     await this.page
       .locator(this.selectors.articleTitle)
