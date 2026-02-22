@@ -48,9 +48,15 @@ test.describe('Admin CRUD - Article Management', () => {
     // Wait for create page to load
     await page.waitForURL('**/posts/new', { timeout: 10000 });
 
-    // Fill in article form
+    // Fill in article form (category is required for form submission)
     await adminPostCreatePage.fillTitle(testTitle);
     await adminPostCreatePage.fillContent(testContent);
+
+    // Wait for categories to load from MSW before selecting
+    await page
+      .locator('[data-testid="post-category-select"] option[value="technology"]')
+      .waitFor({ state: 'attached', timeout: 10000 });
+    await adminPostCreatePage.selectCategory('technology');
     await adminPostCreatePage.setPublishStatus('published');
     await adminPostCreatePage.clickSaveButton();
 

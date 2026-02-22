@@ -11,8 +11,8 @@ import { BasePage } from './BasePage';
 export class ArticlePage extends BasePage {
   // ページ要素のセレクター
   private readonly selectors = {
-    articleTitle: '[data-testid="post-title"]',
-    articleContent: '[data-testid="post-content"]',
+    articleTitle: '[data-testid="article-title"]',
+    articleContent: '[data-testid="article-content"]',
     articleMeta: '[data-testid="article-meta"]',
     articleAuthor: '[data-testid="article-author"]',
     articleDate: '[data-testid="article-date"]',
