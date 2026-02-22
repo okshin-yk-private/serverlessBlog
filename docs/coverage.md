@@ -1,5 +1,9 @@
 # テストカバレッジガイド
 
+> **⚠️ 要更新**: このドキュメントの一部はJest/Node.js時代のものです。
+> 現在のバックエンドはGoネイティブテスト（`go-functions/`）、フロントエンドはVitestを使用しています。
+> `functions/` や `infrastructure/` への参照は、`go-functions/` や `terraform/` に読み替えてください。
+
 ## 概要
 
 このドキュメントでは、Serverless Blog Platformのテストカバレッジ戦略、カバレッジレポートの確認方法、およびカバレッジバッジの活用方法について説明します。
@@ -12,8 +16,8 @@
 
 | コンポーネント | カバレッジ目標 | 測定対象 |
 |--------------|--------------|---------|
-| Backend (Lambda関数) | 100% | Statements, Branches, Functions, Lines |
-| Infrastructure (CDK) | 100% | Statements, Branches, Functions, Lines |
+| Backend (Go Lambda関数) | 100% | Statements, Branches, Functions, Lines |
+| Infrastructure (Terraform) | N/A | Terraformテスト |
 | Frontend (Public) | 100% | Statements, Branches, Functions, Lines |
 | Frontend (Admin) | 100% | Statements, Branches, Functions, Lines |
 
@@ -30,57 +34,36 @@
 
 ### ローカル環境でのカバレッジ確認
 
-#### 1. バックエンド（Lambda関数）のカバレッジ
+#### 1. バックエンド（Go Lambda関数）のカバレッジ
 
 ```bash
 # ユニットテスト実行 + カバレッジ収集
-npm run test:coverage
+cd go-functions
+go test ./... -v -coverprofile=coverage.out
 
-# HTMLレポートを開く
-open coverage/lcov-report/index.html
+# HTMLレポートを生成して開く
+go tool cover -html=coverage.out -o coverage.html
+open coverage.html
 ```
 
-#### 2. インフラストラクチャ（CDK）のカバレッジ
-
-```bash
-cd infrastructure
-npm run test:coverage
-
-# HTMLレポートを開く
-open coverage/lcov-report/index.html
-```
-
-#### 3. フロントエンド（公開サイト）のカバレッジ
+#### 2. フロントエンド（公開サイト）のカバレッジ
 
 ```bash
 cd frontend/public
-npm run test:coverage
+bun run test:coverage
 
 # HTMLレポートを開く
 open coverage/lcov-report/index.html
 ```
 
-#### 4. フロントエンド（管理画面）のカバレッジ
+#### 3. フロントエンド（管理画面）のカバレッジ
 
 ```bash
 cd frontend/admin
-npm run test:coverage
+bun run test:coverage
 
 # HTMLレポートを開く
 open coverage/lcov-report/index.html
-```
-
-#### 5. 統合テスト（API & Database）のカバレッジ
-
-```bash
-# Docker Compose起動
-npm run test:integration:setup
-
-# 統合テスト実行 + カバレッジ収集
-npm run test:integration
-
-# テスト後のクリーンアップ
-npm run test:integration:cleanup
 ```
 
 ### カバレッジバッジの生成

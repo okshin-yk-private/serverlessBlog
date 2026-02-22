@@ -5,7 +5,7 @@
 このリポジトリはPrivateリポジトリとして管理されています。これにより、以下のセキュリティリスクが大幅に軽減されています：
 
 ✅ **インフラ構成の非公開化**
-- CDKコードが外部に公開されない
+- Terraformコードが外部に公開されない
 - システム設計図が保護される
 - セキュリティ設定が非公開
 
@@ -60,7 +60,7 @@ AWS Secretsを使わず、GitHub OIDC経由で認証：
 **DDoS、SQLインジェクション、XSS攻撃から保護**
 
 ```typescript
-// infrastructure/lib/api-stack.ts または cdn-stack.ts
+// terraform/modules/api/ または terraform/modules/cdn/
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
 
 const webAcl = new wafv2.CfnWebACL(this, 'WebAcl', {
@@ -121,7 +121,7 @@ const webAcl = new wafv2.CfnWebACL(this, 'WebAcl', {
 **本番環境ではMFAを必須化**
 
 ```typescript
-// infrastructure/lib/auth-stack.ts
+// terraform/modules/auth/
 this.userPool = new cognito.UserPool(this, 'BlogUserPool', {
   // MFAを必須化（本番環境）
   mfa: cognito.Mfa.REQUIRED,
@@ -156,7 +156,7 @@ this.userPool = new cognito.UserPool(this, 'BlogUserPool', {
 **異常検知とアラート通知**
 
 ```typescript
-// infrastructure/lib/monitoring-stack.ts
+// terraform/modules/monitoring/
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
@@ -322,7 +322,7 @@ const bucket = new s3.Bucket(this, 'ImageBucket', {
 ### デプロイ前
 
 - [ ] 全テストがパス
-- [ ] CDK Nag チェックがパス
+- [ ] Checkov/Trivy セキュリティスキャンがパス
 - [ ] セキュリティスキャン実施
 - [ ] PRレビュー完了
 

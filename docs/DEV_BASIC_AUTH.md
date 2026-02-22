@@ -25,7 +25,7 @@ DEV environment uses CloudFront Functions to protect the public site with Basic 
                     │  ├── username        │
                     │  └── password        │
                     └──────────┬───────────┘
-                               │ (CDK deployment time)
+                               │ (Terraform deployment time)
                                ↓
 User → CloudFront → CloudFront Function (viewer-request) → S3 Origin
                     ↓ (if auth fails)
