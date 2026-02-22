@@ -26,10 +26,11 @@ Layer 3: 実環境E2Eテスト（AWS Real Environment）
 
 ## テスト範囲
 
-### Layer 1: MSW E2Eテスト（5 spec files, 9 tests）
+### Layer 1: MSW E2Eテスト（6 spec files, 13 tests）
 
 | Specファイル | テスト数 | カバー範囲 |
 |------------|---------|----------|
+| seed.spec.ts | 4 | AI Agent用リファレンス（記事一覧、タイトル取得、ナビゲーション、記事詳細） |
 | home.spec.ts | 2 | 記事一覧表示、ナビゲーション |
 | article.spec.ts | 1 | 記事詳細表示 |
 | admin-auth.spec.ts | 2 | ログイン成功/失敗 |
@@ -60,7 +61,8 @@ MSW E2Eテストと同じspecファイルを使用し、`playwright.aws.config.t
 ```
 E2E Test Environment
 ├── tests/e2e/
-│   ├── specs/              # テストスペック（5ファイル、9テスト）
+│   ├── specs/              # テストスペック（6ファイル、13テスト）
+│   │   ├── seed.spec.ts    # AI Agent用リファレンステスト
 │   │   ├── home.spec.ts    # 公開サイト: 記事一覧、ナビゲーション
 │   │   ├── article.spec.ts # 公開サイト: 記事詳細表示
 │   │   ├── admin-auth.spec.ts # 管理画面: ログイン/ログアウト
@@ -188,3 +190,88 @@ export DEV_BASIC_AUTH_PASSWORD=your-password
 | Layer 1 (MSW E2E) | ~1-2分 | PR毎 |
 | Layer 2 (Contract) | ~10秒 | PR毎（Goジョブ内） |
 | Layer 3 (AWS E2E) | ~3-5分 | デプロイ後 |
+
+
+## AI Agents ワークフロー
+
+Playwright v1.56+ の AI Test Agents を活用し、テストの作成・修復をAI駆動で効率化します。
+
+### 3つのAI活用レイヤー
+
+```
+Layer A: テスト計画の自動生成（Planner Agent）
+  → アプリをブラウザで探索しMarkdown形式のテスト計画を生成
+  → 新機能追加時にClaude Codeから呼び出し
+
+Layer B: テストコードの自動生成（Generator Agent）
+  → テスト計画からPlaywright specファイルを自動生成
+  → セレクタをライブアプリに対して検証しながら生成
+  → 既存のPage Object・フィクスチャを活用するよう制約
+
+Layer C: テストの自動修復（Healer Agent）
+  → テスト失敗時にトレース解析→自動パッチ
+  → 修復不能な場合はtest.fixme()でマーク（無限ループ防止）
+```
+
+### Agent定義ファイル
+
+| ファイル | 役割 |
+|---------|------|
+| `.claude/agents/playwright-test-planner.md` | テスト計画の自動生成 |
+| `.claude/agents/playwright-test-generator.md` | テストコードの自動生成 |
+| `.claude/agents/playwright-test-healer.md` | テスト失敗の自動修復 |
+
+### リファレンステスト（seed.spec.ts）
+
+`tests/e2e/specs/seed.spec.ts` はAI Agentがテスト生成・修復時に参照するリファレンスです。
+プロジェクト固有の規約を模範的に示します：
+
+- `import { test, expect } from '../fixtures'` パターン
+- Page Objectの`navigate()` → アクション → `expect` のAAA構造
+- 日本語コメント
+- MSWモック環境での動作前提
+
+### 使用方法
+
+#### テスト計画の生成（Planner）
+
+Claude Codeで `/playwright-test-planner` を呼び出し、対象ページのURLを指定：
+```
+/playwright-test-planner https://localhost:3000
+```
+
+#### テストコードの生成（Generator）
+
+テスト計画を元に `/playwright-test-generator` を呼び出し：
+```
+/playwright-test-generator
+```
+
+#### テストの自動修復（Healer）
+
+テスト失敗時に `/playwright-test-healer` を呼び出し、自動修復を実行：
+```
+# テストを実行して失敗結果を保存
+bun run test:e2e:heal
+
+# Healer Agentで自動修復
+/playwright-test-healer
+```
+
+### MCP Server設定
+
+Playwright Test MCP Serverが `.mcp.json` に設定されています：
+```json
+{
+  "playwright-test": {
+    "command": "npx",
+    "args": ["playwright", "run-test-mcp-server"]
+  }
+}
+```
+
+このサーバーは以下のツールを提供：
+- `test_run` / `test_list` / `test_debug`: テスト実行・一覧・デバッグ
+- `browser_*`: ブラウザ操作（navigate, click, snapshot等）
+- `planner_setup_page` / `generator_setup_page`: Agent専用セットアップ
+- `generator_write_test` / `generator_read_log`: テスト生成支援
