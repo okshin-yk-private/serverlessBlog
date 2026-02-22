@@ -101,8 +101,10 @@ command -v codex >/dev/null 2>&1 && echo "CODEX_AVAILABLE" || echo "CODEX_NOT_FO
 #### Step 6b: Daemon起動状態の確認
 
 ```bash
-pgrep -f "codex-review-daemon" >/dev/null 2>&1 && echo "DAEMON_RUNNING" || echo "DAEMON_NOT_RUNNING"
+pgrep -f "[c]odex-review-daemon" >/dev/null 2>&1 && echo "DAEMON_RUNNING" || echo "DAEMON_NOT_RUNNING"
 ```
+
+> **Note**: `[c]odex-review-daemon` はブラケットトリックにより、検索コマンド自身のプロセス（bashラッパー等）にはマッチせず、実際のdaemonプロセスにのみマッチします。
 
 - `DAEMON_RUNNING` の場合: `execution_mode="daemon"` として Step 7 へ（daemonが処理する）
 - `DAEMON_NOT_RUNNING` の場合: Step 6c へ（インライン実行）
