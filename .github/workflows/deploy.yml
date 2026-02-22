@@ -1026,6 +1026,80 @@ jobs:
           echo "Distribution: ${{ steps.config.outputs.distribution_id }}"
 
   # =======================================
+  # Post-Deploy E2E Tests (DEV only)
+  # Runs real environment E2E tests against deployed DEV site
+  # =======================================
+  post-deploy-e2e-dev:
+    name: Post-Deploy E2E Tests (DEV)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-admin-dev, deploy-astro-dev]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.target-env == 'dev' &&
+      (needs.deploy-admin-dev.result == 'success' || needs.deploy-admin-dev.result == 'skipped') &&
+      (needs.deploy-astro-dev.result == 'success' || needs.deploy-astro-dev.result == 'skipped')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun + Install Dependencies (root)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: .
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-E2E-DEV
+
+      - name: Get DEV environment config from SSM
+        id: config
+        run: |
+          BASE_URL=$(aws ssm get-parameter --name "/serverless-blog/dev/cdn/public-url" --query "Parameter.Value" --output text 2>/dev/null || echo "")
+          BASIC_USER=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --with-decryption --query "Parameter.Value" --output text 2>/dev/null || echo "")
+          BASIC_PASS=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --query "Parameter.Value" --output text 2>/dev/null || echo "")
+
+          echo "::add-mask::$BASIC_USER"
+          echo "::add-mask::$BASIC_PASS"
+
+          echo "base_url=$BASE_URL" >> $GITHUB_OUTPUT
+          echo "basic_user=$BASIC_USER" >> $GITHUB_OUTPUT
+          echo "basic_pass=$BASIC_PASS" >> $GITHUB_OUTPUT
+
+      - name: Run Post-Deploy E2E Tests
+        if: steps.config.outputs.base_url != ''
+        run: bun run test:e2e:aws -- --project=chromium --workers=1
+        env:
+          CI: true
+          BASE_URL: ${{ steps.config.outputs.base_url }}
+          DEV_BASIC_AUTH_USERNAME: ${{ steps.config.outputs.basic_user }}
+          DEV_BASIC_AUTH_PASSWORD: ${{ steps.config.outputs.basic_pass }}
+          VITE_ENABLE_MSW_MOCK: 'false'
+
+      - name: Skip notice
+        if: steps.config.outputs.base_url == ''
+        run: echo "⚠️ Skipping post-deploy E2E tests - BASE_URL not configured in SSM"
+
+      - name: Upload E2E Test Report
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: always()
+        with:
+          name: playwright-report-aws
+          path: playwright-report-aws/
+          retention-days: 30
+
+  # =======================================
   # Deployment Summary
   # =======================================
   deploy-summary:
@@ -1039,6 +1113,7 @@ jobs:
       - deploy-admin-prd
       - deploy-astro-dev
       - deploy-astro-prd
+      - post-deploy-e2e-dev
     if: always()
     steps:
       - name: Summary
@@ -1060,6 +1135,9 @@ jobs:
           echo "--- Public Site (Astro SSG) ---"
           echo "  DEV: ${{ needs.deploy-astro-dev.result }}"
           echo "  PRD: ${{ needs.deploy-astro-prd.result }}"
+          echo ""
+          echo "--- Post-Deploy E2E Tests ---"
+          echo "  DEV: ${{ needs.post-deploy-e2e-dev.result }}"
           echo ""
           echo "========================================="
 
