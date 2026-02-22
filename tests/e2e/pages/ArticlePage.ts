@@ -29,20 +29,16 @@ export class ArticlePage extends BasePage {
 
   /**
    * ページロードを待つ（記事ページ用にオーバーライド）
-   * SEOメタタグが正しく設定されるまで待機
+   * 記事タイトルが表示されるまで待機
    */
   async waitForPageLoad(): Promise<void> {
     await super.waitForPageLoad();
 
-    // 記事ページでは og:type が 'article' になるまで待つ
-    // これにより、React の useEffect が完了するのを保証
-    await this.page.waitForFunction(
-      () => {
-        const ogType = document.querySelector('meta[property="og:type"]');
-        return ogType && ogType.getAttribute('content') === 'article';
-      },
-      { timeout: 5000 }
-    );
+    // 記事ページでは article-title が表示されるまで待つ
+    // SSGプリレンダリングページでもSPA遷移ページでも安定して動作する
+    await this.page
+      .locator(this.selectors.articleTitle)
+      .waitFor({ state: 'visible', timeout: 15000 });
   }
 
   /**
