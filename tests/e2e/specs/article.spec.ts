@@ -13,12 +13,23 @@ import { test, expect } from '../fixtures';
  */
 
 test.describe('Article Detail Page - Minimal E2E', () => {
-  // テスト用の記事ID（モックデータのID）
-  const testArticleId = 'post-1';
-
   test('should display article detail with title and content', async ({
+    homePage,
     articlePage,
   }) => {
+    // ホームページに移動し、最初の記事リンクのhrefから実際の記事IDを取得する
+    // これにより、MSW環境（モックID）でもAWS実環境（実際のID）でも動作する
+    await homePage.navigate();
+
+    const firstArticleLink = homePage
+      .getArticleCards()
+      .nth(0)
+      .locator('a')
+      .first();
+    const href = await firstArticleLink.getAttribute('href');
+    const testArticleId = href ? href.split('/posts/')[1] : '';
+    expect(testArticleId).toBeTruthy();
+
     // Act: 記事詳細ページに移動
     await articlePage.navigate(testArticleId);
 
