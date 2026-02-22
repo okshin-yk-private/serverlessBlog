@@ -62,3 +62,8 @@ output "distribution_id_ssm_parameter_name" {
   value       = aws_ssm_parameter.distribution_id.name
   description = "SSM parameter name for CloudFront distribution ID"
 }
+
+output "public_url_ssm_parameter_name" {
+  value       = aws_ssm_parameter.public_url.name
+  description = "SSM parameter name for public site URL"
+}
