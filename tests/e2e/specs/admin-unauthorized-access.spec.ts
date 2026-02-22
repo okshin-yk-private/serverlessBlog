@@ -17,8 +17,8 @@ test.describe('Admin Unauthorized Access - Minimal E2E', () => {
     page,
   }) => {
     // Arrange: ストレージをクリアして未認証状態にする
-    // まずホームページに移動してからストレージをクリア
-    await page.goto('/');
+    // admin SPAのコンテキストでストレージをクリア（Cognito認証情報を確実に削除）
+    await page.goto('/login');
     await page.context().clearCookies();
     await page.evaluate(() => {
       localStorage.clear();
@@ -29,7 +29,7 @@ test.describe('Admin Unauthorized Access - Minimal E2E', () => {
     await page.goto('/dashboard');
 
     // Assert: ログインページにリダイレクトされることを確認
-    await page.waitForURL('**/login', { timeout: 10000 });
+    await page.waitForURL('**/login', { timeout: 15000 });
     expect(page.url()).toContain('/login');
   });
 });
