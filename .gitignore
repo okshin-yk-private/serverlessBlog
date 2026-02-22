@@ -13,8 +13,6 @@ out/
 *.js
 *.js.map
 *.d.ts
-!jest.config.js
-!.eslintrc.js
 
 # TypeScript cache
 *.tsbuildinfo

@@ -83,34 +83,6 @@ export default [
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
-  // Functions (Lambda) specific configuration
-  {
-    files: ['functions/**/*.ts'],
-    rules: {
-      'no-console': 'off', // CloudWatch logs
-      '@typescript-eslint/explicit-function-return-type': [
-        'warn',
-        {
-          allowExpressions: true,
-          allowTypedFunctionExpressions: true,
-        },
-      ],
-    },
-  },
-  // Infrastructure (CDK) specific configuration
-  {
-    files: ['infrastructure/**/*.ts'],
-    rules: {
-      'no-console': 'off', // CDK deployment logs
-      '@typescript-eslint/explicit-function-return-type': [
-        'warn',
-        {
-          allowExpressions: true,
-          allowTypedFunctionExpressions: true,
-        },
-      ],
-    },
-  },
   // Deploy scripts (CLI tools)
   {
     files: ['scripts/deploy/**/*.ts'],
