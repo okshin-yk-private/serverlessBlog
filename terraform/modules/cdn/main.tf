@@ -723,4 +723,3 @@ resource "aws_ssm_parameter" "public_url" {
   )
 }
 
-
