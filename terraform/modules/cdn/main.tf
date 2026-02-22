@@ -723,39 +723,4 @@ resource "aws_ssm_parameter" "public_url" {
   )
 }
 
-resource "aws_ssm_parameter" "basic_auth_username" {
-  count = var.enable_basic_auth ? 1 : 0
-
-  name        = "/serverless-blog/${var.environment}/basic-auth/username"
-  description = "Basic Auth username for ${var.environment} environment"
-  type        = "SecureString"
-  value       = var.basic_auth_username
-
-  tags = merge(
-    {
-      Name        = "basic-auth-username-${var.environment}"
-      Environment = var.environment
-      Module      = "cdn"
-    },
-    var.tags
-  )
-}
-
-resource "aws_ssm_parameter" "basic_auth_password" {
-  count = var.enable_basic_auth ? 1 : 0
-
-  name        = "/serverless-blog/${var.environment}/basic-auth/password"
-  description = "Basic Auth password for ${var.environment} environment"
-  type        = "SecureString"
-  value       = var.basic_auth_password
-
-  tags = merge(
-    {
-      Name        = "basic-auth-password-${var.environment}"
-      Environment = var.environment
-      Module      = "cdn"
-    },
-    var.tags
-  )
-}
 
