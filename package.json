@@ -16,6 +16,7 @@
     "test:e2e:admin:debug": "playwright test --config=playwright.admin.config.ts --debug",
     "test:e2e:admin:report": "playwright show-report playwright-report-admin",
     "test:e2e:all": "bun run test:e2e && bun run test:e2e:admin",
+    "test:e2e:heal": "playwright test --reporter=json 2>test-results/heal-report.json || echo 'Tests failed. Invoke healer agent: /playwright-test-healer'",
     "test:e2e:aws": "VITE_ENABLE_MSW_MOCK=false playwright test --config=playwright.aws.config.ts --project=chromium",
     "test:e2e:aws:public": "VITE_ENABLE_MSW_MOCK=false playwright test --config=playwright.aws.config.ts --project=chromium tests/e2e/specs/home.spec.ts tests/e2e/specs/article.spec.ts",
     "test:e2e:aws:admin": "VITE_ENABLE_MSW_MOCK=false playwright test --config=playwright.aws.config.ts --project=chromium tests/e2e/specs/admin-auth.spec.ts tests/e2e/specs/admin-crud.spec.ts tests/e2e/specs/admin-unauthorized-access.spec.ts",

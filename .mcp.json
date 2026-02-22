@@ -36,6 +36,10 @@
       },
       "disabled": false,
       "autoApprove": []
+    },
+    "playwright-test": {
+      "command": "npx",
+      "args": ["playwright", "run-test-mcp-server"]
     }
   }
 }
