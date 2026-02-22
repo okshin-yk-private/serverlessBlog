@@ -75,15 +75,33 @@ export default defineConfig({
         : undefined,
   },
 
-  // プロジェクト設定（Chromiumのみ - 最小限E2Eテスト戦略）
+  // プロジェクト設定（Public / Admin を分離 - AWS環境のパス構造に対応）
+  // AWS環境: Public は BASE_URL、Admin は BASE_URL/admin（CloudFront配信）
   projects: [
     {
+      // Public サイト用プロジェクト（home.spec.ts, article.spec.ts）
       name: 'chromium',
+      testMatch: ['**/home.spec.ts', '**/article.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
-        // 実AWS環境のため、MSWモックは無効化
         contextOptions: {
-          // 認証情報の永続化（セッション維持）
+          storageState: process.env.STORAGE_STATE,
+        },
+      },
+    },
+    {
+      // Admin サイト用プロジェクト（admin-*.spec.ts）
+      // AWS環境ではCloudFrontの /admin/ パス配下で配信される
+      name: 'admin-chromium',
+      testMatch: ['**/admin-*.spec.ts'],
+      use: {
+        ...devices['Desktop Chrome'],
+        // ADMIN_BASE_URL が設定されている場合はそれを使用、
+        // 未設定の場合は BASE_URL/admin にフォールバック
+        baseURL:
+          process.env.ADMIN_BASE_URL ||
+          `${process.env.BASE_URL || 'http://localhost:5173'}/admin`,
+        contextOptions: {
           storageState: process.env.STORAGE_STATE,
         },
       },
