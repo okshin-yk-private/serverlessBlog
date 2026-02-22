@@ -54,7 +54,9 @@ test.describe('Admin CRUD - Article Management', () => {
 
     // Wait for categories to load from MSW before selecting
     await page
-      .locator('[data-testid="post-category-select"] option[value="technology"]')
+      .locator(
+        '[data-testid="post-category-select"] option[value="technology"]'
+      )
       .waitFor({ state: 'attached', timeout: 10000 });
     await adminPostCreatePage.selectCategory('technology');
     await adminPostCreatePage.setPublishStatus('published');
