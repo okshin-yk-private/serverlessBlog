@@ -22,6 +22,9 @@ on:
       - 'go-functions/**'
       - 'frontend/**'
       - '.github/workflows/deploy.yml'
+      - 'tests/e2e/**'
+      - 'tests/config/**'
+      - 'playwright.aws.config.ts'
   workflow_dispatch:
     inputs:
       environment:
