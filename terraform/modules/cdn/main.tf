@@ -707,3 +707,19 @@ resource "aws_ssm_parameter" "distribution_id" {
   )
 }
 
+resource "aws_ssm_parameter" "public_url" {
+  name        = "/serverless-blog/${var.environment}/cdn/public-url"
+  description = "Public site URL for ${var.environment} environment"
+  type        = "String"
+  value       = var.use_custom_domain && length(var.domain_names) > 0 ? "https://${var.domain_names[0]}" : "https://${aws_cloudfront_distribution.main.domain_name}"
+
+  tags = merge(
+    {
+      Name        = "cdn-public-url-${var.environment}"
+      Environment = var.environment
+      Module      = "cdn"
+    },
+    var.tags
+  )
+}
+
