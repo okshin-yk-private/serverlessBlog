@@ -12,12 +12,15 @@ infrastructure:
       - 'layers/**'
       - 'functions/**'
 
-# フロントエンド変更
+# フロントエンド変更（E2E設定ファイルも含む）
 frontend:
   - changed-files:
     - any-glob-to-any-file:
       - 'frontend/public/**'
       - 'frontend/admin/**'
+      - 'playwright.config.ts'
+      - 'playwright.admin.config.ts'
+      - 'tests/e2e/**'
 
 # ワークフロー変更
 workflow:

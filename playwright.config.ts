@@ -99,13 +99,11 @@ export default defineConfig({
 
   // Webサーバー設定（ローカル開発用）
   // E2Eテスト時にMSWモックを有効化
+  // --mode test でviteを実行し、.env.testファイルからVITE_ENABLE_MSW_MOCK=trueを読み込む
   webServer: {
-    command: '(cd frontend/public && npm run dev)',
+    command: '(cd frontend/public && npm run dev:e2e)',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
-    env: {
-      VITE_ENABLE_MSW_MOCK: 'true',
-    },
   },
 });
