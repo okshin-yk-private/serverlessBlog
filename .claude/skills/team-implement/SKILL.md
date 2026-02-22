@@ -126,7 +126,11 @@ TeamCreate(
 
 ## Phase 4: Executor Teammateの生成
 
-**ブロックされていないタスクから順に**、最大3つまで同時にExecutor teammateを生成する。
+**ブロックされていないタスクから順に**、Executor teammateを **1つずつ逐次生成** する。
+
+> **CRITICAL: 複数のTask()を同一メッセージで呼び出してはならない（並列Tool Call禁止）。**
+> Claude CodeのtmuxペインはTask()ごとに逐次作成される必要があり、並列呼び出しはペインが開いても
+> プロンプトが自動送信されないレースコンディションを引き起こす。
 
 **重要: 必ず `team_name` パラメータを指定すること。** `team_name` がないと通常のサブエージェントとして実行され、tmux ペインが開かない。
 
@@ -158,6 +162,28 @@ Task(
 # model省略 → executor.md の model: sonnet が適用される
 ```
 
+**逐次生成プロトコル（必須）:**
+
+1. Executor 1 のTask()を呼び出す（**単独のメッセージで**）
+2. Executor 1 からのidle通知または最初のメッセージを受信するまで待機する
+3. 受信確認後、次のExecutor のTask()を呼び出す（**新しい単独メッセージで**）
+4. 最大3つのExecutorが同時稼働するまで繰り返す
+
+```
+# ❌ DO NOT: 同一ターンで複数のTask()を呼び出す
+Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #42 ...")
+Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #57 ...")
+# → tmuxレースコンディション: 2つ目のペインが開くがプロンプトが送信されない
+
+# ✅ DO: ターンを分離して1つずつ呼び出す
+# --- ターン1 ---
+Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #42 ...")
+# → Executor 1 からの idle通知を待つ
+# --- ターン2 ---
+Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #57 ...")
+# → Executor 2 からの idle通知を待つ
+```
+
 **共通プロンプト:**
 
 ```
@@ -186,7 +212,12 @@ Task(
      - Go: cd go-functions && gofmt -w .
      - Frontend: bun run format:check
      - Terraform: terraform fmt -recursive
-  7. 完了後、ブランチをpush: git push -u origin <branch-name>
+  7. **Codexレビュー（MANDATORY - push前に必ず実行）**:
+     - 変更ファイル取得: `git diff --name-only origin/develop...HEAD`
+     - レビュー実行: `Skill("codex:review", "<files> --focus all")`
+     - HIGH/MEDIUM指摘 → 修正・テスト再実行・コミット・再レビュー（最大2サイクル）
+     - MCP利用不可の場合は警告ログのみでpushを続行
+  8. 完了後、ブランチをpush: git push -u origin <branch-name>
 
   ## 完了報告形式
   以下の形式で報告:
@@ -194,12 +225,15 @@ Task(
   - ブランチ名
   - 変更ファイル一覧
   - テスト結果（件数、成否）
+  - レビュー結果（APPROVED / FIXED / SKIPPED）
   - コミット一覧
 ```
 
 **制約:**
 - 最大同時Executor数: **3**（API rate limit考慮）
 - 各Executorは `isolation: "worktree"` で独立したworktreeで動作
+- **Executor生成は必ず逐次実行**: 同一ターンでの複数Task()呼び出し禁止
+- **生成間隔**: 前のExecutorからidle通知を受信してから次を生成（tmuxレースコンディション回避）
 
 ### Worktree Executor権限要件
 
@@ -239,6 +273,7 @@ Worktree分離モード（`isolation: "worktree"`）のExecutorは、`.claude/se
 
 - TaskListを定期的に確認し、完了したタスクを検出
 - ブロックされていたタスク（`blockedBy`）の前提が完了したら、新しいExecutorを生成
+  - 新しいExecutorを生成する際も **Phase 4の逐次生成プロトコルを遵守** すること（並列Task()禁止）
 - 全タスクが完了するまで監視を継続
 
 ## Phase 6: PR作成
@@ -293,5 +328,5 @@ EOF
 
 - **Executor失敗時**: 失敗したIssueのステータスを `FAILURE` としてレポートに記載。他のIssueの実装は継続する
 - **コンフリクト検出漏れ**: Executorがpush時にコンフリクトが発生した場合、そのIssueを `CONFLICT` としてレポートに記載
-- **API rate limit**: Executor生成間に5秒のインターバルを設ける
+- **Executor生成順序**: Phase 4の逐次生成プロトコルを参照（tmuxレースコンディション対策）
 - **全Executor失敗**: エラー詳細をまとめてユーザーに報告し、手動対応を促す
