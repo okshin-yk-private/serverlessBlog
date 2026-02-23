@@ -166,8 +166,14 @@ Task(
 
 1. Executor 1 のTask()を呼び出す（**単独のメッセージで**）
 2. Executor 1 からのidle通知または最初のメッセージを受信するまで待機する
-3. 受信確認後、次のExecutor のTask()を呼び出す（**新しい単独メッセージで**）
-4. 最大3つのExecutorが同時稼働するまで繰り返す
+3. `sleep 3`（tmuxペイン安定化待ち）
+4. Executor 2 のTask()を呼び出す（**新しい単独メッセージで**）
+5. Executor 2 からのidle通知または最初のメッセージを受信するまで待機する
+6. `sleep 5`（tmuxペイン安定化待ち — 3つ目はレースコンディションが発生しやすいため長めに待機）
+7. Executor 3 のTask()を呼び出す（**新しい単独メッセージで**）
+8. Executor 3 からのidle通知を**最大90秒**待機する
+9. 90秒以内にidle通知を受信 → 正常（Phase 5へ進む）
+10. 90秒タイムアウト → **Phase 4a 自動リカバリ** を実行
 
 ```
 # ❌ DO NOT: 同一ターンで複数のTask()を呼び出す
@@ -175,13 +181,20 @@ Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #42 ..
 Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #57 ...")
 # → tmuxレースコンディション: 2つ目のペインが開くがプロンプトが送信されない
 
-# ✅ DO: ターンを分離して1つずつ呼び出す
+# ✅ DO: ターンを分離して1つずつ呼び出し、段階的にsleepを挟む
 # --- ターン1 ---
 Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #42 ...")
 # → Executor 1 からの idle通知を待つ
+# --- sleep 3 ---
+Bash(command="sleep 3")
 # --- ターン2 ---
 Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #57 ...")
 # → Executor 2 からの idle通知を待つ
+# --- sleep 5 ---
+Bash(command="sleep 5")
+# --- ターン3 ---
+Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #63 ...")
+# → Executor 3 からの idle通知を最大90秒待機 → タイムアウト時はPhase 4aへ
 ```
 
 **共通プロンプト:**
@@ -229,11 +242,76 @@ Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #57 ..
   - コミット一覧
 ```
 
+**Phase 4a: Post-Spawn自動リカバリ（3つ目のExecutorがタイムアウトした場合）**
+
+Phase 4のステップ10でタイムアウトが発生した場合、以下の3層リカバリを実行する。
+
+**Layer 2: SendMessageによる起動確認**
+```
+# Step 1: Executor 3 に作業指示を再送
+SendMessage(
+  type="message",
+  recipient="executor-3",
+  content="作業を開始してください。タスクリストを確認し、自分に割り当てられたタスクを実装してください。",
+  summary="Executor 3 に起動リマインドを送信"
+)
+# Step 2: 60秒待機
+Bash(command="sleep 60")
+# Step 3: TaskListでExecutor 3のタスク状態を確認
+TaskList()
+# → タスクが in_progress になっていれば成功 → Phase 5へ進む
+# → まだ pending のままならLayer 3へ
+```
+
+**Layer 3: tmux send-keysフォールバック**
+```
+# Step 4: tmux session名を動的取得
+Bash(command="tmux display-message -p '#{session_name}'")
+# → session名を取得（例: "main"）
+
+# Step 5: 最新のペイン（最大index）を特定
+Bash(command="tmux list-panes -t <session> -F '#{pane_index}' | sort -n | tail -1")
+# → 最大indexのペインが3つ目のExecutorのペイン
+
+# Step 6: そのペインにEnterキーを送信
+Bash(command="tmux send-keys -t <session>:<window>.<pane_index> Enter")
+# → ユーザーが手動で Ctrl+J Enter していた操作を自動化
+
+# Step 7: 30秒待機後、最終確認
+Bash(command="sleep 30")
+TaskList()
+# → タスクが in_progress になっていれば成功 → Phase 5へ進む
+# → まだ pending → ユーザーに手動介入を依頼
+```
+
+**安全性:**
+- ペイン特定は最大index（最新ペイン）をターゲットとし、既存ペインに影響しない
+- 実行中のExecutorに `Enter` を送信しても空メッセージ送信となり無害
+- tmux session名は動的取得するため環境に依存しない
+
+**最終フォールバック:**
+Layer 3でも起動しない場合、ユーザーに手動介入を依頼:
+```
+AskUserQuestion(
+  questions=[{
+    question="Executor 3 が自動起動できませんでした。tmuxペインで Ctrl+J → Enter を手動実行してください。実行後、こちらを選択してください。",
+    header="手動介入",
+    options=[
+      {label: "実行済み", description: "Ctrl+J Enter を手動で実行した"},
+      {label: "キャンセル", description: "Executor 3 の起動を諦める"}
+    ],
+    multiSelect: false
+  }]
+)
+```
+
 **制約:**
 - 最大同時Executor数: **3**（API rate limit考慮）
 - 各Executorは `isolation: "worktree"` で独立したworktreeで動作
 - **Executor生成は必ず逐次実行**: 同一ターンでの複数Task()呼び出し禁止
-- **生成間隔**: 前のExecutorからidle通知を受信してから次を生成（tmuxレースコンディション回避）
+- **生成間隔**: 前のExecutorからidle通知を受信し、`sleep` で安定化待ちをしてから次を生成（tmuxレースコンディション回避）
+- **Post-spawn verification**: 3つ目のExecutorは90秒のidle通知待機後、Phase 4aの自動リカバリを実行
+- **tmux permission**: `Bash(tmux:*)` と `Bash(sleep:*)` が `.claude/settings.local.json` の `permissions.allow` に登録されていること
 
 ### Worktree Executor権限要件
 
@@ -265,6 +343,10 @@ Worktree分離モード（`isolation: "worktree"`）のExecutorは、`.claude/se
 
 **PR作成:**
 - `Bash(gh pr:*)` - GitHub PR操作
+
+**Commander用（Post-Spawnリカバリ）:**
+- `Bash(tmux:*)` - tmux send-keys によるペインへのキー送信（Phase 4aリカバリ）
+- `Bash(sleep:*)` - Executor生成間隔の待機・リカバリ待機
 
 **フォールバック戦略:**
 権限不足によりExecutorが失敗した場合、Commanderが逐次実装にフォールバックする。エラーログに「Bashツールが拒否」等のメッセージが含まれる場合は、`settings.local.json` のパーミッション設定を確認すること。
