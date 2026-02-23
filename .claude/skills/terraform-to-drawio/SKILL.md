@@ -227,6 +227,89 @@ Before writing the file:
 6. Verify arrows connect to valid source/target cell IDs
 7. Write the `.drawio` file to Current Directory
 
+### Step 5.5: Visual Verification (Optional)
+
+After writing the `.drawio` file, perform a visual verification loop using the drawio MCP
+and Playwright MCP tools. This step catches layout issues that structural validation (Step 5)
+cannot detect: icon overlap, arrow-icon intersection, label truncation, and overall readability.
+
+**Prerequisites:**
+- drawio MCP server is configured (`mcp__drawio__open_drawio_xml` available)
+- Playwright MCP server is configured (`@playwright/mcp` in `.mcp.json`)
+
+**Verification flow:**
+
+1. **Open in lightbox mode**: Call `mcp__drawio__open_drawio_xml` with the generated XML
+   content and `lightbox=true`. Extract the URL from the response.
+
+2. **Launch Playwright agent**: Use the Task tool to launch a `playwright-test-planner` agent
+   with the following instructions:
+
+   ```
+   Task(
+     subagent_type="playwright-test-planner",
+     description="Screenshot drawio diagram for visual verification",
+     prompt="
+       1. Navigate to this URL: {url_from_step_1}
+       2. Wait for the diagram to fully render:
+          - Use browser_wait_for to wait for the SVG canvas to appear
+            (wait for 'svg' element or '.geDiagramContainer' to be visible)
+          - Wait an additional 2 seconds for icon rendering to complete
+       3. Take a full-page screenshot using browser_take_screenshot
+       4. Use browser_evaluate to extract element position data:
+          - Run JavaScript to find all SVG <g> elements with 'data-cell-id' attributes
+          - For each element, extract: cell-id, transform (x, y), bounding box (width, height)
+          - Return as JSON array
+       5. Report back:
+          - The screenshot file path
+          - The position data JSON
+          - Any rendering errors visible in the console (use browser_console_messages)
+     "
+   )
+   ```
+
+3. **Analyze results**: Read the screenshot using the Read tool (supports images).
+   Check for these visual issues:
+
+   | Check | What to look for |
+   |-------|-----------------|
+   | Icon overlap | Two or more icons visually overlapping |
+   | Arrow-icon intersection | An arrow passing through an unrelated icon |
+   | Label truncation | Labels cut off or overlapping other elements |
+   | Group containment | Icons visually outside their parent group boundary |
+   | Overall flow clarity | Primary traffic flow should be visually obvious (top-to-bottom or left-to-right) |
+   | Empty regions | Large empty spaces that could be compacted |
+
+4. **Fix and iterate**: If issues are found:
+   a. Identify the specific resources/groups with problems
+   b. Adjust the XML geometry (x, y, width, height) values
+   c. Re-write the `.drawio` file
+   d. Repeat from step 1 (maximum **2 iterations**)
+
+5. **Skip conditions**: Skip this step if:
+   - The diagram has fewer than 5 resources (simple diagrams rarely have layout issues)
+   - The user explicitly requests to skip visual verification
+   - drawio MCP or Playwright MCP is not available
+
+**Example Playwright JavaScript for position extraction:**
+
+```javascript
+// Run via browser_evaluate
+(() => {
+  const cells = document.querySelectorAll('g[data-cell-id]');
+  return Array.from(cells).map(g => {
+    const rect = g.getBoundingClientRect();
+    return {
+      cellId: g.getAttribute('data-cell-id'),
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height)
+    };
+  });
+})()
+```
+
 ### Step 6: Present to User
 
 Use `present_files` to share the `.drawio` file. Provide a brief summary:
