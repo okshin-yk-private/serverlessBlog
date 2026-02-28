@@ -68,6 +68,7 @@ jobs:
       deploy-frontend: ${{ steps.changes.outputs.frontend }}
       deploy-astro: ${{ steps.changes.outputs.astro }}
       target-env: ${{ steps.env.outputs.target-env }}
+      github-env: ${{ steps.env.outputs.github-env }}
     steps:
       - name: Checkout code
         # Pin to specific commit SHA for security (Requirement 9.8)
@@ -125,11 +126,18 @@ jobs:
         id: env
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "target-env=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            TARGET_ENV="${{ github.event.inputs.environment }}"
           elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "target-env=prd" >> $GITHUB_OUTPUT
+            TARGET_ENV="prd"
           else
-            echo "target-env=dev" >> $GITHUB_OUTPUT
+            TARGET_ENV="dev"
+          fi
+          echo "target-env=${TARGET_ENV}" >> $GITHUB_OUTPUT
+          # GitHub Environment name mapping (prd -> prod for approval gates)
+          if [ "$TARGET_ENV" == "prd" ]; then
+            echo "github-env=prod" >> $GITHUB_OUTPUT
+          else
+            echo "github-env=${TARGET_ENV}" >> $GITHUB_OUTPUT
           fi
 
   # =======================================
@@ -531,7 +539,7 @@ jobs:
     name: Build Frontend (Admin)
     runs-on: ubuntu-latest
     needs: [detect-changes]
-    environment: ${{ needs.detect-changes.outputs.target-env }}
+    environment: ${{ needs.detect-changes.outputs.github-env }}
     if: needs.detect-changes.outputs.deploy-frontend == 'true'
     steps:
       - name: Checkout code
@@ -706,7 +714,7 @@ jobs:
     runs-on: ubuntu-latest
     # SSG build must run AFTER infrastructure is deployed because it fetches posts from the API
     needs: [detect-changes, deploy-infrastructure-dev, deploy-infrastructure-prd]
-    environment: ${{ needs.detect-changes.outputs.target-env }}
+    environment: ${{ needs.detect-changes.outputs.github-env }}
     if: |
       always() &&
       needs.detect-changes.outputs.deploy-astro == 'true' &&
