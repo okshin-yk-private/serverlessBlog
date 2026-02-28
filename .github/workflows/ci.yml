@@ -931,6 +931,17 @@ jobs:
           restore-keys: |
             terraform-providers-${{ runner.os }}-
 
+      - name: Get PRD credentials from SSM
+        run: |
+          ALARM_EMAIL=$(aws ssm get-parameter --name "/serverless-blog/prd/monitoring/alarm-email" --with-decryption --query "Parameter.Value" --output text)
+          echo "::add-mask::$ALARM_EMAIL"
+          echo "TF_VAR_alarm_email=$ALARM_EMAIL" >> $GITHUB_ENV
+          CLOUDFLARE_TOKEN=$(aws ssm get-parameter --name "/serverless-blog/prd/cloudflare/apikey" --with-decryption --query "Parameter.Value" --output text)
+          echo "::add-mask::$CLOUDFLARE_TOKEN"
+          echo "TF_VAR_cloudflare_api_token=$CLOUDFLARE_TOKEN" >> $GITHUB_ENV
+          echo "TF_VAR_enable_custom_domain=true" >> $GITHUB_ENV
+          echo "✓ PRD credentials loaded from SSM"
+
       - name: Terraform Init
         working-directory: terraform/environments/prd
         run: |
