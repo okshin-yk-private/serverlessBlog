@@ -931,7 +931,9 @@ jobs:
 
       - name: Terraform Init
         working-directory: terraform/environments/prd
-        run: terraform init
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          terraform init -backend-config="bucket=terraform-state-${ACCOUNT_ID}"
 
       - name: Terraform Plan
         id: plan
