@@ -1,0 +1,21 @@
+{
+  "description": "Execute spec tasks using TDD methodology",
+  "argumentHint": "<feature-name> [task-numbers]",
+  "allowedTools": [
+    "Bash",
+    "Read",
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "Grep",
+    "Glob",
+    "LS",
+    "WebFetch",
+    "WebSearch"
+  ],
+  "codexFormat": "meta",
+  "codexArguments": {
+    "feature-name": "$1",
+    "task-numbers": "$2"
+  }
+}

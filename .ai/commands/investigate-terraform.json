@@ -1,0 +1,6 @@
+{
+  "description": "Research Terraform resources, modules, and troubleshoot errors (runs in separate context)",
+  "argumentHint": "<research-topic-or-error>",
+  "allowedTools": ["Task"],
+  "codexFormat": "yaml"
+}

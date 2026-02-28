@@ -1,0 +1,144 @@
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+formatters:
+  enable:
+    - goimports
+
+linters:
+  default: standard
+  enable:
+    # Additional recommended linters
+    - bodyclose
+    - dogsled
+    - dupl
+    - errorlint
+    - exhaustive
+    - funlen
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - gocyclo
+    - goprintffuncname
+    - gosec
+    - misspell
+    - nakedret
+    - nilerr
+    - noctx
+    - nolintlint
+    - prealloc
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - unconvert
+    - unparam
+    - whitespace
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment  # Premature optimization for Lambda functions
+
+    gocyclo:
+      min-complexity: 15
+
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+
+    funlen:
+      lines: 100
+      statements: 50
+
+    dupl:
+      threshold: 100
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+      disabled-checks:
+        # hugeParam false positive: Lambda SDK requires this exact signature
+        - hugeParam
+
+    gosec:
+      excludes:
+        - G104
+
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        # package-comments disabled - main packages don't need doc comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        # unused-parameter disabled - Lambda handlers will use params when implemented
+        - name: unreachable-code
+        - name: redefines-builtin-id
+
+    misspell:
+      locale: US
+
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - dupl
+          - funlen
+          - goconst
+          - gocyclo
+          - errcheck       # json.Marshal errors in test setup are acceptable
+          - prealloc       # slice pre-allocation not critical in tests
+          - gosec          # test fixtures may have "hardcoded credentials"
+          - noctx          # exec.Command in benchmark tests
+          - gochecknoinits # benchmark init functions
+          - govet          # variable shadowing in test setup code
+          - gocritic       # style suggestions in test code
+          - unparam        # test helpers may have unused parameters for consistency
+      # Test helper files in tests/ directory
+      - path: tests/
+        linters:
+          - errcheck       # test helpers may ignore errors
+          - govet          # variable shadowing in test setup
+          - gocritic       # style suggestions
+      # Lambda entry points - exclude common handler issues
+      - path: cmd/
+        linters:
+          - funlen
+          - revive
+          - errcheck  # errorResponse always returns nil error
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

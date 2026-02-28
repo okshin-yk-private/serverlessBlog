@@ -1,0 +1,19 @@
+{
+  "description": "Analyze implementation gap between requirements and existing codebase",
+  "argumentHint": "<feature-name>",
+  "allowedTools": [
+    "Bash",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "WebSearch",
+    "WebFetch"
+  ],
+  "codexFormat": "meta",
+  "codexArguments": {
+    "feature-name": "$1"
+  }
+}

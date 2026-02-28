@@ -1,0 +1,18 @@
+# Trivy Ignore Rules
+# Documented exceptions for security scanner findings
+# Requirements: 12.5, 12.10
+
+# Format: <rule_id>
+# Add comments to explain why each rule is being skipped
+
+# AWS S3 bucket versioning is managed at module level
+# The versioning status is correctly configured in storage module
+# AVD-AWS-0089
+
+# API Gateway access logging configuration
+# Access logging is optional and controlled via enable_access_logs variable
+# AVD-AWS-0190
+
+# DynamoDB PITR is enabled by default but configurable
+# Production enforces this via terraform.tfvars
+# AVD-AWS-0024

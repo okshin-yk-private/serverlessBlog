@@ -1,0 +1,37 @@
+{
+  "mcpServers": {
+    "aws-knowledge-mcp-server": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://knowledge-mcp.global.api.aws"]
+    },
+    "awslabs_cdk-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.cdk-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    },
+    "aws-mcp": {
+      "command": "uvx",
+      "args": [
+        "mcp-proxy-for-aws@latest",
+        "https://aws-mcp.us-east-1.api.aws/mcp",
+        "--metadata",
+        "AWS_REGION=us-west-2"
+      ]
+    },
+    "awslabs_terraform-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.terraform-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}

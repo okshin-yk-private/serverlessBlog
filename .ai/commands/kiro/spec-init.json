@@ -1,0 +1,9 @@
+{
+  "description": "Initialize a new specification with detailed project description",
+  "argumentHint": "<project-description>",
+  "allowedTools": ["Bash", "Read", "Write", "Glob"],
+  "codexFormat": "meta",
+  "codexArguments": {
+    "project-description": "$ARGUMENTS"
+  }
+}

@@ -1,0 +1,58 @@
+# GitHub Labeler Configuration
+# Requirement R31: GitHub Actions CI/CD デプロイワークフロー
+#
+# PRに自動的にラベルを付与する設定
+# actions/labeler@v6 で使用
+
+# インフラ/バックエンド変更
+infrastructure:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'terraform/**'
+      - 'go-functions/**'
+
+# フロントエンド変更（E2E設定ファイルも含む）
+frontend:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'frontend/public/**'
+      - 'frontend/admin/**'
+      - 'playwright.config.ts'
+      - 'playwright.admin.config.ts'
+      - 'tests/e2e/**'
+
+# ワークフロー変更
+workflow:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/workflows/**'
+
+# テスト変更
+tests:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tests/**'
+      - '**/*.test.ts'
+      - '**/*.test.tsx'
+
+# ドキュメント変更
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.md'
+      - 'docs/**'
+
+# Go Lambda関数変更
+# Requirement 6.4: go-functions/**/*変更時のgoラベル自動付与
+go:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'go-functions/**/*'
+
+# Terraform IaC変更
+# Requirement 10.1: terraform/**変更時のterraformラベル自動付与
+terraform:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'terraform/**'
+      - '.terraform-version'

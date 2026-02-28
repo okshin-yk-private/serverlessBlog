@@ -1,0 +1,140 @@
+# Trivy Ignore Configuration for Serverless Blog Infrastructure
+# Requirements: 12.2, 12.5
+#
+# This file defines exceptions for Trivy security scanning.
+# Keep synchronized with .checkov.yaml skip rules.
+#
+# Format: AVD-AWS-XXXX or avd-aws-XXXX
+# See: https://avd.aquasec.com/ for rule details
+#
+# Phase 2: Local Defense (Trivy pre-commit)
+# - Block HIGH/CRITICAL severity issues locally
+# - Allow documented exceptions for business/architecture reasons
+
+# ======================================
+# S3 Bucket Rules
+# ======================================
+
+# AVD-AWS-0089: S3 bucket has logging disabled
+# Justification: Same as CKV_AWS_18 - CloudTrail provides audit trail.
+# Terraform state bucket cannot log to itself.
+AVD-AWS-0089
+
+# AVD-AWS-0090: S3 bucket does not have versioning enabled
+# Note: NOT ignored - versioning IS enabled on all buckets
+
+# AVD-AWS-0132: S3 bucket does not encrypt data with customer managed key
+# Justification: AWS-managed keys (AES256) sufficient for blog content.
+# CMK adds cost and complexity without significant security benefit for non-PII data.
+AVD-AWS-0132
+
+# ======================================
+# DynamoDB Rules
+# ======================================
+
+# AVD-AWS-0024: DynamoDB table point-in-time recovery not enabled
+# Note: NOT ignored - PITR IS enabled on DynamoDB table
+
+# AVD-AWS-0025: DynamoDB table uses AWS managed encryption
+# Justification: Same as CKV_AWS_119 - AWS-managed keys sufficient
+# for non-PII blog post data.
+AVD-AWS-0025
+
+# ======================================
+# Lambda Rules
+# ======================================
+
+# AVD-AWS-0066: Lambda function does not have a DLQ
+# Justification: Same as CKV_AWS_116 - synchronous Lambda functions
+# return errors to API Gateway clients directly.
+AVD-AWS-0066
+
+# AVD-AWS-0067: Lambda function environment variables not encrypted
+# Justification: Same as CKV_AWS_173 - no secrets in env vars.
+# Sensitive values use Secrets Manager.
+AVD-AWS-0067
+
+# AVD-AWS-0121: Lambda does not have tracing enabled
+# Note: Conditionally ignored - X-Ray enabled in prd environment only.
+# This may trigger in dev environment configurations.
+AVD-AWS-0121
+
+# ======================================
+# API Gateway Rules
+# ======================================
+
+# AVD-AWS-0001: API Gateway access logging not enabled
+# Note: This should NOT be ignored for production.
+# TODO: Enable access logging in modules/api
+
+# AVD-AWS-0004: API Gateway domain not using TLS 1.2
+# Note: NOT ignored - TLS 1.2 minimum is configured
+
+# AVD-AWS-0190: API Gateway endpoint is publicly accessible
+# Justification: Same as CKV2_AWS_29 - required for CloudFront.
+# Cognito authorizers protect sensitive endpoints.
+AVD-AWS-0190
+
+# ======================================
+# CloudFront Rules
+# ======================================
+
+# AVD-AWS-0011: CloudFront distribution does not have WAF enabled
+# Justification: Same as CKV_AWS_86 - WAF adds cost.
+# Rate limiting at CloudFront level; no PII data.
+AVD-AWS-0011
+
+# AVD-AWS-0012: CloudFront distribution logging disabled
+# Justification: Same as CKV_AWS_68 - S3 storage cost.
+# CloudWatch metrics provide sufficient visibility.
+AVD-AWS-0012
+
+# AVD-AWS-0013: CloudFront does not use custom TLS certificate
+# Note: NOT ignored - CloudFront viewer certificate configured
+
+# AVD-AWS-0010: CloudFront uses outdated TLS version
+# Note: NOT ignored - TLSv1.2_2021 security policy configured
+
+# ======================================
+# Cognito Rules
+# ======================================
+
+# AVD-AWS-0022: Cognito User Pool does not have MFA configured
+# Note: Conditionally ignored - MFA is set to OPTIONAL, not OFF.
+# This may trigger false positive for OPTIONAL setting.
+AVD-AWS-0022
+
+# ======================================
+# CloudWatch Rules
+# ======================================
+
+# AVD-AWS-0017: CloudWatch log group not encrypted with CMK
+# Justification: Same as CKV_AWS_158 - no PII in logs.
+# Default encryption is sufficient.
+AVD-AWS-0017
+
+# ======================================
+# SNS Rules
+# ======================================
+
+# AVD-AWS-0095: SNS topic does not have encryption enabled
+# Justification: Alarm notifications contain non-sensitive operational data.
+# CMK encryption adds cost without significant security benefit.
+AVD-AWS-0095
+
+# ======================================
+# General/Terraform Rules
+# ======================================
+
+# Note: Trivy does not check module source versioning like Checkov.
+# CKV_TF_1/CKV_TF_2 equivalents are not applicable in Trivy.
+
+# ======================================
+# Synchronization Note
+# ======================================
+# This file should be kept in sync with .checkov.yaml
+# When adding/removing skip rules:
+# 1. Update both .checkov.yaml and .trivyignore
+# 2. Document justification in both files
+# 3. Run: pre-commit run --all-files (to verify Trivy)
+# 4. Run: checkov -d . (to verify Checkov)

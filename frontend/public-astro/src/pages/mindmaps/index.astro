@@ -1,0 +1,120 @@
+---
+/**
+ * mindmaps/index.astro - マインドマップ一覧ページ
+ *
+ * Task 10.1: Astroビルド時データ取得とマインドマップ一覧ページの実装
+ *
+ * Requirements:
+ * - 3.1: 公開済みマインドマップのタイトル一覧をカード形式で表示
+ * - 3.2: Astro SSGビルド時にAPIからマインドマップデータを取得
+ */
+import Layout from '../../layouts/Layout.astro';
+import MindmapCard from '../../components/MindmapCard.astro';
+import { fetchAllPublicMindmaps, type PublicMindmap } from '../../lib/api';
+
+// ビルド時に公開マインドマップを取得
+let mindmaps: PublicMindmap[] = [];
+
+try {
+  const allMindmaps = await fetchAllPublicMindmaps();
+  // 作成日時の降順でソート
+  mindmaps = [...allMindmaps].sort((a, b) => {
+    const dateA = new Date(a.createdAt).getTime();
+    const dateB = new Date(b.createdAt).getTime();
+    return dateB - dateA;
+  });
+} catch (e) {
+  const message = e instanceof Error ? e.message : String(e);
+  // APIエラー（HTTP 4xx/5xx）はビルドを失敗させる
+  if (message.includes('API request failed:')) {
+    console.error('Mindmap API error - failing build:', e);
+    throw e;
+  }
+  // ネットワークエラー（リトライ超過等）はフォールバックとして空ページで続行
+  console.error('Failed to fetch mindmaps (network error, falling back to empty page):', e);
+}
+---
+
+<Layout
+  title="Mindmaps - bone of my fallacy"
+  description="公開されたマインドマップの一覧。アイデアや知識を視覚的に構造化したマインドマップを閲覧できます。"
+>
+  <div class="page-header">
+    <h1 class="page-title">Mindmaps</h1>
+  </div>
+
+  <div class="container">
+    {mindmaps.length === 0 ? (
+      <p class="no-mindmaps" data-testid="no-mindmaps">マインドマップがありません</p>
+    ) : (
+      <div class="mindmap-list-container" data-testid="mindmap-list">
+        {mindmaps.map((mindmap) => (
+          <MindmapCard mindmap={mindmap} />
+        ))}
+      </div>
+    )}
+  </div>
+</Layout>
+
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+    padding: 60px 32px 40px;
+    text-align: center;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .page-title {
+    font-size: 2.5rem;
+    font-weight: 500;
+    color: #111827;
+    margin: 0;
+    letter-spacing: 0.02em;
+    font-family: 'Caveat', cursive;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 32px;
+  }
+
+  .no-mindmaps {
+    text-align: center;
+    color: #6b7280;
+    font-size: 1.125rem;
+    padding: 40px;
+  }
+
+  .mindmap-list-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  @media (min-width: 768px) {
+    .mindmap-list-container {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .mindmap-list-container {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .page-header {
+      padding: 40px 20px 30px;
+    }
+
+    .page-title {
+      font-size: 2rem;
+    }
+
+    .container {
+      padding: 32px 20px;
+    }
+  }
+</style>

@@ -1,0 +1,1166 @@
+# Unified Deploy Workflow
+# Handles deployment for all components:
+# - Infrastructure (Terraform)
+# - Backend (Go Lambda via Terraform)
+# - Frontend (S3 static sites)
+# - Frontend Astro SSG (S3 atomic deployment)
+#
+# Triggers:
+# - develop branch push: Deploy to DEV environment
+# - main branch push: Deploy to PRD environment (with approval)
+# - workflow_dispatch: Manual deployment
+
+name: Deploy
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'terraform/**'
+      - 'go-functions/**'
+      - 'frontend/**'
+      - '.github/workflows/deploy.yml'
+      - 'tests/e2e/**'
+      - 'tests/config/**'
+      - 'playwright.aws.config.ts'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prd
+      components:
+        description: 'Components to deploy'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - infrastructure
+          - frontend
+          - astro
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TERRAFORM_VERSION: '1.14.0'
+  GO_VERSION: '1.25.5'
+  BUN_VERSION: '1.2.0'
+  AWS_REGION: 'ap-northeast-1'
+
+jobs:
+  # =======================================
+  # Determine what to deploy
+  # =======================================
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      deploy-infrastructure: ${{ steps.changes.outputs.infrastructure }}
+      deploy-frontend: ${{ steps.changes.outputs.frontend }}
+      deploy-astro: ${{ steps.changes.outputs.astro }}
+      target-env: ${{ steps.env.outputs.target-env }}
+    steps:
+      - name: Checkout code
+        # Pin to specific commit SHA for security (Requirement 9.8)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed paths
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual dispatch - check components input
+            if [ "${{ github.event.inputs.components }}" == "all" ]; then
+              echo "infrastructure=true" >> $GITHUB_OUTPUT
+              echo "frontend=true" >> $GITHUB_OUTPUT
+              echo "astro=true" >> $GITHUB_OUTPUT
+            elif [ "${{ github.event.inputs.components }}" == "infrastructure" ]; then
+              echo "infrastructure=true" >> $GITHUB_OUTPUT
+              echo "frontend=false" >> $GITHUB_OUTPUT
+              echo "astro=false" >> $GITHUB_OUTPUT
+            elif [ "${{ github.event.inputs.components }}" == "astro" ]; then
+              echo "infrastructure=false" >> $GITHUB_OUTPUT
+              echo "frontend=false" >> $GITHUB_OUTPUT
+              echo "astro=true" >> $GITHUB_OUTPUT
+            else
+              echo "infrastructure=false" >> $GITHUB_OUTPUT
+              echo "frontend=true" >> $GITHUB_OUTPUT
+              echo "astro=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            # Push event - detect from changed files
+            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+
+            if echo "$CHANGED" | grep -qE "^(terraform/|go-functions/)"; then
+              echo "infrastructure=true" >> $GITHUB_OUTPUT
+            else
+              echo "infrastructure=false" >> $GITHUB_OUTPUT
+            fi
+
+            # Admin frontend only - public site is now handled by Astro SSG
+            if echo "$CHANGED" | grep -qE "^frontend/admin/"; then
+              echo "frontend=true" >> $GITHUB_OUTPUT
+            else
+              echo "frontend=false" >> $GITHUB_OUTPUT
+            fi
+
+            if echo "$CHANGED" | grep -qE "^frontend/public-astro/"; then
+              echo "astro=true" >> $GITHUB_OUTPUT
+            else
+              echo "astro=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Determine target environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "target-env=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "target-env=prd" >> $GITHUB_OUTPUT
+          else
+            echo "target-env=dev" >> $GITHUB_OUTPUT
+          fi
+
+  # =======================================
+  # Restore Lambda Binaries from Cache
+  # =======================================
+  restore-lambda-binaries:
+    name: Restore Lambda Binaries
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.deploy-infrastructure == 'true'
+    outputs:
+      cache-hit: ${{ steps.verify.outputs.cache-hit }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: go-functions
+          sparse-checkout-cone-mode: false
+
+      - name: Restore Lambda cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        id: cache
+        with:
+          path: go-functions/bin
+          key: lambda-all-${{ runner.os }}-${{ hashFiles('go-functions/**/*.go', 'go-functions/go.sum') }}
+          restore-keys: |
+            lambda-all-${{ runner.os }}-
+
+      - name: Verify binaries
+        id: verify
+        run: |
+          echo "========================================="
+          echo "Checking Lambda Binaries from Cache"
+          echo "========================================="
+          if [ "${{ steps.cache.outputs.cache-hit }}" != "true" ]; then
+            echo "Cache miss - will build binaries"
+            echo "cache-hit=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          FUNCS="posts-create posts-get posts-get_public posts-list posts-update posts-delete auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete mindmaps-create mindmaps-get mindmaps-get_public mindmaps-list mindmaps-list_public mindmaps-update mindmaps-delete"
+          TOTAL=0
+          for f in $FUNCS; do TOTAL=$((TOTAL + 1)); done
+          COUNT=0
+          for f in $FUNCS; do
+            if [ -f "go-functions/bin/$f/bootstrap" ]; then
+              echo "✓ $f"
+              COUNT=$((COUNT + 1))
+            else
+              echo "✗ $f - MISSING"
+            fi
+          done
+          if [ $COUNT -eq $TOTAL ]; then
+            echo "✓ All $TOTAL binaries restored from cache"
+            echo "cache-hit=true" >> $GITHUB_OUTPUT
+          else
+            echo "Only $COUNT of $TOTAL binaries found - will rebuild"
+            echo "cache-hit=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload cached binaries as artifact
+        if: steps.verify.outputs.cache-hit == 'true'
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: lambda-binaries
+          path: go-functions/bin/
+          retention-days: 1
+
+  # =======================================
+  # Build Go Lambda Binaries (Parallel Matrix) - Only on cache miss
+  # =======================================
+  build-lambdas:
+    name: Build Lambda (${{ matrix.function }})
+    runs-on: ubuntu-latest
+    needs: [detect-changes, restore-lambda-binaries]
+    if: |
+      needs.detect-changes.outputs.deploy-infrastructure == 'true' &&
+      needs.restore-lambda-binaries.outputs.cache-hit != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - function: posts-create
+            path: posts/create
+          - function: posts-get
+            path: posts/get
+          - function: posts-get_public
+            path: posts/get_public
+          - function: posts-list
+            path: posts/list
+          - function: posts-update
+            path: posts/update
+          - function: posts-delete
+            path: posts/delete
+          - function: auth-login
+            path: auth/login
+          - function: auth-logout
+            path: auth/logout
+          - function: auth-refresh
+            path: auth/refresh
+          - function: images-get_upload_url
+            path: images/get_upload_url
+          - function: images-delete
+            path: images/delete
+          - function: categories-list
+            path: categories/list
+          - function: categories-create
+            path: categories/create
+          - function: categories-update
+            path: categories/update
+          - function: categories-bulk_sort
+            path: categories/bulk_sort
+          - function: categories-delete
+            path: categories/delete
+          - function: mindmaps-create
+            path: mindmaps/create
+          - function: mindmaps-get
+            path: mindmaps/get
+          - function: mindmaps-get_public
+            path: mindmaps/get_public
+          - function: mindmaps-list
+            path: mindmaps/list
+          - function: mindmaps-list_public
+            path: mindmaps/list_public
+          - function: mindmaps-update
+            path: mindmaps/update
+          - function: mindmaps-delete
+            path: mindmaps/delete
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Go
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+          cache-dependency-path: go-functions/go.sum
+
+      - name: Build Lambda binary
+        working-directory: go-functions
+        run: |
+          mkdir -p bin/${{ matrix.function }}
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+            go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -tags="lambda.norpc" \
+            -o bin/${{ matrix.function }}/bootstrap ./cmd/${{ matrix.path }}
+          # Normalize timestamp for reproducible builds
+          touch -t 202001010000.00 bin/${{ matrix.function }}/bootstrap
+          echo "✓ ${{ matrix.function }} built"
+
+      - name: Upload Lambda binary
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: lambda-${{ matrix.function }}
+          path: go-functions/bin/${{ matrix.function }}/
+          retention-days: 1
+
+  # =======================================
+  # Merge Lambda Artifacts (only when built, not from cache)
+  # =======================================
+  merge-lambda-artifacts:
+    name: Merge Lambda Artifacts
+    runs-on: ubuntu-latest
+    needs: [restore-lambda-binaries, build-lambdas]
+    if: |
+      always() &&
+      needs.restore-lambda-binaries.outputs.cache-hit != 'true' &&
+      needs.build-lambdas.result == 'success'
+    steps:
+      - name: Download all Lambda artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          pattern: lambda-*
+          path: go-functions/bin/
+          merge-multiple: false
+
+      - name: Reorganize artifacts
+        run: |
+          cd go-functions/bin
+          for dir in lambda-*; do
+            func_name="${dir#lambda-}"
+            if [ -d "$dir" ]; then
+              mkdir -p "$func_name"
+              mv "$dir"/* "$func_name"/ 2>/dev/null || true
+              rmdir "$dir" 2>/dev/null || true
+            fi
+          done
+          echo "✓ Artifacts merged"
+
+      - name: Upload merged Lambda binaries
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: lambda-binaries
+          path: go-functions/bin/
+          retention-days: 1
+
+  # =======================================
+  # Deploy Infrastructure (DEV)
+  # =======================================
+  deploy-infrastructure-dev:
+    name: Deploy Infrastructure (DEV)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, restore-lambda-binaries, merge-lambda-artifacts]
+    environment: dev
+    if: |
+      always() &&
+      needs.detect-changes.outputs.deploy-infrastructure == 'true' &&
+      needs.detect-changes.outputs.target-env == 'dev' &&
+      (needs.restore-lambda-binaries.outputs.cache-hit == 'true' || needs.merge-lambda-artifacts.result == 'success')
+    env:
+      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Download Lambda binaries
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: lambda-binaries
+          path: go-functions/bin
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-TerraformApply-DEV
+
+      - name: Create Terraform plugin cache dir
+        run: mkdir -p ${{ github.workspace }}/.terraform.d/plugin-cache
+
+      - name: Cache Terraform providers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ github.workspace }}/.terraform.d/plugin-cache
+          key: terraform-providers-${{ runner.os }}-${{ hashFiles('terraform/**/.terraform.lock.hcl') }}
+          restore-keys: |
+            terraform-providers-${{ runner.os }}-
+
+      - name: Get Basic Auth Credentials from SSM
+        run: |
+          # Use --with-decryption for both (safe for non-SecureString too)
+          USERNAME=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --with-decryption --query "Parameter.Value" --output text)
+          PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --query "Parameter.Value" --output text)
+          echo "::add-mask::$USERNAME"
+          echo "::add-mask::$PASSWORD"
+          echo "TF_VAR_basic_auth_username=$USERNAME" >> $GITHUB_ENV
+          echo "TF_VAR_basic_auth_password=$PASSWORD" >> $GITHUB_ENV
+          echo "✓ Basic Auth credentials loaded from SSM"
+
+      - name: Get Cloudflare API Token from SSM
+        run: |
+          CLOUDFLARE_TOKEN=$(aws ssm get-parameter --name "/serverless-blog/dev/cloudflare/apikey" --with-decryption --query "Parameter.Value" --output text)
+          echo "::add-mask::$CLOUDFLARE_TOKEN"
+          echo "TF_VAR_cloudflare_api_token=$CLOUDFLARE_TOKEN" >> $GITHUB_ENV
+          echo "TF_VAR_enable_custom_domain=true" >> $GITHUB_ENV
+          echo "✓ Cloudflare API token loaded from SSM"
+
+      - name: Terraform Init
+        working-directory: terraform/environments/dev
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          terraform init -backend-config="bucket=terraform-state-${ACCOUNT_ID}"
+
+      - name: Terraform Plan
+        working-directory: terraform/environments/dev
+        run: terraform plan -out=tfplan.binary
+
+      - name: Terraform Apply
+        working-directory: terraform/environments/dev
+        run: |
+          echo "========================================="
+          echo "Deploying to DEV Environment"
+          echo "========================================="
+          terraform apply -auto-approve tfplan.binary
+          echo "✓ DEV deployment complete"
+
+      - name: Get Outputs
+        id: outputs
+        working-directory: terraform/environments/dev
+        run: |
+          echo "cloudfront_domain=$(terraform output -raw cloudfront_domain_name 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+          echo "api_endpoint=$(terraform output -raw api_endpoint 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+
+      - name: Deployment Summary
+        run: |
+          echo "========================================="
+          echo "✓ DEV Infrastructure Deployment Complete"
+          echo "========================================="
+          echo ""
+          echo "CloudFront: ${{ steps.outputs.outputs.cloudfront_domain }}"
+          echo "API: ${{ steps.outputs.outputs.api_endpoint }}"
+
+  # =======================================
+  # Deploy Infrastructure (PRD) - Requires Approval
+  # =======================================
+  deploy-infrastructure-prd:
+    name: Deploy Infrastructure (PRD)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, restore-lambda-binaries, merge-lambda-artifacts]
+    environment:
+      name: prod
+      # Manual approval configured in GitHub environment settings
+    if: |
+      always() &&
+      needs.detect-changes.outputs.deploy-infrastructure == 'true' &&
+      needs.detect-changes.outputs.target-env == 'prd' &&
+      (needs.restore-lambda-binaries.outputs.cache-hit == 'true' || needs.merge-lambda-artifacts.result == 'success')
+    env:
+      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Download Lambda binaries
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: lambda-binaries
+          path: go-functions/bin
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-TerraformApply-PRD
+
+      - name: Create Terraform plugin cache dir
+        run: mkdir -p ${{ github.workspace }}/.terraform.d/plugin-cache
+
+      - name: Cache Terraform providers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ github.workspace }}/.terraform.d/plugin-cache
+          key: terraform-providers-${{ runner.os }}-${{ hashFiles('terraform/**/.terraform.lock.hcl') }}
+          restore-keys: |
+            terraform-providers-${{ runner.os }}-
+
+      - name: Get PRD credentials from SSM
+        run: |
+          ALARM_EMAIL=$(aws ssm get-parameter --name "/serverless-blog/prd/monitoring/alarm-email" --with-decryption --query "Parameter.Value" --output text)
+          echo "::add-mask::$ALARM_EMAIL"
+          echo "TF_VAR_alarm_email=$ALARM_EMAIL" >> $GITHUB_ENV
+          CLOUDFLARE_TOKEN=$(aws ssm get-parameter --name "/serverless-blog/prd/cloudflare/apikey" --with-decryption --query "Parameter.Value" --output text)
+          echo "::add-mask::$CLOUDFLARE_TOKEN"
+          echo "TF_VAR_cloudflare_api_token=$CLOUDFLARE_TOKEN" >> $GITHUB_ENV
+          echo "TF_VAR_enable_custom_domain=true" >> $GITHUB_ENV
+          echo "✓ PRD credentials loaded from SSM"
+
+      - name: Terraform Init
+        working-directory: terraform/environments/prd
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          terraform init -backend-config="bucket=terraform-state-${ACCOUNT_ID}"
+
+      - name: Terraform Plan
+        working-directory: terraform/environments/prd
+        run: terraform plan -out=tfplan.binary
+
+      - name: Terraform Apply
+        working-directory: terraform/environments/prd
+        run: |
+          echo "========================================="
+          echo "⚠️  Deploying to PRODUCTION Environment"
+          echo "========================================="
+          terraform apply -auto-approve tfplan.binary
+          echo "✓ PRODUCTION deployment complete"
+
+      - name: Get Outputs
+        id: outputs
+        working-directory: terraform/environments/prd
+        run: |
+          echo "cloudfront_domain=$(terraform output -raw cloudfront_domain_name 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+          echo "api_endpoint=$(terraform output -raw api_endpoint 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+
+      - name: Deployment Summary
+        run: |
+          echo "========================================="
+          echo "✓ PRODUCTION Infrastructure Deployment Complete"
+          echo "========================================="
+          echo ""
+          echo "CloudFront: ${{ steps.outputs.outputs.cloudfront_domain }}"
+          echo "API: ${{ steps.outputs.outputs.api_endpoint }}"
+
+  # =======================================
+  # Build Frontend (Admin Site)
+  # Public site is now handled by Astro SSG (build-astro job)
+  # =======================================
+  build-frontend-admin:
+    name: Build Frontend (Admin)
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    environment: ${{ needs.detect-changes.outputs.target-env }}
+    if: needs.detect-changes.outputs.deploy-frontend == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-FrontendBuild-Admin
+
+      - name: Get Cognito Config from SSM
+        id: cognito
+        run: |
+          POOL_ID=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/cognito/user-pool-id" --query "Parameter.Value" --output text)
+          CLIENT_ID=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/cognito/user-pool-client-id" --query "Parameter.Value" --output text)
+          echo "user_pool_id=$POOL_ID" >> $GITHUB_OUTPUT
+          echo "client_id=$CLIENT_ID" >> $GITHUB_OUTPUT
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun + Install Dependencies (admin)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: frontend/admin
+
+      - name: Set CloudFront URL
+        id: cloudfront
+        run: |
+          if [ "${{ needs.detect-changes.outputs.target-env }}" == "prd" ]; then
+            echo "url=https://boneofmyfallacy.net" >> $GITHUB_OUTPUT
+          else
+            echo "url=https://dev.boneofmyfallacy.net" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build
+        working-directory: frontend/admin
+        run: bun run build
+        env:
+          NODE_ENV: production
+          VITE_COGNITO_USER_POOL_ID: ${{ steps.cognito.outputs.user_pool_id }}
+          VITE_COGNITO_USER_POOL_CLIENT_ID: ${{ steps.cognito.outputs.client_id }}
+          VITE_API_URL: "/api"
+          VITE_CLOUDFRONT_URL: ${{ steps.cloudfront.outputs.url }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: frontend-admin-build
+          path: frontend/admin/dist/
+          retention-days: 1
+
+  # =======================================
+  # Deploy Admin Site (DEV)
+  # Public site is deployed by deploy-astro-dev job
+  # =======================================
+  deploy-admin-dev:
+    name: Deploy Admin (DEV)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-frontend-admin, deploy-infrastructure-dev]
+    environment: dev
+    if: |
+      always() &&
+      needs.detect-changes.outputs.deploy-frontend == 'true' &&
+      needs.detect-changes.outputs.target-env == 'dev' &&
+      needs.build-frontend-admin.result == 'success' &&
+      (needs.deploy-infrastructure-dev.result == 'success' || needs.deploy-infrastructure-dev.result == 'skipped')
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-AdminDeploy-DEV
+
+      - name: Get deployment config from SSM
+        id: config
+        run: |
+          ADMIN_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/admin-site-bucket-name" --query "Parameter.Value" --output text)
+          DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/cdn/distribution-id" --query "Parameter.Value" --output text)
+          echo "admin_bucket=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
+          echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
+          echo "✓ Retrieved deployment config from SSM"
+
+      - name: Download Admin Site build
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: frontend-admin-build
+          path: admin-dist/
+
+      - name: Deploy Admin Site to S3
+        run: |
+          # Admin files stored under /admin/ prefix to avoid CloudFront cache key collision
+          echo "Deploying Admin Site to S3 (under /admin/ prefix)..."
+          aws s3 sync admin-dist/ s3://${{ steps.config.outputs.admin_bucket }}/admin/ --delete
+          echo "✓ Admin site deployed to ${{ steps.config.outputs.admin_bucket }}/admin/"
+
+      - name: Invalidate CloudFront Cache (Admin paths only)
+        run: |
+          if [ -n "${{ steps.config.outputs.distribution_id }}" ]; then
+            aws cloudfront create-invalidation --distribution-id "${{ steps.config.outputs.distribution_id }}" --paths "/admin/*"
+            echo "✓ CloudFront cache invalidated for /admin/* (Distribution: ${{ steps.config.outputs.distribution_id }})"
+          else
+            echo "⚠ CloudFront distribution ID not found in SSM, skipping invalidation"
+          fi
+
+  # =======================================
+  # Deploy Admin Site (PRD) - Requires Approval
+  # Public site is deployed by deploy-astro-prd job
+  # =======================================
+  deploy-admin-prd:
+    name: Deploy Admin (PRD)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-frontend-admin, deploy-infrastructure-prd]
+    environment:
+      name: prod
+    if: |
+      always() &&
+      needs.detect-changes.outputs.deploy-frontend == 'true' &&
+      needs.detect-changes.outputs.target-env == 'prd' &&
+      needs.build-frontend-admin.result == 'success' &&
+      (needs.deploy-infrastructure-prd.result == 'success' || needs.deploy-infrastructure-prd.result == 'skipped')
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-AdminDeploy-PRD
+
+      - name: Get deployment config from SSM
+        id: config
+        run: |
+          ADMIN_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/admin-site-bucket-name" --query "Parameter.Value" --output text)
+          DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/cdn/distribution-id" --query "Parameter.Value" --output text)
+          echo "admin_bucket=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
+          echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
+          echo "✓ Retrieved deployment config from SSM"
+
+      - name: Download Admin Site build
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: frontend-admin-build
+          path: admin-dist/
+
+      - name: Deploy Admin Site to S3
+        run: |
+          # Admin files stored under /admin/ prefix to avoid CloudFront cache key collision
+          echo "⚠️ Deploying Admin Site to PRODUCTION S3 (under /admin/ prefix)..."
+          aws s3 sync admin-dist/ s3://${{ steps.config.outputs.admin_bucket }}/admin/ --delete
+          echo "✓ Admin site deployed to ${{ steps.config.outputs.admin_bucket }}/admin/"
+
+      - name: Invalidate CloudFront Cache (Admin paths only)
+        run: |
+          if [ -n "${{ steps.config.outputs.distribution_id }}" ]; then
+            aws cloudfront create-invalidation --distribution-id "${{ steps.config.outputs.distribution_id }}" --paths "/admin/*"
+            echo "✓ CloudFront cache invalidated for /admin/* (Distribution: ${{ steps.config.outputs.distribution_id }})"
+          else
+            echo "⚠ CloudFront distribution ID not found in SSM, skipping invalidation"
+          fi
+
+  # =======================================
+  # Build Astro SSG (Task 5.3)
+  # Requirements: 9.3, 9.4, 9.7, 9.8, 9.10
+  # =======================================
+  build-astro:
+    name: Build Astro SSG
+    runs-on: ubuntu-latest
+    # SSG build must run AFTER infrastructure is deployed because it fetches posts from the API
+    needs: [detect-changes, deploy-infrastructure-dev, deploy-infrastructure-prd]
+    environment: ${{ needs.detect-changes.outputs.target-env }}
+    if: |
+      always() &&
+      needs.detect-changes.outputs.deploy-astro == 'true' &&
+      (needs.deploy-infrastructure-dev.result == 'success' || needs.deploy-infrastructure-dev.result == 'skipped') &&
+      (needs.deploy-infrastructure-prd.result == 'success' || needs.deploy-infrastructure-prd.result == 'skipped')
+    steps:
+      - name: Checkout code
+        # Pin to specific commit SHA for security (Requirement 9.8)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Configure AWS credentials (OIDC)
+        # OIDC authentication for temporary credentials (Requirement 9.4)
+        # Pin to specific commit SHA for security (Requirement 9.8)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-AstroBuild
+
+      - name: Get API URL from SSM
+        id: api
+        run: |
+          # Retrieve API URL and mask sensitive values (Requirement 9.7)
+          API_URL=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/api/endpoint" --query "Parameter.Value" --output text 2>/dev/null || echo "/api")
+          echo "::add-mask::$API_URL"
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          echo "✓ API URL retrieved from SSM"
+
+      - name: Setup Node.js
+        # Pin to specific commit SHA for security (Requirement 9.8)
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun + Install Dependencies (public-astro)
+        # Pin to specific commit SHA for security (Requirement 9.8)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: frontend/public-astro
+
+      - name: Build Astro project
+        working-directory: frontend/public-astro
+        # Requirement 9.10: API_URL as environment variable
+        run: |
+          echo "========================================="
+          echo "Building Astro SSG"
+          echo "========================================="
+          bun run build
+          echo "✓ Astro build complete"
+          echo ""
+          echo "Build artifacts:"
+          ls -la dist/
+          echo ""
+          DIST_SIZE=$(du -sh dist/ | cut -f1)
+          echo "Total size: $DIST_SIZE"
+        env:
+          NODE_ENV: production
+          PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
+          API_URL: ${{ steps.api.outputs.api_url }}
+
+      - name: Validate build output
+        working-directory: frontend/public-astro
+        run: |
+          echo "Validating build output..."
+
+          # Check required files exist
+          REQUIRED_FILES=("dist/index.html" "dist/404.html" "dist/about/index.html")
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ -f "$file" ]; then
+              echo "✓ $file exists"
+            else
+              echo "❌ Missing required file: $file"
+              exit 1
+            fi
+          done
+
+          # Check dist size < 50MB (Requirement 6.8)
+          DIST_SIZE_BYTES=$(du -sb dist/ | cut -f1)
+          MAX_SIZE=$((50 * 1024 * 1024))
+          if [ "$DIST_SIZE_BYTES" -gt "$MAX_SIZE" ]; then
+            echo "❌ Build size exceeds 50MB limit: $DIST_SIZE_BYTES bytes"
+            exit 1
+          fi
+          echo "✓ Build size within 50MB limit"
+
+          echo "✓ Build validation passed"
+
+      - name: Upload build artifact
+        # Pin to specific commit SHA for security (Requirement 9.8)
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: astro-build
+          path: frontend/public-astro/dist/
+          retention-days: 1
+
+  # =======================================
+  # Deploy Astro SSG (DEV)
+  # Task 5.3: Requirements 9.3, 9.4, 9.7, 9.8, 9.9, 9.11
+  # =======================================
+  deploy-astro-dev:
+    name: Deploy Astro SSG (DEV)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-astro, deploy-infrastructure-dev]
+    environment: dev
+    if: |
+      always() &&
+      needs.detect-changes.outputs.deploy-astro == 'true' &&
+      needs.detect-changes.outputs.target-env == 'dev' &&
+      needs.build-astro.result == 'success' &&
+      (needs.deploy-infrastructure-dev.result == 'success' || needs.deploy-infrastructure-dev.result == 'skipped')
+    steps:
+      - name: Checkout code
+        # Pin to specific commit SHA for security (Requirement 9.8)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Configure AWS credentials (OIDC)
+        # OIDC authentication (Requirement 9.4)
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-AstroDeploy-DEV
+
+      - name: Get deployment config from SSM
+        id: config
+        run: |
+          # Retrieve bucket and distribution IDs from SSM (Requirement 9.7: mask sensitive values)
+          PUBLIC_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/dev/storage/public-site-bucket-name" --query "Parameter.Value" --output text)
+          echo "::add-mask::$PUBLIC_BUCKET"
+          echo "bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
+
+          DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/dev/cdn/distribution-id" --query "Parameter.Value" --output text)
+          echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
+
+          echo "✓ Retrieved deployment config from SSM"
+
+      - name: Download Astro build artifact
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: astro-build
+          path: dist/
+
+      - name: Setup Node.js
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun + Install Dependencies (deploy scripts)
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: scripts/deploy
+
+      - name: Deploy to S3 (Atomic Deployment)
+        id: deploy
+        working-directory: scripts/deploy
+        run: |
+          echo "========================================="
+          echo "Deploying Astro SSG to DEV"
+          echo "========================================="
+
+          # Run atomic deployment (Requirement 9.2)
+          # Timer start for Requirement 9.11 (5 min limit)
+          START_TIME=$(date +%s)
+
+          bun run cli.ts \
+            --bucket "${{ steps.config.outputs.bucket }}" \
+            --distribution "${{ steps.config.outputs.distribution_id }}" \
+            --dist "../../dist" \
+            --region "${{ env.AWS_REGION }}" \
+            --retain 3
+
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+
+          echo ""
+          echo "Deployment completed in ${DURATION}s"
+
+          # Requirement 9.11: Check 5-minute limit (300s)
+          if [ "$DURATION" -gt 300 ]; then
+            echo "⚠️ Deployment exceeded 5-minute target (${DURATION}s)"
+          else
+            echo "✓ Deployment within 5-minute target"
+          fi
+
+      - name: Invalidate CloudFront Cache
+        # Requirement 9.9: Invalidate changed paths
+        run: |
+          if [ -n "${{ steps.config.outputs.distribution_id }}" ]; then
+            echo "Creating CloudFront invalidation..."
+            # For SSG, we invalidate common paths instead of /*
+            aws cloudfront create-invalidation \
+              --distribution-id "${{ steps.config.outputs.distribution_id }}" \
+              --paths "/" "/index.html" "/about/*" "/posts/*" "/sitemap*.xml" "/rss.xml"
+            echo "✓ CloudFront cache invalidated"
+          else
+            echo "⚠️ CloudFront distribution not found, skipping invalidation"
+          fi
+
+      - name: Deployment Summary
+        run: |
+          echo "========================================="
+          echo "✓ Astro SSG DEV Deployment Complete"
+          echo "========================================="
+          echo ""
+          echo "Bucket: ${{ steps.config.outputs.bucket }}"
+          echo "Distribution: ${{ steps.config.outputs.distribution_id }}"
+
+  # =======================================
+  # Deploy Astro SSG (PRD) - Requires Approval
+  # Task 5.3: Requirements 9.3, 9.4, 9.7, 9.8, 9.9, 9.11
+  # =======================================
+  deploy-astro-prd:
+    name: Deploy Astro SSG (PRD)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-astro, deploy-infrastructure-prd]
+    environment:
+      name: prod
+    if: |
+      always() &&
+      needs.detect-changes.outputs.deploy-astro == 'true' &&
+      needs.detect-changes.outputs.target-env == 'prd' &&
+      needs.build-astro.result == 'success' &&
+      (needs.deploy-infrastructure-prd.result == 'success' || needs.deploy-infrastructure-prd.result == 'skipped')
+    steps:
+      - name: Checkout code
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Configure AWS credentials (OIDC)
+        # OIDC authentication (Requirement 9.4)
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-AstroDeploy-PRD
+
+      - name: Get deployment config from SSM
+        id: config
+        run: |
+          # Retrieve bucket and distribution IDs from SSM (Requirement 9.7: mask sensitive values)
+          PUBLIC_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/prd/storage/public-site-bucket-name" --query "Parameter.Value" --output text)
+          echo "::add-mask::$PUBLIC_BUCKET"
+          echo "bucket=$PUBLIC_BUCKET" >> $GITHUB_OUTPUT
+
+          DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/prd/cdn/distribution-id" --query "Parameter.Value" --output text)
+          echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
+
+          echo "✓ Retrieved deployment config from SSM"
+
+      - name: Download Astro build artifact
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: astro-build
+          path: dist/
+
+      - name: Setup Node.js
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun + Install Dependencies (deploy scripts)
+        # Pin to specific commit SHA (Requirement 9.8)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: scripts/deploy
+
+      - name: Deploy to S3 (Atomic Deployment)
+        id: deploy
+        working-directory: scripts/deploy
+        run: |
+          echo "========================================="
+          echo "⚠️ Deploying Astro SSG to PRODUCTION"
+          echo "========================================="
+
+          # Run atomic deployment (Requirement 9.2)
+          # Timer start for Requirement 9.11 (5 min limit)
+          START_TIME=$(date +%s)
+
+          bun run cli.ts \
+            --bucket "${{ steps.config.outputs.bucket }}" \
+            --distribution "${{ steps.config.outputs.distribution_id }}" \
+            --dist "../../dist" \
+            --region "${{ env.AWS_REGION }}" \
+            --retain 3
+
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+
+          echo ""
+          echo "Deployment completed in ${DURATION}s"
+
+          # Requirement 9.11: Check 5-minute limit (300s)
+          if [ "$DURATION" -gt 300 ]; then
+            echo "⚠️ Deployment exceeded 5-minute target (${DURATION}s)"
+          else
+            echo "✓ Deployment within 5-minute target"
+          fi
+
+      - name: Invalidate CloudFront Cache
+        # Requirement 9.9: Invalidate changed paths
+        run: |
+          if [ -n "${{ steps.config.outputs.distribution_id }}" ]; then
+            echo "Creating CloudFront invalidation..."
+            # For SSG, we invalidate common paths instead of /*
+            aws cloudfront create-invalidation \
+              --distribution-id "${{ steps.config.outputs.distribution_id }}" \
+              --paths "/" "/index.html" "/about/*" "/posts/*" "/sitemap*.xml" "/rss.xml"
+            echo "✓ CloudFront cache invalidated"
+          else
+            echo "⚠️ CloudFront distribution not found, skipping invalidation"
+          fi
+
+      - name: Deployment Summary
+        run: |
+          echo "========================================="
+          echo "✓ Astro SSG PRODUCTION Deployment Complete"
+          echo "========================================="
+          echo ""
+          echo "Bucket: ${{ steps.config.outputs.bucket }}"
+          echo "Distribution: ${{ steps.config.outputs.distribution_id }}"
+
+  # =======================================
+  # Post-Deploy E2E Tests (DEV only)
+  # Runs real environment E2E tests against deployed DEV site
+  # =======================================
+  post-deploy-e2e-dev:
+    name: Post-Deploy E2E Tests (DEV)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-admin-dev, deploy-astro-dev]
+    environment: dev
+    if: |
+      always() &&
+      needs.detect-changes.outputs.target-env == 'dev' &&
+      (needs.deploy-admin-dev.result == 'success' || needs.deploy-admin-dev.result == 'skipped') &&
+      (needs.deploy-astro-dev.result == 'success' || needs.deploy-astro-dev.result == 'skipped')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun + Install Dependencies (root)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: .
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-E2E-DEV
+
+      - name: Get DEV environment config from SSM
+        id: config
+        run: |
+          BASE_URL=$(aws ssm get-parameter --name "/serverless-blog/dev/cdn/public-url" --query "Parameter.Value" --output text 2>/dev/null || echo "")
+          BASIC_USER=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --with-decryption --query "Parameter.Value" --output text 2>/dev/null || echo "")
+          BASIC_PASS=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --query "Parameter.Value" --output text 2>/dev/null || echo "")
+
+          echo "::add-mask::$BASIC_USER"
+          echo "::add-mask::$BASIC_PASS"
+
+          echo "base_url=$BASE_URL" >> $GITHUB_OUTPUT
+          echo "basic_user=$BASIC_USER" >> $GITHUB_OUTPUT
+          echo "basic_pass=$BASIC_PASS" >> $GITHUB_OUTPUT
+
+      - name: Run Post-Deploy E2E Tests
+        if: steps.config.outputs.base_url != ''
+        run: bun run test:e2e:aws -- --project=chromium --workers=1
+        env:
+          CI: true
+          BASE_URL: ${{ steps.config.outputs.base_url }}
+          DEV_BASIC_AUTH_USERNAME: ${{ steps.config.outputs.basic_user }}
+          DEV_BASIC_AUTH_PASSWORD: ${{ steps.config.outputs.basic_pass }}
+          VITE_ENABLE_MSW_MOCK: 'false'
+
+      - name: Skip notice
+        if: steps.config.outputs.base_url == ''
+        run: echo "⚠️ Skipping post-deploy E2E tests - BASE_URL not configured in SSM"
+
+      - name: Upload E2E Test Report
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: always()
+        with:
+          name: playwright-report-aws
+          path: playwright-report-aws/
+          retention-days: 30
+
+  # =======================================
+  # Deployment Summary
+  # =======================================
+  deploy-summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - deploy-infrastructure-dev
+      - deploy-infrastructure-prd
+      - deploy-admin-dev
+      - deploy-admin-prd
+      - deploy-astro-dev
+      - deploy-astro-prd
+      - post-deploy-e2e-dev
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          echo "========================================="
+          echo "Deployment Summary"
+          echo "========================================="
+          echo ""
+          echo "Target Environment: ${{ needs.detect-changes.outputs.target-env }}"
+          echo ""
+          echo "--- Infrastructure ---"
+          echo "  DEV: ${{ needs.deploy-infrastructure-dev.result }}"
+          echo "  PRD: ${{ needs.deploy-infrastructure-prd.result }}"
+          echo ""
+          echo "--- Admin Site ---"
+          echo "  DEV: ${{ needs.deploy-admin-dev.result }}"
+          echo "  PRD: ${{ needs.deploy-admin-prd.result }}"
+          echo ""
+          echo "--- Public Site (Astro SSG) ---"
+          echo "  DEV: ${{ needs.deploy-astro-dev.result }}"
+          echo "  PRD: ${{ needs.deploy-astro-prd.result }}"
+          echo ""
+          echo "--- Post-Deploy E2E Tests ---"
+          echo "  DEV: ${{ needs.post-deploy-e2e-dev.result }}"
+          echo ""
+          echo "========================================="
+
+          # Check for failures
+          if [ "${{ needs.deploy-infrastructure-dev.result }}" == "failure" ] || \
+             [ "${{ needs.deploy-infrastructure-prd.result }}" == "failure" ] || \
+             [ "${{ needs.deploy-admin-dev.result }}" == "failure" ] || \
+             [ "${{ needs.deploy-admin-prd.result }}" == "failure" ] || \
+             [ "${{ needs.deploy-astro-dev.result }}" == "failure" ] || \
+             [ "${{ needs.deploy-astro-prd.result }}" == "failure" ]; then
+            echo "❌ One or more deployments failed"
+            exit 1
+          fi
+
+          echo "✓ All deployments completed successfully!"

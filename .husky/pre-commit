@@ -1,0 +1,54 @@
+#!/bin/sh
+# Pre-commit hook: Lint first (fast), then run tests for changed components
+# Skip all checks with: git commit --no-verify
+
+# Step 1: Run lint-staged for quick formatting/linting (existing behavior)
+echo "=== Running lint-staged (format + lint) ==="
+npx lint-staged || exit 1
+
+# Step 2: Run Terraform checks if terraform files changed
+if git diff --cached --name-only | grep -q '^terraform/'; then
+  echo ""
+  echo "=== Running Terraform checks (fmt, validate, trivy) ==="
+  export PATH="/home/okshin/.local/bin:$PATH"
+
+  # 2a: terraform fmt -check -recursive (catches .tf and .tftest.hcl files)
+  echo "--- Terraform fmt check ---"
+  if (cd terraform && terraform fmt -check -recursive); then
+    echo "✓ Terraform formatting OK"
+  else
+    echo "✗ Terraform formatting errors found. Run: cd terraform && terraform fmt -recursive"
+    exit 1
+  fi
+
+  # 2b: Run pre-commit hooks (trivy, validate) excluding terraform_fmt (handled above)
+  if command -v pre-commit >/dev/null 2>&1; then
+    echo "--- Terraform validate + trivy ---"
+    (cd terraform && SKIP=terraform_fmt pre-commit run --files $(git diff --cached --name-only | grep '^terraform/' | sed 's|^terraform/||')) || exit 1
+  else
+    echo "⚠ pre-commit not installed. Run: uv tool install pre-commit"
+  fi
+
+  # 2c: Run terraform test if .tftest.hcl files are staged
+  if git diff --cached --name-only | grep -q '\.tftest\.hcl$'; then
+    echo "--- Terraform test ---"
+    # Find directories containing staged .tftest.hcl files and run tests
+    TEST_DIRS=$(git diff --cached --name-only | grep '\.tftest\.hcl$' | sed 's|^terraform/||' | xargs -I{} dirname {} | sort -u)
+    for test_dir in $TEST_DIRS; do
+      # Navigate to the module root (parent of tests/ directory)
+      MODULE_DIR=$(echo "$test_dir" | sed 's|/tests$||')
+      echo "  Running terraform test in terraform/${MODULE_DIR}..."
+      if (cd "terraform/${MODULE_DIR}" && terraform init -backend=false -input=false >/dev/null 2>&1 && terraform test); then
+        echo "  ✓ terraform test passed for ${MODULE_DIR}"
+      else
+        echo "  ✗ terraform test failed for ${MODULE_DIR}"
+        exit 1
+      fi
+    done
+  fi
+fi
+
+# Step 3: Run component-specific tests based on staged files
+echo ""
+echo "=== Running pre-commit tests ==="
+.husky/scripts/pre-commit-tests.sh

@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+/* Self-hosted Caveat font with preload for fast loading */
+@font-face {
+  font-family: 'Caveat';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/caveat-variable.woff2') format('woff2');
+}
+
+/* Design tokens (aligned with admin) */
+:root {
+  --color-primary: #2D2A5A;
+  --color-accent: #C9A857;
+}
+
+/* Custom base styles */
+@layer base {
+  html {
+    font-family: 'Shippori Mincho', serif;
+    background-color: #f5f5f5;
+  }
+
+  body {
+    @apply text-gray-900 leading-relaxed;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Caveat', cursive;
+  }
+}
+
+/* Custom component styles */
+@layer components {
+  .container-main {
+    @apply max-w-4xl mx-auto px-4 py-8;
+  }
+
+  .post-content {
+    @apply max-w-none;
+  }
+
+  .post-content h1 {
+    @apply text-3xl font-bold mt-8 mb-4;
+  }
+
+  .post-content h2 {
+    @apply text-2xl font-bold mt-6 mb-3;
+  }
+
+  .post-content h3 {
+    @apply text-xl font-bold mt-4 mb-2;
+  }
+
+  .post-content p {
+    @apply mb-4;
+  }
+
+  .post-content a {
+    @apply text-blue-600 hover:text-blue-800 underline;
+  }
+
+  .post-content code {
+    @apply bg-gray-100 px-1 py-0.5 rounded text-sm;
+  }
+
+  .post-content pre {
+    @apply bg-gray-800 text-gray-100 p-4 rounded-lg overflow-x-auto my-4;
+  }
+
+  .post-content pre code {
+    @apply bg-transparent p-0;
+  }
+
+  .post-content blockquote {
+    @apply border-l-4 border-gray-300 pl-4 italic my-4 text-gray-600;
+  }
+
+  .post-content ul,
+  .post-content ol {
+    @apply ml-6 mb-4;
+  }
+
+  .post-content ul {
+    @apply list-disc;
+  }
+
+  .post-content ol {
+    @apply list-decimal;
+  }
+
+  .post-content li {
+    @apply mb-1;
+  }
+
+  .post-content img {
+    @apply rounded-lg my-4 max-w-full h-auto;
+  }
+}
