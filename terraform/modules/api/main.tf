@@ -1805,6 +1805,8 @@ resource "aws_api_gateway_stage" "main" {
   }
 
   tags = local.common_tags
+
+  depends_on = [aws_api_gateway_account.main]
 }
 
 # ======================
