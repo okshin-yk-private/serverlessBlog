@@ -24,6 +24,6 @@ output "subdomain_ns_record_ids" {
 }
 
 output "acm_validation_record_fqdns" {
-  value       = [for record in cloudflare_dns_record.acm_validation : record.hostname]
+  value       = [for record in cloudflare_dns_record.acm_validation : record.name]
   description = "FQDNs of ACM validation records (for aws_acm_certificate_validation)"
 }
