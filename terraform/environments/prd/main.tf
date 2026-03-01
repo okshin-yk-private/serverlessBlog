@@ -63,106 +63,47 @@ module "storage" {
 }
 
 #------------------------------------------------------------------------------
-# Data Sources: Lambda Functions (for API Gateway integration)
-# These reference existing Lambda functions to break circular dependency
+# Module 4: Lambda Functions
+# Dependencies: database, storage, auth
+# Note: cloudfront_domain will be updated after CDN module is created
 #------------------------------------------------------------------------------
 
-data "aws_lambda_function" "create_post" {
-  function_name = "blog-create-post-go"
-}
+module "lambda" {
+  source = "../../modules/lambda"
 
-data "aws_lambda_function" "list_posts" {
-  function_name = "blog-list-posts-go"
-}
+  environment         = var.environment
+  table_name          = module.database.table_name
+  table_arn           = module.database.table_arn
+  bucket_name         = module.storage.image_bucket_name
+  bucket_arn          = module.storage.image_bucket_arn
+  user_pool_id        = module.auth.user_pool_id
+  user_pool_arn       = module.auth.user_pool_arn
+  user_pool_client_id = module.auth.user_pool_client_id
+  cloudfront_domain   = "" # Will be updated after CDN creation
+  cors_allowed_origin = "https://${var.domain_name}"
+  enable_xray         = true # X-Ray enabled for prd
+  go_binary_path      = "${path.module}/../../../go-functions/bin"
 
-data "aws_lambda_function" "get_post" {
-  function_name = "blog-get-post-go"
-}
+  # Categories domain
+  categories_table_name = module.database.categories_table_name
+  categories_table_arn  = module.database.categories_table_arn
 
-data "aws_lambda_function" "get_public_post" {
-  function_name = "blog-get-public-post-go"
-}
+  # Mindmaps domain
+  mindmaps_table_name = module.database.mindmaps_table_name
+  mindmaps_table_arn  = module.database.mindmaps_table_arn
 
-data "aws_lambda_function" "update_post" {
-  function_name = "blog-update-post-go"
-}
+  # CodeBuild integration for post/mindmap create/update/delete Lambda
+  codebuild_project_name = "${var.project_name}-astro-build-${var.environment}"
+  codebuild_project_arn  = "arn:aws:codebuild:${var.aws_region}:${data.aws_caller_identity.current.account_id}:project/${var.project_name}-astro-build-${var.environment}"
 
-data "aws_lambda_function" "delete_post" {
-  function_name = "blog-delete-post-go"
-}
+  tags = local.common_tags
 
-data "aws_lambda_function" "login" {
-  function_name = "blog-login-go"
-}
-
-data "aws_lambda_function" "logout" {
-  function_name = "blog-logout-go"
-}
-
-data "aws_lambda_function" "refresh" {
-  function_name = "blog-refresh-go"
-}
-
-data "aws_lambda_function" "get_upload_url" {
-  function_name = "blog-upload-url-go"
-}
-
-data "aws_lambda_function" "delete_image" {
-  function_name = "blog-delete-image-go"
-}
-
-data "aws_lambda_function" "list_categories" {
-  function_name = "blog-list-categories-go"
-}
-
-data "aws_lambda_function" "create_category" {
-  function_name = "blog-create-category-go"
-}
-
-data "aws_lambda_function" "update_category" {
-  function_name = "blog-update-category-go"
-}
-
-data "aws_lambda_function" "update_categories_sort_order" {
-  function_name = "blog-update-categories-sort-order-go"
-}
-
-data "aws_lambda_function" "delete_category" {
-  function_name = "blog-delete-category-go"
-}
-
-# Mindmaps domain
-data "aws_lambda_function" "create_mindmap" {
-  function_name = "blog-create-mindmap-go"
-}
-
-data "aws_lambda_function" "get_mindmap" {
-  function_name = "blog-get-mindmap-go"
-}
-
-data "aws_lambda_function" "list_mindmaps" {
-  function_name = "blog-list-mindmaps-go"
-}
-
-data "aws_lambda_function" "update_mindmap" {
-  function_name = "blog-update-mindmap-go"
-}
-
-data "aws_lambda_function" "delete_mindmap" {
-  function_name = "blog-delete-mindmap-go"
-}
-
-data "aws_lambda_function" "get_public_mindmap" {
-  function_name = "blog-get-public-mindmap-go"
-}
-
-data "aws_lambda_function" "list_public_mindmaps" {
-  function_name = "blog-list-public-mindmaps-go"
+  depends_on = [module.database, module.storage, module.auth]
 }
 
 #------------------------------------------------------------------------------
-# Module 4: API Gateway
-# Dependencies: auth (for Cognito Authorizer), Lambda data sources
+# Module 5: API Gateway
+# Dependencies: auth (for Cognito Authorizer), lambda (for function ARNs)
 #------------------------------------------------------------------------------
 
 module "api" {
@@ -174,65 +115,65 @@ module "api" {
   cognito_user_pool_arn = module.auth.user_pool_arn
   cors_allow_origins    = ["https://${var.domain_name}"]
 
-  # Lambda function ARNs (from data sources)
-  lambda_create_post_arn            = data.aws_lambda_function.create_post.arn
-  lambda_create_post_invoke_arn     = data.aws_lambda_function.create_post.invoke_arn
-  lambda_list_posts_arn             = data.aws_lambda_function.list_posts.arn
-  lambda_list_posts_invoke_arn      = data.aws_lambda_function.list_posts.invoke_arn
-  lambda_get_post_arn               = data.aws_lambda_function.get_post.arn
-  lambda_get_post_invoke_arn        = data.aws_lambda_function.get_post.invoke_arn
-  lambda_get_public_post_arn        = data.aws_lambda_function.get_public_post.arn
-  lambda_get_public_post_invoke_arn = data.aws_lambda_function.get_public_post.invoke_arn
-  lambda_update_post_arn            = data.aws_lambda_function.update_post.arn
-  lambda_update_post_invoke_arn     = data.aws_lambda_function.update_post.invoke_arn
-  lambda_delete_post_arn            = data.aws_lambda_function.delete_post.arn
-  lambda_delete_post_invoke_arn     = data.aws_lambda_function.delete_post.invoke_arn
-  lambda_login_arn                  = data.aws_lambda_function.login.arn
-  lambda_login_invoke_arn           = data.aws_lambda_function.login.invoke_arn
-  lambda_logout_arn                 = data.aws_lambda_function.logout.arn
-  lambda_logout_invoke_arn          = data.aws_lambda_function.logout.invoke_arn
-  lambda_refresh_arn                = data.aws_lambda_function.refresh.arn
-  lambda_refresh_invoke_arn         = data.aws_lambda_function.refresh.invoke_arn
-  lambda_get_upload_url_arn         = data.aws_lambda_function.get_upload_url.arn
-  lambda_get_upload_url_invoke_arn  = data.aws_lambda_function.get_upload_url.invoke_arn
-  lambda_delete_image_arn           = data.aws_lambda_function.delete_image.arn
-  lambda_delete_image_invoke_arn    = data.aws_lambda_function.delete_image.invoke_arn
+  # Lambda function ARNs (from Lambda module outputs)
+  lambda_create_post_arn            = module.lambda.function_arns["create_post"]
+  lambda_create_post_invoke_arn     = module.lambda.function_invoke_arns["create_post"]
+  lambda_list_posts_arn             = module.lambda.function_arns["list_posts"]
+  lambda_list_posts_invoke_arn      = module.lambda.function_invoke_arns["list_posts"]
+  lambda_get_post_arn               = module.lambda.function_arns["get_post"]
+  lambda_get_post_invoke_arn        = module.lambda.function_invoke_arns["get_post"]
+  lambda_get_public_post_arn        = module.lambda.function_arns["get_public_post"]
+  lambda_get_public_post_invoke_arn = module.lambda.function_invoke_arns["get_public_post"]
+  lambda_update_post_arn            = module.lambda.function_arns["update_post"]
+  lambda_update_post_invoke_arn     = module.lambda.function_invoke_arns["update_post"]
+  lambda_delete_post_arn            = module.lambda.function_arns["delete_post"]
+  lambda_delete_post_invoke_arn     = module.lambda.function_invoke_arns["delete_post"]
+  lambda_login_arn                  = module.lambda.function_arns["login"]
+  lambda_login_invoke_arn           = module.lambda.function_invoke_arns["login"]
+  lambda_logout_arn                 = module.lambda.function_arns["logout"]
+  lambda_logout_invoke_arn          = module.lambda.function_invoke_arns["logout"]
+  lambda_refresh_arn                = module.lambda.function_arns["refresh"]
+  lambda_refresh_invoke_arn         = module.lambda.function_invoke_arns["refresh"]
+  lambda_get_upload_url_arn         = module.lambda.function_arns["get_upload_url"]
+  lambda_get_upload_url_invoke_arn  = module.lambda.function_invoke_arns["get_upload_url"]
+  lambda_delete_image_arn           = module.lambda.function_arns["delete_image"]
+  lambda_delete_image_invoke_arn    = module.lambda.function_invoke_arns["delete_image"]
 
   # Categories Lambda function ARNs
-  lambda_list_categories_arn                     = data.aws_lambda_function.list_categories.arn
-  lambda_list_categories_invoke_arn              = data.aws_lambda_function.list_categories.invoke_arn
-  lambda_create_category_arn                     = data.aws_lambda_function.create_category.arn
-  lambda_create_category_invoke_arn              = data.aws_lambda_function.create_category.invoke_arn
-  lambda_update_category_arn                     = data.aws_lambda_function.update_category.arn
-  lambda_update_category_invoke_arn              = data.aws_lambda_function.update_category.invoke_arn
-  lambda_update_categories_sort_order_arn        = data.aws_lambda_function.update_categories_sort_order.arn
-  lambda_update_categories_sort_order_invoke_arn = data.aws_lambda_function.update_categories_sort_order.invoke_arn
-  lambda_delete_category_arn                     = data.aws_lambda_function.delete_category.arn
-  lambda_delete_category_invoke_arn              = data.aws_lambda_function.delete_category.invoke_arn
+  lambda_list_categories_arn                     = module.lambda.function_arns["list_categories"]
+  lambda_list_categories_invoke_arn              = module.lambda.function_invoke_arns["list_categories"]
+  lambda_create_category_arn                     = module.lambda.function_arns["create_category"]
+  lambda_create_category_invoke_arn              = module.lambda.function_invoke_arns["create_category"]
+  lambda_update_category_arn                     = module.lambda.function_arns["update_category"]
+  lambda_update_category_invoke_arn              = module.lambda.function_invoke_arns["update_category"]
+  lambda_update_categories_sort_order_arn        = module.lambda.function_arns["update_categories_sort_order"]
+  lambda_update_categories_sort_order_invoke_arn = module.lambda.function_invoke_arns["update_categories_sort_order"]
+  lambda_delete_category_arn                     = module.lambda.function_arns["delete_category"]
+  lambda_delete_category_invoke_arn              = module.lambda.function_invoke_arns["delete_category"]
 
   # Mindmaps Lambda function ARNs
-  lambda_create_mindmap_arn              = data.aws_lambda_function.create_mindmap.arn
-  lambda_create_mindmap_invoke_arn       = data.aws_lambda_function.create_mindmap.invoke_arn
-  lambda_get_mindmap_arn                 = data.aws_lambda_function.get_mindmap.arn
-  lambda_get_mindmap_invoke_arn          = data.aws_lambda_function.get_mindmap.invoke_arn
-  lambda_list_mindmaps_arn               = data.aws_lambda_function.list_mindmaps.arn
-  lambda_list_mindmaps_invoke_arn        = data.aws_lambda_function.list_mindmaps.invoke_arn
-  lambda_update_mindmap_arn              = data.aws_lambda_function.update_mindmap.arn
-  lambda_update_mindmap_invoke_arn       = data.aws_lambda_function.update_mindmap.invoke_arn
-  lambda_delete_mindmap_arn              = data.aws_lambda_function.delete_mindmap.arn
-  lambda_delete_mindmap_invoke_arn       = data.aws_lambda_function.delete_mindmap.invoke_arn
-  lambda_get_public_mindmap_arn          = data.aws_lambda_function.get_public_mindmap.arn
-  lambda_get_public_mindmap_invoke_arn   = data.aws_lambda_function.get_public_mindmap.invoke_arn
-  lambda_list_public_mindmaps_arn        = data.aws_lambda_function.list_public_mindmaps.arn
-  lambda_list_public_mindmaps_invoke_arn = data.aws_lambda_function.list_public_mindmaps.invoke_arn
+  lambda_create_mindmap_arn              = module.lambda.function_arns["create_mindmap"]
+  lambda_create_mindmap_invoke_arn       = module.lambda.function_invoke_arns["create_mindmap"]
+  lambda_get_mindmap_arn                 = module.lambda.function_arns["get_mindmap"]
+  lambda_get_mindmap_invoke_arn          = module.lambda.function_invoke_arns["get_mindmap"]
+  lambda_list_mindmaps_arn               = module.lambda.function_arns["list_mindmaps"]
+  lambda_list_mindmaps_invoke_arn        = module.lambda.function_invoke_arns["list_mindmaps"]
+  lambda_update_mindmap_arn              = module.lambda.function_arns["update_mindmap"]
+  lambda_update_mindmap_invoke_arn       = module.lambda.function_invoke_arns["update_mindmap"]
+  lambda_delete_mindmap_arn              = module.lambda.function_arns["delete_mindmap"]
+  lambda_delete_mindmap_invoke_arn       = module.lambda.function_invoke_arns["delete_mindmap"]
+  lambda_get_public_mindmap_arn          = module.lambda.function_arns["get_public_mindmap"]
+  lambda_get_public_mindmap_invoke_arn   = module.lambda.function_invoke_arns["get_public_mindmap"]
+  lambda_list_public_mindmaps_arn        = module.lambda.function_arns["list_public_mindmaps"]
+  lambda_list_public_mindmaps_invoke_arn = module.lambda.function_invoke_arns["list_public_mindmaps"]
 
   tags = local.common_tags
 
-  depends_on = [module.auth]
+  depends_on = [module.auth, module.lambda]
 }
 
 #------------------------------------------------------------------------------
-# Module 5: CDN (CloudFront)
+# Module 6: CDN (CloudFront)
 # Dependencies: storage (for S3 buckets), api (for API Gateway origin)
 #------------------------------------------------------------------------------
 
@@ -342,44 +283,6 @@ resource "aws_s3_bucket_policy" "admin_site_cloudfront" {
   })
 
   depends_on = [module.cdn]
-}
-
-#------------------------------------------------------------------------------
-# Module 6: Lambda Functions
-# Dependencies: database, storage, auth, cdn
-#------------------------------------------------------------------------------
-
-module "lambda" {
-  source = "../../modules/lambda"
-
-  environment         = var.environment
-  table_name          = module.database.table_name
-  table_arn           = module.database.table_arn
-  bucket_name         = module.storage.image_bucket_name
-  bucket_arn          = module.storage.image_bucket_arn
-  user_pool_id        = module.auth.user_pool_id
-  user_pool_arn       = module.auth.user_pool_arn
-  user_pool_client_id = module.auth.user_pool_client_id
-  cloudfront_domain   = module.cdn.distribution_domain_name
-  cors_allowed_origin = "https://${var.domain_name}"
-  enable_xray         = true # X-Ray enabled for prd
-  go_binary_path      = "${path.module}/../../../go-functions/bin"
-
-  # Categories domain
-  categories_table_name = module.database.categories_table_name
-  categories_table_arn  = module.database.categories_table_arn
-
-  # Mindmaps domain
-  mindmaps_table_name = module.database.mindmaps_table_name
-  mindmaps_table_arn  = module.database.mindmaps_table_arn
-
-  # CodeBuild integration for post/mindmap create/update/delete Lambda
-  codebuild_project_name = "${var.project_name}-astro-build-${var.environment}"
-  codebuild_project_arn  = "arn:aws:codebuild:${var.aws_region}:${data.aws_caller_identity.current.account_id}:project/${var.project_name}-astro-build-${var.environment}"
-
-  tags = local.common_tags
-
-  depends_on = [module.database, module.storage, module.auth, module.cdn]
 }
 
 #------------------------------------------------------------------------------
