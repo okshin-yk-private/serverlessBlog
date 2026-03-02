@@ -193,9 +193,10 @@ module "cdn" {
   price_class                             = "PriceClass_100"
 
   # Custom domain configuration
+  # Note: acm_certificate_arn should only be set after ACM validation is complete
   use_custom_domain   = var.enable_custom_domain
   domain_names        = var.enable_custom_domain ? [var.domain_name, "www.${var.domain_name}"] : []
-  acm_certificate_arn = var.enable_custom_domain ? module.acm[0].certificate_arn : ""
+  acm_certificate_arn = var.enable_custom_domain ? module.acm[0].validated_certificate_arn : ""
 
   tags = local.common_tags
 
@@ -333,22 +334,58 @@ module "acm" {
   validation_record_fqdns = var.enable_custom_domain ? module.dns_cloudflare[0].acm_validation_record_fqdns : []
 }
 
-# Cloudflare DNS for production apex domain
+# Cloudflare DNS for production
+# Note: cloudfront_domain_name is NOT passed here to avoid circular dependency
+# The CNAME records pointing to CloudFront are created separately below
 module "dns_cloudflare" {
   source = "../../modules/dns-cloudflare"
 
   count = var.enable_custom_domain ? 1 : 0
 
   zone_name              = var.domain_name # boneofmyfallacy.net
-  cloudfront_domain_name = module.cdn.distribution_domain_name
+  cloudfront_domain_name = ""              # Created separately after CDN to avoid cycle
   environment            = var.environment
 
-  # Create apex and www records for production
-  create_apex_record = true
-  create_www_record  = true
+  # Don't create apex/www records here (created separately after CDN)
+  create_apex_record = false
+  create_www_record  = false
 
   # ACM validation records in Cloudflare
   acm_domain_validation_options = var.enable_custom_domain ? module.acm[0].domain_validation_options : []
+}
+
+#------------------------------------------------------------------------------
+# Cloudflare CNAME Records for CloudFront
+# Created separately to avoid circular dependency:
+# CDN needs validated certificate → ACM needs Cloudflare validation records →
+# Cloudflare would need CDN domain (cycle!)
+# By separating these records, the cycle is broken.
+#------------------------------------------------------------------------------
+
+resource "cloudflare_dns_record" "apex" {
+  count = var.enable_custom_domain ? 1 : 0
+
+  zone_id = module.dns_cloudflare[0].zone_id
+  name    = "@"
+  content = module.cdn.distribution_domain_name
+  type    = "CNAME"
+  ttl     = 300
+  proxied = false # Must be false for CloudFront
+  comment = "Apex domain to CloudFront - ${var.environment}"
+
+  depends_on = [module.cdn]
+}
+
+resource "cloudflare_dns_record" "www" {
+  count = var.enable_custom_domain ? 1 : 0
+
+  zone_id = module.dns_cloudflare[0].zone_id
+  name    = "www"
+  content = module.cdn.distribution_domain_name
+  type    = "CNAME"
+  ttl     = 300
+  proxied = false # Must be false for CloudFront
+  comment = "WWW subdomain to CloudFront - ${var.environment}"
 
   depends_on = [module.cdn]
 }
