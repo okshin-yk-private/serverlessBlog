@@ -11,6 +11,20 @@ data "cloudflare_zones" "main" {
 
 locals {
   zone_id = data.cloudflare_zones.main.result[0].id
+
+  # Deduplicate ACM validation records by record name.
+  # Wildcard (*.example.com) and base domain (example.com) share the same
+  # validation record, so we group by record name and take the first entry.
+  acm_validation_grouped = {
+    for opt in var.acm_domain_validation_options : trimsuffix(opt.resource_record_name, ".") => {
+      name   = trimsuffix(opt.resource_record_name, ".")
+      record = trimsuffix(opt.resource_record_value, ".")
+      type   = opt.resource_record_type
+    }...
+    if contains([var.zone_name, "*.${var.zone_name}"], opt.domain_name) ||
+    startswith(opt.domain_name, var.zone_name)
+  }
+  acm_validation_records = { for k, v in local.acm_validation_grouped : k => v[0] }
 }
 
 # Apex domain CNAME → CloudFront (CNAME flattening at Cloudflare)
@@ -59,15 +73,7 @@ resource "cloudflare_dns_record" "subdomain_ns" {
 # ACM certificate DNS validation records
 # Creates CNAME records required for AWS ACM certificate validation
 resource "cloudflare_dns_record" "acm_validation" {
-  for_each = {
-    for opt in var.acm_domain_validation_options : opt.domain_name => {
-      name   = trimsuffix(opt.resource_record_name, ".")  # Remove trailing dot
-      record = trimsuffix(opt.resource_record_value, ".") # Remove trailing dot
-      type   = opt.resource_record_type
-    }
-    if contains([var.zone_name, "*.${var.zone_name}"], opt.domain_name) ||
-    startswith(opt.domain_name, var.zone_name)
-  }
+  for_each = local.acm_validation_records
 
   zone_id = local.zone_id
   name    = each.value.name
