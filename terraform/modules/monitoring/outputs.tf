@@ -21,19 +21,19 @@ output "dashboard_arn" {
   description = "CloudWatch dashboard ARN"
 }
 
-output "lambda_error_alarm_arns" {
-  value       = { for k, v in aws_cloudwatch_metric_alarm.lambda_errors : k => v.arn }
-  description = "Map of Lambda function names to their error alarm ARNs"
+output "lambda_errors_alarm_arn" {
+  value       = var.enable_alarms ? aws_cloudwatch_metric_alarm.lambda_errors_all[0].arn : ""
+  description = "Aggregated Lambda errors alarm ARN"
 }
 
-output "lambda_duration_alarm_arns" {
-  value       = { for k, v in aws_cloudwatch_metric_alarm.lambda_duration : k => v.arn }
-  description = "Map of Lambda function names to their duration alarm ARNs"
+output "lambda_duration_alarm_arn" {
+  value       = var.enable_alarms ? aws_cloudwatch_metric_alarm.lambda_duration_all[0].arn : ""
+  description = "Aggregated Lambda duration alarm ARN"
 }
 
-output "lambda_throttle_alarm_arns" {
-  value       = { for k, v in aws_cloudwatch_metric_alarm.lambda_throttles : k => v.arn }
-  description = "Map of Lambda function names to their throttle alarm ARNs"
+output "lambda_throttles_alarm_arn" {
+  value       = var.enable_alarms ? aws_cloudwatch_metric_alarm.lambda_throttles_all[0].arn : ""
+  description = "Aggregated Lambda throttles alarm ARN"
 }
 
 output "dynamodb_read_throttle_alarm_arns" {

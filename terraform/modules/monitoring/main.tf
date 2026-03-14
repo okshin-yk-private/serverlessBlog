@@ -60,77 +60,107 @@ resource "aws_sns_topic_subscription" "email" {
 }
 
 # =============================================================================
-# Lambda CloudWatch Alarms
+# Lambda CloudWatch Alarms (Aggregated via Metric Math)
+# Consolidates per-function alarms into 3 aggregated alarms for cost optimization
 # =============================================================================
 
-# Lambda Error Rate Alarms
-resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
-  for_each = var.enable_alarms ? toset(var.lambda_function_names) : toset([])
+# Lambda Errors - Aggregated across all functions
+resource "aws_cloudwatch_metric_alarm" "lambda_errors_all" {
+  count = var.enable_alarms ? 1 : 0
 
-  alarm_name          = "${each.value}-ErrorRate"
-  alarm_description   = "Lambda function error rate is too high"
+  alarm_name          = "${local.alarm_name_prefix}-Lambda-AllErrors"
+  alarm_description   = "Total Lambda errors across all functions exceed threshold"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
-  metric_name         = "Errors"
-  namespace           = "AWS/Lambda"
-  period              = 300 # 5 minutes
-  statistic           = "Sum"
-  threshold           = 1
+  threshold           = 5
   treat_missing_data  = "notBreaching"
 
-  dimensions = {
-    FunctionName = each.value
+  metric_query {
+    id          = "errors"
+    expression  = "SUM(METRICS())"
+    label       = "Total Errors"
+    return_data = true
+  }
+
+  metric_query {
+    id = "m1"
+    metric {
+      metric_name = "Errors"
+      namespace   = "AWS/Lambda"
+      period      = 300
+      stat        = "Sum"
+    }
+    return_data = false
   }
 
   alarm_actions = [aws_sns_topic.alarms[0].arn]
-
-  tags = local.common_tags
+  tags          = local.common_tags
 }
 
-# Lambda Duration Alarms
-resource "aws_cloudwatch_metric_alarm" "lambda_duration" {
-  for_each = var.enable_alarms ? toset(var.lambda_function_names) : toset([])
+# Lambda Duration - Aggregated across all functions
+resource "aws_cloudwatch_metric_alarm" "lambda_duration_all" {
+  count = var.enable_alarms ? 1 : 0
 
-  alarm_name          = "${each.value}-Duration"
-  alarm_description   = "Lambda function duration is too high"
+  alarm_name          = "${local.alarm_name_prefix}-Lambda-AllDuration"
+  alarm_description   = "Max Lambda duration across all functions exceeds threshold"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
-  metric_name         = "Duration"
-  namespace           = "AWS/Lambda"
-  period              = 300 # 5 minutes
-  statistic           = "Average"
-  threshold           = 10000 # 10 seconds
+  threshold           = 10000
+  treat_missing_data  = "notBreaching"
 
-  dimensions = {
-    FunctionName = each.value
+  metric_query {
+    id          = "duration"
+    expression  = "MAX(METRICS())"
+    label       = "Max Duration"
+    return_data = true
+  }
+
+  metric_query {
+    id = "m1"
+    metric {
+      metric_name = "Duration"
+      namespace   = "AWS/Lambda"
+      period      = 300
+      stat        = "Maximum"
+    }
+    return_data = false
   }
 
   alarm_actions = [aws_sns_topic.alarms[0].arn]
-
-  tags = local.common_tags
+  tags          = local.common_tags
 }
 
-# Lambda Throttle Alarms
-resource "aws_cloudwatch_metric_alarm" "lambda_throttles" {
-  for_each = var.enable_alarms ? toset(var.lambda_function_names) : toset([])
+# Lambda Throttles - Aggregated across all functions
+resource "aws_cloudwatch_metric_alarm" "lambda_throttles_all" {
+  count = var.enable_alarms ? 1 : 0
 
-  alarm_name          = "${each.value}-Throttles"
-  alarm_description   = "Lambda function is being throttled"
+  alarm_name          = "${local.alarm_name_prefix}-Lambda-AllThrottles"
+  alarm_description   = "Total Lambda throttles across all functions exceed threshold"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
-  metric_name         = "Throttles"
-  namespace           = "AWS/Lambda"
-  period              = 300 # 5 minutes
-  statistic           = "Sum"
-  threshold           = 1
+  threshold           = 3
+  treat_missing_data  = "notBreaching"
 
-  dimensions = {
-    FunctionName = each.value
+  metric_query {
+    id          = "throttles"
+    expression  = "SUM(METRICS())"
+    label       = "Total Throttles"
+    return_data = true
+  }
+
+  metric_query {
+    id = "m1"
+    metric {
+      metric_name = "Throttles"
+      namespace   = "AWS/Lambda"
+      period      = 300
+      stat        = "Sum"
+    }
+    return_data = false
   }
 
   alarm_actions = [aws_sns_topic.alarms[0].arn]
-
-  tags = local.common_tags
+  tags          = local.common_tags
 }
 
 # =============================================================================
@@ -150,6 +180,7 @@ resource "aws_cloudwatch_metric_alarm" "dynamodb_read_throttles" {
   period              = 300 # 5 minutes
   statistic           = "Sum"
   threshold           = 1
+  treat_missing_data  = "notBreaching"
 
   dimensions = {
     TableName = each.value
@@ -173,6 +204,7 @@ resource "aws_cloudwatch_metric_alarm" "dynamodb_write_throttles" {
   period              = 300 # 5 minutes
   statistic           = "Sum"
   threshold           = 1
+  treat_missing_data  = "notBreaching"
 
   dimensions = {
     TableName = each.value
@@ -200,6 +232,7 @@ resource "aws_cloudwatch_metric_alarm" "api_4xx_errors" {
   period              = 300 # 5 minutes
   statistic           = "Sum"
   threshold           = 10 # 10 4XX errors in 5 minutes
+  treat_missing_data  = "notBreaching"
 
   dimensions = {
     ApiName = var.api_gateway_name
@@ -224,6 +257,7 @@ resource "aws_cloudwatch_metric_alarm" "api_5xx_errors" {
   period              = 300 # 5 minutes
   statistic           = "Sum"
   threshold           = 5 # 5 5XX errors in 5 minutes
+  treat_missing_data  = "notBreaching"
 
   dimensions = {
     ApiName = var.api_gateway_name
@@ -248,6 +282,7 @@ resource "aws_cloudwatch_metric_alarm" "api_latency" {
   period              = 300 # 5 minutes
   statistic           = "Average"
   threshold           = 2000 # 2 seconds
+  treat_missing_data  = "notBreaching"
 
   dimensions = {
     ApiName = var.api_gateway_name
