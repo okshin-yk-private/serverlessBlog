@@ -58,6 +58,10 @@ func getJapaneseTokenizer() *tokenizer.Tokenizer {
 
 // BlogPost represents a blog post entity.
 // JSON tags use camelCase for API compatibility with existing TypeScript/Rust implementations.
+//
+// Slug, Excerpt, and CoverImageURL are added for the writer-experience overhaul.
+// They are pointers so legacy items lacking these attributes round-trip without
+// emitting null fields in JSON.
 type BlogPost struct {
 	ID              string   `json:"id" dynamodbav:"id"`
 	Title           string   `json:"title" dynamodbav:"title"`
@@ -71,6 +75,9 @@ type BlogPost struct {
 	UpdatedAt       string   `json:"updatedAt" dynamodbav:"updatedAt"`
 	PublishedAt     *string  `json:"publishedAt,omitempty" dynamodbav:"publishedAt,omitempty"`
 	ImageURLs       []string `json:"imageUrls" dynamodbav:"imageUrls"`
+	Slug            *string  `json:"slug,omitempty" dynamodbav:"slug,omitempty"`
+	Excerpt         *string  `json:"excerpt,omitempty" dynamodbav:"excerpt,omitempty"`
+	CoverImageURL   *string  `json:"coverImageUrl,omitempty" dynamodbav:"coverImageUrl,omitempty"`
 }
 
 // CreatePostRequest represents the request body for creating a post.
@@ -81,6 +88,9 @@ type CreatePostRequest struct {
 	Tags            []string `json:"tags,omitempty"`
 	PublishStatus   *string  `json:"publishStatus,omitempty"`
 	ImageURLs       []string `json:"imageUrls,omitempty"`
+	Slug            *string  `json:"slug,omitempty"`
+	Excerpt         *string  `json:"excerpt,omitempty"`
+	CoverImageURL   *string  `json:"coverImageUrl,omitempty"`
 }
 
 // Validate validates the CreatePostRequest.
@@ -94,6 +104,14 @@ func (r *CreatePostRequest) Validate() error {
 	if r.Category == "" {
 		return errors.New("category is required")
 	}
+	if r.Slug != nil {
+		if *r.Slug == "" {
+			return errors.New("slug cannot be empty when provided")
+		}
+		if !slugPattern.MatchString(*r.Slug) {
+			return errors.New("slug must contain only lowercase alphanumeric characters and hyphens")
+		}
+	}
 	return nil
 }
 
@@ -105,6 +123,23 @@ type UpdatePostRequest struct {
 	Tags            []string `json:"tags,omitempty"`
 	PublishStatus   *string  `json:"publishStatus,omitempty"`
 	ImageURLs       []string `json:"imageUrls,omitempty"`
+	Slug            *string  `json:"slug,omitempty"`
+	Excerpt         *string  `json:"excerpt,omitempty"`
+	CoverImageURL   *string  `json:"coverImageUrl,omitempty"`
+}
+
+// Validate validates the UpdatePostRequest.
+// Only fields that are provided are validated; partial updates are supported.
+func (r *UpdatePostRequest) Validate() error {
+	if r.Slug != nil {
+		if *r.Slug == "" {
+			return errors.New("slug cannot be empty when provided")
+		}
+		if !slugPattern.MatchString(*r.Slug) {
+			return errors.New("slug must contain only lowercase alphanumeric characters and hyphens")
+		}
+	}
+	return nil
 }
 
 // ListPostsResponse represents the paginated list response.
