@@ -39,6 +39,7 @@
     "@aws-sdk/s3-request-presigner": "^3.490.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.2",
     "@playwright/test": "^1.56.1",
     "@types/aws-lambda": "^8.10.157",
     "@types/node": "^20.10.6",
