@@ -193,9 +193,9 @@ func errorResponse(statusCode int, message string) (events.APIGatewayProxyRespon
 // triggerSiteBuild triggers the Astro SSG build via CodeBuild
 // Requirement 10.1: Trigger CodeBuild when post is published
 func triggerSiteBuild(ctx context.Context) {
-	projectName := os.Getenv("CODEBUILD_PROJECT_NAME")
+	projectName := buildtrigger.SanitizeProjectName(os.Getenv("CODEBUILD_PROJECT_NAME"))
 	if projectName == "" {
-		slog.Warn("CODEBUILD_PROJECT_NAME not set, skipping build trigger")
+		slog.Warn("CODEBUILD_PROJECT_NAME not set or invalid, skipping build trigger")
 		return
 	}
 

@@ -233,10 +233,10 @@ func shouldTriggerBuild(_ *domain.BlogPost, req *domain.UpdatePostRequest) bool 
 // triggerSiteBuild triggers the Astro SSG build via CodeBuild
 // Requirement 10.1, 10.2, 10.10: Trigger CodeBuild, handle errors gracefully
 func triggerSiteBuild(ctx context.Context) {
-	// Get CodeBuild project name from environment
-	projectName := os.Getenv("CODEBUILD_PROJECT_NAME")
+	// Get CodeBuild project name from environment, sanitized at the trust boundary
+	projectName := buildtrigger.SanitizeProjectName(os.Getenv("CODEBUILD_PROJECT_NAME"))
 	if projectName == "" {
-		slog.Warn("CODEBUILD_PROJECT_NAME not set, skipping build trigger")
+		slog.Warn("CODEBUILD_PROJECT_NAME not set or invalid, skipping build trigger")
 		return
 	}
 

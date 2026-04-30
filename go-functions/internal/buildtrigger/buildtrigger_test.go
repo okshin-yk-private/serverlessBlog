@@ -440,3 +440,46 @@ func TestInterface(t *testing.T) {
 	// Verify interface compliance
 	var _ Interface = trigger
 }
+
+// TestSanitizeProjectName ensures the trust-boundary validator accepts
+// well-formed CodeBuild project names and rejects anything that could be
+// used for log injection (CR/LF, ANSI escapes, leading non-alphanumerics).
+func TestSanitizeProjectName(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"typical name", "serverless-blog-astro-dev", "serverless-blog-astro-dev"},
+		{"with underscores", "my_project_42", "my_project_42"},
+		{"empty string", "", ""},
+		{"leading hyphen", "-leading", ""},
+		{"leading underscore", "_leading", ""},
+		{"single char (too short)", "a", ""},
+		{"contains space", "name with space", ""},
+		{"contains newline", "name\nwith-newline", ""},
+		{"contains carriage return", "name\rwith-cr", ""},
+		{"contains tab", "name\twith-tab", ""},
+		{"contains ANSI escape", "name\x1b[31m-evil", ""},
+		{"contains unicode", "プロジェクト", ""},
+		{"contains slash", "namespace/project", ""},
+		{"max valid length (255)", "a" + repeat("b", 254), "a" + repeat("b", 254)},
+		{"too long (256)", "a" + repeat("b", 255), ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := SanitizeProjectName(tc.in)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// repeat is a tiny helper to keep the test table compact without pulling
+// strings.Repeat into the test imports.
+func repeat(s string, n int) string {
+	out := make([]byte, 0, len(s)*n)
+	for i := 0; i < n; i++ {
+		out = append(out, s...)
+	}
+	return string(out)
+}
