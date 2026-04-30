@@ -1,9 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { AuthProvider } from './AuthContext';
 import { useAuth } from '../hooks/useAuth';
 import * as amplifyAuth from 'aws-amplify/auth';
-import * as authApi from '../api/auth';
 import { removeAuthToken, saveAuthToken } from '../utils/auth';
 
 // Amplifyのモック
