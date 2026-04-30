@@ -406,17 +406,17 @@ jobs:
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           terraform init -backend-config="bucket=terraform-state-${ACCOUNT_ID}"
 
-      - name: Terraform Plan
-        working-directory: terraform/environments/dev
-        run: terraform plan -out=tfplan.binary
-
+      # Plan is run on PR by ci.yml's terraform-plan-dev job. We skip the
+      # explicit plan step here to avoid duplication. `terraform apply
+      # -auto-approve` will internally re-plan against current state and
+      # apply atomically; the plan summary still appears in the apply log.
       - name: Terraform Apply
         working-directory: terraform/environments/dev
         run: |
           echo "========================================="
           echo "Deploying to DEV Environment"
           echo "========================================="
-          terraform apply -auto-approve tfplan.binary
+          terraform apply -auto-approve
           echo "✓ DEV deployment complete"
 
       - name: Get Outputs
@@ -502,17 +502,17 @@ jobs:
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           terraform init -backend-config="bucket=terraform-state-${ACCOUNT_ID}"
 
-      - name: Terraform Plan
-        working-directory: terraform/environments/prd
-        run: terraform plan -out=tfplan.binary
-
+      # Plan is run on PR by ci.yml's terraform-plan-prd job. We skip the
+      # explicit plan step here to avoid duplication. `terraform apply
+      # -auto-approve` will internally re-plan against current state and
+      # apply atomically; the plan summary still appears in the apply log.
       - name: Terraform Apply
         working-directory: terraform/environments/prd
         run: |
           echo "========================================="
           echo "⚠️  Deploying to PRODUCTION Environment"
           echo "========================================="
-          terraform apply -auto-approve tfplan.binary
+          terraform apply -auto-approve
           echo "✓ PRODUCTION deployment complete"
 
       - name: Get Outputs
