@@ -207,12 +207,10 @@ func triggerSiteBuild(ctx context.Context) {
 
 	trigger := buildtrigger.NewBuildTrigger(client, projectName)
 	if err := trigger.TriggerBuild(ctx); err != nil {
-		//nolint:gosec // G706: projectName already passed buildtrigger.SanitizeProjectName regex validation, so no log-injection vector
 		slog.Error("failed to trigger site build", "error", err, "project", projectName)
 		return
 	}
 
-	//nolint:gosec // G706: see above — projectName is regex-validated.
 	slog.Info("site build triggered successfully", "project", projectName)
 }
 
