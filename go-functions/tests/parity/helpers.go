@@ -339,13 +339,13 @@ func compareArrays(actual, expected []interface{}, path string) []Diff {
 // FormatDiff formats a single diff as a human-readable string
 func FormatDiff(diff Diff) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("[%s] %s\n", diff.Type, diff.Path))
+	fmt.Fprintf(&sb, "[%s] %s\n", diff.Type, diff.Path)
 	if diff.Message != "" {
-		sb.WriteString(fmt.Sprintf("  %s\n", diff.Message))
+		fmt.Fprintf(&sb, "  %s\n", diff.Message)
 	}
 	if diff.Expected != "" || diff.Actual != "" {
-		sb.WriteString(fmt.Sprintf("  Expected: %s\n", diff.Expected))
-		sb.WriteString(fmt.Sprintf("  Actual:   %s", diff.Actual))
+		fmt.Fprintf(&sb, "  Expected: %s\n", diff.Expected)
+		fmt.Fprintf(&sb, "  Actual:   %s", diff.Actual)
 	}
 	return sb.String()
 }

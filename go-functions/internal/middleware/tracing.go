@@ -169,19 +169,18 @@ func (t *xrayTracer) AddMetadata(seg Segment, key string, value interface{}) {
 }
 
 // AddSafeMetadata adds metadata to the segment, filtering sensitive fields
+// from map values before delegating to AddMetadata.
 func (t *xrayTracer) AddSafeMetadata(seg Segment, key string, value interface{}) {
 	if seg == nil {
 		return
 	}
 
-	// Filter sensitive data from maps
+	safeValue := value
 	if m, ok := value.(map[string]interface{}); ok {
-		filtered := filterSensitiveData(m)
-		t.AddMetadata(seg, key, filtered)
-		return
+		safeValue = filterSensitiveData(m)
 	}
 
-	t.AddMetadata(seg, key, value)
+	t.AddMetadata(seg, key, safeValue)
 }
 
 // AddError adds an error to the segment
