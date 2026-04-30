@@ -10,9 +10,22 @@ import type { Post } from './api';
 
 /**
  * HTMLからプレーンテキストを抽出する
+ *
+ * Iteratively strips `<...>` patterns until the string is idempotent so that
+ * residual fragments (e.g. `<<script>>` collapsing into `<script>` after one
+ * pass) cannot survive. The output is used for excerpts and SEO descriptions
+ * where it is rendered as React/Astro text content (escaped automatically),
+ * not as `innerHTML`.
  */
 export function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '').trim();
+  const tagPattern = /<[^>]*>/g;
+  let prev = html;
+  let next = html.replace(tagPattern, '');
+  while (next !== prev) {
+    prev = next;
+    next = next.replace(tagPattern, '');
+  }
+  return next.trim();
 }
 
 /**

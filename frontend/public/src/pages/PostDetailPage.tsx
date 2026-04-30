@@ -72,7 +72,16 @@ const PostDetailPage: React.FC = () => {
 
   // Generate description from contentHtml (extract first 150 characters of text)
   const generateDescription = (html: string): string => {
-    const text = html.replace(/<[^>]*>/g, ''); // Strip HTML tags
+    // Iteratively strip tags so residual fragments like `<<script>>` cannot
+    // collapse into `<script>` after a single pass. Output is used as a
+    // <meta description>, rendered as text by SEOHead.
+    const tagPattern = /<[^>]*>/g;
+    let prev = html;
+    let text = html.replace(tagPattern, '');
+    while (text !== prev) {
+      prev = text;
+      text = text.replace(tagPattern, '');
+    }
     return text.substring(0, 150) + (text.length > 150 ? '...' : '');
   };
 
