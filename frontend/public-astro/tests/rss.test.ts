@@ -17,6 +17,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { mockPosts } from './mock-api-server';
+import { stripHtml } from '../src/lib/postUtils';
 
 const projectDir = join(import.meta.dirname, '..');
 const distDir = join(projectDir, 'dist');
@@ -265,7 +266,7 @@ describe('RSS Feed Generation (Task 3.4)', () => {
 
       if (japanesePost) {
         // HTML stripped description should be in the feed
-        const plainText = japanesePost.contentHtml.replace(/<[^>]*>/g, '');
+        const plainText = stripHtml(japanesePost.contentHtml);
         const containsJapaneseContent =
           content.includes(plainText) || content.includes(`<![CDATA[`);
         expect(containsJapaneseContent).toBe(true);
