@@ -175,6 +175,36 @@ func TestCreatePostRequestValidation(t *testing.T) {
 			wantErr: true,
 			errMsg:  "category",
 		},
+		{
+			name: "valid request with slug",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				Slug:            strPtr("my-post-slug"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty slug pointer rejected",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				Slug:            strPtr(""),
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid slug format rejected",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				Slug:            strPtr("Invalid Slug!"),
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -187,6 +217,58 @@ func TestCreatePostRequestValidation(t *testing.T) {
 				if tt.errMsg != "" && err.Error() != tt.errMsg+" is required" {
 					t.Errorf("Expected error message containing %q, got %q", tt.errMsg, err.Error())
 				}
+			}
+		})
+	}
+}
+
+// TestUpdatePostRequestValidation tests UpdatePostRequest.Validate (slug format only).
+// Other fields use partial-update semantics and have no required-field rules.
+func TestUpdatePostRequestValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		request UpdatePostRequest
+		wantErr bool
+	}{
+		{
+			name:    "empty request is valid (partial update with no slug change)",
+			request: UpdatePostRequest{},
+			wantErr: false,
+		},
+		{
+			name:    "valid slug accepted",
+			request: UpdatePostRequest{Slug: strPtr("my-post-slug")},
+			wantErr: false,
+		},
+		{
+			name:    "empty slug pointer rejected",
+			request: UpdatePostRequest{Slug: strPtr("")},
+			wantErr: true,
+		},
+		{
+			name:    "invalid slug format rejected",
+			request: UpdatePostRequest{Slug: strPtr("UPPER_CASE")},
+			wantErr: true,
+		},
+		{
+			name: "non-slug fields ignored even when slug is nil",
+			request: UpdatePostRequest{
+				Title:           strPtr("New title"),
+				ContentMarkdown: strPtr("# Body"),
+				Category:        strPtr("technology"),
+				Tags:            []string{"go"},
+				PublishStatus:   strPtr("published"),
+				ImageURLs:       []string{"https://example.com/image.jpg"},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.request.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

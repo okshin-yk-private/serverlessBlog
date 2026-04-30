@@ -27,6 +27,9 @@ export interface Post {
   updatedAt: string;
   publishedAt?: string;
   imageUrls?: string[];
+  slug?: string;
+  excerpt?: string;
+  coverImageUrl?: string;
 }
 
 /**

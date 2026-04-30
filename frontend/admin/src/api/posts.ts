@@ -14,6 +14,9 @@ export interface Post {
   publishStatus: 'draft' | 'published';
   createdAt: string;
   updatedAt: string;
+  slug?: string;
+  excerpt?: string;
+  coverImageUrl?: string;
 }
 
 export interface CreatePostRequest {
@@ -22,14 +25,20 @@ export interface CreatePostRequest {
   category: string;
   tags?: string[];
   publishStatus: 'draft' | 'published';
+  slug?: string;
+  excerpt?: string;
+  coverImageUrl?: string;
 }
 
 export interface UpdatePostRequest {
-  title: string;
-  contentMarkdown: string;
-  category: string;
+  title?: string;
+  contentMarkdown?: string;
+  category?: string;
   tags?: string[];
-  publishStatus: 'draft' | 'published';
+  publishStatus?: 'draft' | 'published';
+  slug?: string;
+  excerpt?: string;
+  coverImageUrl?: string;
 }
 
 /**
