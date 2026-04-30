@@ -138,15 +138,6 @@ linters:
           - funlen
           - revive
           - errcheck  # errorResponse always returns nil error
-      # CODEBUILD_PROJECT_NAME passes buildtrigger.SanitizeProjectName at the
-      # trust boundary (regex `^[A-Za-z0-9][A-Za-z0-9_-]{1,254}$`), so the slog
-      # calls below it have no log-injection vector. gosec versions differ on
-      # whether they recognize the regex sanitizer, so the exclusion is scoped
-      # to the specific G706 rule on these handlers' triggerSiteBuild paths.
-      - path: cmd/(posts|mindmaps)/(create|delete|update)/main\.go
-        text: "G706"
-        linters:
-          - gosec
 
 issues:
   max-issues-per-linter: 0
