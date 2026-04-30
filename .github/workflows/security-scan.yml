@@ -75,6 +75,9 @@ jobs:
 
       - name: Upload gitleaks SARIF to Code Scanning
         if: always() && hashFiles('gitleaks.sarif') != ''
+        # Code Scanning API rate limit can fail this step when many Dependabot PRs
+        # run concurrently. SARIF visibility is best-effort, so don't fail the job.
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@7fc6561ed893d15cec696e062df840b21db27eb0 # v4.35.2
         with:
           sarif_file: gitleaks.sarif
@@ -184,6 +187,9 @@ jobs:
 
       - name: Upload Trivy SARIF to Code Scanning
         if: always() && hashFiles('trivy-fs.sarif') != ''
+        # Code Scanning API rate limit can fail this step when many Dependabot PRs
+        # run concurrently. SARIF visibility is best-effort, so don't fail the job.
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@7fc6561ed893d15cec696e062df840b21db27eb0 # v4.35.2
         with:
           sarif_file: trivy-fs.sarif
