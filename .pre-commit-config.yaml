@@ -54,6 +54,12 @@ repos:
         pass_filenames: true
         language: system
 
+  # Gitleaks - Secret scanning on staged files (repo-wide secret history scan runs in CI)
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+
   # TypeScript/JavaScript hooks (for CDK and frontend)
   - repo: https://github.com/pre-commit/mirrors-eslint
     rev: v9.17.0

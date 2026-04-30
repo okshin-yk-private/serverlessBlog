@@ -685,6 +685,9 @@ jobs:
     if: |
       needs.setup-labels.outputs.has-terraform == 'true' &&
       needs.terraform-fmt.result == 'success'
+    permissions:
+      contents: read
+      security-events: write # Required for upload-sarif to GitHub Code Scanning
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -712,6 +715,13 @@ jobs:
           else
             echo "⚠ Security issues detected - review logs above"
           fi
+
+      - name: Upload Checkov SARIF to Code Scanning
+        if: always() && hashFiles('results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@7fc6561ed893d15cec696e062df840b21db27eb0 # v4.35.2
+        with:
+          sarif_file: results.sarif
+          category: checkov-terraform
 
   # =======================================
   # Job: Terraform Test
