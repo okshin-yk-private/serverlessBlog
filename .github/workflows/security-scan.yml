@@ -35,28 +35,59 @@ concurrency:
 jobs:
   # =======================================
   # Job: gitleaks - secret scanning across full git history
+  # We use the gitleaks CLI directly (not gitleaks-action) because
+  # gitleaks-action requires a paid license for organization repos.
+  # The CLI is OSS (MIT) and produces the same SARIF output.
   # =======================================
   gitleaks:
     name: Gitleaks (secrets)
     runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: '8.24.3'
     steps:
       - name: Checkout (full history)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
+      - name: Install gitleaks CLI
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
       - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_CONFIG: ${{ github.workspace }}/.gitleaks.toml
-          # Phase 1: visibility. Findings appear in Security tab; do not fail the job.
-          # Flip to '0' (or remove) in Phase 3 to enforce.
-          GITLEAKS_NOTIFY_USER_LIST: ''
-          GITLEAKS_ENABLE_COMMENTS: 'false'
-          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'true'
-          GITLEAKS_ENABLE_SUMMARY: 'true'
+        id: gitleaks
+        # Phase 1: visibility-only. Findings show up in the Security tab;
+        # the job does not fail. Drop continue-on-error in Phase 3 to enforce.
         continue-on-error: true
+        run: |
+          gitleaks detect \
+            --source . \
+            --config .gitleaks.toml \
+            --report-format sarif \
+            --report-path gitleaks.sarif \
+            --redact \
+            --verbose \
+            --exit-code 1
+
+      - name: Upload gitleaks SARIF to Code Scanning
+        if: always() && hashFiles('gitleaks.sarif') != ''
+        uses: github/codeql-action/upload-sarif@7fc6561ed893d15cec696e062df840b21db27eb0 # v4.35.2
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
+
+      - name: Upload gitleaks SARIF as artifact
+        if: always() && hashFiles('gitleaks.sarif') != ''
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: gitleaks-sarif
+          path: gitleaks.sarif
+          retention-days: 30
 
   # =======================================
   # Job: CodeQL - SAST for Go and JavaScript/TypeScript
