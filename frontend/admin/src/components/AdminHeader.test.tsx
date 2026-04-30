@@ -1,9 +1,8 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { BrowserRouter, MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
 import AdminHeader from './AdminHeader';
-import { AuthProvider } from '../contexts/AuthContext';
 
 // Amplifyのモック
 vi.mock('aws-amplify/auth', () => ({

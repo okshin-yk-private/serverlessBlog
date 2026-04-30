@@ -178,10 +178,6 @@ describe('Build Output Performance Validation', () => {
     it('should report JS size for static pages (Requirement 11.5)', () => {
       if (skipIfNotIntegration()) return;
 
-      const jsFiles = artifacts.filter(
-        (a) => a.path.endsWith('.js') || a.path.endsWith('.mjs')
-      );
-
       const result = validatePerformanceBudget(
         artifacts,
         DEFAULT_PERFORMANCE_BUDGET
