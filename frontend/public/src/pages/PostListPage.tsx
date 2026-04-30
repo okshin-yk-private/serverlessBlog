@@ -12,18 +12,16 @@ import type { Post, CategoryListItem } from '../types/post';
 import { SEOHead } from '../components/SEOHead';
 import { PostListSkeleton } from '../components/skeleton';
 
-// Iteratively strip `<...>` patterns so residual fragments like `<<b>>` cannot
-// collapse into a tag after a single pass. The output is rendered as React
-// text content (escaped automatically), not as innerHTML.
+// Strip `<...>` patterns to a fixed point so residual fragments like `<<b>>`
+// cannot collapse into a tag after a single pass. Uses CodeQL's recognized
+// `while (a !== (a = a.replace(...)))` shape so the
+// `js/incomplete-multi-character-sanitization` query sees the recursion.
+// Output is rendered as React text content, not innerHTML.
 const stripTags = (html: string): string => {
-  const tagPattern = /<[^>]*>/g;
-  let prev = html;
-  let next = html.replace(tagPattern, '');
-  while (next !== prev) {
-    prev = next;
-    next = next.replace(tagPattern, '');
-  }
-  return next;
+  let result = html;
+  // eslint-disable-next-line no-cond-assign
+  while (result !== (result = result.replace(/<[^>]*>/g, '')));
+  return result;
 };
 
 const PostListPage: React.FC = () => {
