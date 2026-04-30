@@ -4,6 +4,11 @@
 # Phase 1 (visibility): weekly grouped PRs for minor/patch updates, individual PRs for majors.
 # Security advisories are published as separate ungrouped PRs regardless of these settings.
 #
+# Schedule strategy:
+#   Spread weekly runs across Mon–Sat to avoid the GitHub Code Scanning API rate
+#   limit (5,000 req/h per installation) when many ecosystems open PRs concurrently.
+#   Times are staggered by 1h within each day for the same reason.
+#
 # Note on Bun:
 #   We use the `npm` ecosystem because Dependabot's experimental `bun` ecosystem
 #   does not reliably parse `bun.lock` (text format) at this time.
@@ -15,7 +20,7 @@ version: 2
 
 updates:
   # ============================================================
-  # JavaScript / TypeScript (Bun via npm ecosystem)
+  # JavaScript / TypeScript (Bun via npm ecosystem) — Monday
   # ============================================================
   - package-ecosystem: "npm"
     directory: "/"
@@ -47,7 +52,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "03:00"
+      time: "04:00"
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 5
     labels:
@@ -72,7 +77,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "03:00"
+      time: "05:00"
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 5
     labels:
@@ -97,7 +102,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "03:00"
+      time: "06:00"
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 5
     labels:
@@ -118,13 +123,13 @@ updates:
         update-types: ["version-update:semver-major"]
 
   # ============================================================
-  # Go (Lambda functions)
+  # Go (Lambda functions) — Tuesday
   # ============================================================
   - package-ecosystem: "gomod"
     directory: "/go-functions"
     schedule:
       interval: "weekly"
-      day: "monday"
+      day: "tuesday"
       time: "03:00"
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 5
@@ -142,13 +147,13 @@ updates:
         update-types: ["version-update:semver-major"]
 
   # ============================================================
-  # Terraform (environments + modules)
+  # Terraform environments — Wednesday
   # ============================================================
   - package-ecosystem: "terraform"
     directory: "/terraform/environments/dev"
     schedule:
       interval: "weekly"
-      day: "monday"
+      day: "wednesday"
       time: "03:00"
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 5
@@ -163,8 +168,8 @@ updates:
     directory: "/terraform/environments/prd"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "03:00"
+      day: "wednesday"
+      time: "04:00"
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 5
     labels:
@@ -174,98 +179,104 @@ updates:
       prefix: "chore(deps)"
       include: "scope"
 
+  # ============================================================
+  # Terraform modules (first half) — Thursday
+  # ============================================================
   - package-ecosystem: "terraform"
     directory: "/terraform/modules/acm"
-    schedule: { interval: "weekly", day: "monday", time: "03:00", timezone: "Asia/Tokyo" }
+    schedule: { interval: "weekly", day: "thursday", time: "03:00", timezone: "Asia/Tokyo" }
     open-pull-requests-limit: 3
     labels: ["dependencies", "terraform"]
     commit-message: { prefix: "chore(deps)", include: "scope" }
 
   - package-ecosystem: "terraform"
     directory: "/terraform/modules/agentcore"
-    schedule: { interval: "weekly", day: "monday", time: "03:00", timezone: "Asia/Tokyo" }
+    schedule: { interval: "weekly", day: "thursday", time: "04:00", timezone: "Asia/Tokyo" }
     open-pull-requests-limit: 3
     labels: ["dependencies", "terraform"]
     commit-message: { prefix: "chore(deps)", include: "scope" }
 
   - package-ecosystem: "terraform"
     directory: "/terraform/modules/api"
-    schedule: { interval: "weekly", day: "monday", time: "03:00", timezone: "Asia/Tokyo" }
+    schedule: { interval: "weekly", day: "thursday", time: "05:00", timezone: "Asia/Tokyo" }
     open-pull-requests-limit: 3
     labels: ["dependencies", "terraform"]
     commit-message: { prefix: "chore(deps)", include: "scope" }
 
   - package-ecosystem: "terraform"
     directory: "/terraform/modules/auth"
-    schedule: { interval: "weekly", day: "monday", time: "03:00", timezone: "Asia/Tokyo" }
+    schedule: { interval: "weekly", day: "thursday", time: "06:00", timezone: "Asia/Tokyo" }
     open-pull-requests-limit: 3
     labels: ["dependencies", "terraform"]
     commit-message: { prefix: "chore(deps)", include: "scope" }
 
   - package-ecosystem: "terraform"
     directory: "/terraform/modules/cdn"
-    schedule: { interval: "weekly", day: "monday", time: "03:00", timezone: "Asia/Tokyo" }
+    schedule: { interval: "weekly", day: "thursday", time: "07:00", timezone: "Asia/Tokyo" }
     open-pull-requests-limit: 3
     labels: ["dependencies", "terraform"]
     commit-message: { prefix: "chore(deps)", include: "scope" }
 
   - package-ecosystem: "terraform"
     directory: "/terraform/modules/codebuild"
-    schedule: { interval: "weekly", day: "monday", time: "03:00", timezone: "Asia/Tokyo" }
+    schedule: { interval: "weekly", day: "thursday", time: "08:00", timezone: "Asia/Tokyo" }
     open-pull-requests-limit: 3
     labels: ["dependencies", "terraform"]
     commit-message: { prefix: "chore(deps)", include: "scope" }
 
+  # ============================================================
+  # Terraform modules (second half) — Friday
+  # ============================================================
   - package-ecosystem: "terraform"
     directory: "/terraform/modules/database"
-    schedule: { interval: "weekly", day: "monday", time: "03:00", timezone: "Asia/Tokyo" }
+    schedule: { interval: "weekly", day: "friday", time: "03:00", timezone: "Asia/Tokyo" }
     open-pull-requests-limit: 3
     labels: ["dependencies", "terraform"]
     commit-message: { prefix: "chore(deps)", include: "scope" }
 
   - package-ecosystem: "terraform"
     directory: "/terraform/modules/dns-cloudflare"
-    schedule: { interval: "weekly", day: "monday", time: "03:00", timezone: "Asia/Tokyo" }
+    schedule: { interval: "weekly", day: "friday", time: "04:00", timezone: "Asia/Tokyo" }
     open-pull-requests-limit: 3
     labels: ["dependencies", "terraform"]
     commit-message: { prefix: "chore(deps)", include: "scope" }
 
   - package-ecosystem: "terraform"
     directory: "/terraform/modules/dns-route53"
-    schedule: { interval: "weekly", day: "monday", time: "03:00", timezone: "Asia/Tokyo" }
+    schedule: { interval: "weekly", day: "friday", time: "05:00", timezone: "Asia/Tokyo" }
     open-pull-requests-limit: 3
     labels: ["dependencies", "terraform"]
     commit-message: { prefix: "chore(deps)", include: "scope" }
 
   - package-ecosystem: "terraform"
     directory: "/terraform/modules/lambda"
-    schedule: { interval: "weekly", day: "monday", time: "03:00", timezone: "Asia/Tokyo" }
+    schedule: { interval: "weekly", day: "friday", time: "06:00", timezone: "Asia/Tokyo" }
     open-pull-requests-limit: 3
     labels: ["dependencies", "terraform"]
     commit-message: { prefix: "chore(deps)", include: "scope" }
 
   - package-ecosystem: "terraform"
     directory: "/terraform/modules/monitoring"
-    schedule: { interval: "weekly", day: "monday", time: "03:00", timezone: "Asia/Tokyo" }
+    schedule: { interval: "weekly", day: "friday", time: "07:00", timezone: "Asia/Tokyo" }
     open-pull-requests-limit: 3
     labels: ["dependencies", "terraform"]
     commit-message: { prefix: "chore(deps)", include: "scope" }
 
   - package-ecosystem: "terraform"
     directory: "/terraform/modules/storage"
-    schedule: { interval: "weekly", day: "monday", time: "03:00", timezone: "Asia/Tokyo" }
+    schedule: { interval: "weekly", day: "friday", time: "08:00", timezone: "Asia/Tokyo" }
     open-pull-requests-limit: 3
     labels: ["dependencies", "terraform"]
     commit-message: { prefix: "chore(deps)", include: "scope" }
 
   # ============================================================
-  # GitHub Actions (workflows + composite actions)
+  # GitHub Actions (workflows + composite actions) — Saturday
   # ============================================================
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
+      day: "saturday"
       time: "03:00"
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 5
@@ -286,8 +297,8 @@ updates:
     directory: "/.github/actions/setup-bun-deps"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "03:00"
+      day: "saturday"
+      time: "04:00"
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 3
     labels:
