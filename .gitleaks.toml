@@ -1,0 +1,26 @@
+title = "serverlessBlog gitleaks config"
+
+# Inherit gitleaks default rules and extend with project allowlist.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Files known to contain documentation snippets, mock fixtures, or canonical AWS example credentials"
+paths = [
+  '''terraform/docs/SECURITY_TOOLING\.md''',
+  '''docs/SECURITY_SCANNING\.md''',
+  '''\.kiro/.*''',
+  '''.*/tests/.*fixtures?/.*''',
+  '''.*/__mocks__/.*''',
+  '''bun\.lock''',
+  '''.*/bun\.lock''',
+  '''go\.sum''',
+  '''.*/go\.sum''',
+  '''package-lock\.json''',
+  '''.*/package-lock\.json''',
+]
+regexes = [
+  # AWS canonical example credentials from public documentation
+  '''AKIAIOSFODNN7EXAMPLE''',
+  '''wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY''',
+]

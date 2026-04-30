@@ -17,7 +17,14 @@
 ### 3. セキュリティバイデザイン
 - 最小権限の原則（IAM）
 - データ暗号化（転送中・保管中）
-- セキュリティスキャン（Checkov, Trivy）
+- セキュリティスキャン（多層防御）
+  - **依存自動更新**: Dependabot（npm/Bun, gomod, terraform, github-actions）
+  - **シークレット検出**: gitleaks（pre-commit + CI フル履歴）
+  - **SAST**: CodeQL（Go, JavaScript/TypeScript）
+  - **IaC スキャン**: Checkov, Trivy（config + fs）
+  - **依存脆弱性**: govulncheck（Go）, npm audit（Bun/JS）, Trivy fs
+  - **結果集約**: GitHub Security → Code scanning（全 SARIF）+ Dependabot Alerts
+  - 詳細・運用手順は `docs/SECURITY_SCANNING.md` 参照（Phase 3 hard-fail ロードマップ含む）
 
 ### 4. 監視可能性
 - 構造化ログ（Lambda Powertools）
