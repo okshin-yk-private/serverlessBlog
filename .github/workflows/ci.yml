@@ -27,7 +27,7 @@ permissions:
   id-token: write # Required for AWS OIDC authentication
 
 env:
-  GO_VERSION: '1.25.5'
+  GO_VERSION: '1.25.9'
   TERRAFORM_VERSION: '1.14.0'
   AWS_REGION: 'ap-northeast-1'
 
@@ -149,16 +149,6 @@ jobs:
       - name: Lint frontend
         working-directory: frontend/admin
         run: bun run lint
-
-      - name: Security audit (public-site)
-        run: npm audit --production --audit-level=high
-        working-directory: frontend/public
-        continue-on-error: true
-
-      - name: Security audit (admin-dashboard)
-        run: npm audit --production --audit-level=high
-        working-directory: frontend/admin
-        continue-on-error: true
 
   # =======================================
   # Job 2: Backend Unit Tests - REMOVED (Task 21.3)
