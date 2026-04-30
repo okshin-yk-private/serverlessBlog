@@ -9,6 +9,7 @@ package middleware
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -150,22 +151,31 @@ func (t *xrayTracer) EndSubsegment(seg Segment) {
 	seg.Close(nil)
 }
 
-// AddAnnotation adds a searchable annotation to the segment
+// AddAnnotation adds a searchable annotation to the segment.
+//
+// In a real X-Ray implementation this would record an indexed, searchable
+// annotation; until that wiring lands, the stub emits a debug-level slog
+// entry so callers can still observe what would have been recorded
+// (and so static analysis can see the call has an observable effect).
 func (t *xrayTracer) AddAnnotation(seg Segment, key, value string) {
 	if seg == nil {
 		return
 	}
-	// In real X-Ray implementation, this would add an annotation
-	// Annotations are indexed and searchable in X-Ray console
+	slog.Debug("xray.AddAnnotation (stub)", "segment", seg.Name(), "key", key, "value", value)
 }
 
-// AddMetadata adds metadata to the segment
+// AddMetadata adds metadata to the segment.
+//
+// In a real X-Ray implementation this would record (un-indexed) metadata
+// visible in trace details; until that wiring lands, the stub emits a
+// debug-level slog entry so callers can still observe what would have
+// been recorded (and so static analysis can see the call has an
+// observable effect).
 func (t *xrayTracer) AddMetadata(seg Segment, key string, value interface{}) {
 	if seg == nil {
 		return
 	}
-	// In real X-Ray implementation, this would add metadata
-	// Metadata is not indexed but can be viewed in trace details
+	slog.Debug("xray.AddMetadata (stub)", "segment", seg.Name(), "key", key, "value", value)
 }
 
 // AddSafeMetadata adds metadata to the segment, filtering sensitive fields
