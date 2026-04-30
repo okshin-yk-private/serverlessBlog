@@ -1,5 +1,6 @@
 import { Page, Locator } from '@playwright/test';
 import { BasePage } from './BasePage';
+import { setEditorContent, getEditorMarkdown } from '../utils/tiptapHelpers';
 
 /**
  * 管理画面記事編集ページオブジェクト
@@ -16,7 +17,7 @@ export class AdminPostEditPage extends BasePage {
     titleInput: '[data-testid="post-title-input"]',
     slugInput: '[data-testid="post-slug-input"]',
     excerptInput: '[data-testid="post-excerpt-input"]',
-    contentEditor: '[data-testid="post-content-editor"]',
+    contentEditor: '[data-testid="tiptap-editor"] [contenteditable="true"]',
     categorySelect: '[data-testid="post-category-select"]',
     tagsInput: '[data-testid="post-tags-input"]',
 
@@ -99,10 +100,11 @@ export class AdminPostEditPage extends BasePage {
   }
 
   /**
-   * 本文を入力
+   * 本文を入力 (Tiptap エディタ経由で markdown をセット)
    */
   async fillContent(content: string): Promise<void> {
-    await this.fill(this.selectors.contentEditor, content);
+    await this.page.locator(this.selectors.contentEditor).waitFor();
+    await setEditorContent(this.page, content);
   }
 
   /**
@@ -335,10 +337,10 @@ export class AdminPostEditPage extends BasePage {
   }
 
   /**
-   * コンテンツフィールドの値を取得
+   * コンテンツフィールドの値 (markdown) を取得
    */
   async getContentValue(): Promise<string> {
-    return await this.page.locator(this.selectors.contentEditor).inputValue();
+    return await getEditorMarkdown(this.page);
   }
 
   /**
