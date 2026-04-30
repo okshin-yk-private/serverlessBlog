@@ -97,20 +97,29 @@ jobs:
   codeql:
     name: CodeQL (${{ matrix.language }})
     runs-on: ubuntu-latest
+    # Phase 1: visibility-only. Don't fail the workflow on CodeQL hiccups while
+    # we shake out language-specific build modes. Findings still upload to
+    # Security → Code scanning. Drop continue-on-error in Phase 3.
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
         include:
+          # Go: autobuild is the most robust mode for a typical Go module repo.
+          # CodeQL detects go.mod and runs `go build ./...` itself. This handles
+          # multiple main packages under cmd/<group>/<func>.
           - language: go
-            build-mode: none
+            build-mode: autobuild
+          # JS/TS: build-mode: none works because the language is interpreted
+          # and CodeQL extracts source without needing a build step. This avoids
+          # autobuild attempting (and failing) to run npm/yarn against Bun-managed
+          # subprojects.
           - language: javascript-typescript
             build-mode: none
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      # CodeQL Go with build-mode: none still needs the Go toolchain installed
-      # so the extractor can resolve go.mod imports.
       - name: Setup Go
         if: matrix.language == 'go'
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
@@ -132,10 +141,14 @@ jobs:
           category: /language:${{ matrix.language }}
 
   # =======================================
-  # Job: Trivy filesystem scan (vulns + secrets + IaC + license)
-  # We install the Trivy CLI via aquasecurity/setup-trivy and run it directly,
-  # avoiding trivy-action wrapper input ambiguity (e.g., trivyignores vs
-  # ignore-files renames between releases).
+  # Job: Trivy filesystem scan (vulns + secrets)
+  # We use aquasecurity/trivy-action (the maintained official wrapper) with the
+  # absolute minimum option set to maximize the chance of a successful initial
+  # baseline. continue-on-error keeps the job non-blocking in Phase 1; the
+  # subsequent debug step prints diagnostics regardless of outcome so we can
+  # iterate on flag/config issues from the workflow logs. Misconfig, license
+  # scanners and trivyignore wiring will be re-enabled in a follow-up once the
+  # baseline run completes successfully.
   # =======================================
   trivy-fs:
     name: Trivy (filesystem)
@@ -144,30 +157,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Install Trivy CLI
-        uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
-        with:
-          version: v0.58.1
-
-      - name: Verify Trivy install
-        run: trivy --version
-
       - name: Run Trivy filesystem scan
-        # Phase 1 stance: --exit-code 0 keeps the step green even when findings
-        # exist. Findings still land in the SARIF and surface in the Security tab.
-        # Start with the minimum set of scanners (vuln + secret) to keep the
-        # initial DB pull fast and reliable; misconfig + license can be enabled
-        # in a follow-up PR once the baseline is stable.
+        id: trivy
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '0'
+
+      - name: Trivy debug
+        if: always()
         run: |
-          set -x
-          trivy fs \
-            --severity HIGH,CRITICAL \
-            --format sarif \
-            --output trivy-fs.sarif \
-            --ignore-unfixed \
-            --exit-code 0 \
-            --no-progress \
-            .
+          echo "=== Trivy step outcome: ${{ steps.trivy.outcome }} ==="
+          echo "=== which trivy ==="
+          which trivy || echo "(trivy not on PATH)"
+          echo "=== trivy version ==="
+          trivy --version 2>&1 || echo "(trivy --version failed)"
+          echo "=== SARIF file presence ==="
+          ls -la trivy-fs.sarif 2>&1 || echo "(no SARIF generated)"
+          echo "=== SARIF head (first 50 lines) ==="
+          head -n 50 trivy-fs.sarif 2>&1 || echo "(cannot read SARIF)"
 
       - name: Upload Trivy SARIF to Code Scanning
         if: always() && hashFiles('trivy-fs.sarif') != ''
