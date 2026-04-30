@@ -781,6 +781,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-labels, terraform-validate-dev, terraform-merge-artifacts]
     environment: dev
+    # Serialize Plan jobs across all PRs to avoid Terraform state lock contention.
+    # Without this, concurrent Dependabot PRs all race for the same DynamoDB lock
+    # and most fail with "Error acquiring the state lock".
+    concurrency:
+      group: terraform-plan-dev
+      cancel-in-progress: false
     if: |
       always() &&
       needs.setup-labels.outputs.has-terraform == 'true' &&
@@ -900,6 +906,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-labels, terraform-validate-prd, terraform-merge-artifacts]
     environment: prod
+    # Serialize Plan jobs across all PRs to avoid Terraform state lock contention.
+    # Without this, concurrent Dependabot PRs all race for the same DynamoDB lock
+    # and most fail with "Error acquiring the state lock".
+    concurrency:
+      group: terraform-plan-prd
+      cancel-in-progress: false
     if: |
       always() &&
       needs.setup-labels.outputs.has-terraform == 'true' &&
