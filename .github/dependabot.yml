@@ -1,0 +1,309 @@
+# Dependabot configuration
+# See: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Phase 1 (visibility): weekly grouped PRs for minor/patch updates, individual PRs for majors.
+# Security advisories are published as separate ungrouped PRs regardless of these settings.
+#
+# Schedule strategy:
+#   Spread weekly runs across Mon–Sat to avoid the GitHub Code Scanning API rate
+#   limit (5,000 req/h per installation) when many ecosystems open PRs concurrently.
+#   Times are staggered by 1h within each day for the same reason.
+#
+# Note on Bun:
+#   We use the `npm` ecosystem because Dependabot's experimental `bun` ecosystem
+#   does not reliably parse `bun.lock` (text format) at this time.
+#   Dependabot will update `package.json` only; reviewers must regenerate
+#   `bun.lock` locally with `bun install` before merging.
+#   See docs/SECURITY_SCANNING.md for the full Dependabot review workflow.
+
+version: 2
+
+updates:
+  # ============================================================
+  # JavaScript / TypeScript (Bun via npm ecosystem) — Monday
+  # ============================================================
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      prod-minor-patch:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "npm"
+    directory: "/frontend/public"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      prod-minor-patch:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "npm"
+    directory: "/frontend/public-astro"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      prod-minor-patch:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "npm"
+    directory: "/frontend/admin"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      prod-minor-patch:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # ============================================================
+  # Go (Lambda functions) — Tuesday
+  # ============================================================
+  - package-ecosystem: "gomod"
+    directory: "/go-functions"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "03:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "go"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      go-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # ============================================================
+  # Terraform environments — Wednesday
+  # ============================================================
+  - package-ecosystem: "terraform"
+    directory: "/terraform/environments/dev"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "03:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "terraform"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/environments/prd"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "04:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "terraform"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # ============================================================
+  # Terraform modules (first half) — Thursday
+  # ============================================================
+  - package-ecosystem: "terraform"
+    directory: "/terraform/modules/acm"
+    schedule: { interval: "weekly", day: "thursday", time: "03:00", timezone: "Asia/Tokyo" }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "terraform"]
+    commit-message: { prefix: "chore(deps)", include: "scope" }
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/modules/agentcore"
+    schedule: { interval: "weekly", day: "thursday", time: "04:00", timezone: "Asia/Tokyo" }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "terraform"]
+    commit-message: { prefix: "chore(deps)", include: "scope" }
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/modules/api"
+    schedule: { interval: "weekly", day: "thursday", time: "05:00", timezone: "Asia/Tokyo" }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "terraform"]
+    commit-message: { prefix: "chore(deps)", include: "scope" }
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/modules/auth"
+    schedule: { interval: "weekly", day: "thursday", time: "06:00", timezone: "Asia/Tokyo" }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "terraform"]
+    commit-message: { prefix: "chore(deps)", include: "scope" }
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/modules/cdn"
+    schedule: { interval: "weekly", day: "thursday", time: "07:00", timezone: "Asia/Tokyo" }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "terraform"]
+    commit-message: { prefix: "chore(deps)", include: "scope" }
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/modules/codebuild"
+    schedule: { interval: "weekly", day: "thursday", time: "08:00", timezone: "Asia/Tokyo" }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "terraform"]
+    commit-message: { prefix: "chore(deps)", include: "scope" }
+
+  # ============================================================
+  # Terraform modules (second half) — Friday
+  # ============================================================
+  - package-ecosystem: "terraform"
+    directory: "/terraform/modules/database"
+    schedule: { interval: "weekly", day: "friday", time: "03:00", timezone: "Asia/Tokyo" }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "terraform"]
+    commit-message: { prefix: "chore(deps)", include: "scope" }
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/modules/dns-cloudflare"
+    schedule: { interval: "weekly", day: "friday", time: "04:00", timezone: "Asia/Tokyo" }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "terraform"]
+    commit-message: { prefix: "chore(deps)", include: "scope" }
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/modules/dns-route53"
+    schedule: { interval: "weekly", day: "friday", time: "05:00", timezone: "Asia/Tokyo" }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "terraform"]
+    commit-message: { prefix: "chore(deps)", include: "scope" }
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/modules/lambda"
+    schedule: { interval: "weekly", day: "friday", time: "06:00", timezone: "Asia/Tokyo" }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "terraform"]
+    commit-message: { prefix: "chore(deps)", include: "scope" }
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/modules/monitoring"
+    schedule: { interval: "weekly", day: "friday", time: "07:00", timezone: "Asia/Tokyo" }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "terraform"]
+    commit-message: { prefix: "chore(deps)", include: "scope" }
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/modules/storage"
+    schedule: { interval: "weekly", day: "friday", time: "08:00", timezone: "Asia/Tokyo" }
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "terraform"]
+    commit-message: { prefix: "chore(deps)", include: "scope" }
+
+  # ============================================================
+  # GitHub Actions (workflows + composite actions) — Saturday
+  # ============================================================
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "saturday"
+      time: "03:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "workflow"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      actions-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/.github/actions/setup-bun-deps"
+    schedule:
+      interval: "weekly"
+      day: "saturday"
+      time: "04:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "workflow"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"

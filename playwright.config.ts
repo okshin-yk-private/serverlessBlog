@@ -45,8 +45,8 @@ export default defineConfig({
     // ベースURL（環境変数で切り替え可能）
     baseURL: process.env.BASE_URL || 'http://localhost:3000',
 
-    // トレース設定（失敗時のみ）
-    trace: 'on-first-retry',
+    // トレース設定（失敗時に保持）
+    trace: 'retain-on-failure',
 
     // スクリーンショット設定（失敗時のみ）
     screenshot: 'only-on-failure',
@@ -78,6 +78,12 @@ export default defineConfig({
   timeout: 60000,
   expect: {
     timeout: 10000,
+    // ビジュアルリグレッション既定値: 1% を超える差分を検出したら失敗
+    toHaveScreenshot: {
+      maxDiffPixelRatio: 0.01,
+      animations: 'disabled',
+      caret: 'hide',
+    },
   },
 
   // プロジェクト設定（Chromiumのみ - 2025-11-07変更）

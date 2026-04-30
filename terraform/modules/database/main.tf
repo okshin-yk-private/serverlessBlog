@@ -33,6 +33,12 @@ resource "aws_dynamodb_table" "blog_posts" {
     type = "S"
   }
 
+  # GSI attribute for slug lookup (writer-experience overhaul)
+  attribute {
+    name = "slug"
+    type = "S"
+  }
+
   # Requirement 2.3: CategoryIndex GSI
   # Partition key: category, Sort key: createdAt
   global_secondary_index {
@@ -48,6 +54,16 @@ resource "aws_dynamodb_table" "blog_posts" {
     name            = "PublishStatusIndex"
     hash_key        = "publishStatus"
     range_key       = "createdAt"
+    projection_type = "ALL"
+  }
+
+  # SlugIndex GSI for friendly URL lookup and uniqueness enforcement
+  # Partition key: slug, Projection: ALL (Astro getStaticPaths reads full post by slug)
+  # Items without slug attribute are simply absent from this index, which is fine
+  # for legacy items pending backfill.
+  global_secondary_index {
+    name            = "SlugIndex"
+    hash_key        = "slug"
     projection_type = "ALL"
   }
 

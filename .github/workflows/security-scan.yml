@@ -1,0 +1,229 @@
+# Repository-wide vulnerability scanning workflow.
+#
+# Scope: secrets (gitleaks), SAST (CodeQL), filesystem vulns/secrets/IaC/license (Trivy fs).
+# Checkov for Terraform stays in ci.yml (label-conditional) and uploads its own SARIF.
+#
+# Phase 1 stance: visibility-first. Scanners exit cleanly so the workflow never blocks;
+# all findings show up in GitHub Security → Code scanning. The hard-fail roadmap is
+# tracked in docs/SECURITY_SCANNING.md.
+
+name: Security Scan
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.kiro/**'
+  push:
+    branches: [main, develop]
+  schedule:
+    # Mon 03:00 JST (Sun 18:00 UTC) — catches CVEs disclosed against unchanged code
+    - cron: '0 18 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+concurrency:
+  group: security-scan-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # =======================================
+  # Job: gitleaks - secret scanning across full git history
+  # We use the gitleaks CLI directly (not gitleaks-action) because
+  # gitleaks-action requires a paid license for organization repos.
+  # The CLI is OSS (MIT) and produces the same SARIF output.
+  # =======================================
+  gitleaks:
+    name: Gitleaks (secrets)
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: '8.24.3'
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks CLI
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Run gitleaks
+        # Phase 1 stance: --exit-code 0 keeps the step green even when leaks are
+        # detected. Findings still land in the SARIF and surface in the Security
+        # tab. In Phase 3 flip back to --exit-code 1 to enforce.
+        run: |
+          gitleaks detect \
+            --source . \
+            --config .gitleaks.toml \
+            --report-format sarif \
+            --report-path gitleaks.sarif \
+            --redact \
+            --verbose \
+            --exit-code 0
+
+      - name: Upload gitleaks SARIF to Code Scanning
+        if: always() && hashFiles('gitleaks.sarif') != ''
+        # Code Scanning API rate limit can fail this step when many Dependabot PRs
+        # run concurrently. SARIF visibility is best-effort, so don't fail the job.
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@7fc6561ed893d15cec696e062df840b21db27eb0 # v4.35.2
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
+
+      - name: Upload gitleaks SARIF as artifact
+        if: always() && hashFiles('gitleaks.sarif') != ''
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: gitleaks-sarif
+          path: gitleaks.sarif
+          retention-days: 30
+
+  # =======================================
+  # Job: CodeQL - SAST for Go and JavaScript/TypeScript
+  # build-mode: none — modern CodeQL extracts source without requiring a
+  # working compile step. This avoids the brittleness of autobuild (which
+  # mis-handles Bun-managed JS/TS projects and multiple Go main packages).
+  # =======================================
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    # Phase 1: visibility-only. Don't fail the workflow on CodeQL hiccups while
+    # we shake out language-specific build modes. Findings still upload to
+    # Security → Code scanning. Drop continue-on-error in Phase 3.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Go: autobuild is the most robust mode for a typical Go module repo.
+          # CodeQL detects go.mod and runs `go build ./...` itself. This handles
+          # multiple main packages under cmd/<group>/<func>.
+          - language: go
+            build-mode: autobuild
+          # JS/TS: build-mode: none works because the language is interpreted
+          # and CodeQL extracts source without needing a build step. This avoids
+          # autobuild attempting (and failing) to run npm/yarn against Bun-managed
+          # subprojects.
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Go
+        if: matrix.language == 'go'
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: '1.25.5'
+          check-latest: true
+          cache-dependency-path: go-functions/go.sum
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
+        with:
+          category: /language:${{ matrix.language }}
+
+  # =======================================
+  # Job: Trivy filesystem scan (vulns + secrets)
+  # We use aquasecurity/trivy-action (the maintained official wrapper) with the
+  # absolute minimum option set to maximize the chance of a successful initial
+  # baseline. continue-on-error keeps the job non-blocking in Phase 1; the
+  # subsequent debug step prints diagnostics regardless of outcome so we can
+  # iterate on flag/config issues from the workflow logs. Misconfig, license
+  # scanners and trivyignore wiring will be re-enabled in a follow-up once the
+  # baseline run completes successfully.
+  # =======================================
+  trivy-fs:
+    name: Trivy (filesystem)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Run Trivy filesystem scan
+        id: trivy
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '0'
+
+      - name: Trivy debug
+        if: always()
+        run: |
+          echo "=== Trivy step outcome: ${{ steps.trivy.outcome }} ==="
+          echo "=== which trivy ==="
+          which trivy || echo "(trivy not on PATH)"
+          echo "=== trivy version ==="
+          trivy --version 2>&1 || echo "(trivy --version failed)"
+          echo "=== SARIF file presence ==="
+          ls -la trivy-fs.sarif 2>&1 || echo "(no SARIF generated)"
+          echo "=== SARIF head (first 50 lines) ==="
+          head -n 50 trivy-fs.sarif 2>&1 || echo "(cannot read SARIF)"
+
+      - name: Upload Trivy SARIF to Code Scanning
+        if: always() && hashFiles('trivy-fs.sarif') != ''
+        # Code Scanning API rate limit can fail this step when many Dependabot PRs
+        # run concurrently. SARIF visibility is best-effort, so don't fail the job.
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+
+      - name: Upload Trivy SARIF as artifact
+        if: always() && hashFiles('trivy-fs.sarif') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: trivy-fs-sarif
+          path: trivy-fs.sarif
+          retention-days: 30
+
+  # =======================================
+  # Job: Summary (always runs, never blocks)
+  # =======================================
+  security-scan-summary:
+    name: Security Scan Summary
+    runs-on: ubuntu-latest
+    needs: [gitleaks, codeql, trivy-fs]
+    if: always()
+    steps:
+      - name: Render summary
+        run: |
+          {
+            echo "# Security Scan Summary"
+            echo ""
+            echo "| Scanner | Result |"
+            echo "|---------|--------|"
+            echo "| Gitleaks (secrets) | ${{ needs.gitleaks.result }} |"
+            echo "| CodeQL | ${{ needs.codeql.result }} |"
+            echo "| Trivy (fs) | ${{ needs.trivy-fs.result }} |"
+            echo ""
+            echo "Findings appear in **Security → Code scanning** under the categories: \`gitleaks\`, \`/language:go\`, \`/language:javascript-typescript\`, \`trivy-fs\`."
+            echo ""
+            echo "Phase 1 stance is visibility-first; see \`docs/SECURITY_SCANNING.md\` for the hard-fail roadmap."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import PostCreatePage from './PostCreatePage';
@@ -323,11 +323,23 @@ describe('PostCreatePage', () => {
       expect(postsApi.uploadImage).toHaveBeenCalled();
     });
 
-    // エディタに記事内容を入力可能
-    await user.type(screen.getByLabelText(/タイトル/i), 'タイトル');
-    expect(screen.getByLabelText<HTMLInputElement>(/タイトル/i).value).toBe(
-      'タイトル'
-    );
+    // 画像アップロード後に走る setState (uploadedImages 追加 + insertAtCursor
+    // による本文への markdown 挿入) が完了するまで待機。
+    await waitFor(() => {
+      const textarea = screen.getByLabelText(/本文/i) as HTMLTextAreaElement;
+      expect(textarea.value).toContain('![image](');
+    });
+
+    // エディタに記事内容を入力可能。
+    // user.type ではなく fireEvent.change を使う理由:
+    // PostEditor.insertAtCursor が requestAnimationFrame で本文 textarea に
+    // フォーカスを戻すため、user.type の連続キーストロークとフォーカス遷移が
+    // レースし、日本語タイトルの 1 文字目しか反映されないことがある。
+    // ここでは「アップロード後もタイトル入力欄が機能する」ことを示せれば
+    // 十分なので、状態を一度に設定する fireEvent.change で決定論的に検証する。
+    const titleInput = screen.getByLabelText<HTMLInputElement>(/タイトル/i);
+    fireEvent.change(titleInput, { target: { value: 'タイトル' } });
+    expect(titleInput.value).toBe('タイトル');
   });
 
   // バリデーション
