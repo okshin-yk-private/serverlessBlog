@@ -17,6 +17,7 @@ import {
 import { uploadImage as defaultUploadImage } from '../api/posts';
 import { Button } from './Button';
 import { TiptapEditor, type TiptapEditorHandle } from './editor';
+import { useAutosave } from './editor/hooks/useAutosave';
 
 export interface PostData {
   title: string;
@@ -56,6 +57,12 @@ interface PostEditorProps {
   onCategoriesRefetch?: () => void;
   /** マインドマップ挿入ボタンクリック時のコールバック */
   onMindmapInsertClick?: () => void;
+  /**
+   * 自動保存コールバック (省略時は autosave 機能無効)。
+   * 1.5s デバウンス / window blur / visibility hidden で発火し、
+   * 失敗時は throw する。新規作成時は親側で createPost + URL 置換を行う。
+   */
+  onAutosave?: (data: PostData) => Promise<void>;
 }
 
 const PUBLISH_STATUS = [
@@ -77,6 +84,7 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
       categoriesError = null,
       onCategoriesRefetch,
       onMindmapInsertClick,
+      onAutosave,
     },
     ref
   ) => {
@@ -128,6 +136,37 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
       },
       []
     );
+
+    // 自動保存 (onAutosave が渡された時のみ有効)。
+    // タイトル非空かつ本文非空の場合だけ保存対象にする (空 POST を防ぐ)。
+    const autosaveData: PostData = {
+      title,
+      contentMarkdown,
+      category,
+      tags,
+      publishStatus,
+    };
+    const noopAutosave = useRef(async () => {}).current;
+    const autosave = useAutosave<PostData>({
+      data: autosaveData,
+      save: onAutosave ?? noopAutosave,
+      enabled: !!onAutosave,
+      isReady: (d) =>
+        d.title.trim().length > 0 && d.contentMarkdown.trim().length > 0,
+    });
+
+    // 未保存状態でブラウザ閉じ/リロードを警告 (beforeunload)
+    useEffect(() => {
+      if (!onAutosave) return;
+      const handler = (e: BeforeUnloadEvent) => {
+        if (!autosave.isDirty) return;
+        e.preventDefault();
+        // Modern browsers ignore the message but require returnValue to be set
+        e.returnValue = '';
+      };
+      window.addEventListener('beforeunload', handler);
+      return () => window.removeEventListener('beforeunload', handler);
+    }, [onAutosave, autosave.isDirty]);
 
     useEffect(() => {
       if (!uploadError) return;
@@ -236,9 +275,27 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
           tags,
           publishStatus,
         });
+        // autosave hook の baseline を現在値に揃える
+        // (これがないと explicit save 後も isDirty=true のままになる)
+        if (onAutosave) {
+          autosave.markClean();
+        }
       } finally {
         setIsSaving(false);
       }
+    };
+
+    const handleCancelClick = () => {
+      // autosave 有効かつ未保存変更がある場合のみ確認ダイアログを表示
+      if (onAutosave && autosave.isDirty) {
+        const confirmed = window.confirm(
+          '未保存の変更があります。本当にキャンセルしますか？'
+        );
+        if (!confirmed) {
+          return;
+        }
+      }
+      onCancel();
     };
 
     return (
@@ -539,8 +596,8 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
           </select>
         </div>
 
-        {/* ボタン */}
-        <div className="flex gap-3">
+        {/* ボタン + autosave ステータス */}
+        <div className="flex items-center gap-3">
           <Button
             type="submit"
             variant="primary"
@@ -556,12 +613,30 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
           <Button
             type="button"
             variant="secondary"
-            onClick={onCancel}
+            onClick={handleCancelClick}
             disabled={isSaving}
             data-testid="cancel-button"
           >
             キャンセル
           </Button>
+          {onAutosave && (
+            <span
+              data-testid="autosave-status"
+              data-autosave-status={autosave.status}
+              className={`ml-auto text-sm ${
+                autosave.status === 'error'
+                  ? 'text-red-600'
+                  : autosave.status === 'saving'
+                    ? 'text-blue-600'
+                    : autosave.status === 'saved'
+                      ? 'text-gray-500'
+                      : 'text-gray-400'
+              }`}
+              aria-live="polite"
+            >
+              {autosave.savedAgoLabel}
+            </span>
+          )}
         </div>
       </form>
     );

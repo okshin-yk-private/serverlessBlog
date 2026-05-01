@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   PostEditor,
@@ -70,6 +70,15 @@ const PostEditPage = () => {
     }
   };
 
+  // 自動保存: 既存記事なので常に updatePost
+  const handleAutosave = useCallback(
+    async (data: PostData) => {
+      if (!id) return;
+      await updatePost(id, data);
+    },
+    [id]
+  );
+
   const handleCancel = () => {
     navigate('/posts');
   };
@@ -108,6 +117,7 @@ const PostEditPage = () => {
             ref={editorRef}
             onSave={handleSave}
             onCancel={handleCancel}
+            onAutosave={handleAutosave}
             initialData={initialData}
             categories={categories}
             categoriesLoading={categoriesLoading}
