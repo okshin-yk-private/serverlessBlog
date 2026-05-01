@@ -1,0 +1,133 @@
+/*
+ * Shared article typography
+ *
+ * Used by:
+ *   - frontend/public-astro/src/layouts/Layout.astro (公開ページ全体に @import)
+ *   - frontend/admin/src/index.css (Tiptap プレビューに @import)
+ *
+ * すべてのルールは `.post-content` 配下にスコープしている。
+ * 各アプリでレンダー結果を class="post-content" でラップすると適用される。
+ *
+ * 純粋 CSS で記述している (Tailwind の `@apply` を使わない) ため、
+ * admin / public-astro いずれの Tailwind バージョンでも追加設定なしで動作する。
+ *
+ * Markdown→HTML エンジンが Goldmark (Astro) と react-markdown (admin) で異なる以上
+ * pixel-perfect な一致は保証しないが、見出しサイズ / コードブロック / 引用枠線 /
+ * リンク色など基本タイポグラフィは同一に揃える。
+ */
+
+.post-content {
+  font-size: 1.125rem;
+  line-height: 1.8;
+  color: #374151;
+}
+
+.post-content h1,
+.post-content h2,
+.post-content h3,
+.post-content h4,
+.post-content h5,
+.post-content h6 {
+  color: #111827;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.post-content h2 {
+  font-size: 1.75rem;
+}
+
+.post-content h3 {
+  font-size: 1.5rem;
+}
+
+.post-content p {
+  margin-bottom: 1.5rem;
+}
+
+.post-content a {
+  color: #c9a857;
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.post-content a:hover {
+  color: #2d2a5a;
+}
+
+.post-content ul,
+.post-content ol {
+  margin-bottom: 1.5rem;
+  padding-left: 2rem;
+}
+
+/* `list-style-type` を明示する。Tailwind v4 の preflight が
+   `ul, ol { list-style: none }` でデフォルト bullet を消すため、
+   各アプリで Tailwind reset が入った場合でも bullet を復元する。 */
+.post-content ul {
+  list-style-type: disc;
+}
+
+.post-content ol {
+  list-style-type: decimal;
+}
+
+.post-content li {
+  margin-bottom: 0.5rem;
+}
+
+.post-content blockquote {
+  border-left: 4px solid #c9a857;
+  padding-left: 1.5rem;
+  margin: 1.5rem 0;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.post-content code {
+  background: #f3f4f6;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: 'Fira Code', 'Consolas', monospace;
+}
+
+.post-content pre {
+  background: #1f2937;
+  color: #e5e7eb;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
+.post-content pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.875rem;
+  font-family: 'Fira Code', 'Consolas', monospace;
+}
+
+.post-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+}
+
+.post-content strong {
+  font-weight: 600;
+  color: #111827;
+}
+
+.post-content em {
+  font-style: italic;
+}
+
+@media (max-width: 768px) {
+  .post-content {
+    font-size: 1rem;
+  }
+}

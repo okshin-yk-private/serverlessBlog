@@ -376,7 +376,7 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
             {editorMode === 'preview' && (
               <div
                 data-testid="markdown-preview"
-                className="prose prose-sm max-w-none p-4 border border-gray-300 rounded-md bg-gray-50 min-h-[400px]"
+                className="post-content max-w-none p-4 border border-gray-300 rounded-md bg-gray-50 min-h-[400px]"
               >
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {contentMarkdown || '*プレビューがここに表示されます*'}
