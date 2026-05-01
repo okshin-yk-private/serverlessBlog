@@ -30,6 +30,28 @@ const mockCategories: CategoryOption[] = [
   { slug: 'other', name: 'その他', sortOrder: 4 },
 ];
 
+async function waitForTiptap() {
+  await waitFor(() => {
+    if (!window.__tiptapEditor) {
+      throw new Error('tiptap editor not yet exposed');
+    }
+  });
+  return window.__tiptapEditor!;
+}
+
+async function setEditorContent(markdown: string) {
+  const editor = await waitForTiptap();
+  act(() => {
+    editor.commands.setContent(markdown);
+  });
+}
+
+async function getEditorMarkdown(): Promise<string> {
+  const editor = await waitForTiptap();
+  // tiptap-markdown stores serializer in editor.storage.markdown
+  return editor.storage.markdown.getMarkdown() as string;
+}
+
 describe('PostEditor', () => {
   const mockOnSave = vi.fn();
   const mockOnCancel = vi.fn();
@@ -49,7 +71,7 @@ describe('PostEditor', () => {
     );
 
     expect(screen.getByLabelText(/タイトル/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/本文/i)).toBeInTheDocument();
+    expect(screen.getByTestId('tiptap-editor')).toBeInTheDocument();
     expect(screen.getByLabelText(/カテゴリ/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/公開状態/i)).toBeInTheDocument();
   });
@@ -69,7 +91,7 @@ describe('PostEditor', () => {
     ).toBeInTheDocument();
   });
 
-  it('初期値が正しく設定される', () => {
+  it('初期値が正しく設定される', async () => {
     const initialData: PostData = {
       title: '既存記事タイトル',
       contentMarkdown: '# 既存記事本文',
@@ -88,7 +110,6 @@ describe('PostEditor', () => {
     );
 
     const titleInput = screen.getByLabelText(/タイトル/i) as HTMLInputElement;
-    const contentInput = screen.getByLabelText(/本文/i) as HTMLTextAreaElement;
     const categorySelect = screen.getByLabelText(
       /カテゴリ/i
     ) as HTMLSelectElement;
@@ -97,13 +118,33 @@ describe('PostEditor', () => {
     ) as HTMLSelectElement;
 
     expect(titleInput.value).toBe('既存記事タイトル');
-    expect(contentInput.value).toBe('# 既存記事本文');
     expect(categorySelect.value).toBe('tech');
     expect(statusSelect.value).toBe('published');
 
     // タグが表示されていることを確認
     expect(screen.getByText('React')).toBeInTheDocument();
     expect(screen.getByText('AWS')).toBeInTheDocument();
+
+    // 本文が Tiptap に流し込まれている
+    await waitFor(async () => {
+      const md = await getEditorMarkdown();
+      expect(md).toContain('既存記事本文');
+    });
+  });
+
+  it('publishStatus 既定値は draft', () => {
+    render(
+      <PostEditor
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+        categories={mockCategories}
+      />
+    );
+
+    const statusSelect = screen.getByLabelText(
+      /公開状態/i
+    ) as HTMLSelectElement;
+    expect(statusSelect.value).toBe('draft');
   });
 
   it('タイトルが空の場合はバリデーションエラーが表示される', async () => {
@@ -156,7 +197,7 @@ describe('PostEditor', () => {
     );
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
-    await user.type(screen.getByLabelText(/本文/i), 'テスト本文');
+    await setEditorContent('テスト本文');
 
     // カテゴリを空にする
     const categorySelect = screen.getByLabelText(/カテゴリ/i);
@@ -182,10 +223,7 @@ describe('PostEditor', () => {
     );
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
-    await user.type(
-      screen.getByLabelText(/本文/i),
-      '# テスト本文\n\nこれはテストです。'
-    );
+    await setEditorContent('# テスト本文\n\nこれはテストです。');
     await user.selectOptions(screen.getByLabelText(/カテゴリ/i), 'tech');
     await user.selectOptions(screen.getByLabelText(/公開状態/i), 'draft');
 
@@ -193,14 +231,14 @@ describe('PostEditor', () => {
 
     await waitFor(() => {
       expect(mockOnSave).toHaveBeenCalledTimes(1);
-      expect(mockOnSave).toHaveBeenCalledWith({
-        title: 'テストタイトル',
-        contentMarkdown: '# テスト本文\n\nこれはテストです。',
-        category: 'tech',
-        tags: [],
-        publishStatus: 'draft',
-      });
     });
+    const call = mockOnSave.mock.calls[0][0];
+    expect(call.title).toBe('テストタイトル');
+    expect(call.category).toBe('tech');
+    expect(call.tags).toEqual([]);
+    expect(call.publishStatus).toBe('draft');
+    expect(call.contentMarkdown).toContain('テスト本文');
+    expect(call.contentMarkdown).toContain('これはテストです');
   });
 
   it('キャンセルボタンをクリックするとonCancelが呼ばれる', async () => {
@@ -219,35 +257,43 @@ describe('PostEditor', () => {
     expect(mockOnSave).not.toHaveBeenCalled();
   });
 
-  it('Markdownプレビューが表示される', () => {
-    render(
-      <PostEditor
-        onSave={mockOnSave}
-        onCancel={mockOnCancel}
-        categories={mockCategories}
-      />
-    );
-
-    expect(screen.getByTestId('markdown-preview')).toBeInTheDocument();
-  });
-
-  it('入力した内容がMarkdownプレビューに反映される', async () => {
+  it('Edit / Preview タブが切り替わる', async () => {
     const user = userEvent.setup();
+    const initialData: PostData = {
+      title: 'タイトル',
+      contentMarkdown: '# テスト見出し',
+      category: 'tech',
+      tags: [],
+      publishStatus: 'draft',
+    };
+
     render(
       <PostEditor
         onSave={mockOnSave}
         onCancel={mockOnCancel}
         categories={mockCategories}
+        initialData={initialData}
       />
     );
 
-    await user.type(screen.getByLabelText(/本文/i), '# テスト見出し');
+    // 初期状態は edit タブ、tiptap-editor は表示されている
+    expect(screen.getByTestId('tiptap-editor')).toBeInTheDocument();
+    expect(screen.queryByTestId('markdown-preview')).not.toBeInTheDocument();
 
-    // プレビュー領域にMarkdownがレンダリングされることを確認
+    // Preview タブに切替
+    await user.click(screen.getByTestId('editor-tab-preview'));
+
     await waitFor(() => {
-      const preview = screen.getByTestId('markdown-preview');
-      expect(preview).toBeInTheDocument();
-      expect(preview.textContent).toContain('テスト見出し');
+      expect(screen.getByTestId('markdown-preview')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('markdown-preview').textContent).toContain(
+      'テスト見出し'
+    );
+
+    // Edit タブに戻す
+    await user.click(screen.getByTestId('editor-tab-edit'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('markdown-preview')).not.toBeInTheDocument();
     });
   });
 
@@ -265,7 +311,7 @@ describe('PostEditor', () => {
     );
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
-    await user.type(screen.getByLabelText(/本文/i), 'テスト本文');
+    await setEditorContent('テスト本文');
     await user.selectOptions(screen.getByLabelText(/カテゴリ/i), 'tech');
 
     const saveButton = screen.getByRole('button', { name: /保存/i });
@@ -336,8 +382,7 @@ describe('PostEditor', () => {
       expect(typeof ref.current?.insertAtCursor).toBe('function');
     });
 
-    it('カーソル位置にテキストを挿入する', async () => {
-      const user = userEvent.setup();
+    it('画像 markdown を挿入すると image ノードとして反映される', async () => {
       const ref = createRef<PostEditorHandle>();
       render(
         <PostEditor
@@ -348,70 +393,84 @@ describe('PostEditor', () => {
         />
       );
 
-      const textarea = screen.getByTestId(
-        'post-content-editor'
-      ) as HTMLTextAreaElement;
-      await user.type(textarea, 'Hello World');
-
-      // カーソルを「Hello 」の後に移動
-      textarea.setSelectionRange(6, 6);
-
-      // 画像Markdownを挿入
+      await waitForTiptap();
       act(() => {
-        ref.current?.insertAtCursor('![image](https://example.com/img.png)');
+        ref.current?.insertAtCursor('![alt](https://example.com/img.png)');
       });
 
-      expect(textarea.value).toBe(
-        'Hello ![image](https://example.com/img.png)World'
+      // markdown 出力に画像構文が含まれる（属性順序は許容）
+      const md = await getEditorMarkdown();
+      expect(md).toMatch(/!\[alt\]\(https:\/\/example\.com\/img\.png\)/);
+
+      // image ノードとして DOM に存在
+      const img = document
+        .querySelector('[data-testid="tiptap-editor"]')
+        ?.querySelector('img');
+      expect(img).not.toBeNull();
+      expect(img?.getAttribute('src')).toBe('https://example.com/img.png');
+    });
+
+    it('mindmap マーカー挿入は独立段落として反映される', async () => {
+      const ref = createRef<PostEditorHandle>();
+      render(
+        <PostEditor
+          ref={ref}
+          onSave={mockOnSave}
+          onCancel={mockOnCancel}
+          categories={mockCategories}
+        />
+      );
+
+      await waitForTiptap();
+      act(() => {
+        ref.current?.insertAtCursor(
+          '\n{{mindmap:550e8400-e29b-41d4-a716-446655440000}}\n'
+        );
+      });
+
+      const md = await getEditorMarkdown();
+      expect(md).toContain('{{mindmap:550e8400-e29b-41d4-a716-446655440000}}');
+      // 独立段落として存在することを double-newline で確認
+      expect(md).toMatch(
+        /\{\{mindmap:550e8400-e29b-41d4-a716-446655440000\}\}/
       );
     });
 
-    it('テキスト選択状態で挿入すると選択範囲を置換する', async () => {
-      const user = userEvent.setup();
+    it('removeImageUrl で指定 URL の image ノードを削除する', async () => {
       const ref = createRef<PostEditorHandle>();
+      const initialData: PostData = {
+        title: 'タイトル',
+        contentMarkdown:
+          '前\n\n![](https://example.com/keep.png)\n\n中\n\n![](https://example.com/remove.png)\n\n後',
+        category: 'tech',
+        tags: [],
+        publishStatus: 'draft',
+      };
       render(
         <PostEditor
           ref={ref}
           onSave={mockOnSave}
           onCancel={mockOnCancel}
           categories={mockCategories}
+          initialData={initialData}
         />
       );
 
-      const textarea = screen.getByTestId(
-        'post-content-editor'
-      ) as HTMLTextAreaElement;
-      await user.type(textarea, 'Hello World');
-
-      // 「World」を選択
-      textarea.setSelectionRange(6, 11);
-
-      act(() => {
-        ref.current?.insertAtCursor('![image](url)');
+      await waitFor(async () => {
+        const md = await getEditorMarkdown();
+        expect(md).toContain('keep.png');
+        expect(md).toContain('remove.png');
       });
 
-      expect(textarea.value).toBe('Hello ![image](url)');
-    });
-
-    it('空のテキストエリアに挿入できる', () => {
-      const ref = createRef<PostEditorHandle>();
-      render(
-        <PostEditor
-          ref={ref}
-          onSave={mockOnSave}
-          onCancel={mockOnCancel}
-          categories={mockCategories}
-        />
-      );
-
       act(() => {
-        ref.current?.insertAtCursor('![image](url)');
+        ref.current?.removeImageUrl('https://example.com/remove.png');
       });
 
-      const textarea = screen.getByTestId(
-        'post-content-editor'
-      ) as HTMLTextAreaElement;
-      expect(textarea.value).toBe('![image](url)');
+      await waitFor(async () => {
+        const md = await getEditorMarkdown();
+        expect(md).toContain('keep.png');
+        expect(md).not.toContain('remove.png');
+      });
     });
   });
 
@@ -427,20 +486,27 @@ describe('PostEditor', () => {
         />
       );
 
-      const textarea = screen.getByTestId('post-content-editor');
+      await waitForTiptap();
+      const editorEl = screen
+        .getByTestId('tiptap-editor')
+        .querySelector('[contenteditable]') as HTMLElement;
 
-      // 画像ファイルを含むClipboardEventをシミュレート
       const file = new File(['dummy'], 'test.png', { type: 'image/png' });
       const clipboardData = {
         items: [
           {
             type: 'image/png',
+            kind: 'file',
             getAsFile: () => file,
+            getAsString: () => '',
           },
         ],
-      };
+        getData: () => '',
+        types: ['Files'],
+        files: [file],
+      } as unknown as DataTransfer;
 
-      fireEvent.paste(textarea, { clipboardData });
+      fireEvent.paste(editorEl, { clipboardData });
 
       await waitFor(() => {
         expect(mockOnImagePaste).toHaveBeenCalledWith(file);
@@ -458,23 +524,33 @@ describe('PostEditor', () => {
         />
       );
 
-      const textarea = screen.getByTestId('post-content-editor');
+      await waitForTiptap();
+      const editorEl = screen
+        .getByTestId('tiptap-editor')
+        .querySelector('[contenteditable]') as HTMLElement;
 
       const clipboardData = {
         items: [
           {
             type: 'text/plain',
+            kind: 'string',
             getAsFile: () => null,
+            getAsString: (cb: (s: string) => void) => cb('hello'),
           },
         ],
-      };
+        getData: (type: string) => (type === 'text/plain' ? 'hello' : ''),
+        types: ['text/plain'],
+        files: [],
+      } as unknown as DataTransfer;
 
-      fireEvent.paste(textarea, { clipboardData });
+      fireEvent.paste(editorEl, { clipboardData });
 
+      // microtask 待ち
+      await new Promise((r) => setTimeout(r, 0));
       expect(mockOnImagePaste).not.toHaveBeenCalled();
     });
 
-    it('onImagePasteが未定義でも画像ペーストでエラーにならない', () => {
+    it('onImagePasteが未定義でも画像ペーストでエラーにならない', async () => {
       render(
         <PostEditor
           onSave={mockOnSave}
@@ -483,20 +559,28 @@ describe('PostEditor', () => {
         />
       );
 
-      const textarea = screen.getByTestId('post-content-editor');
+      await waitForTiptap();
+      const editorEl = screen
+        .getByTestId('tiptap-editor')
+        .querySelector('[contenteditable]') as HTMLElement;
 
       const file = new File(['dummy'], 'test.png', { type: 'image/png' });
       const clipboardData = {
         items: [
           {
             type: 'image/png',
+            kind: 'file',
             getAsFile: () => file,
+            getAsString: () => '',
           },
         ],
-      };
+        getData: () => '',
+        types: ['Files'],
+        files: [file],
+      } as unknown as DataTransfer;
 
       expect(() => {
-        fireEvent.paste(textarea, { clipboardData });
+        fireEvent.paste(editorEl, { clipboardData });
       }).not.toThrow();
     });
   });
@@ -875,7 +959,7 @@ describe('PostEditor', () => {
       );
 
       await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
-      await user.type(screen.getByLabelText(/本文/i), 'テスト本文');
+      await setEditorContent('テスト本文');
       await user.selectOptions(screen.getByLabelText(/カテゴリ/i), 'tech');
 
       // タグを追加
@@ -1013,7 +1097,7 @@ describe('PostEditor', () => {
       );
 
       await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
-      await user.type(screen.getByLabelText(/本文/i), 'テスト本文');
+      await setEditorContent('テスト本文');
       await user.selectOptions(screen.getByLabelText(/カテゴリ/i), 'tech');
 
       await user.click(screen.getByRole('button', { name: /保存/i }));

@@ -13,6 +13,8 @@ out/
 *.js
 *.js.map
 *.d.ts
+# Exception: TypeScript declaration files committed under src/ are intentional
+!frontend/admin/src/**/*.d.ts
 
 # TypeScript cache
 *.tsbuildinfo
