@@ -9,6 +9,25 @@
   src: url('/fonts/caveat-variable.woff2') format('woff2');
 }
 
+/* Self-hosted Shippori Mincho (Google Fonts v17 woff2) — body font.
+   font-display: swap so content renders immediately in fallback before
+   the ~3MB Japanese font finishes loading. */
+@font-face {
+  font-family: 'Shippori Mincho';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/shippori-mincho-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Shippori Mincho';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/shippori-mincho-600.woff2') format('woff2');
+}
+
 /* Design tokens (aligned with admin) */
 :root {
   --color-primary: #2D2A5A;
