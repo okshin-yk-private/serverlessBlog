@@ -20,23 +20,12 @@ test.describe('Admin Tiptap Editor - toolbar image button', () => {
   const FINAL_IMAGE_URL =
     'https://mock-cdn.cloudfront.net/images/toolbar-test.png';
 
-  test.beforeEach(async ({ adminLoginPage, page }) => {
+  test.beforeEach(async ({ adminLoginPage }) => {
     resetMockPosts();
     await adminLoginPage.navigate();
     await adminLoginPage.clearCredentials();
     await adminLoginPage.login(testCredentials.email, testCredentials.password);
-
-    await page.route(/mock-s3-bucket\.s3\.amazonaws\.com/, async (route) => {
-      await route.fulfill({
-        status: 200,
-        headers: {
-          'access-control-allow-origin': '*',
-          'access-control-allow-methods': 'PUT, OPTIONS',
-          'access-control-allow-headers': '*',
-        },
-        body: '',
-      });
-    });
+    // 画像 PUT は MSW handlers.ts の `_mock_s3_put/:filename` ハンドラが処理する。
   });
 
   test('ツールバーの画像ボタンから選んだファイルが markdown に挿入される', async ({

@@ -24,25 +24,12 @@ test.describe('Admin Tiptap Editor - image paste', () => {
   const FINAL_IMAGE_URL =
     'https://mock-cdn.cloudfront.net/images/paste-test.png';
 
-  test.beforeEach(async ({ adminLoginPage, page }) => {
+  test.beforeEach(async ({ adminLoginPage }) => {
     resetMockPosts();
     await adminLoginPage.navigate();
     await adminLoginPage.clearCredentials();
     await adminLoginPage.login(testCredentials.email, testCredentials.password);
-
-    // S3 PUT (mock-s3-bucket.s3.amazonaws.com への直送) を同 origin リダイレクトで処理。
-    // CORS preflight 回避のため、CORS 許可ヘッダ付きで 200 を返す。
-    await page.route(/mock-s3-bucket\.s3\.amazonaws\.com/, async (route) => {
-      await route.fulfill({
-        status: 200,
-        headers: {
-          'access-control-allow-origin': '*',
-          'access-control-allow-methods': 'PUT, OPTIONS',
-          'access-control-allow-headers': '*',
-        },
-        body: '',
-      });
-    });
+    // 画像 PUT は MSW handlers.ts の `_mock_s3_put/:filename` ハンドラが処理する。
   });
 
   test('画像を貼り付けると UploadImage が S3 PUT を経て最終 URL を markdown に挿入する', async ({

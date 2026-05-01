@@ -24,23 +24,12 @@ test.describe('Admin Tiptap Editor - image drop', () => {
   const FINAL_IMAGE_URL =
     'https://mock-cdn.cloudfront.net/images/drop-test.jpg';
 
-  test.beforeEach(async ({ adminLoginPage, page }) => {
+  test.beforeEach(async ({ adminLoginPage }) => {
     resetMockPosts();
     await adminLoginPage.navigate();
     await adminLoginPage.clearCredentials();
     await adminLoginPage.login(testCredentials.email, testCredentials.password);
-
-    await page.route(/mock-s3-bucket\.s3\.amazonaws\.com/, async (route) => {
-      await route.fulfill({
-        status: 200,
-        headers: {
-          'access-control-allow-origin': '*',
-          'access-control-allow-methods': 'PUT, OPTIONS',
-          'access-control-allow-headers': '*',
-        },
-        body: '',
-      });
-    });
+    // 画像 PUT は MSW handlers.ts の `_mock_s3_put/:filename` ハンドラが処理する。
   });
 
   test('画像をドロップすると UploadImage が S3 PUT を経て最終 URL を markdown に挿入する', async ({
