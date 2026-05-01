@@ -101,6 +101,16 @@ variable "lambda_delete_post_invoke_arn" {
   description = "Delete Post Lambda function invoke ARN"
 }
 
+variable "lambda_build_status_post_arn" {
+  type        = string
+  description = "Build Status Post Lambda function ARN"
+}
+
+variable "lambda_build_status_post_invoke_arn" {
+  type        = string
+  description = "Build Status Post Lambda function invoke ARN"
+}
+
 variable "lambda_login_arn" {
   type        = string
   description = "Login Lambda function ARN"

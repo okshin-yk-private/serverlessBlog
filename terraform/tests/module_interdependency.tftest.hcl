@@ -148,6 +148,8 @@ run "api_outputs_for_cdn_and_lambda" {
     lambda_update_post_invoke_arn                  = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-post-go/invocations"
     lambda_delete_post_arn                         = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-post-go"
     lambda_delete_post_invoke_arn                  = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-post-go/invocations"
+    lambda_build_status_post_arn                   = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-build-status-post-go"
+    lambda_build_status_post_invoke_arn            = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-build-status-post-go/invocations"
     lambda_login_arn                               = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go"
     lambda_login_invoke_arn                        = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go/invocations"
     lambda_logout_arn                              = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-logout-go"
@@ -221,8 +223,8 @@ run "lambda_outputs_for_monitoring" {
 
   # Verify function_names has expected count (known during plan)
   assert {
-    condition     = length(output.function_names) == 23
-    error_message = "Lambda module must export all 23 function names"
+    condition     = length(output.function_names) == 24
+    error_message = "Lambda module must export all 24 function names"
   }
 
   # Verify role name outputs match expected values

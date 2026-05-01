@@ -24,6 +24,7 @@ FUNCTIONS := \
 	posts/list \
 	posts/update \
 	posts/delete \
+	posts/build_status \
 	mindmaps/create \
 	mindmaps/get \
 	mindmaps/get_public \

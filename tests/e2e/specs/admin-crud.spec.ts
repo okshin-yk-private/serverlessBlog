@@ -62,10 +62,15 @@ test.describe('Admin CRUD - Article Management', () => {
     await adminPostCreatePage.setPublishStatus('published');
     await adminPostCreatePage.clickSaveButton();
 
-    // After saving, the app redirects to /posts via React Router (SPA navigation).
-    // Do NOT use adminDashboardPage.navigate() here - page.goto() causes a full
-    // page reload which re-initializes the MSW module and resets mockPosts state.
-    await page.waitForURL('**/posts', { timeout: 10000 });
+    // PR5b: when publishing, the editor page now stays put and surfaces the
+    // build status badge instead of redirecting. Wait for the badge to confirm
+    // the post was created, then SPA-navigate to /posts via the header link
+    // (page.goto would reset the MSW in-memory mockPosts state).
+    await expect(page.getByTestId('build-status-badge')).toBeVisible({
+      timeout: 10000,
+    });
+    await page.getByRole('link', { name: 'Articles' }).click();
+    await page.waitForURL(/\/posts(\?.*)?$/, { timeout: 10000 });
     await adminDashboardPage.waitForArticleListLoaded();
 
     // Verify the article appears in the list
@@ -99,10 +104,15 @@ test.describe('Admin CRUD - Article Management', () => {
     await adminPostEditPage.fillTitle(updatedTitle);
     await adminPostEditPage.clickSaveButton();
 
-    // After saving, the app redirects to /posts via React Router (SPA navigation).
-    // Do NOT use adminDashboardPage.navigate() here - page.goto() causes a full
-    // page reload which re-initializes the MSW module and resets mockPosts state.
-    await page.waitForURL('**/posts', { timeout: 10000 });
+    // PR5b: seed articles are published — saving keeps that status, so the
+    // edit page now stays put and shows the build status badge instead of
+    // redirecting. Confirm the badge, then SPA-navigate to /posts via the
+    // header link (page.goto would reset MSW mockPosts state).
+    await expect(page.getByTestId('build-status-badge')).toBeVisible({
+      timeout: 10000,
+    });
+    await page.getByRole('link', { name: 'Articles' }).click();
+    await page.waitForURL(/\/posts(\?.*)?$/, { timeout: 10000 });
     await adminDashboardPage.waitForArticleListLoaded();
 
     const isUpdatedVisible =

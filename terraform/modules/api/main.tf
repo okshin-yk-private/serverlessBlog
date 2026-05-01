@@ -101,6 +101,14 @@ resource "aws_api_gateway_resource" "admin_posts_id" {
   path_part   = "{id}"
 }
 
+# /admin/posts/{id}/build-status resource (PR5b)
+# GET endpoint for the admin UI to poll the latest CodeBuild status after publish.
+resource "aws_api_gateway_resource" "admin_posts_id_build_status" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_posts_id.id
+  path_part   = "build-status"
+}
+
 # /admin/images resource
 # Requirement 5.1: Create /admin/images resource
 resource "aws_api_gateway_resource" "admin_images" {
@@ -357,6 +365,79 @@ resource "aws_api_gateway_integration_response" "admin_posts_id_options" {
   response_parameters = {
     "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
     "method.response.header.Access-Control-Allow-Methods" = "'GET,PUT,DELETE,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origins[0]}'"
+  }
+}
+
+# --- GET /admin/posts/{id}/build-status (Cognito auth) --- (PR5b)
+resource "aws_api_gateway_method" "admin_posts_id_build_status_get" {
+  rest_api_id          = aws_api_gateway_rest_api.main.id
+  resource_id          = aws_api_gateway_resource.admin_posts_id_build_status.id
+  http_method          = "GET"
+  authorization        = "COGNITO_USER_POOLS"
+  authorizer_id        = aws_api_gateway_authorizer.cognito.id
+  request_validator_id = aws_api_gateway_request_validator.main.id
+
+  request_parameters = {
+    "method.request.path.id" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "admin_posts_id_build_status_get" {
+  rest_api_id             = aws_api_gateway_rest_api.main.id
+  resource_id             = aws_api_gateway_resource.admin_posts_id_build_status.id
+  http_method             = aws_api_gateway_method.admin_posts_id_build_status_get.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.lambda_build_status_post_invoke_arn
+}
+
+# --- OPTIONS /admin/posts/{id}/build-status (CORS) ---
+resource "aws_api_gateway_method" "admin_posts_id_build_status_options" {
+  rest_api_id          = aws_api_gateway_rest_api.main.id
+  resource_id          = aws_api_gateway_resource.admin_posts_id_build_status.id
+  http_method          = "OPTIONS"
+  authorization        = "NONE"
+  request_validator_id = aws_api_gateway_request_validator.main.id
+}
+
+resource "aws_api_gateway_integration" "admin_posts_id_build_status_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_posts_id_build_status.id
+  http_method = aws_api_gateway_method.admin_posts_id_build_status_options.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "admin_posts_id_build_status_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_posts_id_build_status.id
+  http_method = aws_api_gateway_method.admin_posts_id_build_status_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+resource "aws_api_gateway_integration_response" "admin_posts_id_build_status_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_posts_id_build_status.id
+  http_method = aws_api_gateway_method.admin_posts_id_build_status_options.http_method
+  status_code = aws_api_gateway_method_response.admin_posts_id_build_status_options.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
     "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origins[0]}'"
   }
 }
@@ -1643,6 +1724,7 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.posts_id.id,
       aws_api_gateway_resource.admin_posts.id,
       aws_api_gateway_resource.admin_posts_id.id,
+      aws_api_gateway_resource.admin_posts_id_build_status.id,
       aws_api_gateway_resource.admin_images.id,
       aws_api_gateway_resource.admin_images_upload_url.id,
       aws_api_gateway_resource.admin_images_key.id,
@@ -1670,6 +1752,8 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_method.admin_posts_id_get.id,
       aws_api_gateway_method.admin_posts_id_put.id,
       aws_api_gateway_method.admin_posts_id_delete.id,
+      aws_api_gateway_method.admin_posts_id_build_status_get.id,
+      aws_api_gateway_method.admin_posts_id_build_status_options.id,
       aws_api_gateway_method.admin_images_upload_url_post.id,
       aws_api_gateway_method.admin_images_key_delete.id,
       aws_api_gateway_method.admin_auth_login_post.id,
@@ -1700,6 +1784,8 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_integration.admin_posts_id_get.id,
       aws_api_gateway_integration.admin_posts_id_put.id,
       aws_api_gateway_integration.admin_posts_id_delete.id,
+      aws_api_gateway_integration.admin_posts_id_build_status_get.id,
+      aws_api_gateway_integration.admin_posts_id_build_status_options.id,
       aws_api_gateway_integration.admin_images_upload_url_post.id,
       aws_api_gateway_integration.admin_images_key_delete.id,
       aws_api_gateway_integration.admin_auth_login_post.id,
@@ -1737,6 +1823,8 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.admin_posts_id_get,
     aws_api_gateway_integration.admin_posts_id_put,
     aws_api_gateway_integration.admin_posts_id_delete,
+    aws_api_gateway_integration.admin_posts_id_build_status_get,
+    aws_api_gateway_integration.admin_posts_id_build_status_options,
     aws_api_gateway_integration.admin_images_upload_url_post,
     aws_api_gateway_integration.admin_images_key_delete,
     aws_api_gateway_integration.admin_auth_login_post,
@@ -1913,6 +2001,14 @@ resource "aws_lambda_permission" "delete_post" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = var.lambda_delete_post_arn
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "build_status_post" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = var.lambda_build_status_post_arn
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
 }

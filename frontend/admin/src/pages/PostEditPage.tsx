@@ -8,6 +8,7 @@ import {
 import MindmapPickerModal from '../components/MindmapPickerModal';
 import { getPost, updatePost } from '../api/posts';
 import AdminLayout from '../components/AdminLayout';
+import { BuildStatusBadge } from '../components/BuildStatusBadge';
 import { PostEditSkeleton } from '../components/skeleton';
 import { useCategories } from '../hooks/useCategories';
 
@@ -18,6 +19,9 @@ const PostEditPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isMindmapPickerOpen, setIsMindmapPickerOpen] = useState(false);
+  // PR5b: After publish, stay on the page and show build progress instead of
+  // navigating away. Drafts continue to navigate to the list.
+  const [publishedPostId, setPublishedPostId] = useState<string | null>(null);
   const editorRef = useRef<PostEditorHandle>(null);
 
   // カテゴリを動的に取得
@@ -62,6 +66,10 @@ const PostEditPage = () => {
     try {
       setError(null);
       await updatePost(id!, data);
+      if (data.publishStatus === 'published') {
+        setPublishedPostId(id!);
+        return;
+      }
       navigate('/posts');
     } catch (err) {
       console.error('記事更新エラー:', err);
@@ -109,6 +117,11 @@ const PostEditPage = () => {
   return (
     <AdminLayout title="Edit Article" subtitle="記事を編集">
       {error && <div className="admin-alert admin-alert-error">{error}</div>}
+
+      <BuildStatusBadge
+        postId={publishedPostId ?? undefined}
+        enabled={publishedPostId !== null}
+      />
 
       <div className="admin-card">
         {initialData && (

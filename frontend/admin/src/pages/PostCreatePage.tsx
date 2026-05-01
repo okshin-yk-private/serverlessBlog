@@ -8,12 +8,16 @@ import {
 import MindmapPickerModal from '../components/MindmapPickerModal';
 import { createPost, updatePost } from '../api/posts';
 import AdminLayout from '../components/AdminLayout';
+import { BuildStatusBadge } from '../components/BuildStatusBadge';
 import { useCategories } from '../hooks/useCategories';
 
 const PostCreatePage = () => {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [isMindmapPickerOpen, setIsMindmapPickerOpen] = useState(false);
+  // PR5b: When the new post is created with publishStatus='published', stay
+  // on the page and surface CodeBuild progress via BuildStatusBadge.
+  const [publishedPostId, setPublishedPostId] = useState<string | null>(null);
   const editorRef = useRef<PostEditorHandle>(null);
   // autosave で記事が初回作成された後の id。これ以降の保存は updatePost を使う。
   const [postId, setPostId] = useState<string | null>(null);
@@ -29,10 +33,22 @@ const PostCreatePage = () => {
   const handleSave = async (data: PostData) => {
     try {
       setError(null);
+      // PR5a の autosave が先に走って postId を確定済みのケースでは updatePost、
+      // それ以外の (autosave がまだ走っていない) 初回保存では createPost。
+      let savedId: string;
       if (postId) {
         await updatePost(postId, data);
+        savedId = postId;
       } else {
-        await createPost(data);
+        const created = await createPost(data);
+        savedId = created.id;
+        setPostId(created.id);
+      }
+      // PR5b: publish ならページに留まり BuildStatusBadge を表示する。
+      // draft なら従来通り一覧へ遷移。
+      if (data.publishStatus === 'published') {
+        setPublishedPostId(savedId);
+        return;
       }
       navigate('/posts');
     } catch (err) {
@@ -84,6 +100,11 @@ const PostCreatePage = () => {
           {error}
         </div>
       )}
+
+      <BuildStatusBadge
+        postId={publishedPostId ?? undefined}
+        enabled={publishedPostId !== null}
+      />
 
       <div className="admin-card">
         <PostEditor

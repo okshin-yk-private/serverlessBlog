@@ -13,6 +13,7 @@ output "function_arns" {
     list_posts                   = aws_lambda_function.list_posts.arn
     update_post                  = aws_lambda_function.update_post.arn
     delete_post                  = aws_lambda_function.delete_post.arn
+    build_status_post            = aws_lambda_function.build_status_post.arn
     login                        = aws_lambda_function.login.arn
     logout                       = aws_lambda_function.logout.arn
     refresh                      = aws_lambda_function.refresh.arn
@@ -46,6 +47,7 @@ output "function_invoke_arns" {
     list_posts                   = aws_lambda_function.list_posts.invoke_arn
     update_post                  = aws_lambda_function.update_post.invoke_arn
     delete_post                  = aws_lambda_function.delete_post.invoke_arn
+    build_status_post            = aws_lambda_function.build_status_post.invoke_arn
     login                        = aws_lambda_function.login.invoke_arn
     logout                       = aws_lambda_function.logout.invoke_arn
     refresh                      = aws_lambda_function.refresh.invoke_arn
@@ -79,6 +81,7 @@ output "function_names" {
     aws_lambda_function.list_posts.function_name,
     aws_lambda_function.update_post.function_name,
     aws_lambda_function.delete_post.function_name,
+    aws_lambda_function.build_status_post.function_name,
     aws_lambda_function.login.function_name,
     aws_lambda_function.logout.function_name,
     aws_lambda_function.refresh.function_name,
@@ -211,6 +214,21 @@ output "delete_post_function_arn" {
 output "delete_post_function_name" {
   value       = aws_lambda_function.delete_post.function_name
   description = "Delete Post Lambda function name"
+}
+
+output "build_status_post_function_arn" {
+  value       = aws_lambda_function.build_status_post.arn
+  description = "Build Status Post Lambda function ARN"
+}
+
+output "build_status_post_function_name" {
+  value       = aws_lambda_function.build_status_post.function_name
+  description = "Build Status Post Lambda function name"
+}
+
+output "build_status_post_invoke_arn" {
+  value       = aws_lambda_function.build_status_post.invoke_arn
+  description = "Build Status Post Lambda function invoke ARN for API Gateway integration"
 }
 
 # Auth domain

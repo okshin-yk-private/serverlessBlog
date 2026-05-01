@@ -187,6 +187,38 @@ export const deletePost = async (id: string): Promise<void> => {
 };
 
 /**
+ * CodeBuild ビルドステータスのレスポンス型 (PR5b)
+ */
+export type BuildStatusValue = 'idle' | 'in-progress' | 'succeeded' | 'failed';
+
+export interface BuildStatusResponse {
+  buildId?: string;
+  status: BuildStatusValue;
+  phase?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+/**
+ * 公開後のビルドステータスを取得
+ * 直近の CodeBuild 結果を返却し、admin UI のバッジ表示に利用される。
+ */
+export const fetchBuildStatus = async (
+  postId: string
+): Promise<BuildStatusResponse> => {
+  const token = getAuthToken();
+  const response = await axios.get<BuildStatusResponse>(
+    `${API_URL}/admin/posts/${postId}/build-status`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  return response.data;
+};
+
+/**
  * 画像URLからS3キーを抽出
  * CloudFront URL形式: https://xxxxx.cloudfront.net/images/{userId}/{filename}
  * S3キー形式: {userId}/{filename}
