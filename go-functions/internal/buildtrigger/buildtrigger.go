@@ -27,6 +27,7 @@ package buildtrigger
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sync"
 	"time"
 
@@ -38,6 +39,20 @@ import (
 // DefaultMinInterval is the default minimum interval between builds (1 minute)
 // Requirement 10.9: Max 1 build per minute
 const DefaultMinInterval = 1 * time.Minute
+
+// validProjectNameRE matches AWS CodeBuild project names: must start with an
+// alphanumeric, followed by 1–254 alphanumerics, hyphens, or underscores
+// (per the CodeBuild project-name constraint). Anything containing CR/LF or
+// other control characters fails to match — which is what neutralizes the
+// log-injection class flagged by gosec G706.
+var validProjectNameRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{1,254}$`)
+
+// SanitizeProjectName returns name unchanged if it satisfies AWS CodeBuild's
+// project-name format, or "" otherwise. Use it at the os.Getenv trust
+// boundary so subsequent slog calls operate on a vetted, well-formed string.
+func SanitizeProjectName(name string) string {
+	return validProjectNameRE.FindString(name)
+}
 
 // CodeBuildClientInterface defines the interface for CodeBuild operations
 // This interface allows for mocking in tests

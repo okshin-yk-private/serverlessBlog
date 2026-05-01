@@ -21,8 +21,13 @@ locals {
     BUCKET_NAME         = var.bucket_name
     USER_POOL_ID        = var.user_pool_id
     USER_POOL_CLIENT_ID = var.user_pool_client_id
-    CLOUDFRONT_DOMAIN   = "https://${var.cloudfront_domain}"
-    ALLOWED_ORIGIN      = var.cors_allowed_origin
+    # When cloudfront_domain is empty, leave CLOUDFRONT_DOMAIN empty so the
+    # Lambda falls back to direct S3 URLs. Auto-prefixing "https://" with an
+    # empty value would produce "https://" -> the upload-url Lambda would
+    # then return "https:///images/..." (empty hostname) and the browser
+    # could not resolve it.
+    CLOUDFRONT_DOMAIN = var.cloudfront_domain != "" ? "https://${var.cloudfront_domain}" : ""
+    ALLOWED_ORIGIN    = var.cors_allowed_origin
   }
 
   common_tags = merge(var.tags, {

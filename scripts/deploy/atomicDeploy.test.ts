@@ -618,7 +618,7 @@ describe('atomicDeploy function', () => {
     // Mock the console.log to capture output
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    const result = await atomicDeploy(config);
+    await atomicDeploy(config);
 
     // In dry-run mode, it should not fail on S3 operations
     // but should still validate size
@@ -640,7 +640,7 @@ describe('atomicDeploy function', () => {
 
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    const result = await atomicDeploy(config);
+    await atomicDeploy(config);
 
     // Should have dry-run prefixed logs
     const calls = consoleSpy.mock.calls.map((c) => c[0]);

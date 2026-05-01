@@ -18,6 +18,14 @@ paths = [
   '''.*/go\.sum''',
   '''package-lock\.json''',
   '''.*/package-lock\.json''',
+  # justification: provider blocks reference `cloudflare/cloudflare` source string and
+  # a fixed-length placeholder token used when the custom-domain feature is disabled.
+  # Real api_token values are sourced from var.cloudflare_api_token (TF Cloud workspace var).
+  '''terraform/environments/[^/]+/versions\.tf''',
+  # justification: parity tests embed obviously-fake JWT shapes ("eyJ...") to assert
+  # error-format equivalence between Go and legacy implementations. Already classified
+  # as `test` by gitleaks Code Scanning.
+  '''go-functions/tests/parity/.*_test\.go''',
 ]
 regexes = [
   # AWS canonical example credentials from public documentation

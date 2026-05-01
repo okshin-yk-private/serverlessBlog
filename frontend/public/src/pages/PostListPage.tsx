@@ -12,6 +12,18 @@ import type { Post, CategoryListItem } from '../types/post';
 import { SEOHead } from '../components/SEOHead';
 import { PostListSkeleton } from '../components/skeleton';
 
+// Strip `<...>` patterns to a fixed point so residual fragments like `<<b>>`
+// cannot collapse into a tag after a single pass. Uses CodeQL's recognized
+// `while (a !== (a = a.replace(...)))` shape so the
+// `js/incomplete-multi-character-sanitization` query sees the recursion.
+// Output is rendered as React text content, not innerHTML.
+const stripTags = (html: string): string => {
+  let result = html;
+  // eslint-disable-next-line no-cond-assign
+  while (result !== (result = result.replace(/<[^>]*>/g, '')));
+  return result;
+};
+
 const PostListPage: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -259,9 +271,7 @@ const PostListPage: React.FC = () => {
                   <div className="excerpt" data-testid="article-excerpt">
                     {/* 記事の要約（最初の100文字） */}
                     {post.contentHtml
-                      ? post.contentHtml
-                          .substring(0, 100)
-                          .replace(/<[^>]*>/g, '') + '...'
+                      ? stripTags(post.contentHtml.substring(0, 100)) + '...'
                       : ''}
                   </div>
                 </Link>

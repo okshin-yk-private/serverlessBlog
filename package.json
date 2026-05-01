@@ -38,6 +38,9 @@
     "@aws-sdk/lib-dynamodb": "^3.490.0",
     "@aws-sdk/s3-request-presigner": "^3.490.0"
   },
+  "overrides": {
+    "fast-xml-parser": "^5.5.7"
+  },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.2",
     "@playwright/test": "^1.56.1",

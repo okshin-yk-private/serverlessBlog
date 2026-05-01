@@ -5,9 +5,8 @@ import {
   type PostData,
   type PostEditorHandle,
 } from '../components/PostEditor';
-import { ImageUploader } from '../components/ImageUploader';
 import MindmapPickerModal from '../components/MindmapPickerModal';
-import { getPost, updatePost, uploadImage, deleteImage } from '../api/posts';
+import { getPost, updatePost } from '../api/posts';
 import AdminLayout from '../components/AdminLayout';
 import { PostEditSkeleton } from '../components/skeleton';
 import { useCategories } from '../hooks/useCategories';
@@ -18,8 +17,6 @@ const PostEditPage = () => {
   const [initialData, setInitialData] = useState<PostData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [isMindmapPickerOpen, setIsMindmapPickerOpen] = useState(false);
   const editorRef = useRef<PostEditorHandle>(null);
 
@@ -77,47 +74,11 @@ const PostEditPage = () => {
     navigate('/posts');
   };
 
-  // ImageUploaderからの画像アップロード完了時
-  const handleImageUpload = (imageUrl: string) => {
-    setUploadedImages((prev) => [...prev, imageUrl]);
-    const markdownImage = `![image](${imageUrl})`;
-    editorRef.current?.insertAtCursor(markdownImage);
-  };
-
-  // 画像削除ハンドラー
-  const handleImageDelete = async (imageUrl: string) => {
-    try {
-      await deleteImage(imageUrl);
-      setUploadedImages((prev) => prev.filter((url) => url !== imageUrl));
-      // エディタからも画像タグを削除
-      editorRef.current?.removeImageUrl(imageUrl);
-    } catch (err) {
-      console.error('画像削除エラー:', err);
-      setError('画像の削除に失敗しました');
-    }
-  };
-
   // マインドマップ選択ハンドラー
   const handleMindmapSelect = (mindmapId: string) => {
     const marker = `\n{{mindmap:${mindmapId}}}\n`;
     editorRef.current?.insertAtCursor(marker);
     setIsMindmapPickerOpen(false);
-  };
-
-  // ペーストによる画像アップロード
-  const handleImagePaste = async (file: File) => {
-    setIsUploading(true);
-    try {
-      const imageUrl = await uploadImage(file);
-      setUploadedImages((prev) => [...prev, imageUrl]);
-      const markdownImage = `![image](${imageUrl})`;
-      editorRef.current?.insertAtCursor(markdownImage);
-    } catch (err) {
-      console.error('Image paste upload failed:', err);
-      setError('画像のアップロードに失敗しました');
-    } finally {
-      setIsUploading(false);
-    }
   };
 
   if (loading) {
@@ -141,16 +102,6 @@ const PostEditPage = () => {
       {error && <div className="admin-alert admin-alert-error">{error}</div>}
 
       <div className="admin-card">
-        <h2 className="admin-card-title">画像アップロード</h2>
-        <ImageUploader
-          onUploadComplete={handleImageUpload}
-          uploadFunction={uploadImage}
-          uploadedImages={uploadedImages}
-          onDelete={handleImageDelete}
-        />
-      </div>
-
-      <div className="admin-card">
         {initialData && (
           <PostEditor
             key={id}
@@ -158,8 +109,6 @@ const PostEditPage = () => {
             onSave={handleSave}
             onCancel={handleCancel}
             initialData={initialData}
-            onImagePaste={handleImagePaste}
-            isUploading={isUploading}
             categories={categories}
             categoriesLoading={categoriesLoading}
             categoriesError={categoriesError}

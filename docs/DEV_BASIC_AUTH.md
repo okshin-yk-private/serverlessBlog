@@ -397,16 +397,16 @@ This implementation was migrated from local `cdk.context.json` storage to AWS Pa
 ```json
 {
   "basicAuth": {
-    "username": "okshin",
-    "password": "r1aIysnn1x9wCBAOem93ikqt"
+    "username": "<dev-username>",
+    "password": "<REDACTED-EXAMPLE-PASSWORD>"
   }
 }
 ```
 
 **After (Parameter Store)**:
 ```bash
-/serverless-blog/dev/basic-auth/username → "okshin"
-/serverless-blog/dev/basic-auth/password → "r1aIysnn1x9wCBAOem93ikqt" (encrypted)
+/serverless-blog/dev/basic-auth/username → "<dev-username>"
+/serverless-blog/dev/basic-auth/password → "<REDACTED-EXAMPLE-PASSWORD>" (encrypted)
 ```
 
 **Migration Benefits**:

@@ -66,13 +66,10 @@ const {
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="/favicon.png" />
 
-    <!-- Preload Caveat font (self-hosted to eliminate FOUT) -->
+    <!-- Self-hosted fonts (declared in styles/global.css with font-display: swap).
+         Preload only the small Caveat (~75KB) for headings; Shippori Mincho is
+         ~3MB per weight so we let it stream in via CSS @font-face only. -->
     <link rel="preload" href="/fonts/caveat-variable.woff2" as="font" type="font/woff2" crossorigin />
-
-    <!-- Shippori Mincho only (Caveat is self-hosted) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600&display=swap" rel="stylesheet" />
 
     <!-- SEO Meta Tags (Task 3.1) -->
     <SEO

@@ -43,18 +43,30 @@ resource "aws_dynamodb_table" "blog_posts" {
   # Partition key: category, Sort key: createdAt
   global_secondary_index {
     name            = "CategoryIndex"
-    hash_key        = "category"
-    range_key       = "createdAt"
     projection_type = "ALL"
+    key_schema {
+      attribute_name = "category"
+      key_type       = "HASH"
+    }
+    key_schema {
+      attribute_name = "createdAt"
+      key_type       = "RANGE"
+    }
   }
 
   # Requirement 2.4: PublishStatusIndex GSI
   # Partition key: publishStatus, Sort key: createdAt
   global_secondary_index {
     name            = "PublishStatusIndex"
-    hash_key        = "publishStatus"
-    range_key       = "createdAt"
     projection_type = "ALL"
+    key_schema {
+      attribute_name = "publishStatus"
+      key_type       = "HASH"
+    }
+    key_schema {
+      attribute_name = "createdAt"
+      key_type       = "RANGE"
+    }
   }
 
   # SlugIndex GSI for friendly URL lookup and uniqueness enforcement
@@ -63,8 +75,11 @@ resource "aws_dynamodb_table" "blog_posts" {
   # for legacy items pending backfill.
   global_secondary_index {
     name            = "SlugIndex"
-    hash_key        = "slug"
     projection_type = "ALL"
+    key_schema {
+      attribute_name = "slug"
+      key_type       = "HASH"
+    }
   }
 
   # Requirement 2.5: Point-in-Time Recovery
@@ -127,8 +142,11 @@ resource "aws_dynamodb_table" "categories" {
   # Partition key: slug, Projection: KEYS_ONLY
   global_secondary_index {
     name            = "SlugIndex"
-    hash_key        = "slug"
     projection_type = "KEYS_ONLY"
+    key_schema {
+      attribute_name = "slug"
+      key_type       = "HASH"
+    }
   }
 
   # Requirement 1.4: Point-in-Time Recovery
@@ -195,9 +213,15 @@ resource "aws_dynamodb_table" "mindmaps" {
   # Used to efficiently query published mindmaps
   global_secondary_index {
     name            = "PublishStatusIndex"
-    hash_key        = "publishStatus"
-    range_key       = "createdAt"
     projection_type = "ALL"
+    key_schema {
+      attribute_name = "publishStatus"
+      key_type       = "HASH"
+    }
+    key_schema {
+      attribute_name = "createdAt"
+      key_type       = "RANGE"
+    }
   }
 
   # Point-in-Time Recovery

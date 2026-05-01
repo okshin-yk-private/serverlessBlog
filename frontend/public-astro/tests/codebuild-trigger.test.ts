@@ -18,6 +18,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import { mockPosts } from './mock-api-server';
+import { stripHtml } from '../src/lib/postUtils';
 
 const distDir = join(import.meta.dirname, '../dist');
 
@@ -158,7 +159,7 @@ describe('CodeBuildトリガー連携テスト (Task 8.2)', () => {
         const html = readFileSync(postPath, 'utf-8');
 
         // Strip HTML tags from contentHtml to get plain text for comparison
-        const plainContent = post.contentHtml.replace(/<[^>]*>/g, '').trim();
+        const plainContent = stripHtml(post.contentHtml);
         if (plainContent) {
           // Content should appear somewhere in the page
           expect(html).toContain(plainContent);

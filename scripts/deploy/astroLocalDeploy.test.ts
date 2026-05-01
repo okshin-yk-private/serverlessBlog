@@ -22,7 +22,6 @@ import {
 } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as childProcess from 'node:child_process';
 import {
   commandExists,
   validateAstroProject,
@@ -65,7 +64,6 @@ vi.mock('@aws-sdk/client-cloudfront', () => ({
 }));
 
 import { execSync } from 'node:child_process';
-import { atomicDeploy } from './atomicDeploy';
 
 describe('astroLocalDeploy', () => {
   const testDir = path.join(__dirname, '__test_astro_temp__');

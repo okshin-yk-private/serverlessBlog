@@ -1,6 +1,12 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  act,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import PostCreatePage from './PostCreatePage';
@@ -69,6 +75,22 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
+async function waitForTiptap() {
+  await waitFor(() => {
+    if (!window.__tiptapEditor) {
+      throw new Error('tiptap editor not yet exposed');
+    }
+  });
+  return window.__tiptapEditor!;
+}
+
+async function setBodyContent(markdown: string) {
+  const editor = await waitForTiptap();
+  act(() => {
+    editor.commands.setContent(markdown);
+  });
+}
+
 describe('PostCreatePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -87,7 +109,7 @@ describe('PostCreatePage', () => {
     expect(screen.getByText('New Article')).toBeInTheDocument();
   });
 
-  it('画像アップロードセクションが表示される', () => {
+  it('ツールバーに画像挿入ボタンが表示される', () => {
     render(
       <BrowserRouter>
         <AuthProvider>
@@ -96,8 +118,8 @@ describe('PostCreatePage', () => {
       </BrowserRouter>
     );
 
-    expect(screen.getByText('画像アップロード')).toBeInTheDocument();
-    expect(screen.getByLabelText(/画像を選択/i)).toBeInTheDocument();
+    expect(screen.getByTestId('toolbar-image-button')).toBeInTheDocument();
+    expect(screen.queryByText('画像アップロード')).not.toBeInTheDocument();
   });
 
   it('記事エディタコンポーネントが表示される', () => {
@@ -110,7 +132,7 @@ describe('PostCreatePage', () => {
     );
 
     expect(screen.getByLabelText(/タイトル/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/本文/i)).toBeInTheDocument();
+    expect(screen.getByTestId('tiptap-editor')).toBeInTheDocument();
     expect(screen.getByLabelText(/カテゴリ/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/公開状態/i)).toBeInTheDocument();
   });
@@ -139,24 +161,22 @@ describe('PostCreatePage', () => {
     );
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テスト記事タイトル');
-    await user.type(
-      screen.getByLabelText(/本文/i),
-      '# テスト本文\n\nこれはテストです。'
-    );
+    await setBodyContent('## テスト本文\n\nこれはテストです。');
     await user.selectOptions(screen.getByLabelText(/カテゴリ/i), 'tech');
     await user.selectOptions(screen.getByLabelText(/公開状態/i), 'draft');
 
     await user.click(screen.getByRole('button', { name: /保存/i }));
 
     await waitFor(() => {
-      expect(postsApi.createPost).toHaveBeenCalledWith({
-        title: 'テスト記事タイトル',
-        contentMarkdown: '# テスト本文\n\nこれはテストです。',
-        category: 'tech',
-        tags: [],
-        publishStatus: 'draft',
-      });
+      expect(postsApi.createPost).toHaveBeenCalled();
     });
+    const call = vi.mocked(postsApi.createPost).mock.calls[0][0];
+    expect(call.title).toBe('テスト記事タイトル');
+    expect(call.category).toBe('tech');
+    expect(call.tags).toEqual([]);
+    expect(call.publishStatus).toBe('draft');
+    expect(call.contentMarkdown).toContain('テスト本文');
+    expect(call.contentMarkdown).toContain('これはテストです');
   });
 
   it('記事作成成功後は/postsへナビゲートする', async () => {
@@ -182,7 +202,7 @@ describe('PostCreatePage', () => {
     );
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テスト記事タイトル');
-    await user.type(screen.getByLabelText(/本文/i), 'テスト本文');
+    await setBodyContent('テスト本文');
     await user.selectOptions(screen.getByLabelText(/カテゴリ/i), 'tech');
 
     await user.click(screen.getByRole('button', { name: /保存/i }));
@@ -205,7 +225,7 @@ describe('PostCreatePage', () => {
     );
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テスト記事タイトル');
-    await user.type(screen.getByLabelText(/本文/i), 'テスト本文');
+    await setBodyContent('テスト本文');
     await user.selectOptions(screen.getByLabelText(/カテゴリ/i), 'tech');
 
     await user.click(screen.getByRole('button', { name: /保存/i }));
@@ -236,10 +256,8 @@ describe('PostCreatePage', () => {
     expect(postsApi.createPost).not.toHaveBeenCalled();
   });
 
-  // 画像アップロード統合
-  it('画像アップロード成功時にエディタにMarkdown形式で挿入される', async () => {
-    const user = userEvent.setup();
-
+  // 画像アップロード統合 (Tiptap UploadImage 拡張経由)
+  it('ツールバー経由でアップロードした画像が markdown に反映される', async () => {
     vi.mocked(postsApi.uploadImage).mockResolvedValue(
       'https://example.com/image.png'
     );
@@ -252,94 +270,20 @@ describe('PostCreatePage', () => {
       </BrowserRouter>
     );
 
-    const file = new File(['dummy content'], 'test-image.png', {
-      type: 'image/png',
-    });
-    const input = screen.getByLabelText(/画像を選択/i) as HTMLInputElement;
+    const file = new File(['dummy'], 'test-image.png', { type: 'image/png' });
+    const input = screen.getByTestId('toolbar-image-input') as HTMLInputElement;
 
-    Object.defineProperty(input, 'files', {
-      value: [file],
-      writable: false,
-    });
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: /アップロード/i })
-      ).toBeInTheDocument();
-    });
-
-    const uploadButton = screen.getByRole('button', { name: /アップロード/i });
-    await user.click(uploadButton);
+    fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() => {
       expect(postsApi.uploadImage).toHaveBeenCalledWith(file);
-      // エディタにMarkdown形式で画像が挿入されることを確認
-      const textarea = screen.getByTestId(
-        'post-content-editor'
-      ) as HTMLTextAreaElement;
-      expect(textarea.value).toContain(
-        '![image](https://example.com/image.png)'
-      );
-    });
-  });
-
-  it('画像アップロード後もエディタは操作可能', async () => {
-    const user = userEvent.setup();
-
-    vi.mocked(postsApi.uploadImage).mockResolvedValue(
-      'https://example.com/image.png'
-    );
-
-    render(
-      <BrowserRouter>
-        <AuthProvider>
-          <PostCreatePage />
-        </AuthProvider>
-      </BrowserRouter>
-    );
-
-    const file = new File(['dummy content'], 'test-image.png', {
-      type: 'image/png',
-    });
-    const input = screen.getByLabelText(/画像を選択/i) as HTMLInputElement;
-
-    Object.defineProperty(input, 'files', {
-      value: [file],
-      writable: false,
-    });
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: /アップロード/i })
-      ).toBeInTheDocument();
     });
 
-    const uploadButton = screen.getByRole('button', { name: /アップロード/i });
-    await user.click(uploadButton);
-
-    await waitFor(() => {
-      expect(postsApi.uploadImage).toHaveBeenCalled();
+    await waitFor(async () => {
+      const editor = await waitForTiptap();
+      const md = editor.storage.markdown.getMarkdown() as string;
+      expect(md).toContain('https://example.com/image.png');
     });
-
-    // 画像アップロード後に走る setState (uploadedImages 追加 + insertAtCursor
-    // による本文への markdown 挿入) が完了するまで待機。
-    await waitFor(() => {
-      const textarea = screen.getByLabelText(/本文/i) as HTMLTextAreaElement;
-      expect(textarea.value).toContain('![image](');
-    });
-
-    // エディタに記事内容を入力可能。
-    // user.type ではなく fireEvent.change を使う理由:
-    // PostEditor.insertAtCursor が requestAnimationFrame で本文 textarea に
-    // フォーカスを戻すため、user.type の連続キーストロークとフォーカス遷移が
-    // レースし、日本語タイトルの 1 文字目しか反映されないことがある。
-    // ここでは「アップロード後もタイトル入力欄が機能する」ことを示せれば
-    // 十分なので、状態を一度に設定する fireEvent.change で決定論的に検証する。
-    const titleInput = screen.getByLabelText<HTMLInputElement>(/タイトル/i);
-    fireEvent.change(titleInput, { target: { value: 'タイトル' } });
-    expect(titleInput.value).toBe('タイトル');
   });
 
   // バリデーション
@@ -354,7 +298,7 @@ describe('PostCreatePage', () => {
       </BrowserRouter>
     );
 
-    await user.type(screen.getByLabelText(/本文/i), 'テスト本文');
+    await setBodyContent('テスト本文');
     await user.selectOptions(screen.getByLabelText(/カテゴリ/i), 'tech');
 
     await user.click(screen.getByRole('button', { name: /保存/i }));
@@ -401,7 +345,7 @@ describe('PostCreatePage', () => {
     );
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
-    await user.type(screen.getByLabelText(/本文/i), 'テスト本文');
+    await setBodyContent('テスト本文');
     // カテゴリは空のまま
 
     await user.click(screen.getByRole('button', { name: /保存/i }));
@@ -413,8 +357,9 @@ describe('PostCreatePage', () => {
     expect(postsApi.createPost).not.toHaveBeenCalled();
   });
 
-  // Markdownプレビュー
-  it('Markdownプレビューが表示される', () => {
+  // Markdownプレビュー (Tiptap 移行後は Preview タブ経由)
+  it('Markdownプレビューが Preview タブ経由で表示される', async () => {
+    const user = userEvent.setup();
     render(
       <BrowserRouter>
         <AuthProvider>
@@ -423,8 +368,11 @@ describe('PostCreatePage', () => {
       </BrowserRouter>
     );
 
-    expect(screen.getByText('プレビュー')).toBeInTheDocument();
-    expect(screen.getByTestId('markdown-preview')).toBeInTheDocument();
+    expect(screen.queryByTestId('markdown-preview')).not.toBeInTheDocument();
+    await user.click(screen.getByTestId('editor-tab-preview'));
+    await waitFor(() => {
+      expect(screen.getByTestId('markdown-preview')).toBeInTheDocument();
+    });
   });
 
   it('本文に入力した内容がプレビューに反映される', async () => {
@@ -438,7 +386,8 @@ describe('PostCreatePage', () => {
       </BrowserRouter>
     );
 
-    await user.type(screen.getByLabelText(/本文/i), '# テスト見出し');
+    await setBodyContent('## テスト見出し');
+    await user.click(screen.getByTestId('editor-tab-preview'));
 
     await waitFor(() => {
       const preview = screen.getByTestId('markdown-preview');
@@ -470,7 +419,7 @@ describe('PostCreatePage', () => {
     );
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
-    await user.type(screen.getByLabelText(/本文/i), 'テスト本文');
+    await setBodyContent('テスト本文');
     await user.selectOptions(screen.getByLabelText(/カテゴリ/i), 'tech');
     await user.selectOptions(screen.getByLabelText(/公開状態/i), 'published');
 
@@ -497,7 +446,8 @@ describe('PostCreatePage', () => {
     const statusSelect = screen.getByLabelText(
       /公開状態/i
     ) as HTMLSelectElement;
-    expect(statusSelect.value).toBe('published');
+    // PR3 で "draft" 既定に変更
+    expect(statusSelect.value).toBe('draft');
   });
 
   // レスポンシブデザイン
@@ -541,7 +491,7 @@ describe('PostCreatePage', () => {
     );
 
     await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
-    await user.type(screen.getByLabelText(/本文/i), 'テスト本文');
+    await setBodyContent('テスト本文');
     await user.selectOptions(screen.getByLabelText(/カテゴリ/i), 'tech');
 
     // 1回目の保存（失敗）
@@ -638,11 +588,10 @@ describe('PostCreatePage', () => {
 
       await user.click(screen.getByText('テストマインドマップ'));
 
-      await waitFor(() => {
-        const textarea = screen.getByTestId(
-          'post-content-editor'
-        ) as HTMLTextAreaElement;
-        expect(textarea.value).toContain('{{mindmap:mm-test-id}}');
+      await waitFor(async () => {
+        const editor = await waitForTiptap();
+        const md = editor.storage.markdown.getMarkdown() as string;
+        expect(md).toContain('{{mindmap:mm-test-id}}');
       });
     });
 
