@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* 公開サイト (public-astro) と共有する記事タイポグラフィ。
+   @import は @plugin など他の at-rule より前に置く必要がある (CSS 仕様)。 */
+@import "../../shared-ui/src/article.css";
 @plugin "@tailwindcss/typography";
 
 /* Self-hosted Caveat font - eliminates FOUT */
