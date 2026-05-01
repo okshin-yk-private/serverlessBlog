@@ -35,8 +35,12 @@ if git diff --cached --name-only | grep -q '^terraform/'; then
     # Find directories containing staged .tftest.hcl files and run tests
     TEST_DIRS=$(git diff --cached --name-only | grep '\.tftest\.hcl$' | sed 's|^terraform/||' | xargs -I{} dirname {} | sort -u)
     for test_dir in $TEST_DIRS; do
-      # Navigate to the module root (parent of tests/ directory)
-      MODULE_DIR=$(echo "$test_dir" | sed 's|/tests$||')
+      # Navigate to the module root (parent of tests/ directory).
+      # Handles both top-level terraform/tests (-> "") and nested module
+      # tests like modules/api/tests (-> "modules/api"). Without the
+      # `^tests$` branch, top-level tests stay as "tests" and the cd
+      # below lands in terraform/tests/, which has no Terraform module.
+      MODULE_DIR=$(echo "$test_dir" | sed -e 's|^tests$||' -e 's|/tests$||')
       echo "  Running terraform test in terraform/${MODULE_DIR}..."
       if (cd "terraform/${MODULE_DIR}" && terraform init -backend=false -input=false >/dev/null 2>&1 && terraform test); then
         echo "  ✓ terraform test passed for ${MODULE_DIR}"

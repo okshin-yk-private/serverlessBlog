@@ -371,11 +371,12 @@ resource "aws_api_gateway_integration_response" "admin_posts_id_options" {
 
 # --- GET /admin/posts/{id}/build-status (Cognito auth) --- (PR5b)
 resource "aws_api_gateway_method" "admin_posts_id_build_status_get" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_posts_id_build_status.id
-  http_method   = "GET"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
+  rest_api_id          = aws_api_gateway_rest_api.main.id
+  resource_id          = aws_api_gateway_resource.admin_posts_id_build_status.id
+  http_method          = "GET"
+  authorization        = "COGNITO_USER_POOLS"
+  authorizer_id        = aws_api_gateway_authorizer.cognito.id
+  request_validator_id = aws_api_gateway_request_validator.main.id
 
   request_parameters = {
     "method.request.path.id" = true
@@ -393,10 +394,11 @@ resource "aws_api_gateway_integration" "admin_posts_id_build_status_get" {
 
 # --- OPTIONS /admin/posts/{id}/build-status (CORS) ---
 resource "aws_api_gateway_method" "admin_posts_id_build_status_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_posts_id_build_status.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
+  rest_api_id          = aws_api_gateway_rest_api.main.id
+  resource_id          = aws_api_gateway_resource.admin_posts_id_build_status.id
+  http_method          = "OPTIONS"
+  authorization        = "NONE"
+  request_validator_id = aws_api_gateway_request_validator.main.id
 }
 
 resource "aws_api_gateway_integration" "admin_posts_id_build_status_options" {
