@@ -65,7 +65,8 @@ module "storage" {
 #------------------------------------------------------------------------------
 # Module 4: Lambda Functions
 # Dependencies: database, storage, auth
-# Note: cloudfront_domain will be updated after CDN module is created
+# Note: cloudfront_domain uses var.domain_name (static) to avoid a real cycle
+#       lambda -> cdn -> api -> lambda that would form if we used module.cdn output.
 #------------------------------------------------------------------------------
 
 module "lambda" {
@@ -79,7 +80,10 @@ module "lambda" {
   user_pool_id        = module.auth.user_pool_id
   user_pool_arn       = module.auth.user_pool_arn
   user_pool_client_id = module.auth.user_pool_client_id
-  cloudfront_domain   = "" # Will be updated after CDN creation
+  # Custom domain serves /images/* via CloudFront. When the custom domain is
+  # disabled, the Lambda falls back to direct S3 URLs (handled inside the
+  # lambda module by treating an empty value as "no CloudFront domain").
+  cloudfront_domain   = var.enable_custom_domain ? var.domain_name : ""
   cors_allowed_origin = "https://${var.domain_name}"
   enable_xray         = true # X-Ray enabled for prd
   go_binary_path      = "${path.module}/../../../go-functions/bin"
