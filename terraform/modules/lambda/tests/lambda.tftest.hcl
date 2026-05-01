@@ -171,6 +171,21 @@ run "delete_post_function_configuration" {
   }
 }
 
+# Test: Build Status Post Lambda Function (PR5b)
+run "build_status_post_function_configuration" {
+  command = plan
+
+  assert {
+    condition     = aws_lambda_function.build_status_post.function_name == "blog-build-status-post-go"
+    error_message = "Build Status Post function name should match the predictable naming convention"
+  }
+
+  assert {
+    condition     = aws_lambda_function.build_status_post.runtime == "provided.al2023"
+    error_message = "Build Status Post function should use provided.al2023 runtime"
+  }
+}
+
 # ======================
 # Auth Domain Functions Tests
 # ======================

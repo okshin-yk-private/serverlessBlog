@@ -292,6 +292,44 @@ export const handlers = [
     return HttpResponse.json(updatedPost);
   }),
 
+  // 管理画面: ビルドステータス取得 (PR5b)
+  // 公開直後のサイトリビルド進捗をバッジに表示するためのモック。
+  // 各記事 ID の最初の呼び出しで `in-progress`、以降は `succeeded` を返し、
+  // ポーリングの遷移を E2E から検証できるようにする。
+  http.get(
+    `${API_BASE_URL}/admin/posts/:id/build-status`,
+    (() => {
+      const callCounts: Record<string, number> = {};
+      return ({ request, params }) => {
+        if (!checkAuth(request)) {
+          return HttpResponse.json(
+            { message: 'Unauthorized' },
+            { status: 401 }
+          );
+        }
+        const id = String(params.id);
+        callCounts[id] = (callCounts[id] ?? 0) + 1;
+        const buildId = `mock-build-${id}`;
+        const startTime = new Date().toISOString();
+        if (callCounts[id] === 1) {
+          return HttpResponse.json({
+            buildId,
+            status: 'in-progress',
+            phase: 'BUILD',
+            startTime,
+          });
+        }
+        return HttpResponse.json({
+          buildId,
+          status: 'succeeded',
+          phase: 'COMPLETED',
+          startTime,
+          endTime: new Date(Date.now() + 1000).toISOString(),
+        });
+      };
+    })()
+  ),
+
   // 管理画面: 記事削除
   http.delete(`${API_BASE_URL}/admin/posts/:id`, ({ request, params }) => {
     // 認証チェック

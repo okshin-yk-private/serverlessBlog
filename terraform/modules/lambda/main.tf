@@ -67,6 +67,11 @@ locals {
       description = "Delete blog post (Go)"
       binary_name = "posts-delete"
     }
+    build_status_post = {
+      name        = "blog-build-status-post-go"
+      description = "Get latest CodeBuild status for the Astro SSG site rebuild (Go)"
+      binary_name = "posts-build_status"
+    }
     login = {
       name        = "blog-login-go"
       description = "User authentication (Go)"
@@ -216,6 +221,12 @@ resource "aws_cloudwatch_log_group" "delete_post" {
   tags              = local.common_tags
 }
 
+resource "aws_cloudwatch_log_group" "build_status_post" {
+  name              = "/aws/lambda/${local.lambda_functions.build_status_post.name}"
+  retention_in_days = local.log_retention_days
+  tags              = local.common_tags
+}
+
 resource "aws_cloudwatch_log_group" "login" {
   name              = "/aws/lambda/${local.lambda_functions.login.name}"
   retention_in_days = local.log_retention_days
@@ -292,6 +303,13 @@ data "archive_file" "delete_post" {
   type             = "zip"
   source_file      = "${var.go_binary_path}/${local.lambda_functions.delete_post.binary_name}/bootstrap"
   output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.delete_post.binary_name}.zip"
+  output_file_mode = "0644"
+}
+
+data "archive_file" "build_status_post" {
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.build_status_post.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.build_status_post.binary_name}.zip"
   output_file_mode = "0644"
 }
 
@@ -506,6 +524,38 @@ resource "aws_lambda_function" "delete_post" {
   }
 
   depends_on = [aws_cloudwatch_log_group.delete_post]
+
+  tags = local.common_tags
+}
+
+# GET /admin/posts/{id}/build-status - Build Status (PR5b)
+# Surfaces the latest CodeBuild result for the Astro SSG rebuild so the admin
+# UI can show "ビルド中 / ビルド完了 / 失敗" after a publish.
+resource "aws_lambda_function" "build_status_post" {
+  function_name = local.lambda_functions.build_status_post.name
+  description   = local.lambda_functions.build_status_post.description
+  role          = aws_iam_role.lambda_posts.arn
+
+  filename         = data.archive_file.build_status_post.output_path
+  source_code_hash = data.archive_file.build_status_post.output_base64sha256
+
+  runtime       = "provided.al2023"
+  architectures = ["arm64"]
+  handler       = "bootstrap"
+  memory_size   = 128
+  timeout       = 30
+
+  environment {
+    variables = merge(local.common_environment, {
+      CODEBUILD_PROJECT_NAME = var.codebuild_project_name
+    })
+  }
+
+  tracing_config {
+    mode = local.tracing_mode
+  }
+
+  depends_on = [aws_cloudwatch_log_group.build_status_post]
 
   tags = local.common_tags
 }
