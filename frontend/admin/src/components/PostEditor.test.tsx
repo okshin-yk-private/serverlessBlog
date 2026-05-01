@@ -474,14 +474,16 @@ describe('PostEditor', () => {
     });
   });
 
-  describe('画像ペースト機能', () => {
-    it('画像をペーストするとonImagePasteが呼ばれる', async () => {
-      const mockOnImagePaste = vi.fn().mockResolvedValue(undefined);
+  describe('画像アップロード機能 (UploadImage 拡張)', () => {
+    it('画像をペーストすると uploadFn が呼ばれ、成功 URL が markdown に反映される', async () => {
+      const mockUploadFn = vi
+        .fn<(file: File) => Promise<string>>()
+        .mockResolvedValue('https://cdn.example.com/uploaded.png');
       render(
         <PostEditor
           onSave={mockOnSave}
           onCancel={mockOnCancel}
-          onImagePaste={mockOnImagePaste}
+          uploadFn={mockUploadFn}
           categories={mockCategories}
         />
       );
@@ -509,17 +511,22 @@ describe('PostEditor', () => {
       fireEvent.paste(editorEl, { clipboardData });
 
       await waitFor(() => {
-        expect(mockOnImagePaste).toHaveBeenCalledWith(file);
+        expect(mockUploadFn).toHaveBeenCalledWith(file);
+      });
+
+      await waitFor(async () => {
+        const md = await getEditorMarkdown();
+        expect(md).toContain('https://cdn.example.com/uploaded.png');
       });
     });
 
-    it('テキストペースト時はonImagePasteが呼ばれない', async () => {
-      const mockOnImagePaste = vi.fn();
+    it('テキストペースト時は uploadFn が呼ばれない', async () => {
+      const mockUploadFn = vi.fn();
       render(
         <PostEditor
           onSave={mockOnSave}
           onCancel={mockOnCancel}
-          onImagePaste={mockOnImagePaste}
+          uploadFn={mockUploadFn}
           categories={mockCategories}
         />
       );
@@ -545,16 +552,19 @@ describe('PostEditor', () => {
 
       fireEvent.paste(editorEl, { clipboardData });
 
-      // microtask 待ち
       await new Promise((r) => setTimeout(r, 0));
-      expect(mockOnImagePaste).not.toHaveBeenCalled();
+      expect(mockUploadFn).not.toHaveBeenCalled();
     });
 
-    it('onImagePasteが未定義でも画像ペーストでエラーにならない', async () => {
+    it('uploadFn が失敗するとエラー alert と再試行ボタンが表示される', async () => {
+      const mockUploadFn = vi
+        .fn<(file: File) => Promise<string>>()
+        .mockRejectedValue(new Error('upload failed'));
       render(
         <PostEditor
           onSave={mockOnSave}
           onCancel={mockOnCancel}
+          uploadFn={mockUploadFn}
           categories={mockCategories}
         />
       );
@@ -579,39 +589,53 @@ describe('PostEditor', () => {
         files: [file],
       } as unknown as DataTransfer;
 
-      expect(() => {
-        fireEvent.paste(editorEl, { clipboardData });
-      }).not.toThrow();
-    });
-  });
+      fireEvent.paste(editorEl, { clipboardData });
 
-  describe('ローディング表示', () => {
-    it('isUploadingがtrueの時にローディングオーバーレイが表示される', () => {
+      await waitFor(() => {
+        const alert = screen.getByTestId('image-upload-error');
+        expect(alert).toHaveTextContent(/画像のアップロードに失敗しました/);
+      });
+      expect(screen.getByTestId('image-upload-retry')).toBeInTheDocument();
+    });
+
+    it('未対応 MIME (svg) は uploadFn を呼ばずに validation エラーを表示する', async () => {
+      const mockUploadFn = vi.fn();
       render(
         <PostEditor
           onSave={mockOnSave}
           onCancel={mockOnCancel}
-          isUploading={true}
+          uploadFn={mockUploadFn}
           categories={mockCategories}
         />
       );
 
-      expect(screen.getByText('画像アップロード中...')).toBeInTheDocument();
-    });
+      await waitForTiptap();
+      const editorEl = screen
+        .getByTestId('tiptap-editor')
+        .querySelector('[contenteditable]') as HTMLElement;
 
-    it('isUploadingがfalseの時にローディングオーバーレイが表示されない', () => {
-      render(
-        <PostEditor
-          onSave={mockOnSave}
-          onCancel={mockOnCancel}
-          isUploading={false}
-          categories={mockCategories}
-        />
-      );
+      const file = new File(['<svg/>'], 'bad.svg', { type: 'image/svg+xml' });
+      const clipboardData = {
+        items: [
+          {
+            type: 'image/svg+xml',
+            kind: 'file',
+            getAsFile: () => file,
+            getAsString: () => '',
+          },
+        ],
+        getData: () => '',
+        types: ['Files'],
+        files: [file],
+      } as unknown as DataTransfer;
 
-      expect(
-        screen.queryByText('画像アップロード中...')
-      ).not.toBeInTheDocument();
+      fireEvent.paste(editorEl, { clipboardData });
+
+      await waitFor(() => {
+        const alert = screen.getByTestId('image-upload-error');
+        expect(alert).toHaveTextContent(/対応していない画像形式/);
+      });
+      expect(mockUploadFn).not.toHaveBeenCalled();
     });
   });
 

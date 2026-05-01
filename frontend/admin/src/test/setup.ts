@@ -33,6 +33,18 @@ if (typeof document !== 'undefined' && !document.elementFromPoint) {
   document.elementFromPoint = () => null;
 }
 
+// jsdom does not implement URL.createObjectURL / revokeObjectURL,
+// which the UploadImage Tiptap extension uses for placeholder previews.
+if (typeof URL !== 'undefined') {
+  if (typeof URL.createObjectURL !== 'function') {
+    URL.createObjectURL = () =>
+      'blob:mock-' + Math.random().toString(36).slice(2);
+  }
+  if (typeof URL.revokeObjectURL !== 'function') {
+    URL.revokeObjectURL = () => {};
+  }
+}
+
 afterEach(() => {
   cleanup();
 });

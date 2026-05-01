@@ -1,5 +1,6 @@
 import type { Editor } from '@tiptap/core';
-import { useCallback } from 'react';
+import { useCallback, useRef, type ChangeEvent } from 'react';
+import { ALLOWED_IMAGE_MIME_TYPES } from '../../utils/imageValidation';
 
 interface TiptapToolbarProps {
   editor: Editor | null;
@@ -47,6 +48,8 @@ export function TiptapToolbar({
   editor,
   disabled = false,
 }: TiptapToolbarProps) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const handleSetLink = useCallback(() => {
     if (!editor) return;
     const previousUrl = editor.getAttributes('link').href as string | undefined;
@@ -58,6 +61,25 @@ export function TiptapToolbar({
     }
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
   }, [editor]);
+
+  const handleImageButtonClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileInputChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (!files || !editor) {
+        e.target.value = '';
+        return;
+      }
+      for (const file of Array.from(files)) {
+        editor.commands.uploadImage(file);
+      }
+      e.target.value = '';
+    },
+    [editor]
+  );
 
   if (!editor) {
     return (
@@ -206,6 +228,22 @@ export function TiptapToolbar({
       >
         🔗
       </ToolbarButton>
+      <ToolbarButton
+        onClick={handleImageButtonClick}
+        disabled={isDisabled}
+        testId="toolbar-image-button"
+        ariaLabel="画像を挿入"
+      >
+        🖼
+      </ToolbarButton>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ALLOWED_IMAGE_MIME_TYPES.join(',')}
+        className="hidden"
+        data-testid="toolbar-image-input"
+        onChange={handleFileInputChange}
+      />
       <span className="w-px h-5 bg-gray-300 mx-1" aria-hidden />
       <ToolbarButton
         onClick={() => editor.chain().focus().undo().run()}

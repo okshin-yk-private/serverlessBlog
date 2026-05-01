@@ -109,7 +109,7 @@ describe('PostCreatePage', () => {
     expect(screen.getByText('New Article')).toBeInTheDocument();
   });
 
-  it('画像アップロードセクションが表示される', () => {
+  it('ツールバーに画像挿入ボタンが表示される', () => {
     render(
       <BrowserRouter>
         <AuthProvider>
@@ -118,8 +118,8 @@ describe('PostCreatePage', () => {
       </BrowserRouter>
     );
 
-    expect(screen.getByText('画像アップロード')).toBeInTheDocument();
-    expect(screen.getByLabelText(/画像を選択/i)).toBeInTheDocument();
+    expect(screen.getByTestId('toolbar-image-button')).toBeInTheDocument();
+    expect(screen.queryByText('画像アップロード')).not.toBeInTheDocument();
   });
 
   it('記事エディタコンポーネントが表示される', () => {
@@ -256,10 +256,8 @@ describe('PostCreatePage', () => {
     expect(postsApi.createPost).not.toHaveBeenCalled();
   });
 
-  // 画像アップロード統合
-  it('画像アップロード成功時にエディタに image ノードが挿入される', async () => {
-    const user = userEvent.setup();
-
+  // 画像アップロード統合 (Tiptap UploadImage 拡張経由)
+  it('ツールバー経由でアップロードした画像が markdown に反映される', async () => {
     vi.mocked(postsApi.uploadImage).mockResolvedValue(
       'https://example.com/image.png'
     );
@@ -272,84 +270,20 @@ describe('PostCreatePage', () => {
       </BrowserRouter>
     );
 
-    const file = new File(['dummy content'], 'test-image.png', {
-      type: 'image/png',
-    });
-    const input = screen.getByLabelText(/画像を選択/i) as HTMLInputElement;
+    const file = new File(['dummy'], 'test-image.png', { type: 'image/png' });
+    const input = screen.getByTestId('toolbar-image-input') as HTMLInputElement;
 
-    Object.defineProperty(input, 'files', {
-      value: [file],
-      writable: false,
-    });
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: /アップロード/i })
-      ).toBeInTheDocument();
-    });
-
-    const uploadButton = screen.getByRole('button', { name: /アップロード/i });
-    await user.click(uploadButton);
+    fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() => {
       expect(postsApi.uploadImage).toHaveBeenCalledWith(file);
     });
 
-    // エディタに画像ノードが挿入されていることを markdown 出力で確認
     await waitFor(async () => {
       const editor = await waitForTiptap();
       const md = editor.storage.markdown.getMarkdown() as string;
       expect(md).toContain('https://example.com/image.png');
     });
-  });
-
-  it('画像アップロード後もエディタは操作可能', async () => {
-    const user = userEvent.setup();
-
-    vi.mocked(postsApi.uploadImage).mockResolvedValue(
-      'https://example.com/image.png'
-    );
-
-    render(
-      <BrowserRouter>
-        <AuthProvider>
-          <PostCreatePage />
-        </AuthProvider>
-      </BrowserRouter>
-    );
-
-    const file = new File(['dummy content'], 'test-image.png', {
-      type: 'image/png',
-    });
-    const input = screen.getByLabelText(/画像を選択/i) as HTMLInputElement;
-
-    Object.defineProperty(input, 'files', {
-      value: [file],
-      writable: false,
-    });
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: /アップロード/i })
-      ).toBeInTheDocument();
-    });
-
-    const uploadButton = screen.getByRole('button', { name: /アップロード/i });
-    await user.click(uploadButton);
-
-    await waitFor(async () => {
-      expect(postsApi.uploadImage).toHaveBeenCalled();
-      const editor = await waitForTiptap();
-      const md = editor.storage.markdown.getMarkdown() as string;
-      expect(md).toContain('https://example.com/image.png');
-    });
-
-    // タイトル入力欄は引き続き操作可能 (アップロード時に焦点を奪われない)
-    const titleInput = screen.getByLabelText<HTMLInputElement>(/タイトル/i);
-    fireEvent.change(titleInput, { target: { value: 'タイトル' } });
-    expect(titleInput.value).toBe('タイトル');
   });
 
   // バリデーション

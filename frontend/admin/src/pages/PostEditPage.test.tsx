@@ -83,27 +83,8 @@ vi.mock('../components/PostEditor', () => ({
     </div>
   ),
 }));
-vi.mock('../components/ImageUploader', () => ({
-  ImageUploader: ({ onUploadComplete, onDelete }: any) => (
-    <div data-testid="image-uploader">
-      <button onClick={() => onUploadComplete('https://example.com/image.jpg')}>
-        Upload Image
-      </button>
-      {onDelete && (
-        <button
-          data-testid="mock-delete-image-button"
-          onClick={() => onDelete('https://example.com/image.jpg')}
-        >
-          Delete Image
-        </button>
-      )}
-    </div>
-  ),
-}));
-
 const mockGetPost = postsApi.getPost as ReturnType<typeof vi.fn>;
 const mockUpdatePost = postsApi.updatePost as ReturnType<typeof vi.fn>;
-const mockDeleteImage = postsApi.deleteImage as ReturnType<typeof vi.fn>;
 
 // MemoryRouter版のヘルパー
 const renderWithRouter = (postId: string = '1') => {
@@ -198,31 +179,6 @@ describe('PostEditPage', () => {
         expect(
           screen.getByRole('heading', { name: /記事編集/i })
         ).toBeInTheDocument();
-      });
-    });
-
-    it('画像アップロードセクションを表示する', async () => {
-      const mockPost = {
-        id: '1',
-        title: 'Test Post',
-        contentMarkdown: 'Test content',
-        contentHtml: '<p>Test content</p>',
-        category: 'tech',
-        tags: [],
-        publishStatus: 'draft' as const,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-      };
-
-      mockGetPost.mockResolvedValue(mockPost);
-
-      renderWithRouter('1');
-
-      await waitFor(() => {
-        expect(
-          screen.getByRole('heading', { name: /画像アップロード/i })
-        ).toBeInTheDocument();
-        expect(screen.getByTestId('image-uploader')).toBeInTheDocument();
       });
     });
   });
@@ -330,61 +286,6 @@ describe('PostEditPage', () => {
     });
   });
 
-  describe('画像アップロード機能', () => {
-    it('画像アップロード成功時にエラーなくhandleImageUploadが呼ばれる', async () => {
-      const mockPost = {
-        id: '1',
-        title: 'Test Post',
-        contentMarkdown: 'Test content',
-        contentHtml: '<p>Test content</p>',
-        category: 'tech',
-        tags: [],
-        publishStatus: 'draft' as const,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-      };
-
-      mockGetPost.mockResolvedValue(mockPost);
-
-      renderWithRouter('1');
-
-      await waitFor(() => {
-        expect(screen.getByTestId('image-uploader')).toBeInTheDocument();
-      });
-
-      const uploadButton = screen.getByRole('button', {
-        name: /Upload Image/i,
-      });
-
-      // エラーなくクリックできることを確認
-      expect(() => {
-        fireEvent.click(uploadButton);
-      }).not.toThrow();
-    });
-
-    it('ImageUploaderにuploadImage関数を渡す', async () => {
-      const mockPost = {
-        id: '1',
-        title: 'Test Post',
-        contentMarkdown: 'Test content',
-        contentHtml: '<p>Test content</p>',
-        category: 'tech',
-        tags: [],
-        publishStatus: 'draft' as const,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-      };
-
-      mockGetPost.mockResolvedValue(mockPost);
-
-      renderWithRouter('1');
-
-      await waitFor(() => {
-        expect(screen.getByTestId('image-uploader')).toBeInTheDocument();
-      });
-    });
-  });
-
   describe('エラーハンドリング', () => {
     it('記事IDが指定されていない場合エラーを表示する', async () => {
       const { MemoryRouter } = require('react-router-dom');
@@ -446,38 +347,6 @@ describe('PostEditPage', () => {
       await waitFor(() => {
         expect(
           screen.getByText(/記事の更新に失敗しました/i)
-        ).toBeInTheDocument();
-      });
-    });
-
-    it('画像削除に失敗した場合エラーメッセージを表示する', async () => {
-      const mockPost = {
-        id: '1',
-        title: 'Test Post',
-        contentMarkdown: 'Test content',
-        contentHtml: '<p>Test content</p>',
-        category: 'tech',
-        tags: [],
-        publishStatus: 'draft' as const,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-      };
-
-      mockGetPost.mockResolvedValue(mockPost);
-      mockDeleteImage.mockRejectedValue(new Error('Delete failed'));
-
-      renderWithRouter('1');
-
-      await waitFor(() => {
-        expect(screen.getByTestId('image-uploader')).toBeInTheDocument();
-      });
-
-      const deleteButton = screen.getByTestId('mock-delete-image-button');
-      fireEvent.click(deleteButton);
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/画像の削除に失敗しました/i)
         ).toBeInTheDocument();
       });
     });
