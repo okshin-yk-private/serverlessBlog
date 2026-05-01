@@ -42,10 +42,7 @@ test.describe('Admin Tiptap Editor - basic', () => {
     await page.goto('/posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
-    await setEditorContent(
-      page,
-      '## 見出し2\n\n本文段落\n\n- 項目A\n- 項目B'
-    );
+    await setEditorContent(page, '## 見出し2\n\n本文段落\n\n- 項目A\n- 項目B');
     await expectEditorMarkdownToContain(page, '見出し2');
     await expectEditorMarkdownToContain(page, '項目A');
     await expectEditorMarkdownToContain(page, '項目B');

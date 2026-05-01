@@ -1,9 +1,6 @@
 import { test, expect } from '../fixtures';
 import { resetMockPosts } from '../mocks/mockData';
-import {
-  getTiptapEditor,
-  setEditorContent,
-} from '../utils/tiptapHelpers';
+import { getTiptapEditor, setEditorContent } from '../utils/tiptapHelpers';
 
 /**
  * Admin の Edit/Preview タブで、Preview パネルが markdown を
