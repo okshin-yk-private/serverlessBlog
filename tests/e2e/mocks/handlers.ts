@@ -312,7 +312,7 @@ export const handlers = [
   }),
 
   // 管理画面: 画像アップロードURL取得
-  http.post(`${API_BASE_URL}/images/upload-url`, async ({ request }) => {
+  http.post(`${API_BASE_URL}/admin/images/upload-url`, async ({ request }) => {
     // 認証チェック
     if (!checkAuth(request)) {
       return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -324,11 +324,29 @@ export const handlers = [
       fileSize?: number;
     };
 
+    // E2E 失敗系テスト用: ファイル名 prefix で 500 を強制する。
+    // (page.route は SW intercept を上書きできないため、MSW 側で発火する)
+    if (body.fileName.startsWith('__force_500__')) {
+      return HttpResponse.json(
+        { message: 'forced internal server error (test fixture)' },
+        { status: 500 }
+      );
+    }
+
+    // MSW SW は cross-origin (amazonaws.com など) を intercept できないため、
+    // E2E では同 origin の擬似 S3 パスを返す。実環境の挙動とは異なるが、
+    // フロントエンド側の挙動 (URL を受け取って PUT する) は同等に検証できる。
+    // 注: バックエンドは "url" フィールドで最終 URL を返す (posts.ts getUploadUrl 参照)。
     return HttpResponse.json({
-      uploadUrl: `https://mock-s3-bucket.s3.amazonaws.com/images/${body.fileName}?mock-signed-url`,
-      imageUrl: `https://mock-cdn.cloudfront.net/images/${body.fileName}`,
+      uploadUrl: `${API_BASE_URL}/_mock_s3_put/${body.fileName}`,
+      url: `https://mock-cdn.cloudfront.net/images/${body.fileName}`,
       expiresIn: 900,
     });
+  }),
+
+  // 管理画面: 同 origin S3 PUT スタブ
+  http.put(`${API_BASE_URL}/_mock_s3_put/:filename`, () => {
+    return new HttpResponse(null, { status: 200 });
   }),
 
   // 記事作成（認証必須）- `/api/posts` POST

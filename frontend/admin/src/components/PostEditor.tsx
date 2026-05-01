@@ -1,4 +1,6 @@
 import {
+  useCallback,
+  useEffect,
   useState,
   useRef,
   useImperativeHandle,
@@ -12,6 +14,7 @@ import {
   validatePostContent,
   validateCategory,
 } from '../utils/validation';
+import { uploadImage as defaultUploadImage } from '../api/posts';
 import { Button } from './Button';
 import { TiptapEditor, type TiptapEditorHandle } from './editor';
 
@@ -41,8 +44,8 @@ interface PostEditorProps {
   onSave: (data: PostData) => Promise<void>;
   onCancel: () => void;
   initialData?: PostData;
-  onImagePaste?: (file: File) => Promise<void>;
-  isUploading?: boolean;
+  /** 画像アップロード関数 (省略時は api/posts.uploadImage) */
+  uploadFn?: (file: File) => Promise<string>;
   /** 動的カテゴリ一覧 */
   categories: CategoryOption[];
   /** カテゴリローディング状態 */
@@ -68,8 +71,7 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
       onSave,
       onCancel,
       initialData,
-      onImagePaste,
-      isUploading,
+      uploadFn = defaultUploadImage,
       categories,
       categoriesLoading = false,
       categoriesError = null,
@@ -110,6 +112,35 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
     const [categoryError, setCategoryError] = useState<string | null>(null);
 
     const [isSaving, setIsSaving] = useState(false);
+
+    // 画像アップロードのエラー表示 (UploadImage 拡張からのコールバック)
+    const [uploadError, setUploadError] = useState<{
+      message: string;
+      retry: () => void;
+    } | null>(null);
+    const uploadErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+      null
+    );
+
+    const handleUploadError = useCallback(
+      (message: string, retry: () => void) => {
+        setUploadError({ message, retry });
+      },
+      []
+    );
+
+    useEffect(() => {
+      if (!uploadError) return;
+      uploadErrorTimerRef.current = setTimeout(() => {
+        setUploadError(null);
+      }, 8000);
+      return () => {
+        if (uploadErrorTimerRef.current) {
+          clearTimeout(uploadErrorTimerRef.current);
+          uploadErrorTimerRef.current = null;
+        }
+      };
+    }, [uploadError]);
 
     // ref経由でinsertAtCursor, removeImageUrlメソッドを公開
     useImperativeHandle(
@@ -176,12 +207,6 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
     // タグ削除ハンドラ
     const removeTag = (indexToRemove: number) => {
       setTags(tags.filter((_, index) => index !== indexToRemove));
-    };
-
-    const handleEditorImagePaste = async (file: File) => {
-      if (onImagePaste) {
-        await onImagePaste(file);
-      }
     };
 
     const handleSubmit = async (e: FormEvent) => {
@@ -306,13 +331,45 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
               )}
             </div>
           </div>
+          {uploadError && (
+            <div
+              role="alert"
+              data-testid="image-upload-error"
+              className="mb-2 flex items-start justify-between gap-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700"
+            >
+              <span>{uploadError.message}</span>
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  data-testid="image-upload-retry"
+                  className="text-red-700 underline hover:text-red-900"
+                  onClick={() => {
+                    const retry = uploadError.retry;
+                    setUploadError(null);
+                    retry();
+                  }}
+                >
+                  再試行
+                </button>
+                <button
+                  type="button"
+                  aria-label="エラーを閉じる"
+                  className="text-red-700 hover:text-red-900"
+                  onClick={() => setUploadError(null)}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
           <div className="relative">
             <div hidden={editorMode !== 'edit'}>
               <TiptapEditor
                 ref={tiptapRef}
                 value={contentMarkdown}
                 onChange={setContentMarkdown}
-                onImagePaste={handleEditorImagePaste}
+                uploadFn={uploadFn}
+                onUploadError={handleUploadError}
                 disabled={isSaving}
               />
             </div>
@@ -324,13 +381,6 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {contentMarkdown || '*プレビューがここに表示されます*'}
                 </ReactMarkdown>
-              </div>
-            )}
-            {isUploading && (
-              <div className="absolute inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center rounded-md pointer-events-none">
-                <span className="text-sm text-gray-600">
-                  画像アップロード中...
-                </span>
               </div>
             )}
           </div>

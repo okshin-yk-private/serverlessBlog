@@ -24,9 +24,13 @@ import { Link } from '@tiptap/extension-link';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { Typography } from '@tiptap/extension-typography';
 import { History } from '@tiptap/extension-history';
-import { Image } from '@tiptap/extension-image';
 import { Markdown } from 'tiptap-markdown';
 import { TiptapToolbar } from './TiptapToolbar';
+import {
+  UploadImage,
+  type UploadFn,
+  type UploadErrorHandler,
+} from './extensions/UploadImage';
 
 export interface TiptapEditorHandle {
   getEditor: () => Editor | null;
@@ -35,13 +39,21 @@ export interface TiptapEditorHandle {
 export interface TiptapEditorProps {
   value: string;
   onChange: (markdown: string) => void;
-  onImagePaste?: (file: File) => Promise<void>;
+  uploadFn?: UploadFn;
+  onUploadError?: UploadErrorHandler;
   placeholder?: string;
   disabled?: boolean;
   toolbarSlot?: ReactNode;
 }
 
-const buildExtensions = (placeholder: string) => [
+const defaultUploadFn: UploadFn = () =>
+  Promise.reject(new Error('uploadFn が設定されていません'));
+
+const buildExtensions = (
+  placeholder: string,
+  uploadFn: UploadFn,
+  onError: UploadErrorHandler | null
+) => [
   Document,
   Paragraph,
   Text,
@@ -58,7 +70,7 @@ const buildExtensions = (placeholder: string) => [
   HorizontalRule,
   HardBreak,
   Link.configure({ openOnClick: false, autolink: true }),
-  Image.configure({ inline: false, allowBase64: false }),
+  UploadImage.configure({ uploadFn, onError }),
   Placeholder.configure({ placeholder }),
   Typography,
   History,
@@ -78,7 +90,8 @@ export const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(
     {
       value,
       onChange,
-      onImagePaste,
+      uploadFn,
+      onUploadError,
       placeholder = '本文を入力...',
       disabled = false,
     },
@@ -88,40 +101,42 @@ export const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(
     // changes (e.g. async load) can be applied without bouncing through onUpdate.
     const internalValueRef = useRef(value);
     const onChangeRef = useRef(onChange);
-    const onImagePasteRef = useRef(onImagePaste);
+    const uploadFnRef = useRef<UploadFn>(uploadFn ?? defaultUploadFn);
+    const onUploadErrorRef = useRef<UploadErrorHandler | undefined>(
+      onUploadError
+    );
 
     useEffect(() => {
       onChangeRef.current = onChange;
     }, [onChange]);
 
     useEffect(() => {
-      onImagePasteRef.current = onImagePaste;
-    }, [onImagePaste]);
+      uploadFnRef.current = uploadFn ?? defaultUploadFn;
+    }, [uploadFn]);
+
+    useEffect(() => {
+      onUploadErrorRef.current = onUploadError;
+    }, [onUploadError]);
+
+    // Stable wrappers so the extension always sees the latest props without
+    // being rebuilt (rebuilding the extension list resets editor state).
+    const stableUploadFn = useRef<UploadFn>((file: File) =>
+      uploadFnRef.current(file)
+    ).current;
+    const stableOnError = useRef<UploadErrorHandler>(
+      (message: string, retry: () => void) => {
+        onUploadErrorRef.current?.(message, retry);
+      }
+    ).current;
 
     const editor = useEditor({
-      extensions: buildExtensions(placeholder),
+      extensions: buildExtensions(placeholder, stableUploadFn, stableOnError),
       content: value,
       editable: !disabled,
       editorProps: {
         attributes: {
           class:
             'prose prose-sm max-w-none focus:outline-none min-h-[360px] px-3 py-2 font-sans text-sm',
-        },
-        handlePaste: (_view, event) => {
-          if (!onImagePasteRef.current) return false;
-          const items = event.clipboardData?.items;
-          if (!items) return false;
-          for (const item of Array.from(items)) {
-            if (item.type.startsWith('image/')) {
-              const file = item.getAsFile();
-              if (file) {
-                event.preventDefault();
-                void onImagePasteRef.current(file);
-                return true;
-              }
-            }
-          }
-          return false;
         },
       },
       onUpdate: ({ editor }) => {
