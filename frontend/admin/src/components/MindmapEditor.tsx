@@ -523,7 +523,7 @@ function MindmapEditorInner({
           display: 'flex',
           gap: '8px',
           padding: '8px',
-          borderBottom: '1px solid #e5e7eb',
+          borderBottom: '1px solid var(--color-border)',
           flexWrap: 'wrap',
           alignItems: 'center',
         }}
@@ -535,8 +535,10 @@ function MindmapEditorInner({
           style={{
             padding: '4px 12px',
             borderRadius: '4px',
-            border: '1px solid #d1d5db',
-            backgroundColor: !selectedNodeId ? '#f3f4f6' : '#ffffff',
+            border: '1px solid var(--color-border-strong)',
+            backgroundColor: !selectedNodeId
+              ? 'var(--color-surface-muted)'
+              : 'var(--color-surface)',
             cursor: !selectedNodeId ? 'not-allowed' : 'pointer',
             fontSize: '13px',
           }}
@@ -549,11 +551,11 @@ function MindmapEditorInner({
           style={{
             padding: '4px 12px',
             borderRadius: '4px',
-            border: '1px solid #d1d5db',
+            border: '1px solid var(--color-border-strong)',
             backgroundColor:
               !selectedNodeId || selectedNodeId === rootNode.id
-                ? '#f3f4f6'
-                : '#ffffff',
+                ? 'var(--color-surface-muted)'
+                : 'var(--color-surface)',
             cursor:
               !selectedNodeId || selectedNodeId === rootNode.id
                 ? 'not-allowed'
@@ -569,11 +571,15 @@ function MindmapEditorInner({
           style={{
             padding: '4px 12px',
             borderRadius: '4px',
-            border: '1px solid #d1d5db',
-            backgroundColor: isDeleteDisabled ? '#f3f4f6' : '#ffffff',
+            border: '1px solid var(--color-border-strong)',
+            backgroundColor: isDeleteDisabled
+              ? 'var(--color-surface-muted)'
+              : 'var(--color-surface)',
             cursor: isDeleteDisabled ? 'not-allowed' : 'pointer',
             fontSize: '13px',
-            color: isDeleteDisabled ? '#9ca3af' : '#ef4444',
+            color: isDeleteDisabled
+              ? 'var(--color-text-muted)'
+              : 'var(--color-danger)',
           }}
         >
           Delete
@@ -589,8 +595,10 @@ function MindmapEditorInner({
             style={{
               padding: '4px 12px',
               borderRadius: '4px',
-              border: '1px solid #d1d5db',
-              backgroundColor: !canUndo ? '#f3f4f6' : '#ffffff',
+              border: '1px solid var(--color-border-strong)',
+              backgroundColor: !canUndo
+                ? 'var(--color-surface-muted)'
+                : 'var(--color-surface)',
               cursor: !canUndo ? 'not-allowed' : 'pointer',
               fontSize: '13px',
             }}
@@ -609,8 +617,10 @@ function MindmapEditorInner({
             style={{
               padding: '4px 12px',
               borderRadius: '4px',
-              border: '1px solid #d1d5db',
-              backgroundColor: !canRedo ? '#f3f4f6' : '#ffffff',
+              border: '1px solid var(--color-border-strong)',
+              backgroundColor: !canRedo
+                ? 'var(--color-surface-muted)'
+                : 'var(--color-surface)',
               cursor: !canRedo ? 'not-allowed' : 'pointer',
               fontSize: '13px',
             }}
@@ -625,8 +635,8 @@ function MindmapEditorInner({
           style={{
             padding: '4px 12px',
             borderRadius: '4px',
-            border: '1px solid #d1d5db',
-            backgroundColor: '#ffffff',
+            border: '1px solid var(--color-border-strong)',
+            backgroundColor: 'var(--color-surface)',
             cursor: 'pointer',
             fontSize: '13px',
           }}

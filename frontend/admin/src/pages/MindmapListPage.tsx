@@ -217,7 +217,7 @@ const MindmapListPage = () => {
                     style={{
                       fontSize: '1.125rem',
                       fontWeight: 600,
-                      color: '#111827',
+                      color: 'var(--color-text-heading)',
                       margin: '0 0 8px 0',
                     }}
                     data-testid="admin-mindmap-title"
@@ -231,7 +231,7 @@ const MindmapListPage = () => {
                       gap: '12px',
                       flexWrap: 'wrap',
                       fontSize: '0.875rem',
-                      color: '#6b7280',
+                      color: 'var(--color-text-muted)',
                     }}
                   >
                     <span

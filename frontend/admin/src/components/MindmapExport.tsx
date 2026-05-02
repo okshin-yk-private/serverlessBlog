@@ -44,7 +44,7 @@ export function MindmapExport({ rootNode }: MindmapExportProps) {
           padding: '4px 12px',
           borderRadius: '4px',
           border: '1px solid #d1d5db',
-          backgroundColor: '#ffffff',
+          backgroundColor: 'var(--color-surface)',
           cursor: 'pointer',
           fontSize: '13px',
         }}
@@ -58,7 +58,7 @@ export function MindmapExport({ rootNode }: MindmapExportProps) {
             top: '100%',
             left: 0,
             marginTop: '4px',
-            backgroundColor: '#ffffff',
+            backgroundColor: 'var(--color-surface)',
             border: '1px solid #d1d5db',
             borderRadius: '4px',
             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
@@ -71,7 +71,7 @@ export function MindmapExport({ rootNode }: MindmapExportProps) {
               data-testid="copy-error"
               style={{
                 padding: '8px 12px',
-                color: '#ef4444',
+                color: 'var(--color-danger)',
                 fontSize: '12px',
                 borderBottom: '1px solid #e5e7eb',
               }}

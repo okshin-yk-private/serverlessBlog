@@ -5,7 +5,7 @@ import type { MindmapNodeData } from '../utils/mindmapLayout';
 
 function MindmapCustomNodeComponent({ data, selected }: NodeProps) {
   const nodeData = data as MindmapNodeData;
-  const bgColor = nodeData.color ?? '#ffffff';
+  const bgColor = nodeData.color ?? 'var(--color-surface)';
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(nodeData.label);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -72,7 +72,7 @@ function MindmapCustomNodeComponent({ data, selected }: NodeProps) {
     ? '2px dashed #22c55e'
     : selected
       ? '2px solid #3b82f6'
-      : '1px solid #d1d5db';
+      : '1px solid var(--color-border-strong)';
   const boxShadowStyle = isDropTarget
     ? '0 0 8px rgba(34, 197, 94, 0.5)'
     : selected
@@ -166,7 +166,7 @@ function MindmapCustomNodeComponent({ data, selected }: NodeProps) {
           style={{
             fontSize: '10px',
             flexShrink: 0,
-            border: '1px solid #d1d5db',
+            border: '1px solid var(--color-border-strong)',
             borderRadius: '50%',
             width: '20px',
             height: '20px',
@@ -174,7 +174,7 @@ function MindmapCustomNodeComponent({ data, selected }: NodeProps) {
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
-            backgroundColor: '#f9fafb',
+            backgroundColor: 'var(--color-surface-elevated)',
             padding: 0,
           }}
           title={

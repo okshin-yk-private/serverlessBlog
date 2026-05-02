@@ -52,7 +52,7 @@ const SortableCategoryItem = ({
             padding: '8px',
             border: 'none',
             background: 'transparent',
-            color: '#9ca3af',
+            color: 'var(--color-text-muted)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -82,7 +82,7 @@ const SortableCategoryItem = ({
             style={{
               fontSize: '1.125rem',
               fontWeight: 600,
-              color: '#111827',
+              color: 'var(--color-text-heading)',
               margin: '0 0 8px 0',
             }}
             data-testid="category-name"
@@ -96,7 +96,7 @@ const SortableCategoryItem = ({
               gap: '12px',
               flexWrap: 'wrap',
               fontSize: '0.875rem',
-              color: '#6b7280',
+              color: 'var(--color-text-muted)',
             }}
           >
             <span className="admin-badge admin-badge-dark">
@@ -109,7 +109,7 @@ const SortableCategoryItem = ({
               style={{
                 marginTop: '8px',
                 fontSize: '0.875rem',
-                color: '#6b7280',
+                color: 'var(--color-text-muted)',
               }}
             >
               {category.description}

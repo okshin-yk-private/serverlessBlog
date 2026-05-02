@@ -223,7 +223,7 @@ const LoginPage = () => {
         <style>{`
           .login-page {
             min-height: 100vh;
-            background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+            background: linear-gradient(135deg, var(--color-surface-elevated) 0%, var(--color-surface-muted) 100%);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -236,11 +236,11 @@ const LoginPage = () => {
           }
 
           .login-card {
-            background: white;
-            border: 1px solid #e5e7eb;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
             border-radius: 16px;
             padding: 40px;
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+            box-shadow: var(--shadow-card);
           }
 
           .login-header {
@@ -266,13 +266,13 @@ const LoginPage = () => {
             font-family: 'Caveat', cursive;
             font-size: 1.5rem;
             font-weight: 600;
-            color: #1f2937;
+            color: var(--color-text-heading);
             letter-spacing: 0.02em;
           }
 
           .login-badge {
-            background: #2D2A5A;
-            color: white;
+            background: var(--color-primary);
+            color: var(--color-text-on-primary);
             padding: 4px 10px;
             border-radius: 6px;
             font-size: 0.75rem;
@@ -284,21 +284,21 @@ const LoginPage = () => {
           .login-title {
             font-size: 1.5rem;
             font-weight: 700;
-            color: #2D2A5A;
+            color: var(--color-primary);
             text-align: center;
             margin: 0 0 8px 0;
           }
 
           .login-subtitle {
             font-size: 0.95rem;
-            color: #6b7280;
+            color: var(--color-text-muted);
             text-align: center;
             margin: 0 0 24px 0;
             line-height: 1.6;
           }
 
           .login-email {
-            color: #2D2A5A;
+            color: var(--color-primary);
             font-weight: 500;
           }
 
@@ -310,40 +310,41 @@ const LoginPage = () => {
             display: block;
             font-size: 0.875rem;
             font-weight: 500;
-            color: #374151;
+            color: var(--color-text);
             margin-bottom: 6px;
           }
 
           .login-input {
             width: 100%;
             padding: 12px 16px;
-            border: 1px solid #e5e7eb;
+            border: 1px solid var(--color-border);
             border-radius: 10px;
             font-size: 0.95rem;
-            background: white;
+            background: var(--color-surface);
+            color: var(--color-text);
             transition: all 0.2s ease;
             box-sizing: border-box;
           }
 
           .login-input:focus {
             outline: none;
-            border-color: #9ca3af;
-            box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.1);
+            border-color: var(--color-border-strong);
+            box-shadow: 0 0 0 3px var(--color-focus-ring);
           }
 
           .login-input.error {
-            border-color: #dc2626;
+            border-color: var(--color-danger);
           }
 
           .login-input:disabled {
-            background: #f9fafb;
-            color: #6b7280;
+            background: var(--color-surface-elevated);
+            color: var(--color-text-muted);
           }
 
           .login-error {
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            color: #991b1b;
+            background: var(--color-danger-bg);
+            border: 1px solid var(--color-danger-border);
+            color: var(--color-danger-text);
             padding: 12px 16px;
             border-radius: 10px;
             margin-bottom: 20px;
@@ -351,22 +352,22 @@ const LoginPage = () => {
           }
 
           .login-field-error {
-            color: #dc2626;
+            color: var(--color-danger);
             font-size: 0.8rem;
             margin-top: 6px;
           }
 
           .login-password-hint {
             font-size: 0.8rem;
-            color: #6b7280;
+            color: var(--color-text-muted);
             margin: 0 0 20px 0;
           }
 
           .login-btn-primary {
             width: 100%;
             padding: 12px 20px;
-            background: #2D2A5A;
-            color: white;
+            background: var(--color-primary);
+            color: var(--color-text-on-primary);
             border: none;
             border-radius: 10px;
             font-size: 0.95rem;
@@ -377,7 +378,7 @@ const LoginPage = () => {
           }
 
           .login-btn-primary:hover {
-            background: #3d3a6a;
+            background: var(--color-primary-hover);
           }
 
           .login-btn-primary:disabled {
@@ -389,7 +390,7 @@ const LoginPage = () => {
             width: 100%;
             padding: 8px 16px;
             background: transparent;
-            color: #6b7280;
+            color: var(--color-text-muted);
             border: none;
             font-size: 0.875rem;
             cursor: pointer;
@@ -397,7 +398,7 @@ const LoginPage = () => {
           }
 
           .login-btn-link:hover {
-            color: #2D2A5A;
+            color: var(--color-primary);
           }
 
           @media (max-width: 480px) {
@@ -448,7 +449,7 @@ const LoginPage = () => {
       <style>{`
         .login-page {
           min-height: 100vh;
-          background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+          background: linear-gradient(135deg, var(--color-surface-elevated) 0%, var(--color-surface-muted) 100%);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -461,11 +462,11 @@ const LoginPage = () => {
         }
 
         .login-card {
-          background: white;
-          border: 1px solid #e5e7eb;
+          background: var(--color-surface);
+          border: 1px solid var(--color-border);
           border-radius: 16px;
           padding: 40px;
-          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+          box-shadow: var(--shadow-card);
         }
 
         .login-header {
@@ -491,13 +492,13 @@ const LoginPage = () => {
           font-family: 'Caveat', cursive;
           font-size: 1.5rem;
           font-weight: 600;
-          color: #1f2937;
+          color: var(--color-text-heading);
           letter-spacing: 0.02em;
         }
 
         .login-badge {
-          background: #2D2A5A;
-          color: white;
+          background: var(--color-primary);
+          color: var(--color-text-on-primary);
           padding: 4px 10px;
           border-radius: 6px;
           font-size: 0.75rem;
@@ -509,14 +510,14 @@ const LoginPage = () => {
         .login-title {
           font-size: 1.5rem;
           font-weight: 700;
-          color: #2D2A5A;
+          color: var(--color-primary);
           text-align: center;
           margin: 0 0 8px 0;
         }
 
         .login-subtitle {
           font-size: 0.95rem;
-          color: #6b7280;
+          color: var(--color-text-muted);
           text-align: center;
           margin: 0 0 32px 0;
         }
@@ -525,29 +526,30 @@ const LoginPage = () => {
         .login-card input {
           width: 100%;
           padding: 12px 16px;
-          border: 1px solid #e5e7eb;
+          border: 1px solid var(--color-border);
           border-radius: 10px;
           font-size: 0.95rem;
-          background: white;
+          background: var(--color-surface);
+          color: var(--color-text);
           transition: all 0.2s ease;
           box-sizing: border-box;
         }
 
         .login-card input:focus {
           outline: none;
-          border-color: #9ca3af;
-          box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.1);
+          border-color: var(--color-border-strong);
+          box-shadow: 0 0 0 3px var(--color-focus-ring);
         }
 
         .login-card input::placeholder {
-          color: #9ca3af;
+          color: var(--color-text-muted);
         }
 
         .login-card button[type="submit"] {
           width: 100%;
           padding: 12px 20px;
-          background: #2D2A5A;
-          color: white;
+          background: var(--color-primary);
+          color: var(--color-text-on-primary);
           border: none;
           border-radius: 10px;
           font-size: 0.95rem;
@@ -557,7 +559,7 @@ const LoginPage = () => {
         }
 
         .login-card button[type="submit"]:hover {
-          background: #3d3a6a;
+          background: var(--color-primary-hover);
         }
 
         .login-card button[type="submit"]:disabled {
@@ -567,7 +569,7 @@ const LoginPage = () => {
 
         .login-card a,
         .login-card button:not([type="submit"]) {
-          color: #6b7280;
+          color: var(--color-text-muted);
           font-size: 0.875rem;
           text-decoration: none;
           transition: color 0.2s ease;
@@ -575,14 +577,14 @@ const LoginPage = () => {
 
         .login-card a:hover,
         .login-card button:not([type="submit"]):hover {
-          color: #2D2A5A;
+          color: var(--color-primary);
         }
 
         .login-card label {
           display: block;
           font-size: 0.875rem;
           font-weight: 500;
-          color: #374151;
+          color: var(--color-text);
           margin-bottom: 6px;
         }
 
