@@ -4,6 +4,7 @@ import { getPosts, deletePost, updatePost } from '../api/posts';
 import type { Post } from '../api/posts';
 import ConfirmDialog from '../components/ConfirmDialog';
 import AdminLayout from '../components/AdminLayout';
+import { BuildStatusBadge } from '../components/BuildStatusBadge';
 import { PostListSkeleton } from '../components/skeleton';
 
 type TabType = 'published' | 'draft';
@@ -21,6 +22,10 @@ const PostListPage = () => {
   // 削除確認ダイアログ用のstate
   const [showConfirmDialog, setShowConfirmDialog] = useState<boolean>(false);
   const [postToDelete, setPostToDelete] = useState<string | null>(null);
+
+  // 公開済み記事を削除した直後にビルドステータスを表示するための postId。
+  // 下書き削除時はサーバー側でビルドが起きないため null のまま。
+  const [deletedPostId, setDeletedPostId] = useState<string | null>(null);
 
   const loadPosts = async (publishStatus: TabType, token?: string) => {
     try {
@@ -49,6 +54,7 @@ const PostListPage = () => {
     setActiveTab(tab);
     setNextToken(undefined);
     setSearchQuery(''); // タブ切り替え時に検索クエリをリセット
+    setDeletedPostId(null); // タブ切り替え時に直前のビルドステータスバッジを消す
   };
 
   const handleNextPage = () => {
@@ -65,11 +71,19 @@ const PostListPage = () => {
   const handleDeleteConfirm = async () => {
     if (!postToDelete) return;
 
+    // 削除前に公開状態をスナップショット。published のみサーバー側で
+    // サイトリビルドが走るため、その場合のみバッジを表示する。
+    const target = posts.find((p) => p.id === postToDelete);
+    const wasPublished = target?.publishStatus === 'published';
+
     try {
       setError(null);
       setSuccessMessage(null);
       await deletePost(postToDelete);
       setSuccessMessage('記事を削除しました');
+      if (wasPublished) {
+        setDeletedPostId(postToDelete);
+      }
       setShowConfirmDialog(false);
       setPostToDelete(null);
       await loadPosts(activeTab);
@@ -163,6 +177,11 @@ const PostListPage = () => {
           {successMessage}
         </div>
       )}
+
+      <BuildStatusBadge
+        postId={deletedPostId ?? undefined}
+        enabled={deletedPostId !== null}
+      />
 
       {/* 検索バー */}
       <div style={{ marginBottom: '24px' }}>
