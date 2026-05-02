@@ -263,7 +263,7 @@ const LoginPage = () => {
           }
 
           :root[data-theme="dark"] .login-logo-image {
-            filter: invert(1) hue-rotate(180deg);
+            content: url('/dark-logo.png');
           }
 
           .login-site-title {
@@ -493,7 +493,7 @@ const LoginPage = () => {
         }
 
         :root[data-theme="dark"] .login-logo-image {
-          filter: invert(1) hue-rotate(180deg);
+          content: url('/dark-logo.png');
         }
 
         .login-site-title {
