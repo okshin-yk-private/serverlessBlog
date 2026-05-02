@@ -131,6 +131,10 @@ const AdminHeader: React.FC = () => {
           margin-right: 12px;
         }
 
+        :root[data-theme="dark"] .admin-logo-image {
+          filter: invert(1) hue-rotate(180deg);
+        }
+
         .admin-site-title {
           font-family: 'Caveat', cursive;
           font-size: 1.6rem;

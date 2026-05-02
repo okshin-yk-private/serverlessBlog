@@ -262,6 +262,10 @@ const LoginPage = () => {
             margin-right: 12px;
           }
 
+          :root[data-theme="dark"] .login-logo-image {
+            filter: invert(1) hue-rotate(180deg);
+          }
+
           .login-site-title {
             font-family: 'Caveat', cursive;
             font-size: 1.5rem;
@@ -486,6 +490,10 @@ const LoginPage = () => {
           height: 40px;
           width: auto;
           margin-right: 12px;
+        }
+
+        :root[data-theme="dark"] .login-logo-image {
+          filter: invert(1) hue-rotate(180deg);
         }
 
         .login-site-title {
