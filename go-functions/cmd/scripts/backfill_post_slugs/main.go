@@ -13,6 +13,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -35,32 +36,66 @@ type ddbAPI interface {
 	UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error)
 }
 
-func main() {
-	var (
-		tableName = flag.String("table-name", os.Getenv("TABLE_NAME"), "DynamoDB BlogPosts table name (or TABLE_NAME env)")
-		region    = flag.String("region", os.Getenv("AWS_REGION"), "AWS region (or AWS_REGION env)")
-		indexName = flag.String("slug-index", defaultSlugIndex, "Name of the SlugIndex GSI on BlogPosts")
-		dryRun    = flag.Bool("dry-run", false, "Print proposed updates without writing")
-	)
-	flag.Parse()
+// runArgs holds the parsed CLI flags. Extracted so main() stays a thin
+// wrapper around testable logic.
+type runArgs struct {
+	tableName string
+	region    string
+	indexName string
+	dryRun    bool
+}
 
-	if *tableName == "" {
-		log.Fatal("--table-name (or TABLE_NAME env) is required")
+// parseFlags reads CLI flags + env defaults into runArgs and validates them.
+func parseFlags(args []string) (runArgs, error) {
+	fs := flag.NewFlagSet("backfill_post_slugs", flag.ContinueOnError)
+	tableName := fs.String("table-name", os.Getenv("TABLE_NAME"), "DynamoDB BlogPosts table name (or TABLE_NAME env)")
+	region := fs.String("region", os.Getenv("AWS_REGION"), "AWS region (or AWS_REGION env)")
+	indexName := fs.String("slug-index", defaultSlugIndex, "Name of the SlugIndex GSI on BlogPosts")
+	dryRun := fs.Bool("dry-run", false, "Print proposed updates without writing")
+	if err := fs.Parse(args); err != nil {
+		return runArgs{}, err
 	}
+	if *tableName == "" {
+		return runArgs{}, errors.New("--table-name (or TABLE_NAME env) is required")
+	}
+	return runArgs{
+		tableName: *tableName,
+		region:    *region,
+		indexName: *indexName,
+		dryRun:    *dryRun,
+	}, nil
+}
 
-	ctx := context.Background()
+// newAWSClient builds a real DynamoDB client. Indirected through a var so
+// tests can swap in a fake.
+var newAWSClient = func(ctx context.Context, region string) (ddbAPI, error) {
 	cfgLoaders := []func(*config.LoadOptions) error{}
-	if *region != "" {
-		cfgLoaders = append(cfgLoaders, config.WithRegion(*region))
+	if region != "" {
+		cfgLoaders = append(cfgLoaders, config.WithRegion(region))
 	}
 	cfg, err := config.LoadDefaultConfig(ctx, cfgLoaders...)
 	if err != nil {
-		log.Fatalf("load aws config: %v", err)
+		return nil, err
 	}
-	client := dynamodb.NewFromConfig(cfg)
+	return dynamodb.NewFromConfig(cfg), nil
+}
 
-	if err := backfill(ctx, client, *tableName, *indexName, *dryRun); err != nil {
-		log.Fatalf("backfill failed: %v", err)
+// run is the testable entry point. main() delegates to it.
+func run(ctx context.Context, args []string) error {
+	a, err := parseFlags(args)
+	if err != nil {
+		return err
+	}
+	client, err := newAWSClient(ctx, a.region)
+	if err != nil {
+		return fmt.Errorf("load aws config: %w", err)
+	}
+	return backfill(ctx, client, a.tableName, a.indexName, a.dryRun)
+}
+
+func main() {
+	if err := run(context.Background(), os.Args[1:]); err != nil {
+		log.Fatal(err)
 	}
 }
 

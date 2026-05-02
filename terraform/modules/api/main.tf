@@ -932,10 +932,11 @@ resource "aws_api_gateway_integration_response" "posts_id_options" {
 
 # --- GET /posts/by-slug/{slug} (No auth - public) --- (PR7)
 resource "aws_api_gateway_method" "posts_by_slug_value_get" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.posts_by_slug_value.id
-  http_method   = "GET"
-  authorization = "NONE"
+  rest_api_id          = aws_api_gateway_rest_api.main.id
+  resource_id          = aws_api_gateway_resource.posts_by_slug_value.id
+  http_method          = "GET"
+  authorization        = "NONE"
+  request_validator_id = aws_api_gateway_request_validator.main.id
 
   request_parameters = {
     "method.request.path.slug" = true
@@ -953,10 +954,11 @@ resource "aws_api_gateway_integration" "posts_by_slug_value_get" {
 
 # --- OPTIONS /posts/by-slug/{slug} (CORS) ---
 resource "aws_api_gateway_method" "posts_by_slug_value_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.posts_by_slug_value.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
+  rest_api_id          = aws_api_gateway_rest_api.main.id
+  resource_id          = aws_api_gateway_resource.posts_by_slug_value.id
+  http_method          = "OPTIONS"
+  authorization        = "NONE"
+  request_validator_id = aws_api_gateway_request_validator.main.id
 }
 
 resource "aws_api_gateway_integration" "posts_by_slug_value_options" {
