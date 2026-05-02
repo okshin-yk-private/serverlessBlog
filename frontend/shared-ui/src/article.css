@@ -8,18 +8,14 @@
  * すべてのルールは `.post-content` 配下にスコープしている。
  * 各アプリでレンダー結果を class="post-content" でラップすると適用される。
  *
- * 純粋 CSS で記述している (Tailwind の `@apply` を使わない) ため、
- * admin / public-astro いずれの Tailwind バージョンでも追加設定なしで動作する。
- *
- * Markdown→HTML エンジンが Goldmark (Astro) と react-markdown (admin) で異なる以上
- * pixel-perfect な一致は保証しないが、見出しサイズ / コードブロック / 引用枠線 /
- * リンク色など基本タイポグラフィは同一に揃える。
+ * 配色は `var(--color-*)` を参照する。トークンは public-astro/src/styles/global.css
+ * および admin/src/index.css で定義し、`[data-theme="dark"]` 切替に追従する。
  */
 
 .post-content {
   font-size: 1.125rem;
   line-height: 1.8;
-  color: #374151;
+  color: var(--color-text);
 }
 
 .post-content h1,
@@ -28,7 +24,7 @@
 .post-content h4,
 .post-content h5,
 .post-content h6 {
-  color: #111827;
+  color: var(--color-text-heading);
   margin-top: 2rem;
   margin-bottom: 1rem;
   font-weight: 600;
@@ -48,13 +44,13 @@
 }
 
 .post-content a {
-  color: #c9a857;
+  color: var(--color-link);
   text-decoration: underline;
   transition: color 0.2s ease;
 }
 
 .post-content a:hover {
-  color: #2d2a5a;
+  color: var(--color-link-hover);
 }
 
 .post-content ul,
@@ -63,9 +59,6 @@
   padding-left: 2rem;
 }
 
-/* `list-style-type` を明示する。Tailwind v4 の preflight が
-   `ul, ol { list-style: none }` でデフォルト bullet を消すため、
-   各アプリで Tailwind reset が入った場合でも bullet を復元する。 */
 .post-content ul {
   list-style-type: disc;
 }
@@ -79,15 +72,15 @@
 }
 
 .post-content blockquote {
-  border-left: 4px solid #c9a857;
+  border-left: 4px solid var(--color-accent);
   padding-left: 1.5rem;
   margin: 1.5rem 0;
-  color: #6b7280;
+  color: var(--color-text-muted);
   font-style: italic;
 }
 
 .post-content code {
-  background: #f3f4f6;
+  background: var(--color-code-bg);
   padding: 0.2rem 0.4rem;
   border-radius: 4px;
   font-size: 0.9em;
@@ -95,8 +88,8 @@
 }
 
 .post-content pre {
-  background: #1f2937;
-  color: #e5e7eb;
+  background: var(--color-code-pre-bg);
+  color: var(--color-code-pre-text);
   padding: 1rem 1.5rem;
   border-radius: 8px;
   overflow-x: auto;
@@ -119,7 +112,7 @@
 
 .post-content strong {
   font-weight: 600;
-  color: #111827;
+  color: var(--color-text-heading);
 }
 
 .post-content em {

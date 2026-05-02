@@ -9,9 +9,6 @@
   src: url('/fonts/caveat-variable.woff2') format('woff2');
 }
 
-/* Self-hosted Shippori Mincho (Google Fonts v17 woff2) — body font.
-   font-display: swap so content renders immediately in fallback before
-   the ~3MB Japanese font finishes loading. */
 @font-face {
   font-family: 'Shippori Mincho';
   font-style: normal;
@@ -28,29 +25,117 @@
   src: url('/fonts/shippori-mincho-600.woff2') format('woff2');
 }
 
-/* Design tokens (aligned with admin) */
+/* Design tokens — light theme defaults.
+   Dark theme overrides via [data-theme="dark"]. FOUC bootstrap in Layout.astro. */
 :root {
-  --color-primary: #2D2A5A;
-  --color-accent: #C9A857;
+  --color-bg: #f5f5f5;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #f9fafb;
+  --color-surface-muted: #f3f4f6;
+  --color-text: #374151;
+  --color-text-muted: #6b7280;
+  --color-text-heading: #111827;
+  --color-text-on-primary: #ffffff;
+  --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
+  --color-primary: #2d2a5a;
+  --color-primary-hover: #3d3a6a;
+  --color-primary-soft: rgba(45, 42, 90, 0.1);
+  --color-accent: #c9a857;
+  --color-accent-hover: #b89346;
+  --color-success: #059669;
+  --color-success-hover: #047857;
+  --color-success-bg: #d1fae5;
+  --color-success-text: #065f46;
+  --color-success-border: #bbf7d0;
+  --color-success-alert-bg: #f0fdf4;
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-danger-bg: #fef2f2;
+  --color-danger-text: #991b1b;
+  --color-danger-border: #fecaca;
+  --color-danger-soft: rgba(220, 38, 38, 0.1);
+  --color-warning: #d97706;
+  --color-warning-hover: #b45309;
+  --color-warning-bg: #fef3c7;
+  --color-warning-text: #92400e;
+  --color-warning-alert-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+  --color-link: #c9a857;
+  --color-link-hover: #2d2a5a;
+  --color-code-bg: #f3f4f6;
+  --color-code-pre-bg: #1f2937;
+  --color-code-pre-text: #e5e7eb;
+  --color-focus-ring: rgba(156, 163, 175, 0.1);
+  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-card-strong: 0 10px 25px rgba(0, 0, 0, 0.08);
+  color-scheme: light;
 }
 
-/* Custom base styles */
+:root[data-theme="dark"] {
+  --color-bg: #0f1117;
+  --color-surface: #1a1d29;
+  --color-surface-elevated: #252937;
+  --color-surface-muted: #161922;
+  --color-text: #d1d5db;
+  --color-text-muted: #9ca3af;
+  --color-text-heading: #f3f4f6;
+  --color-text-on-primary: #ffffff;
+  --color-border: #2d3142;
+  --color-border-strong: #3d4252;
+  --color-primary: #7a76b8;
+  --color-primary-hover: #9590ce;
+  --color-primary-soft: rgba(122, 118, 184, 0.18);
+  --color-accent: #d4b56a;
+  --color-accent-hover: #e0c47e;
+  --color-success: #10b981;
+  --color-success-hover: #34d399;
+  --color-success-bg: rgba(16, 185, 129, 0.15);
+  --color-success-text: #6ee7b7;
+  --color-success-border: rgba(16, 185, 129, 0.3);
+  --color-success-alert-bg: rgba(16, 185, 129, 0.08);
+  --color-danger: #ef4444;
+  --color-danger-hover: #f87171;
+  --color-danger-bg: rgba(239, 68, 68, 0.15);
+  --color-danger-text: #fca5a5;
+  --color-danger-border: rgba(239, 68, 68, 0.3);
+  --color-danger-soft: rgba(239, 68, 68, 0.18);
+  --color-warning: #f59e0b;
+  --color-warning-hover: #fbbf24;
+  --color-warning-bg: rgba(245, 158, 11, 0.15);
+  --color-warning-text: #fcd34d;
+  --color-warning-alert-bg: rgba(245, 158, 11, 0.08);
+  --color-warning-border: rgba(245, 158, 11, 0.3);
+  --color-link: #d4b56a;
+  --color-link-hover: #a59ee0;
+  --color-code-bg: rgba(255, 255, 255, 0.06);
+  --color-code-pre-bg: #0a0c12;
+  --color-code-pre-text: #e5e7eb;
+  --color-focus-ring: rgba(122, 118, 184, 0.25);
+  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-card-strong: 0 10px 25px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+
 @layer base {
   html {
     font-family: 'Shippori Mincho', serif;
-    background-color: #f5f5f5;
+    background-color: var(--color-bg);
+    color: var(--color-text);
   }
 
   body {
-    @apply text-gray-900 leading-relaxed;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.625;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Caveat', cursive;
+    color: var(--color-text-heading);
   }
 }
 
-/* Custom component styles */
 @layer components {
   .container-main {
     @apply max-w-4xl mx-auto px-4 py-8;
@@ -77,23 +162,41 @@
   }
 
   .post-content a {
-    @apply text-blue-600 hover:text-blue-800 underline;
+    color: var(--color-link);
+    text-decoration: underline;
+  }
+
+  .post-content a:hover {
+    color: var(--color-link-hover);
   }
 
   .post-content code {
-    @apply bg-gray-100 px-1 py-0.5 rounded text-sm;
+    background: var(--color-code-bg);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
   }
 
   .post-content pre {
-    @apply bg-gray-800 text-gray-100 p-4 rounded-lg overflow-x-auto my-4;
+    background: var(--color-code-pre-bg);
+    color: var(--color-code-pre-text);
+    padding: 1rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    margin: 1rem 0;
   }
 
   .post-content pre code {
-    @apply bg-transparent p-0;
+    background: transparent;
+    padding: 0;
   }
 
   .post-content blockquote {
-    @apply border-l-4 border-gray-300 pl-4 italic my-4 text-gray-600;
+    border-left: 4px solid var(--color-border-strong);
+    padding-left: 1rem;
+    font-style: italic;
+    margin: 1rem 0;
+    color: var(--color-text-muted);
   }
 
   .post-content ul,

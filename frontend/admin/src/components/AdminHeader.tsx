@@ -7,6 +7,7 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import ThemeToggle from './ThemeToggle';
 
 const AdminHeader: React.FC = () => {
   const location = useLocation();
@@ -84,6 +85,7 @@ const AdminHeader: React.FC = () => {
             <Link to="/posts/new" className="admin-nav-link admin-nav-new">
               + New
             </Link>
+            <ThemeToggle />
             <button onClick={handleLogout} className="admin-logout-btn">
               Logout
             </button>
@@ -93,14 +95,13 @@ const AdminHeader: React.FC = () => {
 
       <style>{`
         .admin-header {
-          background: #ffffff;
-          border-bottom: 1px solid #e5e7eb;
+          background: var(--color-surface);
+          border-bottom: 1px solid var(--color-border);
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
           position: sticky;
           top: 0;
           z-index: 1000;
           backdrop-filter: blur(8px);
-          background: rgba(255, 255, 255, 0.95);
         }
 
         .admin-header-container {
@@ -134,19 +135,19 @@ const AdminHeader: React.FC = () => {
           font-family: 'Caveat', cursive;
           font-size: 1.6rem;
           font-weight: 600;
-          color: #1f2937;
+          color: var(--color-text-heading);
           letter-spacing: 0.02em;
           margin-right: 12px;
         }
 
         .admin-nav {
           display: flex;
-          gap: 24px;
+          gap: 20px;
           align-items: center;
         }
 
         .admin-nav-link {
-          color: #374151;
+          color: var(--color-text);
           text-decoration: none;
           font-size: 0.95rem;
           font-weight: 500;
@@ -162,12 +163,12 @@ const AdminHeader: React.FC = () => {
           left: 0;
           width: 0;
           height: 2px;
-          background: #2D2A5A;
+          background: var(--color-primary);
           transition: width 0.2s ease;
         }
 
         .admin-nav-link:hover {
-          color: #1f2937;
+          color: var(--color-text-heading);
         }
 
         .admin-nav-link:hover::after {
@@ -175,7 +176,7 @@ const AdminHeader: React.FC = () => {
         }
 
         .admin-nav-link.active {
-          color: #1f2937;
+          color: var(--color-text-heading);
         }
 
         .admin-nav-link.active::after {
@@ -186,11 +187,11 @@ const AdminHeader: React.FC = () => {
           display: flex;
           align-items: center;
           gap: 6px;
-          color: #6b7280 !important;
+          color: var(--color-text-muted) !important;
         }
 
         .admin-nav-external:hover {
-          color: #2D2A5A !important;
+          color: var(--color-primary) !important;
         }
 
         .admin-nav-external::after {
@@ -202,8 +203,8 @@ const AdminHeader: React.FC = () => {
         }
 
         .admin-nav-new {
-          background: #2D2A5A;
-          color: white !important;
+          background: var(--color-primary);
+          color: var(--color-text-on-primary) !important;
           padding: 8px 16px;
           border-radius: 8px;
           transition: all 0.2s ease;
@@ -214,14 +215,14 @@ const AdminHeader: React.FC = () => {
         }
 
         .admin-nav-new:hover {
-          background: #3d3a6a;
-          color: white !important;
+          background: var(--color-primary-hover);
+          color: var(--color-text-on-primary) !important;
         }
 
         .admin-logout-btn {
           background: transparent;
-          border: 1px solid #e5e7eb;
-          color: #6b7280;
+          border: 1px solid var(--color-border);
+          color: var(--color-text-muted);
           padding: 8px 16px;
           border-radius: 8px;
           font-size: 0.95rem;
@@ -231,9 +232,9 @@ const AdminHeader: React.FC = () => {
         }
 
         .admin-logout-btn:hover {
-          border-color: #2D2A5A;
-          color: #2D2A5A;
-          background: #f9fafb;
+          border-color: var(--color-primary);
+          color: var(--color-primary);
+          background: var(--color-surface-elevated);
         }
 
         @media (max-width: 768px) {
