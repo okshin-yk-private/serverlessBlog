@@ -1,13 +1,8 @@
 /**
  * 記事詳細ページのビルド出力テスト
  *
- * Task 2.3: 記事詳細ページ実装
- *
- * Requirements:
- * - 2.3: 記事詳細ページ実装
- *   - `getStaticPaths` で全公開記事のパスを生成
- *   - ビルド時に `/posts/[id]/index.html` として静的生成
- * - 2.7: CSS/アセットをインライン化またはバンドル
+ * PR8 update: legacy /posts/[id]/ route was retired in favor of slug-based
+ * /posts/<slug>/. URL-shape assertions now check the slug variant.
  *
  * Note: These are unit tests for the utility functions and page structure.
  * Full build integration tests require a mock API server.
@@ -157,21 +152,20 @@ describe('Post Detail Page - Utility Functions', () => {
       expect(pageTitle).toBe('テスト記事タイトル | bone of my fallacy');
     });
 
-    it('should generate correct post URL structure', () => {
-      // Astro generates /posts/[id]/index.html
-      const expectedPath = `/posts/${mockPost.id}/index.html`;
-      expect(expectedPath).toBe('/posts/test-123/index.html');
+    it('should generate correct post URL structure (slug-based)', () => {
+      // Astro generates /posts/<slug>/index.html
+      const postWithSlug = { ...mockPost, slug: 'test-article-slug' };
+      const expectedPath = `/posts/${postWithSlug.slug}/index.html`;
+      expect(expectedPath).toBe('/posts/test-article-slug/index.html');
     });
 
-    it('should handle special characters in post ID', () => {
-      const postWithSpecialId = {
+    it('should handle URL-safe slugs with hyphens', () => {
+      const postWithLongSlug = {
         ...mockPost,
-        id: 'post-with-special-chars-日本語',
+        slug: 'multi-word-kebab-case-slug',
       };
-      const expectedPath = `/posts/${postWithSpecialId.id}/index.html`;
-      expect(expectedPath).toBe(
-        '/posts/post-with-special-chars-日本語/index.html'
-      );
+      const expectedPath = `/posts/${postWithLongSlug.slug}/index.html`;
+      expect(expectedPath).toBe('/posts/multi-word-kebab-case-slug/index.html');
     });
   });
 });

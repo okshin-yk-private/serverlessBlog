@@ -7,8 +7,6 @@ import {
   forwardRef,
   type FormEvent,
 } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import {
   validatePostTitle,
   validatePostContent,
@@ -106,6 +104,11 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
       initialData?.contentMarkdown || ''
     );
     const [editorMode, setEditorMode] = useState<'edit' | 'preview'>('edit');
+    // PR8: Preview tab renders Tiptap's HTML output directly so the admin sees
+    // exactly the markup that gets persisted. Previously this used
+    // react-markdown which produced subtly different HTML than the
+    // Goldmark-rendered server output.
+    const [previewHtml, setPreviewHtml] = useState('');
 
     // PR6: metadata fields managed alongside title/body. The MetadataSidebar
     // is a controlled component; PostEditor owns the state.
@@ -176,6 +179,16 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
       window.addEventListener('beforeunload', handler);
       return () => window.removeEventListener('beforeunload', handler);
     }, [onAutosave, autosave.isDirty]);
+
+    // Refresh Preview HTML whenever the writer toggles to the preview tab or
+    // edits markdown. We grab Tiptap's getHTML() to mirror the exact node tree
+    // the editor sees; the empty case falls back to a placeholder string in
+    // the JSX render path.
+    useEffect(() => {
+      if (editorMode !== 'preview') return;
+      const editor = tiptapRef.current?.getEditor();
+      setPreviewHtml(editor?.getHTML() ?? '');
+    }, [editorMode, contentMarkdown]);
 
     useEffect(() => {
       if (!uploadError) return;
@@ -437,11 +450,12 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
                 <div
                   data-testid="markdown-preview"
                   className="post-content max-w-none p-4 border border-gray-300 rounded-md bg-gray-50 min-h-[400px]"
-                >
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {contentMarkdown || '*プレビューがここに表示されます*'}
-                  </ReactMarkdown>
-                </div>
+                  dangerouslySetInnerHTML={{
+                    __html:
+                      previewHtml ||
+                      '<p><em>プレビューがここに表示されます</em></p>',
+                  }}
+                />
               )}
             </div>
             {contentError && (

@@ -50,7 +50,7 @@ The following diagram shows the complete flow from Admin operations to public si
 │     │ Astro Build Process                          │                     │
 │     │ - GET /posts?publishStatus=published         │                     │
 │     │ - 公開済み記事のみ取得                         │                     │
-│     │ - 各記事のHTML生成 (/posts/[id]/index.html)  │                     │
+│     │ - 各記事のHTML生成 (/posts/[slug]/index.html)│                     │
 │     └─────────────────────────────────────────────┘                     │
 │  4. S3 sync (静的ファイルアップロード)                                    │
 │  5. CloudFront invalidation                                              │
@@ -127,20 +127,22 @@ export async function fetchAllPosts(): Promise<Post[]> {
 ### Page Generation
 
 ```typescript
-// src/pages/posts/[id].astro
+// src/pages/posts/[slug].astro (PR7+)
 export async function getStaticPaths() {
-  const posts = await fetchAllPosts();  // Published posts only
-  return posts.map((post) => ({
-    params: { id: post.id },
-    props: { post },
-  }));
+  const posts = await fetchAllPosts(); // Published posts only
+  return posts
+    .filter((post) => Boolean(post.slug))
+    .map((post) => ({
+      params: { slug: post.slug! },
+      props: { post },
+    }));
 }
 ```
 
 ### Generated Files
 
 - `/index.html` - Top page (article list)
-- `/posts/[id]/index.html` - Individual article pages
+- `/posts/<slug>/index.html` - Individual article pages (slug-based URL; PR8 retired the legacy `/posts/<id>/` route)
 - `/rss.xml` - RSS feed
 
 ## Build Commands (buildspec.yaml)
