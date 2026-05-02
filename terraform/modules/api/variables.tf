@@ -111,6 +111,16 @@ variable "lambda_build_status_post_invoke_arn" {
   description = "Build Status Post Lambda function invoke ARN"
 }
 
+variable "lambda_get_post_by_slug_arn" {
+  type        = string
+  description = "Get Post By Slug Lambda function ARN"
+}
+
+variable "lambda_get_post_by_slug_invoke_arn" {
+  type        = string
+  description = "Get Post By Slug Lambda function invoke ARN"
+}
+
 variable "lambda_login_arn" {
   type        = string
   description = "Login Lambda function ARN"

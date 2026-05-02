@@ -72,6 +72,11 @@ locals {
       description = "Get latest CodeBuild status for the Astro SSG site rebuild (Go)"
       binary_name = "posts-build_status"
     }
+    get_post_by_slug = {
+      name        = "blog-get-post-by-slug-go"
+      description = "Get published blog post by friendly slug (public, no-auth) (Go)"
+      binary_name = "posts-get_by_slug"
+    }
     login = {
       name        = "blog-login-go"
       description = "User authentication (Go)"
@@ -227,6 +232,12 @@ resource "aws_cloudwatch_log_group" "build_status_post" {
   tags              = local.common_tags
 }
 
+resource "aws_cloudwatch_log_group" "get_post_by_slug" {
+  name              = "/aws/lambda/${local.lambda_functions.get_post_by_slug.name}"
+  retention_in_days = local.log_retention_days
+  tags              = local.common_tags
+}
+
 resource "aws_cloudwatch_log_group" "login" {
   name              = "/aws/lambda/${local.lambda_functions.login.name}"
   retention_in_days = local.log_retention_days
@@ -310,6 +321,13 @@ data "archive_file" "build_status_post" {
   type             = "zip"
   source_file      = "${var.go_binary_path}/${local.lambda_functions.build_status_post.binary_name}/bootstrap"
   output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.build_status_post.binary_name}.zip"
+  output_file_mode = "0644"
+}
+
+data "archive_file" "get_post_by_slug" {
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.get_post_by_slug.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.get_post_by_slug.binary_name}.zip"
   output_file_mode = "0644"
 }
 
@@ -556,6 +574,37 @@ resource "aws_lambda_function" "build_status_post" {
   }
 
   depends_on = [aws_cloudwatch_log_group.build_status_post]
+
+  tags = local.common_tags
+}
+
+# GET /posts/by-slug/{slug} - Public post fetch by friendly slug (PR7).
+# No-auth public endpoint that powers Astro's slug-based static routing.
+# Reuses the lambda_posts role: dynamodb:Query on SlugIndex is already
+# permitted via the existing index/* grant.
+resource "aws_lambda_function" "get_post_by_slug" {
+  function_name = local.lambda_functions.get_post_by_slug.name
+  description   = local.lambda_functions.get_post_by_slug.description
+  role          = aws_iam_role.lambda_posts.arn
+
+  filename         = data.archive_file.get_post_by_slug.output_path
+  source_code_hash = data.archive_file.get_post_by_slug.output_base64sha256
+
+  runtime       = "provided.al2023"
+  architectures = ["arm64"]
+  handler       = "bootstrap"
+  memory_size   = 128
+  timeout       = 30
+
+  environment {
+    variables = local.common_environment
+  }
+
+  tracing_config {
+    mode = local.tracing_mode
+  }
+
+  depends_on = [aws_cloudwatch_log_group.get_post_by_slug]
 
   tags = local.common_tags
 }

@@ -14,6 +14,7 @@ output "function_arns" {
     update_post                  = aws_lambda_function.update_post.arn
     delete_post                  = aws_lambda_function.delete_post.arn
     build_status_post            = aws_lambda_function.build_status_post.arn
+    get_post_by_slug             = aws_lambda_function.get_post_by_slug.arn
     login                        = aws_lambda_function.login.arn
     logout                       = aws_lambda_function.logout.arn
     refresh                      = aws_lambda_function.refresh.arn
@@ -48,6 +49,7 @@ output "function_invoke_arns" {
     update_post                  = aws_lambda_function.update_post.invoke_arn
     delete_post                  = aws_lambda_function.delete_post.invoke_arn
     build_status_post            = aws_lambda_function.build_status_post.invoke_arn
+    get_post_by_slug             = aws_lambda_function.get_post_by_slug.invoke_arn
     login                        = aws_lambda_function.login.invoke_arn
     logout                       = aws_lambda_function.logout.invoke_arn
     refresh                      = aws_lambda_function.refresh.invoke_arn
@@ -82,6 +84,7 @@ output "function_names" {
     aws_lambda_function.update_post.function_name,
     aws_lambda_function.delete_post.function_name,
     aws_lambda_function.build_status_post.function_name,
+    aws_lambda_function.get_post_by_slug.function_name,
     aws_lambda_function.login.function_name,
     aws_lambda_function.logout.function_name,
     aws_lambda_function.refresh.function_name,
@@ -229,6 +232,21 @@ output "build_status_post_function_name" {
 output "build_status_post_invoke_arn" {
   value       = aws_lambda_function.build_status_post.invoke_arn
   description = "Build Status Post Lambda function invoke ARN for API Gateway integration"
+}
+
+output "get_post_by_slug_function_arn" {
+  value       = aws_lambda_function.get_post_by_slug.arn
+  description = "Get Post By Slug Lambda function ARN"
+}
+
+output "get_post_by_slug_function_name" {
+  value       = aws_lambda_function.get_post_by_slug.function_name
+  description = "Get Post By Slug Lambda function name"
+}
+
+output "get_post_by_slug_invoke_arn" {
+  value       = aws_lambda_function.get_post_by_slug.invoke_arn
+  description = "Get Post By Slug Lambda function invoke ARN for API Gateway integration"
 }
 
 # Auth domain

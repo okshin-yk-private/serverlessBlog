@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   fetchAllPosts,
   fetchPost,
+  fetchPostBySlug,
   fetchAllPublicMindmaps,
   fetchPublicMindmap,
   type Post,
@@ -334,6 +335,62 @@ describe('API Module', () => {
 
       expect(mockFetch).toHaveBeenCalledTimes(2);
       expect(result).toEqual(mockPost);
+    });
+  });
+
+  describe('fetchPostBySlug', () => {
+    it('should fetch a single post by slug', async () => {
+      const mockPost: Post = {
+        id: '123',
+        slug: 'hello-world',
+        title: 'Hello World',
+        contentHtml: '<p>Hi</p>',
+        category: 'tech',
+        tags: [],
+        publishStatus: 'published',
+        authorId: 'author1',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockPost,
+      });
+
+      const result = await fetchPostBySlug('hello-world');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/posts/by-slug/hello-world',
+        expect.objectContaining({ method: 'GET' })
+      );
+      expect(result).toEqual(mockPost);
+    });
+
+    it('should URL-encode the slug', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      });
+
+      await fetchPostBySlug('weird/slug');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/posts/by-slug/weird%2Fslug',
+        expect.anything()
+      );
+    });
+
+    it('should throw on 404', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+      });
+
+      await expect(fetchPostBySlug('missing')).rejects.toThrow(
+        'API request failed: 404 Not Found'
+      );
     });
   });
 

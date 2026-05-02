@@ -122,6 +122,20 @@ export const handlers = [
     });
   }),
 
+  // 記事詳細取得（公開サイト・slug指定 / PR7）
+  // /posts/by-slug/:slug must be matched BEFORE /posts/:id so MSW doesn't
+  // treat "by-slug" as a post id.
+  http.get(`${API_BASE_URL}/posts/by-slug/:slug`, ({ params }) => {
+    const { slug } = params;
+    const post = mockPosts.find(
+      (p) => p.slug === slug && p.publishStatus === 'published'
+    );
+    if (!post) {
+      return HttpResponse.json({ message: 'Post not found' }, { status: 404 });
+    }
+    return HttpResponse.json(post);
+  }),
+
   // 記事詳細取得（公開サイト）
   http.get(`${API_BASE_URL}/posts/:id`, ({ params }) => {
     const { id } = params;
