@@ -22,6 +22,10 @@ export interface MockPost {
   updatedAt: string;
   publishedAt?: string;
   imageUrls?: string[];
+  // PR6: writer-experience metadata fields.
+  slug?: string;
+  excerpt?: string;
+  coverImageUrl?: string;
 }
 
 /**

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import {
   PostEditor,
   type PostData,
@@ -53,6 +54,13 @@ const PostCreatePage = () => {
       navigate('/posts');
     } catch (err) {
       console.error('記事作成エラー:', err);
+      // PR6: surface server-side slug conflict so the writer knows to change it.
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setError(
+          err.response.data?.message ?? 'この slug は既に使われています'
+        );
+        return;
+      }
       setError('記事の作成に失敗しました');
       // エラーを再スローしない（unhandled promiseエラーを防ぐ）
     }

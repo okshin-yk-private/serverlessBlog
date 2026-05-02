@@ -227,7 +227,18 @@ export const handlers = [
       contentMarkdown: string;
       category: string;
       publishStatus: 'draft' | 'published';
+      slug?: string;
+      excerpt?: string;
+      coverImageUrl?: string;
     };
+
+    // PR6: slug uniqueness — match server-side semantics (409 on collision).
+    if (body.slug && mockPosts.some((p) => p.slug === body.slug)) {
+      return HttpResponse.json(
+        { message: 'post with this slug already exists' },
+        { status: 409 }
+      );
+    }
 
     const newPost = createMockPost(body);
     mockPosts.unshift(newPost);
@@ -261,16 +272,31 @@ export const handlers = [
 
     const { id } = params;
     const body = (await request.json()) as {
-      title: string;
-      contentMarkdown: string;
-      category: string;
-      publishStatus: 'draft' | 'published';
+      title?: string;
+      contentMarkdown?: string;
+      category?: string;
+      publishStatus?: 'draft' | 'published';
+      slug?: string;
+      excerpt?: string;
+      coverImageUrl?: string;
     };
 
     const postIndex = mockPosts.findIndex((p) => p.id === id);
 
     if (postIndex === -1) {
       return HttpResponse.json({ message: 'Post not found' }, { status: 404 });
+    }
+
+    // PR6: slug uniqueness for update — only collide with *other* posts.
+    if (
+      body.slug !== undefined &&
+      body.slug !== mockPosts[postIndex].slug &&
+      mockPosts.some((p) => p.slug === body.slug && p.id !== id)
+    ) {
+      return HttpResponse.json(
+        { message: 'post with this slug already exists' },
+        { status: 409 }
+      );
     }
 
     const updatedPost = {
