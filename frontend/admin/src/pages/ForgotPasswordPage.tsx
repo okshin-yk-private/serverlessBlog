@@ -390,7 +390,7 @@ const ForgotPasswordPage = () => {
         }
 
         :root[data-theme="dark"] .forgot-logo-image {
-          filter: invert(1) hue-rotate(180deg);
+          content: url('/dark-logo.png');
         }
 
         .forgot-site-title {

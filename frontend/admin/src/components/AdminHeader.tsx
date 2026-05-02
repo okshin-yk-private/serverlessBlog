@@ -126,7 +126,7 @@ const AdminHeader: React.FC = () => {
         }
 
         :root[data-theme="dark"] .admin-logo-image {
-          filter: invert(1) hue-rotate(180deg);
+          content: url('/dark-logo.png');
         }
 
         .admin-site-title {
