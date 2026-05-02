@@ -43,13 +43,13 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
       <style>{`
         .admin-page {
           min-height: 100vh;
-          background: #fafafa;
+          background: var(--color-bg);
         }
 
         .admin-hero {
-          background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+          background: linear-gradient(135deg, var(--color-surface-elevated) 0%, var(--color-surface-muted) 100%);
           padding: 48px 32px;
-          border-bottom: 1px solid #e5e7eb;
+          border-bottom: 1px solid var(--color-border);
         }
 
         .admin-hero-content {
@@ -61,14 +61,14 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
           font-family: 'Caveat', cursive;
           font-size: 2.5rem;
           font-weight: 600;
-          color: #2D2A5A;
+          color: var(--color-primary);
           margin: 0 0 8px 0;
           letter-spacing: 0.02em;
         }
 
         .admin-hero-subtitle {
           font-size: 1.125rem;
-          color: #6b7280;
+          color: var(--color-text-muted);
           margin: 0;
           line-height: 1.6;
         }
