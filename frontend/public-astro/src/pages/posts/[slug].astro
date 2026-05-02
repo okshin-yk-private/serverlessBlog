@@ -68,6 +68,7 @@ const articleModifiedAt = post.updatedAt;
 // JSON-LD: BlogPosting structured data (Task 3.2)
 const jsonLdPost: JsonLdPost = {
   id: post.id,
+  slug: post.slug,
   title: post.title,
   description: description,
   publishedAt: articlePublishedAt,

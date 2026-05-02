@@ -19,9 +19,11 @@ const { post } = Astro.props;
 const excerpt = generateExcerpt(post.contentHtml, 100);
 const formattedDate = formatDateJa(post.createdAt);
 
-// PR7: prefer slug-based URL when the post has one; fall back to id for
-// any post that hasn't been backfilled yet.
-const postHref = post.slug ? `/posts/${post.slug}/` : `/posts/${post.id}/`;
+// PR8: slug is the canonical post URL; legacy /posts/<id> is gone. Posts
+// without a slug shouldn't reach this component (Astro getStaticPaths in
+// [slug].astro filters them and the listing API only returns slug-bearing
+// rows post-backfill).
+const postHref = post.slug ? `/posts/${post.slug}/` : `#missing-slug`;
 ---
 
 <article class="post-card" data-testid="article-card" data-post-id={post.id}>

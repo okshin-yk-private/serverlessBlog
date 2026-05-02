@@ -92,6 +92,7 @@ export let mockPosts: MockPost[] = [
   }),
   createMockPost({
     id: 'post-3',
+    slug: 'healthy-living-tips',
     title: 'Healthy Living Tips',
     contentMarkdown:
       '# Healthy Living Tips\n\nMaintaining a healthy lifestyle is essential...',
@@ -106,6 +107,7 @@ export let mockPosts: MockPost[] = [
   }),
   createMockPost({
     id: 'post-4',
+    slug: 'business-strategy-101',
     title: 'Business Strategy 101',
     contentMarkdown:
       '# Business Strategy 101\n\nUnderstanding business strategy fundamentals...',
@@ -120,6 +122,7 @@ export let mockPosts: MockPost[] = [
   }),
   createMockPost({
     id: 'post-5',
+    slug: 'draft-upcoming-feature',
     title: 'Draft: Upcoming Feature',
     contentMarkdown: '# Upcoming Feature\n\nThis is a draft article...',
     contentHtml: '<h1>Upcoming Feature</h1><p>This is a draft article...</p>',
@@ -131,6 +134,7 @@ export let mockPosts: MockPost[] = [
   }),
   createMockPost({
     id: 'post-6',
+    slug: 'draft-testing-strategies',
     title: 'Draft: Testing Strategies',
     contentMarkdown: '# Testing Strategies\n\nThis is a draft about testing...',
     contentHtml:

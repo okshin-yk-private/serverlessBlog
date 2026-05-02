@@ -16,6 +16,8 @@
 export interface JsonLdPost {
   /** Post ID */
   id: string;
+  /** Post slug (PR7+: preferred URL identifier) */
+  slug?: string;
   /** Post title (headline) */
   title: string;
   /** Post description */
@@ -160,7 +162,7 @@ export function generateBlogPostingJsonLd(
   post: JsonLdPost,
   siteUrl: string
 ): BlogPostingJsonLd {
-  const postUrl = buildPostUrl(post.id, siteUrl);
+  const postUrl = buildPostUrl(post.slug ?? post.id, siteUrl);
   const dateModified = post.updatedAt ?? post.publishedAt;
 
   const jsonLd: BlogPostingJsonLd = {
