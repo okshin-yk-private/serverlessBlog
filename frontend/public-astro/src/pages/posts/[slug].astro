@@ -1,28 +1,10 @@
 ---
 /**
- * [id].astro - 記事詳細ページ
+ * [slug].astro - 記事詳細ページ (PR7: friendly slug ルーティング)
  *
- * Task 2.3: 記事詳細ページ実装
- * Task 3.1: SEOメタタグ実装
- * Task 3.2: JSON-LD構造化データ実装
- * Task 11.2: 記事埋め込みマインドマップの描画実装
- *
- * Requirements:
- * - 2.3: 記事詳細ページ実装
- *   - 動的ルート (`posts/[id].astro`) で各記事の詳細ページを生成
- *   - `getStaticPaths` で全公開記事のパスを生成
- *   - 記事タイトル、本文HTML、カテゴリ、タグ、画像を表示
- *   - サニタイズ済みHTMLコンテンツを `set:html` で安全にレンダリング
- *   - ビルド時に `/posts/[id]/index.html` として静的生成
- * - 2.7: CSS/アセットをインライン化またはバンドル
- * - 3.4: Article pages set og:type to "article"
- * - 3.5: Post's first image as og:image if available
- * - 4.1: JSON-LD structured data with @type: "BlogPosting" schema
- * - 4.2: Include headline, datePublished, dateModified, and author properties
- * - 4.3: If the post has images, include image property
- * - 5.3: 埋め込みマーカーをインタラクティブなマインドマップビューに置換
- * - 5.4: Astro SSGビルド時に埋め込み対象のマインドマップデータをJSON形式で埋め込む
- * - 5.5: 埋め込み対象が削除/非公開の場合フォールバックメッセージを表示
+ * `/posts/<slug>/index.html` として静的生成する。slug を持つ投稿のみ対象。
+ * 動作・スタイル・JSON-LD・mindmap embed ロジックは [id].astro と同一。
+ * SEO の canonical はこの slug ベースの URL を採用する。
  */
 import Layout from '../../layouts/Layout.astro';
 import { fetchAllPosts, fetchPublicMindmap, type Post, type PublicMindmap } from '../../lib/api';
@@ -55,15 +37,18 @@ function extractMindmapIds(html: string): string[] {
 }
 
 /**
- * getStaticPaths: 全公開記事のパスを生成
+ * getStaticPaths: slug を持つ全公開記事のパスを生成。slug が無い投稿は
+ * [id].astro 側で従来通り id ベースで配信される。
  */
 export async function getStaticPaths() {
   const posts = await fetchAllPosts();
 
-  return posts.map((post) => ({
-    params: { id: post.id },
-    props: { post },
-  }));
+  return posts
+    .filter((post) => Boolean(post.slug))
+    .map((post) => ({
+      params: { slug: post.slug! },
+      props: { post },
+    }));
 }
 
 interface Props {
@@ -71,13 +56,6 @@ interface Props {
 }
 
 const { post } = Astro.props;
-
-// PR7: friendly slug routing. When a slug exists, the canonical URL is
-// /posts/<slug>/. Astro is in static mode so Astro.redirect can't emit a
-// real 30x; we render a minimal HTML page with <meta http-equiv="refresh">
-// and a canonical link so search engines and clients land on the slug URL.
-const slugRedirectTarget = post.slug ? `/posts/${post.slug}/` : null;
-
 const description = generateDescription(post.contentHtml);
 const publishedDate = formatPublishedDate(post);
 const firstImage = getFirstImage(post.imageUrls);
@@ -117,21 +95,6 @@ await Promise.all(
 const hasEmbeddedMindmaps = embeddedMindmapIds.length > 0;
 ---
 
-{slugRedirectTarget ? (
-  <html lang="ja">
-    <head>
-      <meta charset="utf-8" />
-      <meta http-equiv="refresh" content={`0; url=${slugRedirectTarget}`} />
-      <link rel="canonical" href={slugRedirectTarget} />
-      <title>{post.title}</title>
-    </head>
-    <body>
-      <p>
-        Redirecting to <a href={slugRedirectTarget}>{slugRedirectTarget}</a>…
-      </p>
-    </body>
-  </html>
-) : (
 <Layout
   title={post.title}
   description={description}
@@ -208,7 +171,6 @@ const hasEmbeddedMindmaps = embeddedMindmapIds.length > 0;
     </nav>
   </article>
 </Layout>
-)}
 
 <style>
   .post-detail {

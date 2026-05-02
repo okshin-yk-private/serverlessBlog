@@ -426,6 +426,8 @@ jobs:
             path: posts/delete
           - function: posts-build_status
             path: posts/build_status
+          - function: posts-get_by_slug
+            path: posts/get_by_slug
           - function: auth-login
             path: auth/login
           - function: auth-logout
@@ -548,7 +550,7 @@ jobs:
           echo "========================================="
           echo "Verifying Lambda Binaries"
           echo "========================================="
-          FUNCS="posts-create posts-get posts-get_public posts-list posts-update posts-delete posts-build_status auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete mindmaps-create mindmaps-get mindmaps-list mindmaps-update mindmaps-delete mindmaps-get_public mindmaps-list_public"
+          FUNCS="posts-create posts-get posts-get_public posts-get_by_slug posts-list posts-update posts-delete posts-build_status auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete mindmaps-create mindmaps-get mindmaps-list mindmaps-update mindmaps-delete mindmaps-get_public mindmaps-list_public"
           MISSING=0
           for f in $FUNCS; do
             if [ -f "go-functions/bin/$f/bootstrap" ]; then

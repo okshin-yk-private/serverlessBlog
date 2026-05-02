@@ -134,6 +134,8 @@ module "api" {
   lambda_delete_post_invoke_arn       = module.lambda.function_invoke_arns["delete_post"]
   lambda_build_status_post_arn        = module.lambda.function_arns["build_status_post"]
   lambda_build_status_post_invoke_arn = module.lambda.function_invoke_arns["build_status_post"]
+  lambda_get_post_by_slug_arn         = module.lambda.function_arns["get_post_by_slug"]
+  lambda_get_post_by_slug_invoke_arn  = module.lambda.function_invoke_arns["get_post_by_slug"]
   lambda_login_arn                    = module.lambda.function_arns["login"]
   lambda_login_invoke_arn             = module.lambda.function_invoke_arns["login"]
   lambda_logout_arn                   = module.lambda.function_arns["logout"]

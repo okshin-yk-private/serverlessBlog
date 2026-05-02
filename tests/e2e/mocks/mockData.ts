@@ -62,6 +62,7 @@ export const createMockPost = (overrides: Partial<MockPost> = {}): MockPost => {
 export let mockPosts: MockPost[] = [
   createMockPost({
     id: 'post-1',
+    slug: 'getting-started-with-serverless',
     title: 'Getting Started with Serverless',
     contentMarkdown:
       '# Getting Started with Serverless\n\nServerless architecture is revolutionizing cloud computing...',
@@ -76,6 +77,7 @@ export let mockPosts: MockPost[] = [
   }),
   createMockPost({
     id: 'post-2',
+    slug: 'intro-to-typescript',
     title: 'Introduction to TypeScript',
     contentMarkdown:
       '# Introduction to TypeScript\n\nTypeScript adds static typing to JavaScript...',
@@ -153,6 +155,7 @@ export const resetMockPosts = () => {
   mockPosts = [
     createMockPost({
       id: 'post-1',
+      slug: 'getting-started-with-serverless',
       title: 'Getting Started with Serverless',
       contentMarkdown:
         '# Getting Started with Serverless\n\nServerless architecture is revolutionizing cloud computing...',
@@ -167,6 +170,7 @@ export const resetMockPosts = () => {
     }),
     createMockPost({
       id: 'post-2',
+      slug: 'intro-to-typescript',
       title: 'Introduction to TypeScript',
       contentMarkdown:
         '# Introduction to TypeScript\n\nTypeScript adds static typing to JavaScript...',

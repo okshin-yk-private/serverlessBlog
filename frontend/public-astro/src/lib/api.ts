@@ -192,6 +192,23 @@ export async function fetchPost(id: string): Promise<Post> {
 }
 
 /**
+ * Friendly slug で公開記事を取得する (PR7)
+ * - 公開エンドポイント (no auth)
+ * - 該当記事が draft の場合は API 側で 404 を返す
+ */
+export async function fetchPostBySlug(slug: string): Promise<Post> {
+  const apiUrl = getApiUrl();
+  const url = `${apiUrl}/posts/by-slug/${encodeURIComponent(slug)}`;
+
+  return fetchWithRetry<Post>(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
+/**
  * 全ての公開マインドマップを取得する
  *
  * カーソルベースのページネーションを使用して全マインドマップを再帰的に取得する

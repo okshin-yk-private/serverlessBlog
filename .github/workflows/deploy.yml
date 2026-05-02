@@ -177,7 +177,7 @@ jobs:
             echo "cache-hit=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          FUNCS="posts-create posts-get posts-get_public posts-list posts-update posts-delete posts-build_status auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete mindmaps-create mindmaps-get mindmaps-get_public mindmaps-list mindmaps-list_public mindmaps-update mindmaps-delete"
+          FUNCS="posts-create posts-get posts-get_public posts-get_by_slug posts-list posts-update posts-delete posts-build_status auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete mindmaps-create mindmaps-get mindmaps-get_public mindmaps-list mindmaps-list_public mindmaps-update mindmaps-delete"
           TOTAL=0
           for f in $FUNCS; do TOTAL=$((TOTAL + 1)); done
           COUNT=0
@@ -233,6 +233,8 @@ jobs:
             path: posts/delete
           - function: posts-build_status
             path: posts/build_status
+          - function: posts-get_by_slug
+            path: posts/get_by_slug
           - function: auth-login
             path: auth/login
           - function: auth-logout

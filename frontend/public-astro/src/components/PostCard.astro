@@ -18,10 +18,14 @@ interface Props {
 const { post } = Astro.props;
 const excerpt = generateExcerpt(post.contentHtml, 100);
 const formattedDate = formatDateJa(post.createdAt);
+
+// PR7: prefer slug-based URL when the post has one; fall back to id for
+// any post that hasn't been backfilled yet.
+const postHref = post.slug ? `/posts/${post.slug}/` : `/posts/${post.id}/`;
 ---
 
 <article class="post-card" data-testid="article-card" data-post-id={post.id}>
-  <a href={`/posts/${post.id}`} class="post-link">
+  <a href={postHref} class="post-link">
     <h2 class="post-title" data-testid="article-title">{post.title}</h2>
     <div class="post-meta">
       <span class="category" data-testid="article-category">{post.category}</span>
