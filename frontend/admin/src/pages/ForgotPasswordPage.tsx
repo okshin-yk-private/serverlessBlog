@@ -389,6 +389,10 @@ const ForgotPasswordPage = () => {
           margin-right: 12px;
         }
 
+        :root[data-theme="dark"] .forgot-logo-image {
+          filter: invert(1) hue-rotate(180deg);
+        }
+
         .forgot-site-title {
           font-family: 'Caveat', cursive;
           font-size: 1.5rem;
