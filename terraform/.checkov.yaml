@@ -272,6 +272,19 @@ skip-check:
   # Mitigation: Cognito protects sensitive endpoints; CloudFront rate limiting
   - CKV_AWS_59
 
+  # CKV2_AWS_53: Ensure AWS API gateway request is validated
+  # Justification: Request payload validation is performed in the Go Lambda
+  # handlers via a shared JSON-schema validator (internal/middleware,
+  # internal/apierrors). Adding API Gateway request_validator_id on every
+  # method would duplicate that work without adding security and would
+  # require maintaining JSON-schema models in two places. A handful of
+  # endpoints (admin/posts/{id}/build-status, posts/by-slug/{slug}) already
+  # set request_validator_id where path-parameter shape matters at the
+  # gateway level.
+  # Mitigation: Lambda-level schema validation; Cognito authorizer on
+  # mutating admin endpoints; CloudFront rate limiting.
+  - CKV2_AWS_53
+
   # --------------------------------------
   # CloudWatch Rules (Additional)
   # --------------------------------------
