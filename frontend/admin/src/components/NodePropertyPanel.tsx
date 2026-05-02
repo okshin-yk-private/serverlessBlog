@@ -71,7 +71,7 @@ export function NodePropertyPanel({
           <input
             id="node-color"
             type="color"
-            value={selectedNode.color ?? 'var(--color-surface)'}
+            value={selectedNode.color ?? '#ffffff'}
             onChange={(e) =>
               onMetadataChange(selectedNode.id, { color: e.target.value })
             }
