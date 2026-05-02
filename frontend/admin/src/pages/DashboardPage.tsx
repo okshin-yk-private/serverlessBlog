@@ -81,7 +81,10 @@ const DashboardPage = () => {
   const hasNoPosts = allPosts.length === 0;
 
   return (
-    <AdminLayout title="Dashboard" subtitle="Polylex管理画面へようこそ">
+    <AdminLayout
+      title="Dashboard"
+      subtitle="Bone of my fallacy 管理画面へようこそ"
+    >
       <div data-testid="dashboard">
         {/* 記事統計 */}
         <div className="admin-stat-grid">
@@ -125,7 +128,7 @@ const DashboardPage = () => {
               style={{
                 fontSize: '1.25rem',
                 fontWeight: 600,
-                color: '#111827',
+                color: 'var(--color-text-heading)',
                 marginBottom: '16px',
               }}
             >
@@ -146,7 +149,7 @@ const DashboardPage = () => {
                         style={{
                           fontSize: '1.125rem',
                           fontWeight: 600,
-                          color: '#111827',
+                          color: 'var(--color-text-heading)',
                           margin: '0 0 8px 0',
                         }}
                       >
@@ -157,7 +160,7 @@ const DashboardPage = () => {
                           display: 'flex',
                           gap: '16px',
                           fontSize: '0.875rem',
-                          color: '#6b7280',
+                          color: 'var(--color-text-muted)',
                         }}
                       >
                         <span className="admin-badge admin-badge-dark">
@@ -186,7 +189,7 @@ const DashboardPage = () => {
               style={{
                 fontSize: '1.25rem',
                 fontWeight: 600,
-                color: '#111827',
+                color: 'var(--color-text-heading)',
                 marginBottom: '16px',
               }}
             >
@@ -207,7 +210,7 @@ const DashboardPage = () => {
                         style={{
                           fontSize: '1.125rem',
                           fontWeight: 600,
-                          color: '#111827',
+                          color: 'var(--color-text-heading)',
                           margin: '0 0 8px 0',
                         }}
                       >
@@ -218,7 +221,7 @@ const DashboardPage = () => {
                           display: 'flex',
                           gap: '16px',
                           fontSize: '0.875rem',
-                          color: '#6b7280',
+                          color: 'var(--color-text-muted)',
                         }}
                       >
                         <span className="admin-badge admin-badge-warning">
