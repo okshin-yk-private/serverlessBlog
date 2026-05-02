@@ -95,7 +95,7 @@ const MindmapCreatePage = () => {
             {validationError && (
               <p
                 style={{
-                  color: '#ef4444',
+                  color: 'var(--color-danger)',
                   fontSize: '0.875rem',
                   marginTop: '4px',
                 }}

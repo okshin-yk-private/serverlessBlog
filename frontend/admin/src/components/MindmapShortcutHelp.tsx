@@ -50,7 +50,7 @@ function MindmapShortcutHelpComponent({ onClose }: MindmapShortcutHelpProps) {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          backgroundColor: '#ffffff',
+          backgroundColor: 'var(--color-surface)',
           borderRadius: '12px',
           padding: '24px',
           maxWidth: '560px',
@@ -80,7 +80,7 @@ function MindmapShortcutHelpComponent({ onClose }: MindmapShortcutHelpProps) {
               fontSize: '20px',
               cursor: 'pointer',
               padding: '4px',
-              color: '#6b7280',
+              color: 'var(--color-text-muted)',
             }}
           >
             ✕
@@ -91,7 +91,7 @@ function MindmapShortcutHelpComponent({ onClose }: MindmapShortcutHelpProps) {
           style={{
             fontSize: '14px',
             fontWeight: 600,
-            color: '#374151',
+            color: 'var(--color-text)',
             margin: '0 0 8px 0',
           }}
         >
@@ -109,7 +109,7 @@ function MindmapShortcutHelpComponent({ onClose }: MindmapShortcutHelpProps) {
             <div key={key} style={{ display: 'contents' }}>
               <kbd
                 style={{
-                  backgroundColor: '#f3f4f6',
+                  backgroundColor: 'var(--color-surface-muted)',
                   border: '1px solid #d1d5db',
                   borderRadius: '4px',
                   padding: '2px 6px',
@@ -120,7 +120,7 @@ function MindmapShortcutHelpComponent({ onClose }: MindmapShortcutHelpProps) {
               >
                 {key}
               </kbd>
-              <span style={{ fontSize: '13px', color: '#4b5563' }}>
+              <span style={{ fontSize: '13px', color: 'var(--color-text)' }}>
                 {action}
               </span>
             </div>
@@ -131,7 +131,7 @@ function MindmapShortcutHelpComponent({ onClose }: MindmapShortcutHelpProps) {
           style={{
             fontSize: '14px',
             fontWeight: 600,
-            color: '#374151',
+            color: 'var(--color-text)',
             margin: '0 0 8px 0',
           }}
         >
@@ -148,7 +148,7 @@ function MindmapShortcutHelpComponent({ onClose }: MindmapShortcutHelpProps) {
             <div key={key} style={{ display: 'contents' }}>
               <kbd
                 style={{
-                  backgroundColor: '#f3f4f6',
+                  backgroundColor: 'var(--color-surface-muted)',
                   border: '1px solid #d1d5db',
                   borderRadius: '4px',
                   padding: '2px 6px',
@@ -159,7 +159,7 @@ function MindmapShortcutHelpComponent({ onClose }: MindmapShortcutHelpProps) {
               >
                 {key}
               </kbd>
-              <span style={{ fontSize: '13px', color: '#4b5563' }}>
+              <span style={{ fontSize: '13px', color: 'var(--color-text)' }}>
                 {action}
               </span>
             </div>

@@ -33,7 +33,7 @@ export function NodePropertyPanel({
       data-testid="node-property-panel"
       style={{
         width: '260px',
-        borderLeft: '1px solid #e5e7eb',
+        borderLeft: '1px solid var(--color-border)',
         padding: '16px',
         display: 'flex',
         flexDirection: 'column',
@@ -71,7 +71,7 @@ export function NodePropertyPanel({
           <input
             id="node-color"
             type="color"
-            value={selectedNode.color ?? '#ffffff'}
+            value={selectedNode.color ?? 'var(--color-surface)'}
             onChange={(e) =>
               onMetadataChange(selectedNode.id, { color: e.target.value })
             }
@@ -93,7 +93,7 @@ export function NodePropertyPanel({
             style={{
               flex: 1,
               padding: '4px 8px',
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--color-border-strong)',
               borderRadius: '4px',
               fontSize: '13px',
             }}
@@ -125,7 +125,7 @@ export function NodePropertyPanel({
           style={{
             width: '100%',
             padding: '6px 8px',
-            border: '1px solid #d1d5db',
+            border: '1px solid var(--color-border-strong)',
             borderRadius: '4px',
             fontSize: '13px',
             boxSizing: 'border-box',
@@ -157,7 +157,7 @@ export function NodePropertyPanel({
           style={{
             width: '100%',
             padding: '6px 8px',
-            border: `1px solid ${isNoteOverLimit ? '#ef4444' : '#d1d5db'}`,
+            border: `1px solid ${isNoteOverLimit ? 'var(--color-danger)' : 'var(--color-border-strong)'}`,
             borderRadius: '4px',
             fontSize: '13px',
             resize: 'vertical',
@@ -173,13 +173,15 @@ export function NodePropertyPanel({
           }}
         >
           {isNoteOverLimit && (
-            <span style={{ color: '#ef4444' }}>
+            <span style={{ color: 'var(--color-danger)' }}>
               1000文字以内で入力してください
             </span>
           )}
           <span
             style={{
-              color: isNoteOverLimit ? '#ef4444' : '#9ca3af',
+              color: isNoteOverLimit
+                ? 'var(--color-danger)'
+                : 'var(--color-text-muted)',
               marginLeft: 'auto',
             }}
           >

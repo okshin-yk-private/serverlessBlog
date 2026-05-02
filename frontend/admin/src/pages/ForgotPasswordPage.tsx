@@ -350,7 +350,7 @@ const ForgotPasswordPage = () => {
       <style>{`
         .forgot-page {
           min-height: 100vh;
-          background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+          background: linear-gradient(135deg, var(--color-surface-elevated) 0%, var(--color-surface-muted) 100%);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -363,11 +363,11 @@ const ForgotPasswordPage = () => {
         }
 
         .forgot-card {
-          background: white;
-          border: 1px solid #e5e7eb;
+          background: var(--color-surface);
+          border: 1px solid var(--color-border);
           border-radius: 16px;
           padding: 40px;
-          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+          box-shadow: var(--shadow-card);
         }
 
         .forgot-header {
@@ -393,13 +393,13 @@ const ForgotPasswordPage = () => {
           font-family: 'Caveat', cursive;
           font-size: 1.5rem;
           font-weight: 600;
-          color: #1f2937;
+          color: var(--color-text-heading);
           letter-spacing: 0.02em;
         }
 
         .forgot-badge {
-          background: #2D2A5A;
-          color: white;
+          background: var(--color-primary);
+          color: var(--color-text-on-primary);
           padding: 4px 10px;
           border-radius: 6px;
           font-size: 0.75rem;
@@ -411,14 +411,14 @@ const ForgotPasswordPage = () => {
         .forgot-title {
           font-size: 1.5rem;
           font-weight: 700;
-          color: #2D2A5A;
+          color: var(--color-primary);
           text-align: center;
           margin: 0 0 16px 0;
         }
 
         .forgot-subtitle {
           font-size: 0.95rem;
-          color: #6b7280;
+          color: var(--color-text-muted);
           text-align: center;
           margin: 0 0 24px 0;
           line-height: 1.6;
@@ -432,40 +432,40 @@ const ForgotPasswordPage = () => {
           display: block;
           font-size: 0.875rem;
           font-weight: 500;
-          color: #374151;
+          color: var(--color-text);
           margin-bottom: 6px;
         }
 
         .forgot-input {
           width: 100%;
           padding: 12px 16px;
-          border: 1px solid #e5e7eb;
+          border: 1px solid var(--color-border);
           border-radius: 10px;
           font-size: 0.95rem;
-          background: white;
+          background: var(--color-surface);
           transition: all 0.2s ease;
           box-sizing: border-box;
         }
 
         .forgot-input:focus {
           outline: none;
-          border-color: #9ca3af;
-          box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.1);
+          border-color: var(--color-text-muted);
+          box-shadow: 0 0 0 3px var(--color-focus-ring);
         }
 
         .forgot-input.error {
-          border-color: #dc2626;
+          border-color: var(--color-danger);
         }
 
         .forgot-input:disabled {
-          background: #f9fafb;
-          color: #6b7280;
+          background: var(--color-surface-elevated);
+          color: var(--color-text-muted);
         }
 
         .forgot-error {
-          background: #fef2f2;
-          border: 1px solid #fecaca;
-          color: #991b1b;
+          background: var(--color-danger-bg);
+          border: 1px solid var(--color-danger-border);
+          color: var(--color-danger-text);
           padding: 12px 16px;
           border-radius: 10px;
           margin-bottom: 20px;
@@ -473,15 +473,15 @@ const ForgotPasswordPage = () => {
         }
 
         .forgot-field-error {
-          color: #dc2626;
+          color: var(--color-danger);
           font-size: 0.8rem;
           margin-top: 6px;
         }
 
         .forgot-success {
-          background: #f0fdf4;
-          border: 1px solid #bbf7d0;
-          color: #166534;
+          background: var(--color-success-alert-bg);
+          border: 1px solid var(--color-success-border);
+          color: var(--color-success-text);
           padding: 16px;
           border-radius: 10px;
           margin-bottom: 20px;
@@ -493,8 +493,8 @@ const ForgotPasswordPage = () => {
         .forgot-btn-primary {
           width: 100%;
           padding: 12px 20px;
-          background: #2D2A5A;
-          color: white;
+          background: var(--color-primary);
+          color: var(--color-text-on-primary);
           border: none;
           border-radius: 10px;
           font-size: 0.95rem;
@@ -505,7 +505,7 @@ const ForgotPasswordPage = () => {
         }
 
         .forgot-btn-primary:hover {
-          background: #3d3a6a;
+          background: var(--color-primary-hover);
         }
 
         .forgot-btn-primary:disabled {
@@ -517,7 +517,7 @@ const ForgotPasswordPage = () => {
           width: 100%;
           padding: 8px 16px;
           background: transparent;
-          color: #6b7280;
+          color: var(--color-text-muted);
           border: none;
           font-size: 0.875rem;
           cursor: pointer;
@@ -525,7 +525,7 @@ const ForgotPasswordPage = () => {
         }
 
         .forgot-btn-link:hover {
-          color: #2D2A5A;
+          color: var(--color-primary);
         }
 
         @media (max-width: 480px) {
