@@ -9,5 +9,3 @@ export {
 export { DashboardSkeleton } from './DashboardSkeleton';
 export { PostListSkeleton } from './PostListSkeleton';
 export { PostEditSkeleton } from './PostEditSkeleton';
-export { MindmapListSkeleton } from './MindmapListSkeleton';
-export { MindmapEditSkeleton } from './MindmapEditSkeleton';

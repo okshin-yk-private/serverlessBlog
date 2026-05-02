@@ -448,20 +448,6 @@ jobs:
             path: categories/bulk_sort
           - function: categories-delete
             path: categories/delete
-          - function: mindmaps-create
-            path: mindmaps/create
-          - function: mindmaps-get
-            path: mindmaps/get
-          - function: mindmaps-list
-            path: mindmaps/list
-          - function: mindmaps-update
-            path: mindmaps/update
-          - function: mindmaps-delete
-            path: mindmaps/delete
-          - function: mindmaps-get_public
-            path: mindmaps/get_public
-          - function: mindmaps-list_public
-            path: mindmaps/list_public
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -550,7 +536,7 @@ jobs:
           echo "========================================="
           echo "Verifying Lambda Binaries"
           echo "========================================="
-          FUNCS="posts-create posts-get posts-get_public posts-get_by_slug posts-list posts-update posts-delete posts-build_status auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete mindmaps-create mindmaps-get mindmaps-list mindmaps-update mindmaps-delete mindmaps-get_public mindmaps-list_public"
+          FUNCS="posts-create posts-get posts-get_public posts-get_by_slug posts-list posts-update posts-delete posts-build_status auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete"
           MISSING=0
           for f in $FUNCS; do
             if [ -f "go-functions/bin/$f/bootstrap" ]; then

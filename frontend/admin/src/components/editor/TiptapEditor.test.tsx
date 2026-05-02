@@ -73,20 +73,6 @@ describe('TiptapEditor', () => {
     expect(last).toContain('hello world');
   });
 
-  it('mindmap マーカーが round-trip で原文一致する', async () => {
-    const marker =
-      '本文1\n\n{{mindmap:550e8400-e29b-41d4-a716-446655440000}}\n\n本文2';
-    render(<TiptapEditor value={marker} onChange={() => {}} />);
-    const editor = await getEditor();
-
-    await waitFor(() => {
-      const md = editor.storage.markdown.getMarkdown() as string;
-      expect(md).toContain('{{mindmap:550e8400-e29b-41d4-a716-446655440000}}');
-      expect(md).toContain('本文1');
-      expect(md).toContain('本文2');
-    });
-  });
-
   it('toolbar の太字ボタンで bold が適用される', async () => {
     const user = userEvent.setup();
     render(<TiptapEditor value="hello" onChange={() => {}} />);

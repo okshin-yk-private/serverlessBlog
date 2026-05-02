@@ -6,7 +6,6 @@ import {
   type PostData,
   type PostEditorHandle,
 } from '../components/PostEditor';
-import MindmapPickerModal from '../components/MindmapPickerModal';
 import { getPost, updatePost } from '../api/posts';
 import AdminLayout from '../components/AdminLayout';
 import { BuildStatusBadge } from '../components/BuildStatusBadge';
@@ -19,7 +18,6 @@ const PostEditPage = () => {
   const [initialData, setInitialData] = useState<PostData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isMindmapPickerOpen, setIsMindmapPickerOpen] = useState(false);
   // PR5b: After publish, stay on the page and show build progress instead of
   // navigating away. Drafts continue to navigate to the list.
   const [publishedPostId, setPublishedPostId] = useState<string | null>(null);
@@ -101,13 +99,6 @@ const PostEditPage = () => {
     navigate('/posts');
   };
 
-  // マインドマップ選択ハンドラー
-  const handleMindmapSelect = (mindmapId: string) => {
-    const marker = `\n{{mindmap:${mindmapId}}}\n`;
-    editorRef.current?.insertAtCursor(marker);
-    setIsMindmapPickerOpen(false);
-  };
-
   if (loading) {
     return (
       <AdminLayout title="Edit Article">
@@ -146,16 +137,9 @@ const PostEditPage = () => {
             categoriesLoading={categoriesLoading}
             categoriesError={categoriesError}
             onCategoriesRefetch={refetchCategories}
-            onMindmapInsertClick={() => setIsMindmapPickerOpen(true)}
           />
         )}
       </div>
-
-      <MindmapPickerModal
-        isOpen={isMindmapPickerOpen}
-        onSelect={handleMindmapSelect}
-        onClose={() => setIsMindmapPickerOpen(false)}
-      />
     </AdminLayout>
   );
 };

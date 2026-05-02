@@ -6,7 +6,6 @@ import {
   type PostData,
   type PostEditorHandle,
 } from '../components/PostEditor';
-import MindmapPickerModal from '../components/MindmapPickerModal';
 import { createPost, updatePost } from '../api/posts';
 import AdminLayout from '../components/AdminLayout';
 import { BuildStatusBadge } from '../components/BuildStatusBadge';
@@ -15,7 +14,6 @@ import { useCategories } from '../hooks/useCategories';
 const PostCreatePage = () => {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
-  const [isMindmapPickerOpen, setIsMindmapPickerOpen] = useState(false);
   // PR5b: When the new post is created with publishStatus='published', stay
   // on the page and surface CodeBuild progress via BuildStatusBadge.
   const [publishedPostId, setPublishedPostId] = useState<string | null>(null);
@@ -91,13 +89,6 @@ const PostCreatePage = () => {
     navigate('/posts');
   };
 
-  // マインドマップ選択ハンドラー
-  const handleMindmapSelect = (mindmapId: string) => {
-    const marker = `\n{{mindmap:${mindmapId}}}\n`;
-    editorRef.current?.insertAtCursor(marker);
-    setIsMindmapPickerOpen(false);
-  };
-
   return (
     <AdminLayout title="New Article" subtitle="新しい記事を作成">
       {error && (
@@ -124,15 +115,8 @@ const PostCreatePage = () => {
           categoriesLoading={categoriesLoading}
           categoriesError={categoriesError}
           onCategoriesRefetch={refetchCategories}
-          onMindmapInsertClick={() => setIsMindmapPickerOpen(true)}
         />
       </div>
-
-      <MindmapPickerModal
-        isOpen={isMindmapPickerOpen}
-        onSelect={handleMindmapSelect}
-        onClose={() => setIsMindmapPickerOpen(false)}
-      />
     </AdminLayout>
   );
 };

@@ -78,13 +78,6 @@ describe('AdminHeader', () => {
       ).toBeInTheDocument();
     });
 
-    it('Mindmapsリンクが表示される', () => {
-      renderAdminHeader();
-      expect(
-        screen.getByRole('link', { name: 'Mindmaps' })
-      ).toBeInTheDocument();
-    });
-
     it('+ Newリンクが表示される', () => {
       renderAdminHeader();
       expect(screen.getByRole('link', { name: '+ New' })).toBeInTheDocument();
@@ -115,12 +108,6 @@ describe('AdminHeader', () => {
       renderAdminHeader();
       const link = screen.getByRole('link', { name: 'Categories' });
       expect(link).toHaveAttribute('href', '/categories');
-    });
-
-    it('Mindmapsリンクが/mindmapsへのリンクを持つ', () => {
-      renderAdminHeader();
-      const link = screen.getByRole('link', { name: 'Mindmaps' });
-      expect(link).toHaveAttribute('href', '/mindmaps');
     });
 
     it('+ Newリンクが/posts/newへのリンクを持つ', () => {
@@ -178,24 +165,6 @@ describe('AdminHeader', () => {
     it('現在のパスが/categories/edit/1の場合も、Categoriesリンクがactiveクラスを持つ', () => {
       renderAdminHeader('/categories/edit/1');
       const link = screen.getByRole('link', { name: 'Categories' });
-      expect(link).toHaveClass('active');
-    });
-
-    it('現在のパスが/mindmapsの場合、Mindmapsリンクがactiveクラスを持つ', () => {
-      renderAdminHeader('/mindmaps');
-      const link = screen.getByRole('link', { name: 'Mindmaps' });
-      expect(link).toHaveClass('active');
-    });
-
-    it('現在のパスが/mindmaps/newの場合も、Mindmapsリンクがactiveクラスを持つ', () => {
-      renderAdminHeader('/mindmaps/new');
-      const link = screen.getByRole('link', { name: 'Mindmaps' });
-      expect(link).toHaveClass('active');
-    });
-
-    it('現在のパスが/mindmaps/edit/1の場合も、Mindmapsリンクがactiveクラスを持つ', () => {
-      renderAdminHeader('/mindmaps/edit/1');
-      const link = screen.getByRole('link', { name: 'Mindmaps' });
       expect(link).toHaveClass('active');
     });
   });

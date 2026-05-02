@@ -108,18 +108,3 @@ variable "codebuild_project_arn" {
   description = "CodeBuild project ARN for IAM policy"
 }
 
-# ======================
-# Mindmaps Domain Variables
-# ======================
-
-variable "mindmaps_table_name" {
-  type        = string
-  default     = ""
-  description = "Mindmaps DynamoDB table name"
-}
-
-variable "mindmaps_table_arn" {
-  type        = string
-  default     = ""
-  description = "Mindmaps DynamoDB table ARN"
-}

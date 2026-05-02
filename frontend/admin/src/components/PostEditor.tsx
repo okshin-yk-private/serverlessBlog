@@ -61,8 +61,6 @@ interface PostEditorProps {
   categoriesError?: string | null;
   /** カテゴリ再取得関数 */
   onCategoriesRefetch?: () => void;
-  /** マインドマップ挿入ボタンクリック時のコールバック */
-  onMindmapInsertClick?: () => void;
   /**
    * 自動保存コールバック (省略時は autosave 機能無効)。
    * 1.5s デバウンス / window blur / visibility hidden で発火し、
@@ -70,8 +68,6 @@ interface PostEditorProps {
    */
   onAutosave?: (data: PostData) => Promise<void>;
 }
-
-const MINDMAP_MARKER_PATTERN = /^\{\{mindmap:[0-9a-zA-Z-]+\}\}$/;
 
 export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
   (
@@ -84,7 +80,6 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
       categoriesLoading = false,
       categoriesError = null,
       onCategoriesRefetch,
-      onMindmapInsertClick,
       onAutosave,
     },
     ref
@@ -210,22 +205,8 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
         insertAtCursor: (text: string) => {
           const editor = tiptapRef.current?.getEditor();
           if (!editor) return;
-          const trimmed = text.trim();
-          // マインドマップマーカーは独立段落として挿入し、Goldmark の
-          // <p>{{mindmap:UUID}}</p> 検出パターンと整合させる
-          if (MINDMAP_MARKER_PATTERN.test(trimmed)) {
-            editor
-              .chain()
-              .focus()
-              .insertContent({
-                type: 'paragraph',
-                content: [{ type: 'text', text: trimmed }],
-              })
-              .run();
-            return;
-          }
-          // それ以外は tiptap-markdown が override する insertContentAt 経由で
-          // markdown としてパース（![](url) は image ノードに変換される）
+          // tiptap-markdown が override する insertContentAt 経由で markdown
+          // としてパース (![](url) は image ノードに変換される)
           const { from, to } = editor.state.selection;
           editor.chain().focus().insertContentAt({ from, to }, text).run();
         },
@@ -390,18 +371,6 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
                     プレビュー
                   </button>
                 </div>
-                {onMindmapInsertClick && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={onMindmapInsertClick}
-                    disabled={isSaving}
-                    data-testid="mindmap-insert-button"
-                    className="text-sm"
-                  >
-                    マインドマップ挿入
-                  </Button>
-                )}
               </div>
             </div>
             {uploadError && (

@@ -3,11 +3,11 @@
  * [slug].astro - 記事詳細ページ (PR7: friendly slug ルーティング)
  *
  * `/posts/<slug>/index.html` として静的生成する。slug を持つ投稿のみ対象。
- * 動作・スタイル・JSON-LD・mindmap embed ロジックは [id].astro と同一。
+ * 動作・スタイル・JSON-LD は [id].astro と同一。
  * SEO の canonical はこの slug ベースの URL を採用する。
  */
 import Layout from '../../layouts/Layout.astro';
-import { fetchAllPosts, fetchPublicMindmap, type Post, type PublicMindmap } from '../../lib/api';
+import { fetchAllPosts, type Post } from '../../lib/api';
 import {
   generateDescription,
   formatPublishedDate,
@@ -15,26 +15,6 @@ import {
   getPostImageUrls,
 } from '../../lib/postDetailUtils';
 import type { JsonLdPost } from '../../lib/jsonLdUtils';
-
-/**
- * Extract mindmap IDs from HTML content containing embed divs.
- * Matches: data-mindmap-id="UUID" or data-mindmap-id='UUID'
- * Supports optional whitespace around '=' and both quote styles.
- */
-function extractMindmapIds(html: string): string[] {
-  if (!html) return [];
-  const pattern = /data-mindmap-id\s*=\s*(?:"([^"]+)"|'([^']+)')/g;
-  const ids: string[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = pattern.exec(html)) !== null) {
-    // match[1] is double-quoted value, match[2] is single-quoted value
-    const id = match[1] || match[2];
-    if (id && !ids.includes(id)) {
-      ids.push(id);
-    }
-  }
-  return ids;
-}
 
 /**
  * getStaticPaths: slug を持つ全公開記事のパスを生成。slug が無い投稿は
@@ -77,23 +57,6 @@ const jsonLdPost: JsonLdPost = {
   imageUrl: firstImage,
 };
 
-// Task 11.2: Fetch embedded mindmap data at build time (Req 5.4)
-const embeddedMindmapIds = extractMindmapIds(post.contentHtml);
-const embeddedMindmaps: Map<string, PublicMindmap> = new Map();
-
-// Fetch all embedded mindmaps in parallel to reduce SSG build time
-await Promise.all(
-  embeddedMindmapIds.map(async (mmId) => {
-    try {
-      const mindmap = await fetchPublicMindmap(mmId);
-      embeddedMindmaps.set(mmId, mindmap);
-    } catch {
-      // Mindmap not found or unpublished — will show fallback (Req 5.5)
-    }
-  })
-);
-
-const hasEmbeddedMindmaps = embeddedMindmapIds.length > 0;
 ---
 
 <Layout
@@ -132,24 +95,6 @@ const hasEmbeddedMindmaps = embeddedMindmapIds.length > 0;
 
     {/* Article Content - Sanitized HTML */}
     <div class="post-content" data-testid="article-content" set:html={post.contentHtml} />
-
-    {/* Task 11.2: Embedded mindmap data as JSON (Req 5.4) */}
-    {Array.from(embeddedMindmaps.entries()).map(([mmId, mindmap]) => (
-      <script
-        is:inline
-        type="application/json"
-        data-embed-mindmap-id={mmId}
-        set:html={mindmap.nodes.replace(/</g, '\\u003c')}
-      />
-    ))}
-
-    {/* Task 11.2: Mindmap embed viewer script (Req 5.3) */}
-    {hasEmbeddedMindmaps && (
-      <script>
-        import { initMindmapEmbeds } from '../../scripts/mindmap-embed-viewer';
-        document.addEventListener('DOMContentLoaded', initMindmapEmbeds);
-      </script>
-    )}
 
     {/* Article Images Gallery (if multiple images) */}
     {images.length > 1 && (
@@ -376,51 +321,6 @@ const hasEmbeddedMindmaps = embeddedMindmapIds.length > 0;
     color: var(--color-accent);
   }
 
-  /* Task 11.2: Embedded mindmap styles (compact, fixed height) */
-  .post-content :global(.mindmap-embed) {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 12px;
-    overflow: hidden;
-    margin: 1.5rem 0;
-    height: 400px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .post-content :global(.mindmap-embed-rendered) {
-    display: block;
-  }
-
-  .post-content :global(.mindmap-embed-rendered svg) {
-    width: 100%;
-    height: 400px;
-    display: block;
-  }
-
-  .post-content :global(.mindmap-embed-fallback) {
-    color: var(--color-text-muted);
-    font-size: 0.9rem;
-    font-style: italic;
-    text-align: center;
-    padding: 2rem;
-  }
-
-  .post-content :global(.mindmap-embed .mindmap-node) {
-    cursor: pointer;
-    transition: opacity 0.2s ease;
-  }
-
-  .post-content :global(.mindmap-embed .mindmap-node:hover rect) {
-    filter: brightness(0.95);
-  }
-
-  .post-content :global(.mindmap-embed .mindmap-node.highlighted rect) {
-    stroke: var(--color-accent);
-    stroke-width: 2.5;
-  }
-
   @media (max-width: 768px) {
     .post-detail {
       padding: 40px 20px;
@@ -432,10 +332,6 @@ const hasEmbeddedMindmaps = embeddedMindmapIds.length > 0;
 
     .post-content {
       font-size: 1rem;
-    }
-
-    .post-content :global(.mindmap-embed) {
-      height: 300px;
     }
   }
 </style>
