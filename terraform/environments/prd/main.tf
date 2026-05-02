@@ -22,7 +22,6 @@ module "database" {
 
   table_name            = "${var.project_name}-posts-${var.environment}"
   categories_table_name = "${var.project_name}-categories-${var.environment}"
-  mindmaps_table_name   = "${var.project_name}-mindmaps-${var.environment}"
   environment           = var.environment
   enable_pitr           = true
 
@@ -92,11 +91,7 @@ module "lambda" {
   categories_table_name = module.database.categories_table_name
   categories_table_arn  = module.database.categories_table_arn
 
-  # Mindmaps domain
-  mindmaps_table_name = module.database.mindmaps_table_name
-  mindmaps_table_arn  = module.database.mindmaps_table_arn
-
-  # CodeBuild integration for post/mindmap create/update/delete Lambda
+  # CodeBuild integration for post create/update/delete Lambda
   codebuild_project_name = "${var.project_name}-astro-build-${var.environment}"
   codebuild_project_arn  = "arn:aws:codebuild:${var.aws_region}:${data.aws_caller_identity.current.account_id}:project/${var.project_name}-astro-build-${var.environment}"
 
@@ -158,22 +153,6 @@ module "api" {
   lambda_update_categories_sort_order_invoke_arn = module.lambda.function_invoke_arns["update_categories_sort_order"]
   lambda_delete_category_arn                     = module.lambda.function_arns["delete_category"]
   lambda_delete_category_invoke_arn              = module.lambda.function_invoke_arns["delete_category"]
-
-  # Mindmaps Lambda function ARNs
-  lambda_create_mindmap_arn              = module.lambda.function_arns["create_mindmap"]
-  lambda_create_mindmap_invoke_arn       = module.lambda.function_invoke_arns["create_mindmap"]
-  lambda_get_mindmap_arn                 = module.lambda.function_arns["get_mindmap"]
-  lambda_get_mindmap_invoke_arn          = module.lambda.function_invoke_arns["get_mindmap"]
-  lambda_list_mindmaps_arn               = module.lambda.function_arns["list_mindmaps"]
-  lambda_list_mindmaps_invoke_arn        = module.lambda.function_invoke_arns["list_mindmaps"]
-  lambda_update_mindmap_arn              = module.lambda.function_arns["update_mindmap"]
-  lambda_update_mindmap_invoke_arn       = module.lambda.function_invoke_arns["update_mindmap"]
-  lambda_delete_mindmap_arn              = module.lambda.function_arns["delete_mindmap"]
-  lambda_delete_mindmap_invoke_arn       = module.lambda.function_invoke_arns["delete_mindmap"]
-  lambda_get_public_mindmap_arn          = module.lambda.function_arns["get_public_mindmap"]
-  lambda_get_public_mindmap_invoke_arn   = module.lambda.function_invoke_arns["get_public_mindmap"]
-  lambda_list_public_mindmaps_arn        = module.lambda.function_arns["list_public_mindmaps"]
-  lambda_list_public_mindmaps_invoke_arn = module.lambda.function_invoke_arns["list_public_mindmaps"]
 
   tags = local.common_tags
 
@@ -307,7 +286,7 @@ module "monitoring" {
   project_name          = var.project_name
   alarm_email           = var.alarm_email
   lambda_function_names = module.lambda.function_names
-  dynamodb_table_names  = [module.database.table_name, module.database.mindmaps_table_name]
+  dynamodb_table_names  = [module.database.table_name]
   api_gateway_name      = "${var.project_name}-api-${var.environment}"
   api_gateway_stage     = var.environment
   enable_alarms         = true # Alarms enabled for prd

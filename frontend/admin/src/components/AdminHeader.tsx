@@ -53,12 +53,6 @@ const AdminHeader: React.FC = () => {
             >
               Categories
             </Link>
-            <Link
-              to="/mindmaps"
-              className={`admin-nav-link ${isActive('/mindmaps') ? 'active' : ''}`}
-            >
-              Mindmaps
-            </Link>
             <a
               href="/"
               target="_blank"
