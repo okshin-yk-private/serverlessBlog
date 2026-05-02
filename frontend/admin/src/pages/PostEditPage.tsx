@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import {
   PostEditor,
   type PostData,
@@ -48,6 +49,9 @@ const PostEditPage = () => {
           category: post.category,
           tags: post.tags || [],
           publishStatus: post.publishStatus,
+          slug: post.slug ?? '',
+          excerpt: post.excerpt ?? '',
+          coverImageUrl: post.coverImageUrl ?? '',
         });
       } catch (err) {
         console.error('記事取得エラー:', err);
@@ -73,6 +77,12 @@ const PostEditPage = () => {
       navigate('/posts');
     } catch (err) {
       console.error('記事更新エラー:', err);
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setError(
+          err.response.data?.message ?? 'この slug は既に使われています'
+        );
+        return;
+      }
       setError('記事の更新に失敗しました');
       // エラーは再スローしない（UIでエラーメッセージを表示するのみ）
     }

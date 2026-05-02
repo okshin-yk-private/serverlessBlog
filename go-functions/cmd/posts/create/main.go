@@ -18,8 +18,10 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/google/uuid"
 
 	"serverless-blog/go-functions/internal/buildtrigger"
@@ -32,6 +34,15 @@ import (
 // DynamoDBClientInterface defines the interface for DynamoDB operations (for testing)
 type DynamoDBClientInterface interface {
 	PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
+	Query(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
+}
+
+// slugIndexName returns the SlugIndex GSI name (overridable via env for tests).
+func slugIndexName() string {
+	if v := os.Getenv("SLUG_INDEX_NAME"); v != "" {
+		return v
+	}
+	return "SlugIndex"
 }
 
 // dynamoClientGetter is a function that returns the DynamoDB client
@@ -54,7 +65,9 @@ var uuidGenerator = func() string {
 	return uuid.New().String()
 }
 
-// Handler handles POST /posts requests
+// Handler handles POST /posts requests.
+//
+//nolint:gocyclo // validates auth, body, slug uniqueness, and triggers CodeBuild — branches add up but flow is linear.
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Extract author ID from Cognito claims (authentication check)
 	authorID := extractAuthorID(request)
@@ -89,6 +102,18 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	dynamoClient, err := dynamoClientGetter()
 	if err != nil {
 		return errorResponse(500, "server error")
+	}
+
+	// PR6: enforce slug uniqueness server-side. Slug regex was already
+	// validated by req.Validate(); now reject if another post owns it.
+	if req.Slug != nil {
+		exists, slugErr := checkSlugExists(ctx, dynamoClient, tableName, *req.Slug)
+		if slugErr != nil {
+			return errorResponse(500, "failed to check slug uniqueness")
+		}
+		if exists {
+			return errorResponse(409, "post with this slug already exists")
+		}
 	}
 
 	// Generate UUID and timestamps
@@ -127,6 +152,9 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		UpdatedAt:       now,
 		PublishedAt:     publishedAt,
 		ImageURLs:       imageURLs,
+		Slug:            req.Slug,
+		Excerpt:         req.Excerpt,
+		CoverImageURL:   req.CoverImageURL,
 	}
 
 	// Marshal to DynamoDB attribute value
@@ -214,6 +242,24 @@ func triggerSiteBuild(ctx context.Context) {
 
 	//nolint:gosec // G706: see above — projectName is regex-validated.
 	slog.Info("site build triggered successfully", "project", projectName)
+}
+
+// checkSlugExists returns true if any BlogPost item already owns the given slug.
+// Uses the SlugIndex GSI for an O(1) point lookup.
+func checkSlugExists(ctx context.Context, client DynamoDBClientInterface, tableName, slug string) (bool, error) {
+	out, err := client.Query(ctx, &dynamodb.QueryInput{
+		TableName:              aws.String(tableName),
+		IndexName:              aws.String(slugIndexName()),
+		KeyConditionExpression: aws.String("slug = :slug"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":slug": &types.AttributeValueMemberS{Value: slug},
+		},
+		Limit: aws.Int32(1),
+	})
+	if err != nil {
+		return false, err
+	}
+	return out.Count > 0, nil
 }
 
 func main() {

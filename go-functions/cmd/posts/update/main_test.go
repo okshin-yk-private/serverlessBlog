@@ -36,6 +36,7 @@ const (
 type MockDynamoDBClient struct {
 	GetItemFunc func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
 	PutItemFunc func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
+	QueryFunc   func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
 }
 
 func (m *MockDynamoDBClient) GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
@@ -50,6 +51,15 @@ func (m *MockDynamoDBClient) PutItem(ctx context.Context, params *dynamodb.PutIt
 		return m.PutItemFunc(ctx, params, optFns...)
 	}
 	return nil, errors.New("PutItemFunc not set")
+}
+
+// Query returns an empty result by default so tests that don't exercise slug
+// uniqueness don't have to wire it up.
+func (m *MockDynamoDBClient) Query(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+	if m.QueryFunc != nil {
+		return m.QueryFunc(ctx, params, optFns...)
+	}
+	return &dynamodb.QueryOutput{Count: 0}, nil
 }
 
 func setupTest(t *testing.T) func() {
@@ -1695,5 +1705,210 @@ func TestShouldTriggerBuild_AllScenarios(t *testing.T) {
 					tt.expectedTrigger, tt.name, result)
 			}
 		})
+	}
+}
+
+// =============================================================================
+// PR6: Slug uniqueness + Slug/Excerpt/CoverImageURL persistence
+// =============================================================================
+
+func ptrStr(s string) *string { return &s }
+
+func makeGetItemFunc(post domain.BlogPost) func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+	return func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+		item, err := attributevalue.MarshalMap(post)
+		if err != nil {
+			return nil, err
+		}
+		return &dynamodb.GetItemOutput{Item: item}, nil
+	}
+}
+
+// TestHandler_SlugChange_QueriesSlugIndex verifies that when slug changes,
+// the SlugIndex is queried for uniqueness.
+func TestHandler_SlugChange_QueriesSlugIndex(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	existing := createTestPost()
+	existing.Slug = ptrStr("old-slug")
+
+	queryCalled := false
+	mockClient := &MockDynamoDBClient{
+		GetItemFunc: makeGetItemFunc(existing),
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			return &dynamodb.PutItemOutput{}, nil
+		},
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			queryCalled = true
+			if params.IndexName == nil || *params.IndexName != "SlugIndex" {
+				t.Errorf("expected SlugIndex, got %v", params.IndexName)
+			}
+			return &dynamodb.QueryOutput{Count: 0}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+	markdownConverter = func(string) (string, error) { return "<p>x</p>", nil }
+
+	body, _ := json.Marshal(domain.UpdatePostRequest{Slug: ptrStr("new-slug")})
+	resp, _ := Handler(context.Background(), createAuthenticatedRequest(testPostID, string(body)))
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d (body=%s)", resp.StatusCode, resp.Body)
+	}
+	if !queryCalled {
+		t.Error("expected Query to be called for slug change")
+	}
+}
+
+// TestHandler_SlugUnchanged_SkipsQuery verifies no Query when slug equals existing.
+func TestHandler_SlugUnchanged_SkipsQuery(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	existing := createTestPost()
+	existing.Slug = ptrStr("same-slug")
+
+	mockClient := &MockDynamoDBClient{
+		GetItemFunc: makeGetItemFunc(existing),
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			return &dynamodb.PutItemOutput{}, nil
+		},
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			t.Error("Query should not be called when slug is unchanged")
+			return &dynamodb.QueryOutput{}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+	markdownConverter = func(string) (string, error) { return "<p>x</p>", nil }
+
+	body, _ := json.Marshal(domain.UpdatePostRequest{Slug: ptrStr("same-slug")})
+	resp, _ := Handler(context.Background(), createAuthenticatedRequest(testPostID, string(body)))
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d (body=%s)", resp.StatusCode, resp.Body)
+	}
+}
+
+// TestHandler_SlugConflict_ReturnsConflict409 verifies 409 when slug collides
+// with another post.
+func TestHandler_SlugConflict_ReturnsConflict409(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	existing := createTestPost()
+	existing.Slug = ptrStr("old-slug")
+
+	otherItem, _ := attributevalue.MarshalMap(domain.BlogPost{ID: "other-id", Slug: ptrStr("taken-slug")})
+
+	mockClient := &MockDynamoDBClient{
+		GetItemFunc: makeGetItemFunc(existing),
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			t.Error("PutItem should not run on conflict")
+			return &dynamodb.PutItemOutput{}, nil
+		},
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			return &dynamodb.QueryOutput{Count: 1, Items: []map[string]types.AttributeValue{otherItem}}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+	markdownConverter = func(string) (string, error) { return "<p>x</p>", nil }
+
+	body, _ := json.Marshal(domain.UpdatePostRequest{Slug: ptrStr("taken-slug")})
+	resp, _ := Handler(context.Background(), createAuthenticatedRequest(testPostID, string(body)))
+	if resp.StatusCode != 409 {
+		t.Fatalf("expected 409, got %d (body=%s)", resp.StatusCode, resp.Body)
+	}
+}
+
+// TestHandler_SlugSelfMatch_NotConflict ensures Query returning the same post id
+// is not treated as a conflict.
+func TestHandler_SlugSelfMatch_NotConflict(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	existing := createTestPost()
+	existing.Slug = ptrStr("old-slug")
+
+	selfItem, _ := attributevalue.MarshalMap(domain.BlogPost{ID: testPostID, Slug: ptrStr("same-slug")})
+
+	mockClient := &MockDynamoDBClient{
+		GetItemFunc: makeGetItemFunc(existing),
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			return &dynamodb.PutItemOutput{}, nil
+		},
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			// Edge case: index returns the post itself if this run was racing
+			// with a concurrent write that re-projected the same post.
+			return &dynamodb.QueryOutput{Count: 1, Items: []map[string]types.AttributeValue{selfItem}}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+	markdownConverter = func(string) (string, error) { return "<p>x</p>", nil }
+
+	body, _ := json.Marshal(domain.UpdatePostRequest{Slug: ptrStr("same-slug")})
+	resp, _ := Handler(context.Background(), createAuthenticatedRequest(testPostID, string(body)))
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d (body=%s)", resp.StatusCode, resp.Body)
+	}
+}
+
+// TestHandler_PersistsSlugExcerptCover verifies the three optional fields are
+// applied via applyUpdates and end up in the saved item.
+func TestHandler_PersistsSlugExcerptCover(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	existing := createTestPost() // Slug nil
+
+	var captured map[string]types.AttributeValue
+	mockClient := &MockDynamoDBClient{
+		GetItemFunc: makeGetItemFunc(existing),
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			captured = params.Item
+			return &dynamodb.PutItemOutput{}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+	markdownConverter = func(string) (string, error) { return "<p>x</p>", nil }
+
+	body, _ := json.Marshal(domain.UpdatePostRequest{
+		Slug:          ptrStr("hello-world"),
+		Excerpt:       ptrStr("a short summary"),
+		CoverImageURL: ptrStr("https://cdn.example.com/c.jpg"),
+	})
+	resp, _ := Handler(context.Background(), createAuthenticatedRequest(testPostID, string(body)))
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d (body=%s)", resp.StatusCode, resp.Body)
+	}
+	var saved domain.BlogPost
+	if err := attributevalue.UnmarshalMap(captured, &saved); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if saved.Slug == nil || *saved.Slug != "hello-world" {
+		t.Errorf("slug not persisted: %v", saved.Slug)
+	}
+	if saved.Excerpt == nil || *saved.Excerpt != "a short summary" {
+		t.Errorf("excerpt not persisted: %v", saved.Excerpt)
+	}
+	if saved.CoverImageURL == nil || *saved.CoverImageURL != "https://cdn.example.com/c.jpg" {
+		t.Errorf("coverImageUrl not persisted: %v", saved.CoverImageURL)
+	}
+}
+
+// TestHandler_InvalidSlugFormat_Returns400 verifies domain Validate is exercised.
+func TestHandler_InvalidSlugFormat_Returns400(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	existing := createTestPost()
+	mockClient := &MockDynamoDBClient{
+		GetItemFunc: makeGetItemFunc(existing),
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+	markdownConverter = func(string) (string, error) { return "<p>x</p>", nil }
+
+	body, _ := json.Marshal(domain.UpdatePostRequest{Slug: ptrStr("Bad Slug!")})
+	resp, _ := Handler(context.Background(), createAuthenticatedRequest(testPostID, string(body)))
+	if resp.StatusCode != 400 {
+		t.Errorf("expected 400, got %d", resp.StatusCode)
 	}
 }

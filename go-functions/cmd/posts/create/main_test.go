@@ -24,6 +24,7 @@ const (
 // MockDynamoDBClient is a mock implementation of DynamoDBClientInterface
 type MockDynamoDBClient struct {
 	PutItemFunc func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
+	QueryFunc   func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
 }
 
 func (m *MockDynamoDBClient) PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
@@ -31,6 +32,15 @@ func (m *MockDynamoDBClient) PutItem(ctx context.Context, params *dynamodb.PutIt
 		return m.PutItemFunc(ctx, params, optFns...)
 	}
 	return nil, errors.New("PutItemFunc not set")
+}
+
+// Query returns an empty result by default so tests that don't exercise slug
+// uniqueness don't have to wire it up.
+func (m *MockDynamoDBClient) Query(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+	if m.QueryFunc != nil {
+		return m.QueryFunc(ctx, params, optFns...)
+	}
+	return &dynamodb.QueryOutput{Count: 0}, nil
 }
 
 // MockMarkdownConverter is a mock implementation of MarkdownConverterFunc
@@ -1799,4 +1809,185 @@ func TestTriggerSiteBuild_CodeBuildClientInitError(t *testing.T) {
 	// triggerSiteBuild should not panic and should handle error gracefully
 	triggerSiteBuild(context.Background())
 	// No error expected - just an error log
+}
+
+// =============================================================================
+// PR6: Slug uniqueness + Slug/Excerpt/CoverImageURL persistence
+// =============================================================================
+
+func ptr[T any](v T) *T { return &v }
+
+// TestHandler_SlugProvided_QueriesSlugIndex verifies that supplying a slug
+// triggers a SlugIndex Query before PutItem.
+func TestHandler_SlugProvided_QueriesSlugIndex(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	queryCalled := false
+	mockClient := &MockDynamoDBClient{
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			return &dynamodb.PutItemOutput{}, nil
+		},
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			queryCalled = true
+			if params.IndexName == nil || *params.IndexName != "SlugIndex" {
+				t.Errorf("expected IndexName SlugIndex, got %v", params.IndexName)
+			}
+			return &dynamodb.QueryOutput{Count: 0}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+	markdownConverter = func(string) (string, error) { return "<p>x</p>", nil }
+	uuidGenerator = func() string { return "uid" }
+
+	body, _ := json.Marshal(domain.CreatePostRequest{
+		Title: "T", ContentMarkdown: "B", Category: "tech",
+		Slug: ptr("my-slug"),
+	})
+	resp, _ := Handler(context.Background(), events.APIGatewayProxyRequest{
+		Body: string(body),
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{"claims": map[string]interface{}{"sub": testAuthorID}},
+		},
+	})
+	if resp.StatusCode != 201 {
+		t.Fatalf("expected 201, got %d (body=%s)", resp.StatusCode, resp.Body)
+	}
+	if !queryCalled {
+		t.Error("expected Query to be called when slug is provided")
+	}
+}
+
+// TestHandler_SlugConflict_Returns409 verifies that an existing slug yields 409.
+func TestHandler_SlugConflict_Returns409(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	mockClient := &MockDynamoDBClient{
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			t.Error("PutItem should not be called when slug conflicts")
+			return &dynamodb.PutItemOutput{}, nil
+		},
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			return &dynamodb.QueryOutput{Count: 1, Items: []map[string]types.AttributeValue{
+				{"id": &types.AttributeValueMemberS{Value: "other-id"}},
+			}}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+	markdownConverter = func(string) (string, error) { return "<p>x</p>", nil }
+	uuidGenerator = func() string { return "uid" }
+
+	body, _ := json.Marshal(domain.CreatePostRequest{
+		Title: "T", ContentMarkdown: "B", Category: "tech",
+		Slug: ptr("taken-slug"),
+	})
+	resp, _ := Handler(context.Background(), events.APIGatewayProxyRequest{
+		Body: string(body),
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{"claims": map[string]interface{}{"sub": testAuthorID}},
+		},
+	})
+	if resp.StatusCode != 409 {
+		t.Errorf("expected 409, got %d (body=%s)", resp.StatusCode, resp.Body)
+	}
+}
+
+// TestHandler_SlugQueryError_Returns500 verifies error path.
+func TestHandler_SlugQueryError_Returns500(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			return nil, errors.New("ddb down")
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+	markdownConverter = func(string) (string, error) { return "<p>x</p>", nil }
+	uuidGenerator = func() string { return "uid" }
+
+	body, _ := json.Marshal(domain.CreatePostRequest{
+		Title: "T", ContentMarkdown: "B", Category: "tech",
+		Slug: ptr("my-slug"),
+	})
+	resp, _ := Handler(context.Background(), events.APIGatewayProxyRequest{
+		Body: string(body),
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{"claims": map[string]interface{}{"sub": testAuthorID}},
+		},
+	})
+	if resp.StatusCode != 500 {
+		t.Errorf("expected 500, got %d", resp.StatusCode)
+	}
+}
+
+// TestHandler_PersistsSlugExcerptCover verifies the three optional fields
+// are written into the DynamoDB item.
+func TestHandler_PersistsSlugExcerptCover(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	var captured map[string]types.AttributeValue
+	mockClient := &MockDynamoDBClient{
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			captured = params.Item
+			return &dynamodb.PutItemOutput{}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+	markdownConverter = func(string) (string, error) { return "<p>x</p>", nil }
+	uuidGenerator = func() string { return "uid" }
+
+	body, _ := json.Marshal(domain.CreatePostRequest{
+		Title: "T", ContentMarkdown: "B", Category: "tech",
+		Slug:          ptr("hello-world"),
+		Excerpt:       ptr("a short summary"),
+		CoverImageURL: ptr("https://cdn.example.com/cover.jpg"),
+	})
+	resp, _ := Handler(context.Background(), events.APIGatewayProxyRequest{
+		Body: string(body),
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{"claims": map[string]interface{}{"sub": testAuthorID}},
+		},
+	})
+	if resp.StatusCode != 201 {
+		t.Fatalf("expected 201, got %d (body=%s)", resp.StatusCode, resp.Body)
+	}
+	if captured == nil {
+		t.Fatal("expected item to be captured")
+	}
+	var saved domain.BlogPost
+	if err := attributevalue.UnmarshalMap(captured, &saved); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if saved.Slug == nil || *saved.Slug != "hello-world" {
+		t.Errorf("slug not persisted: %+v", saved.Slug)
+	}
+	if saved.Excerpt == nil || *saved.Excerpt != "a short summary" {
+		t.Errorf("excerpt not persisted: %+v", saved.Excerpt)
+	}
+	if saved.CoverImageURL == nil || *saved.CoverImageURL != "https://cdn.example.com/cover.jpg" {
+		t.Errorf("coverImageUrl not persisted: %+v", saved.CoverImageURL)
+	}
+}
+
+// TestHandler_InvalidSlug_Returns400 verifies the domain Validate path is exercised.
+func TestHandler_InvalidSlug_Returns400(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	body, _ := json.Marshal(domain.CreatePostRequest{
+		Title: "T", ContentMarkdown: "B", Category: "tech",
+		Slug: ptr("Bad Slug!"), // spaces + uppercase + punctuation
+	})
+	resp, _ := Handler(context.Background(), events.APIGatewayProxyRequest{
+		Body: string(body),
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{"claims": map[string]interface{}{"sub": testAuthorID}},
+		},
+	})
+	if resp.StatusCode != 400 {
+		t.Errorf("expected 400, got %d", resp.StatusCode)
+	}
 }
