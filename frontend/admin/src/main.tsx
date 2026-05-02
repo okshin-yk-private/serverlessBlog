@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.tsx';
 import { configureAmplify } from './config/amplify';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 /**
  * E2Eテスト時にMSWワーカーを起動
@@ -58,7 +59,9 @@ enableMocking()
     console.log('[main.tsx] Rendering React app...');
     createRoot(document.getElementById('root')!).render(
       <StrictMode>
-        <App />
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
       </StrictMode>
     );
     console.log('[main.tsx] React app rendered successfully');

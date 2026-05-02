@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import AdminHeader from './AdminHeader';
+import { ThemeProvider } from '../contexts/ThemeContext';
 
 // Amplifyのモック
 vi.mock('aws-amplify/auth', () => ({
@@ -27,9 +28,11 @@ vi.mock('../hooks/useAuth', () => ({
 
 const renderAdminHeader = (initialPath = '/dashboard') => {
   return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <AdminHeader />
-    </MemoryRouter>
+    <ThemeProvider>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <AdminHeader />
+      </MemoryRouter>
+    </ThemeProvider>
   );
 };
 
