@@ -16,7 +16,13 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { mockPosts, createMockPost } from './mockData';
+import {
+  mockPosts,
+  createMockPost,
+  mockCategories,
+  slugifyCategoryName,
+  type MockCategory,
+} from './mockData';
 
 // ブラウザ環境では import.meta.env を使用
 // nullish coalescing演算子(??)を使用して、undefinedとnullのみデフォルト値を使用
@@ -59,17 +65,119 @@ const checkAuth = (request: Request): boolean => {
   return token.split('.').length === 3;
 };
 
-// モックカテゴリデータ
-const mockCategories = [
-  { id: 'cat-1', name: 'technology', slug: 'technology', sortOrder: 1 },
-  { id: 'cat-2', name: 'life', slug: 'life', sortOrder: 2 },
-  { id: 'cat-3', name: 'business', slug: 'business', sortOrder: 3 },
-];
-
 export const handlers = [
-  // カテゴリ一覧取得（公開サイト）
+  // カテゴリ一覧取得（公開サイト・管理画面共用）
   http.get(`${API_BASE_URL}/categories`, () => {
     return HttpResponse.json(mockCategories);
+  }),
+
+  // 管理画面: カテゴリ作成
+  http.post(`${API_BASE_URL}/admin/categories`, async ({ request }) => {
+    if (!checkAuth(request)) {
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = (await request.json()) as {
+      name: string;
+      slug?: string;
+      description?: string;
+      sortOrder?: number;
+    };
+
+    const slug = body.slug?.trim() || slugifyCategoryName(body.name);
+
+    if (mockCategories.some((c) => c.slug === slug)) {
+      return HttpResponse.json(
+        { message: 'category with this slug already exists' },
+        { status: 409 }
+      );
+    }
+
+    const now = new Date().toISOString();
+    const newCategory: MockCategory = {
+      id: `cat-${Date.now()}`,
+      name: body.name,
+      slug,
+      description: body.description,
+      sortOrder:
+        body.sortOrder ??
+        Math.max(0, ...mockCategories.map((c) => c.sortOrder)) + 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    mockCategories.push(newCategory);
+
+    return HttpResponse.json(newCategory, { status: 201 });
+  }),
+
+  // 管理画面: カテゴリ更新
+  http.put(
+    `${API_BASE_URL}/admin/categories/:id`,
+    async ({ request, params }) => {
+      if (!checkAuth(request)) {
+        return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      }
+
+      const { id } = params;
+      const idx = mockCategories.findIndex((c) => c.id === id);
+      if (idx === -1) {
+        return HttpResponse.json(
+          { message: 'Category not found' },
+          { status: 404 }
+        );
+      }
+
+      const body = (await request.json()) as {
+        name?: string;
+        slug?: string;
+        description?: string;
+        sortOrder?: number;
+      };
+
+      mockCategories[idx] = {
+        ...mockCategories[idx],
+        ...body,
+        updatedAt: new Date().toISOString(),
+      };
+
+      return HttpResponse.json(mockCategories[idx]);
+    }
+  ),
+
+  // 管理画面: カテゴリ削除
+  http.delete(`${API_BASE_URL}/admin/categories/:id`, ({ request, params }) => {
+    if (!checkAuth(request)) {
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = params;
+    const idx = mockCategories.findIndex((c) => c.id === id);
+    if (idx === -1) {
+      return HttpResponse.json(
+        { message: 'Category not found' },
+        { status: 404 }
+      );
+    }
+
+    mockCategories.splice(idx, 1);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // 管理画面: カテゴリ並び順一括更新（D&D は E2E ではカバーしないが
+  // ハンドラを置かないと UI の楽観的更新が永続化に失敗してエラーバナーが
+  // 出るため、無害なスタブを提供する）
+  http.patch(`${API_BASE_URL}/admin/categories/sort`, async ({ request }) => {
+    if (!checkAuth(request)) {
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+    const body = (await request.json()) as {
+      orders: Array<{ id: string; sortOrder: number }>;
+    };
+    for (const order of body.orders) {
+      const cat = mockCategories.find((c) => c.id === order.id);
+      if (cat) cat.sortOrder = order.sortOrder;
+    }
+    return HttpResponse.json([...mockCategories]);
   }),
 
   // 記事一覧取得（公開サイト）- Happy Path Only

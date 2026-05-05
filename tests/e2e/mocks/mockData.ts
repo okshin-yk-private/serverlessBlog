@@ -153,6 +153,67 @@ export let mockPosts: MockPost[] = [
 export const mockPost = mockPosts[0];
 
 /**
+ * カテゴリエンティティ
+ */
+export interface MockCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const initialCategories: MockCategory[] = [
+  {
+    id: 'cat-1',
+    name: 'technology',
+    slug: 'technology',
+    sortOrder: 1,
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'cat-2',
+    name: 'life',
+    slug: 'life',
+    sortOrder: 2,
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'cat-3',
+    name: 'business',
+    slug: 'business',
+    sortOrder: 3,
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+  },
+];
+
+export let mockCategories: MockCategory[] = [...initialCategories];
+
+/**
+ * カテゴリ用 slug 生成（実環境のサーバ生成と等価ではないが、E2E では十分）
+ */
+export const slugifyCategoryName = (name: string): string =>
+  name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+/**
+ * カテゴリのモックデータをリセット
+ */
+export const resetMockCategories = () => {
+  mockCategories = initialCategories.map((cat) => ({ ...cat }));
+};
+
+/**
  * モックデータをリセット
  */
 export const resetMockPosts = () => {

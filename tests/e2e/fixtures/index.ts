@@ -6,6 +6,8 @@ import { AdminDashboardPage } from '../pages/AdminDashboardPage';
 import { AdminPostCreatePage } from '../pages/AdminPostCreatePage';
 import { AdminPostEditPage } from '../pages/AdminPostEditPage';
 import { ArticleEditorPage } from '../pages/ArticleEditorPage';
+import { AdminCategoryListPage } from '../pages/AdminCategoryListPage';
+import { AdminCategoryEditPage } from '../pages/AdminCategoryEditPage';
 import { clearAllStorage } from '../utils/testHelpers';
 import { resetMockPosts } from '../mocks/mockData';
 
@@ -21,6 +23,8 @@ type CustomFixtures = {
   adminPostCreatePage: AdminPostCreatePage;
   adminPostEditPage: AdminPostEditPage;
   articleEditorPage: ArticleEditorPage;
+  adminCategoryListPage: AdminCategoryListPage;
+  adminCategoryEditPage: AdminCategoryEditPage;
 };
 
 /**
@@ -87,6 +91,22 @@ export const test = base.extend<CustomFixtures>({
   articleEditorPage: async ({ page }, use) => {
     const articleEditorPage = new ArticleEditorPage(page);
     await use(articleEditorPage);
+  },
+
+  /**
+   * 管理画面カテゴリ一覧ページフィクスチャ
+   */
+  adminCategoryListPage: async ({ page }, use) => {
+    const adminCategoryListPage = new AdminCategoryListPage(page);
+    await use(adminCategoryListPage);
+  },
+
+  /**
+   * 管理画面カテゴリ作成・編集ページフィクスチャ
+   */
+  adminCategoryEditPage: async ({ page }, use) => {
+    const adminCategoryEditPage = new AdminCategoryEditPage(page);
+    await use(adminCategoryEditPage);
   },
 });
 

@@ -537,9 +537,14 @@ describe('PostDetailPage', () => {
         expect(screen.getByText('Test Post Title')).toBeInTheDocument();
       });
 
-      // keywordsメタタグは空文字列のcontentで作成される
-      const keywordsMeta = document.querySelector('meta[name="keywords"]');
-      expect(keywordsMeta).toBeTruthy();
+      // keywordsメタタグは空文字列のcontentで作成される。
+      // PostDetailPage の本文描画と SEOHead の useEffect は別 effect サイクルなので、
+      // タイトル可視時点でメタタグが未挿入のことがある (CI の遅い環境で再現)。
+      const keywordsMeta = await waitFor(() => {
+        const el = document.querySelector('meta[name="keywords"]');
+        expect(el).toBeTruthy();
+        return el;
+      });
       expect(keywordsMeta?.getAttribute('content')).toBe('');
     });
   });
