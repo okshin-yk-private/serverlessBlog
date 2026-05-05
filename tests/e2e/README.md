@@ -26,16 +26,38 @@ Layer 3: 実環境E2Eテスト（AWS Real Environment）
 
 ## テスト範囲
 
-### Layer 1: MSW E2Eテスト（6 spec files, 13 tests）
+### Layer 1: MSW E2Eテスト（18 spec files, 40 tests）
+
+R43「最小限 E2E（重要なユーザーフローのみ）」方針に従い、表示・バリデーション等の
+詳細はユニット/統合テストでカバーし、E2E はクロスレイヤの主要フローのみを検証する。
+
+#### 公開サイト（3 spec / 7 tests）
 
 | Specファイル | テスト数 | カバー範囲 |
 |------------|---------|----------|
-| seed.spec.ts | 4 | AI Agent用リファレンス（記事一覧、タイトル取得、ナビゲーション、記事詳細） |
-| home.spec.ts | 2 | 記事一覧表示、ナビゲーション |
-| article.spec.ts | 1 | 記事詳細表示 |
+| seed.spec.ts | 4 | **AI Agent (Generator/Healer) 用リファレンス**。home/article と意図的に重複しており、`fixtures` 経由インポート / Page Object パターン / 日本語コメント / AAA 構造などの規約を模範的に示す |
+| home.spec.ts | 2 | 記事一覧表示、記事詳細へのナビゲーション |
+| article.spec.ts | 1 | 記事詳細の表示（タイトル / 本文）。Astro slug routing も実遷移経由で暗黙にカバー |
+
+#### 管理画面（15 spec / 33 tests）
+
+| Specファイル | テスト数 | カバー範囲 |
+|------------|---------|----------|
 | admin-auth.spec.ts | 2 | ログイン成功/失敗 |
-| admin-crud.spec.ts | 3 | 記事CRUD統合フロー（作成・編集・削除） |
 | admin-unauthorized-access.spec.ts | 1 | 未認証アクセスリダイレクト |
+| admin-crud.spec.ts | 3 | 記事 CRUD 統合フロー（作成・編集・削除） |
+| admin-categories.spec.ts | 4 | カテゴリ CRUD（一覧・作成・編集・削除）。並べ替え D&D は単体テスト側でカバー |
+| admin-tiptap-basic.spec.ts | 4 | エディタ初期化、Markdown 入力、整形、タブキー |
+| admin-image-paste.spec.ts | 1 | クリップボード貼り付けでの画像挿入 |
+| admin-image-drag.spec.ts | 1 | ドラッグ&ドロップでの画像挿入 |
+| admin-image-toolbar.spec.ts | 1 | 画像ツールバー操作 |
+| admin-image-fail.spec.ts | 2 | 画像アップロード失敗時のエラー / バリデーション |
+| admin-metadata-sidebar.spec.ts | 4 | slug 自動生成、excerpt カウンタ、cover image (PR6) |
+| admin-preview-parity.spec.ts | 1 | エディタプレビューと公開ページの Markdown 描画一致 |
+| admin-autosave.spec.ts | 3 | オートセーブの発火とインジケータ |
+| admin-unsaved-guard.spec.ts | 3 | 未保存変更ガード（beforeunload / キャンセル） |
+| admin-publish-flow.spec.ts | 2 | 公開時のビルドステータスバッジ表示遷移 (PR5b) |
+| admin-slug-conflict.spec.ts | 1 | slug 重複時の 409 エラー表示 |
 
 ### Layer 2: APIコントラクトテスト
 
@@ -61,21 +83,30 @@ MSW E2Eテストと同じspecファイルを使用し、`playwright.aws.config.t
 ```
 E2E Test Environment
 ├── tests/e2e/
-│   ├── specs/              # テストスペック（6ファイル、13テスト）
-│   │   ├── seed.spec.ts    # AI Agent用リファレンステスト
-│   │   ├── home.spec.ts    # 公開サイト: 記事一覧、ナビゲーション
-│   │   ├── article.spec.ts # 公開サイト: 記事詳細表示
-│   │   ├── admin-auth.spec.ts # 管理画面: ログイン/ログアウト
-│   │   ├── admin-crud.spec.ts # 管理画面: CRUD統合フロー
-│   │   └── admin-unauthorized-access.spec.ts # セキュリティ: 未認証リダイレクト
+│   ├── specs/              # テストスペック（18 ファイル / 40 テスト）
+│   │   ├── seed.spec.ts    # AI Agent (Generator/Healer) 用リファレンス
+│   │   ├── home.spec.ts    # 公開: 記事一覧、ナビゲーション
+│   │   ├── article.spec.ts # 公開: 記事詳細
+│   │   ├── admin-auth.spec.ts                # 管理: ログイン
+│   │   ├── admin-unauthorized-access.spec.ts # 管理: セキュリティリダイレクト
+│   │   ├── admin-crud.spec.ts                # 管理: 記事 CRUD
+│   │   ├── admin-categories.spec.ts          # 管理: カテゴリ CRUD
+│   │   ├── admin-tiptap-basic.spec.ts        # 管理: エディタ基本
+│   │   ├── admin-image-*.spec.ts             # 管理: 画像 paste/drag/toolbar/fail
+│   │   ├── admin-metadata-sidebar.spec.ts    # 管理: メタデータサイドバー (PR6)
+│   │   ├── admin-preview-parity.spec.ts      # 管理: プレビュー一致
+│   │   ├── admin-autosave.spec.ts            # 管理: オートセーブ (PR5a)
+│   │   ├── admin-unsaved-guard.spec.ts       # 管理: 未保存ガード (PR5a)
+│   │   ├── admin-publish-flow.spec.ts        # 管理: ビルドステータス (PR5b)
+│   │   └── admin-slug-conflict.spec.ts       # 管理: slug 409
 │   ├── pages/              # ページオブジェクト
 │   ├── fixtures/           # カスタムフィクスチャ
 │   ├── mocks/              # MSWモックハンドラー（ハッピーパスのみ）
 │   │   ├── handlers.ts     # APIモックハンドラー
-│   │   └── mockData.ts     # テストデータ
+│   │   └── mockData.ts     # テストデータ（記事 / カテゴリ）
 │   ├── utils/              # テストヘルパー
 │   ├── global-setup.ts     # グローバルセットアップ（MSW/AWS環境対応）
-│   └── global-teardown.ts  # グローバルティアダウン（テストデータクリーンアップ）
+│   └── global-teardown.ts  # グローバルティアダウン（記事 / カテゴリの [E2E-TEST] データを清掃）
 ├── playwright.config.ts       # 公開サイトMSWテスト設定
 ├── playwright.admin.config.ts # 管理画面MSWテスト設定
 └── playwright.aws.config.ts   # 実環境テスト設定（Basic認証対応）
@@ -156,15 +187,31 @@ MSW環境では `resetMockPosts()` でインメモリデータをリセット。
 ### PR時（ci.yml）
 
 ```
-MSW E2Eテスト（Layer 1）→ UI変更の高速フィードバック
+Job 6: e2e-public-tests → 公開サイト全 spec (3 / 7 tests)
+Job 7: e2e-admin-tests  → 管理画面のうち認証 / CRUD / カテゴリ / セキュリティ系 4 spec
 APIコントラクトテスト（Layer 2）→ GoテストCIジョブに自動組み込み
 ```
+
+> Job 7 が PR で実行するのは下記 4 spec:
+> - `admin-auth.spec.ts`
+> - `admin-crud.spec.ts`
+> - `admin-categories.spec.ts`
+> - `admin-unauthorized-access.spec.ts`
+>
+> **PR では実行されない admin spec** (tiptap-basic / image-* / metadata-sidebar / autosave /
+> unsaved-guard / publish-flow / preview-parity / slug-conflict) は、現時点で MSW 環境
+> での flakiness（特に Tiptap エディタ起動）があり、安定化前に PR を一律 fail させる
+> リスクがあるため除外している。これらは下記の post-deploy AWS E2E ジョブで全件回す。
+> flakiness を解消したら順次 Job 7 に追加する。
 
 ### デプロイ後（deploy.yml）
 
 ```
-post-deploy-e2e-dev → 実環境E2Eテスト（Layer 3）
+post-deploy-e2e-dev → 実環境E2Eテスト（Layer 3, 全 18 spec）
 ```
+
+実環境では `[E2E-TEST]` プレフィックスの記事 / カテゴリを `global-teardown.ts` が
+自動削除する。手動掃除は `bun run cleanup:test-data`。
 
 ## トラブルシューティング
 

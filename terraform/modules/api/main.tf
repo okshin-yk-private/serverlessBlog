@@ -85,6 +85,21 @@ resource "aws_api_gateway_resource" "posts_id" {
   path_part   = "{id}"
 }
 
+# /posts/by-slug resource (PR7) — namespace for the friendly-slug lookup so
+# it can't collide with /posts/{id} (slugs and UUIDs share the same path slot).
+resource "aws_api_gateway_resource" "posts_by_slug" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.posts.id
+  path_part   = "by-slug"
+}
+
+# /posts/by-slug/{slug} resource (PR7)
+resource "aws_api_gateway_resource" "posts_by_slug_value" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.posts_by_slug.id
+  path_part   = "{slug}"
+}
+
 # /admin/posts resource
 # Requirement 5.1: Create /admin/posts resource
 resource "aws_api_gateway_resource" "admin_posts" {
@@ -99,6 +114,14 @@ resource "aws_api_gateway_resource" "admin_posts_id" {
   rest_api_id = aws_api_gateway_rest_api.main.id
   parent_id   = aws_api_gateway_resource.admin_posts.id
   path_part   = "{id}"
+}
+
+# /admin/posts/{id}/build-status resource (PR5b)
+# GET endpoint for the admin UI to poll the latest CodeBuild status after publish.
+resource "aws_api_gateway_resource" "admin_posts_id_build_status" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.admin_posts_id.id
+  path_part   = "build-status"
 }
 
 # /admin/images resource
@@ -357,6 +380,79 @@ resource "aws_api_gateway_integration_response" "admin_posts_id_options" {
   response_parameters = {
     "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
     "method.response.header.Access-Control-Allow-Methods" = "'GET,PUT,DELETE,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origins[0]}'"
+  }
+}
+
+# --- GET /admin/posts/{id}/build-status (Cognito auth) --- (PR5b)
+resource "aws_api_gateway_method" "admin_posts_id_build_status_get" {
+  rest_api_id          = aws_api_gateway_rest_api.main.id
+  resource_id          = aws_api_gateway_resource.admin_posts_id_build_status.id
+  http_method          = "GET"
+  authorization        = "COGNITO_USER_POOLS"
+  authorizer_id        = aws_api_gateway_authorizer.cognito.id
+  request_validator_id = aws_api_gateway_request_validator.main.id
+
+  request_parameters = {
+    "method.request.path.id" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "admin_posts_id_build_status_get" {
+  rest_api_id             = aws_api_gateway_rest_api.main.id
+  resource_id             = aws_api_gateway_resource.admin_posts_id_build_status.id
+  http_method             = aws_api_gateway_method.admin_posts_id_build_status_get.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.lambda_build_status_post_invoke_arn
+}
+
+# --- OPTIONS /admin/posts/{id}/build-status (CORS) ---
+resource "aws_api_gateway_method" "admin_posts_id_build_status_options" {
+  rest_api_id          = aws_api_gateway_rest_api.main.id
+  resource_id          = aws_api_gateway_resource.admin_posts_id_build_status.id
+  http_method          = "OPTIONS"
+  authorization        = "NONE"
+  request_validator_id = aws_api_gateway_request_validator.main.id
+}
+
+resource "aws_api_gateway_integration" "admin_posts_id_build_status_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_posts_id_build_status.id
+  http_method = aws_api_gateway_method.admin_posts_id_build_status_options.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "admin_posts_id_build_status_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_posts_id_build_status.id
+  http_method = aws_api_gateway_method.admin_posts_id_build_status_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+resource "aws_api_gateway_integration_response" "admin_posts_id_build_status_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.admin_posts_id_build_status.id
+  http_method = aws_api_gateway_method.admin_posts_id_build_status_options.http_method
+  status_code = aws_api_gateway_method_response.admin_posts_id_build_status_options.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
     "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origins[0]}'"
   }
 }
@@ -834,6 +930,78 @@ resource "aws_api_gateway_integration_response" "posts_id_options" {
   }
 }
 
+# --- GET /posts/by-slug/{slug} (No auth - public) --- (PR7)
+resource "aws_api_gateway_method" "posts_by_slug_value_get" {
+  rest_api_id          = aws_api_gateway_rest_api.main.id
+  resource_id          = aws_api_gateway_resource.posts_by_slug_value.id
+  http_method          = "GET"
+  authorization        = "NONE"
+  request_validator_id = aws_api_gateway_request_validator.main.id
+
+  request_parameters = {
+    "method.request.path.slug" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "posts_by_slug_value_get" {
+  rest_api_id             = aws_api_gateway_rest_api.main.id
+  resource_id             = aws_api_gateway_resource.posts_by_slug_value.id
+  http_method             = aws_api_gateway_method.posts_by_slug_value_get.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.lambda_get_post_by_slug_invoke_arn
+}
+
+# --- OPTIONS /posts/by-slug/{slug} (CORS) ---
+resource "aws_api_gateway_method" "posts_by_slug_value_options" {
+  rest_api_id          = aws_api_gateway_rest_api.main.id
+  resource_id          = aws_api_gateway_resource.posts_by_slug_value.id
+  http_method          = "OPTIONS"
+  authorization        = "NONE"
+  request_validator_id = aws_api_gateway_request_validator.main.id
+}
+
+resource "aws_api_gateway_integration" "posts_by_slug_value_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.posts_by_slug_value.id
+  http_method = aws_api_gateway_method.posts_by_slug_value_options.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "posts_by_slug_value_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.posts_by_slug_value.id
+  http_method = aws_api_gateway_method.posts_by_slug_value_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+resource "aws_api_gateway_integration_response" "posts_by_slug_value_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.posts_by_slug_value.id
+  http_method = aws_api_gateway_method.posts_by_slug_value_options.http_method
+  status_code = aws_api_gateway_method_response.posts_by_slug_value_options.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origins[0]}'"
+  }
+}
+
 # ======================
 # Categories API Resource Paths
 # Requirement 2: Category List API
@@ -1192,385 +1360,6 @@ resource "aws_api_gateway_integration_response" "admin_categories_sort_options" 
 }
 
 # ======================
-# Mindmaps Admin API Resource Paths
-# ======================
-
-# /admin/mindmaps resource
-resource "aws_api_gateway_resource" "admin_mindmaps" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.admin.id
-  path_part   = "mindmaps"
-}
-
-# /admin/mindmaps/{id} resource
-resource "aws_api_gateway_resource" "admin_mindmaps_id" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.admin_mindmaps.id
-  path_part   = "{id}"
-}
-
-# --- POST /admin/mindmaps (Cognito auth) ---
-resource "aws_api_gateway_method" "admin_mindmaps_post" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_mindmaps.id
-  http_method   = "POST"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
-}
-
-resource "aws_api_gateway_integration" "admin_mindmaps_post" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.admin_mindmaps.id
-  http_method             = aws_api_gateway_method.admin_mindmaps_post.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = var.lambda_create_mindmap_invoke_arn
-}
-
-# --- GET /admin/mindmaps (Cognito auth) ---
-resource "aws_api_gateway_method" "admin_mindmaps_get" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_mindmaps.id
-  http_method   = "GET"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
-}
-
-resource "aws_api_gateway_integration" "admin_mindmaps_get" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.admin_mindmaps.id
-  http_method             = aws_api_gateway_method.admin_mindmaps_get.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = var.lambda_list_mindmaps_invoke_arn
-}
-
-# --- OPTIONS /admin/mindmaps (CORS) ---
-resource "aws_api_gateway_method" "admin_mindmaps_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_mindmaps.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "admin_mindmaps_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.admin_mindmaps.id
-  http_method = aws_api_gateway_method.admin_mindmaps_options.http_method
-  type        = "MOCK"
-
-  request_templates = {
-    "application/json" = "{\"statusCode\": 200}"
-  }
-}
-
-resource "aws_api_gateway_method_response" "admin_mindmaps_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.admin_mindmaps.id
-  http_method = aws_api_gateway_method.admin_mindmaps_options.http_method
-  status_code = "200"
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true
-    "method.response.header.Access-Control-Allow-Methods" = true
-    "method.response.header.Access-Control-Allow-Origin"  = true
-  }
-
-  response_models = {
-    "application/json" = "Empty"
-  }
-}
-
-resource "aws_api_gateway_integration_response" "admin_mindmaps_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.admin_mindmaps.id
-  http_method = aws_api_gateway_method.admin_mindmaps_options.http_method
-  status_code = aws_api_gateway_method_response.admin_mindmaps_options.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,OPTIONS'"
-    "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origins[0]}'"
-  }
-}
-
-# --- GET /admin/mindmaps/{id} (Cognito auth) ---
-resource "aws_api_gateway_method" "admin_mindmaps_id_get" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_mindmaps_id.id
-  http_method   = "GET"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
-
-  request_parameters = {
-    "method.request.path.id" = true
-  }
-}
-
-resource "aws_api_gateway_integration" "admin_mindmaps_id_get" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.admin_mindmaps_id.id
-  http_method             = aws_api_gateway_method.admin_mindmaps_id_get.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = var.lambda_get_mindmap_invoke_arn
-}
-
-# --- PUT /admin/mindmaps/{id} (Cognito auth) ---
-resource "aws_api_gateway_method" "admin_mindmaps_id_put" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_mindmaps_id.id
-  http_method   = "PUT"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
-
-  request_parameters = {
-    "method.request.path.id" = true
-  }
-}
-
-resource "aws_api_gateway_integration" "admin_mindmaps_id_put" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.admin_mindmaps_id.id
-  http_method             = aws_api_gateway_method.admin_mindmaps_id_put.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = var.lambda_update_mindmap_invoke_arn
-}
-
-# --- DELETE /admin/mindmaps/{id} (Cognito auth) ---
-resource "aws_api_gateway_method" "admin_mindmaps_id_delete" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_mindmaps_id.id
-  http_method   = "DELETE"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
-
-  request_parameters = {
-    "method.request.path.id" = true
-  }
-}
-
-resource "aws_api_gateway_integration" "admin_mindmaps_id_delete" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.admin_mindmaps_id.id
-  http_method             = aws_api_gateway_method.admin_mindmaps_id_delete.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = var.lambda_delete_mindmap_invoke_arn
-}
-
-# --- OPTIONS /admin/mindmaps/{id} (CORS) ---
-resource "aws_api_gateway_method" "admin_mindmaps_id_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_mindmaps_id.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "admin_mindmaps_id_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.admin_mindmaps_id.id
-  http_method = aws_api_gateway_method.admin_mindmaps_id_options.http_method
-  type        = "MOCK"
-
-  request_templates = {
-    "application/json" = "{\"statusCode\": 200}"
-  }
-}
-
-resource "aws_api_gateway_method_response" "admin_mindmaps_id_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.admin_mindmaps_id.id
-  http_method = aws_api_gateway_method.admin_mindmaps_id_options.http_method
-  status_code = "200"
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true
-    "method.response.header.Access-Control-Allow-Methods" = true
-    "method.response.header.Access-Control-Allow-Origin"  = true
-  }
-
-  response_models = {
-    "application/json" = "Empty"
-  }
-}
-
-resource "aws_api_gateway_integration_response" "admin_mindmaps_id_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.admin_mindmaps_id.id
-  http_method = aws_api_gateway_method.admin_mindmaps_id_options.http_method
-  status_code = aws_api_gateway_method_response.admin_mindmaps_id_options.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,PUT,DELETE,OPTIONS'"
-    "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origins[0]}'"
-  }
-}
-
-# ======================
-# Mindmaps Public API Resource Paths
-# ======================
-
-# /public resource
-resource "aws_api_gateway_resource" "public" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_rest_api.main.root_resource_id
-  path_part   = "public"
-}
-
-# /public/mindmaps resource
-resource "aws_api_gateway_resource" "public_mindmaps" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.public.id
-  path_part   = "mindmaps"
-}
-
-# /public/mindmaps/{id} resource
-resource "aws_api_gateway_resource" "public_mindmaps_id" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.public_mindmaps.id
-  path_part   = "{id}"
-}
-
-# --- GET /public/mindmaps (No auth - public) ---
-resource "aws_api_gateway_method" "public_mindmaps_get" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.public_mindmaps.id
-  http_method   = "GET"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "public_mindmaps_get" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.public_mindmaps.id
-  http_method             = aws_api_gateway_method.public_mindmaps_get.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = var.lambda_list_public_mindmaps_invoke_arn
-}
-
-# --- OPTIONS /public/mindmaps (CORS) ---
-resource "aws_api_gateway_method" "public_mindmaps_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.public_mindmaps.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "public_mindmaps_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.public_mindmaps.id
-  http_method = aws_api_gateway_method.public_mindmaps_options.http_method
-  type        = "MOCK"
-
-  request_templates = {
-    "application/json" = "{\"statusCode\": 200}"
-  }
-}
-
-resource "aws_api_gateway_method_response" "public_mindmaps_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.public_mindmaps.id
-  http_method = aws_api_gateway_method.public_mindmaps_options.http_method
-  status_code = "200"
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true
-    "method.response.header.Access-Control-Allow-Methods" = true
-    "method.response.header.Access-Control-Allow-Origin"  = true
-  }
-
-  response_models = {
-    "application/json" = "Empty"
-  }
-}
-
-resource "aws_api_gateway_integration_response" "public_mindmaps_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.public_mindmaps.id
-  http_method = aws_api_gateway_method.public_mindmaps_options.http_method
-  status_code = aws_api_gateway_method_response.public_mindmaps_options.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
-    "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origins[0]}'"
-  }
-}
-
-# --- GET /public/mindmaps/{id} (No auth - public) ---
-resource "aws_api_gateway_method" "public_mindmaps_id_get" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.public_mindmaps_id.id
-  http_method   = "GET"
-  authorization = "NONE"
-
-  request_parameters = {
-    "method.request.path.id" = true
-  }
-}
-
-resource "aws_api_gateway_integration" "public_mindmaps_id_get" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.public_mindmaps_id.id
-  http_method             = aws_api_gateway_method.public_mindmaps_id_get.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = var.lambda_get_public_mindmap_invoke_arn
-}
-
-# --- OPTIONS /public/mindmaps/{id} (CORS) ---
-resource "aws_api_gateway_method" "public_mindmaps_id_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.public_mindmaps_id.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "public_mindmaps_id_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.public_mindmaps_id.id
-  http_method = aws_api_gateway_method.public_mindmaps_id_options.http_method
-  type        = "MOCK"
-
-  request_templates = {
-    "application/json" = "{\"statusCode\": 200}"
-  }
-}
-
-resource "aws_api_gateway_method_response" "public_mindmaps_id_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.public_mindmaps_id.id
-  http_method = aws_api_gateway_method.public_mindmaps_id_options.http_method
-  status_code = "200"
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true
-    "method.response.header.Access-Control-Allow-Methods" = true
-    "method.response.header.Access-Control-Allow-Origin"  = true
-  }
-
-  response_models = {
-    "application/json" = "Empty"
-  }
-}
-
-resource "aws_api_gateway_integration_response" "public_mindmaps_id_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.public_mindmaps_id.id
-  http_method = aws_api_gateway_method.public_mindmaps_id_options.http_method
-  status_code = aws_api_gateway_method_response.public_mindmaps_id_options.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
-    "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origins[0]}'"
-  }
-}
-
-# ======================
 # Gateway Responses (CORS)
 # ======================
 
@@ -1643,6 +1432,7 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.posts_id.id,
       aws_api_gateway_resource.admin_posts.id,
       aws_api_gateway_resource.admin_posts_id.id,
+      aws_api_gateway_resource.admin_posts_id_build_status.id,
       aws_api_gateway_resource.admin_images.id,
       aws_api_gateway_resource.admin_images_upload_url.id,
       aws_api_gateway_resource.admin_images_key.id,
@@ -1654,11 +1444,8 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.admin_categories.id,
       aws_api_gateway_resource.admin_categories_id.id,
       aws_api_gateway_resource.admin_categories_sort.id,
-      aws_api_gateway_resource.admin_mindmaps.id,
-      aws_api_gateway_resource.admin_mindmaps_id.id,
-      aws_api_gateway_resource.public.id,
-      aws_api_gateway_resource.public_mindmaps.id,
-      aws_api_gateway_resource.public_mindmaps_id.id,
+      aws_api_gateway_resource.posts_by_slug.id,
+      aws_api_gateway_resource.posts_by_slug_value.id,
       # Authorizer
       aws_api_gateway_authorizer.cognito.id,
       # Gateway Responses
@@ -1670,6 +1457,8 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_method.admin_posts_id_get.id,
       aws_api_gateway_method.admin_posts_id_put.id,
       aws_api_gateway_method.admin_posts_id_delete.id,
+      aws_api_gateway_method.admin_posts_id_build_status_get.id,
+      aws_api_gateway_method.admin_posts_id_build_status_options.id,
       aws_api_gateway_method.admin_images_upload_url_post.id,
       aws_api_gateway_method.admin_images_key_delete.id,
       aws_api_gateway_method.admin_auth_login_post.id,
@@ -1677,29 +1466,21 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_method.admin_auth_refresh_post.id,
       aws_api_gateway_method.posts_get.id,
       aws_api_gateway_method.posts_id_get.id,
+      aws_api_gateway_method.posts_by_slug_value_get.id,
+      aws_api_gateway_method.posts_by_slug_value_options.id,
       aws_api_gateway_method.categories_get.id,
       aws_api_gateway_method.admin_categories_post.id,
       aws_api_gateway_method.admin_categories_id_put.id,
       aws_api_gateway_method.admin_categories_id_delete.id,
       aws_api_gateway_method.admin_categories_sort_patch.id,
-      aws_api_gateway_method.admin_mindmaps_post.id,
-      aws_api_gateway_method.admin_mindmaps_get.id,
-      aws_api_gateway_method.admin_mindmaps_id_get.id,
-      aws_api_gateway_method.admin_mindmaps_id_put.id,
-      aws_api_gateway_method.admin_mindmaps_id_delete.id,
-      aws_api_gateway_method.public_mindmaps_get.id,
-      aws_api_gateway_method.public_mindmaps_id_get.id,
-      # OPTIONS (CORS)
-      aws_api_gateway_method.admin_mindmaps_options.id,
-      aws_api_gateway_method.admin_mindmaps_id_options.id,
-      aws_api_gateway_method.public_mindmaps_options.id,
-      aws_api_gateway_method.public_mindmaps_id_options.id,
       # Integrations
       aws_api_gateway_integration.admin_posts_post.id,
       aws_api_gateway_integration.admin_posts_get.id,
       aws_api_gateway_integration.admin_posts_id_get.id,
       aws_api_gateway_integration.admin_posts_id_put.id,
       aws_api_gateway_integration.admin_posts_id_delete.id,
+      aws_api_gateway_integration.admin_posts_id_build_status_get.id,
+      aws_api_gateway_integration.admin_posts_id_build_status_options.id,
       aws_api_gateway_integration.admin_images_upload_url_post.id,
       aws_api_gateway_integration.admin_images_key_delete.id,
       aws_api_gateway_integration.admin_auth_login_post.id,
@@ -1707,23 +1488,13 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_integration.admin_auth_refresh_post.id,
       aws_api_gateway_integration.posts_get.id,
       aws_api_gateway_integration.posts_id_get.id,
+      aws_api_gateway_integration.posts_by_slug_value_get.id,
+      aws_api_gateway_integration.posts_by_slug_value_options.id,
       aws_api_gateway_integration.categories_get.id,
       aws_api_gateway_integration.admin_categories_post.id,
       aws_api_gateway_integration.admin_categories_id_put.id,
       aws_api_gateway_integration.admin_categories_id_delete.id,
       aws_api_gateway_integration.admin_categories_sort_patch.id,
-      aws_api_gateway_integration.admin_mindmaps_post.id,
-      aws_api_gateway_integration.admin_mindmaps_get.id,
-      aws_api_gateway_integration.admin_mindmaps_id_get.id,
-      aws_api_gateway_integration.admin_mindmaps_id_put.id,
-      aws_api_gateway_integration.admin_mindmaps_id_delete.id,
-      aws_api_gateway_integration.public_mindmaps_get.id,
-      aws_api_gateway_integration.public_mindmaps_id_get.id,
-      # OPTIONS integrations (CORS)
-      aws_api_gateway_integration.admin_mindmaps_options.id,
-      aws_api_gateway_integration.admin_mindmaps_id_options.id,
-      aws_api_gateway_integration.public_mindmaps_options.id,
-      aws_api_gateway_integration.public_mindmaps_id_options.id,
     ]))
   }
 
@@ -1737,6 +1508,8 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.admin_posts_id_get,
     aws_api_gateway_integration.admin_posts_id_put,
     aws_api_gateway_integration.admin_posts_id_delete,
+    aws_api_gateway_integration.admin_posts_id_build_status_get,
+    aws_api_gateway_integration.admin_posts_id_build_status_options,
     aws_api_gateway_integration.admin_images_upload_url_post,
     aws_api_gateway_integration.admin_images_key_delete,
     aws_api_gateway_integration.admin_auth_login_post,
@@ -1744,23 +1517,13 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.admin_auth_refresh_post,
     aws_api_gateway_integration.posts_get,
     aws_api_gateway_integration.posts_id_get,
+    aws_api_gateway_integration.posts_by_slug_value_get,
+    aws_api_gateway_integration.posts_by_slug_value_options,
     aws_api_gateway_integration.categories_get,
     aws_api_gateway_integration.admin_categories_post,
     aws_api_gateway_integration.admin_categories_id_put,
     aws_api_gateway_integration.admin_categories_id_delete,
     aws_api_gateway_integration.admin_categories_sort_patch,
-    aws_api_gateway_integration.admin_mindmaps_post,
-    aws_api_gateway_integration.admin_mindmaps_get,
-    aws_api_gateway_integration.admin_mindmaps_id_get,
-    aws_api_gateway_integration.admin_mindmaps_id_put,
-    aws_api_gateway_integration.admin_mindmaps_id_delete,
-    aws_api_gateway_integration.public_mindmaps_get,
-    aws_api_gateway_integration.public_mindmaps_id_get,
-    # OPTIONS integrations (CORS)
-    aws_api_gateway_integration.admin_mindmaps_options,
-    aws_api_gateway_integration.admin_mindmaps_id_options,
-    aws_api_gateway_integration.public_mindmaps_options,
-    aws_api_gateway_integration.public_mindmaps_id_options,
   ]
 }
 
@@ -1917,6 +1680,22 @@ resource "aws_lambda_permission" "delete_post" {
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
 }
 
+resource "aws_lambda_permission" "build_status_post" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = var.lambda_build_status_post_arn
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "get_post_by_slug" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = var.lambda_get_post_by_slug_arn
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
+}
+
 resource "aws_lambda_permission" "login" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
@@ -2001,62 +1780,3 @@ resource "aws_lambda_permission" "delete_category" {
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
 }
 
-# ======================
-# Mindmaps Lambda Permissions
-# ======================
-
-resource "aws_lambda_permission" "create_mindmap" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = var.lambda_create_mindmap_arn
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
-}
-
-resource "aws_lambda_permission" "get_mindmap" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = var.lambda_get_mindmap_arn
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
-}
-
-resource "aws_lambda_permission" "list_mindmaps" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = var.lambda_list_mindmaps_arn
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
-}
-
-resource "aws_lambda_permission" "update_mindmap" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = var.lambda_update_mindmap_arn
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
-}
-
-resource "aws_lambda_permission" "delete_mindmap" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = var.lambda_delete_mindmap_arn
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
-}
-
-resource "aws_lambda_permission" "get_public_mindmap" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = var.lambda_get_public_mindmap_arn
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
-}
-
-resource "aws_lambda_permission" "list_public_mindmaps" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = var.lambda_list_public_mindmaps_arn
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
-}

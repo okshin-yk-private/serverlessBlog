@@ -13,6 +13,8 @@ output "function_arns" {
     list_posts                   = aws_lambda_function.list_posts.arn
     update_post                  = aws_lambda_function.update_post.arn
     delete_post                  = aws_lambda_function.delete_post.arn
+    build_status_post            = aws_lambda_function.build_status_post.arn
+    get_post_by_slug             = aws_lambda_function.get_post_by_slug.arn
     login                        = aws_lambda_function.login.arn
     logout                       = aws_lambda_function.logout.arn
     refresh                      = aws_lambda_function.refresh.arn
@@ -23,13 +25,6 @@ output "function_arns" {
     update_category              = aws_lambda_function.update_category.arn
     update_categories_sort_order = aws_lambda_function.update_categories_sort_order.arn
     delete_category              = aws_lambda_function.delete_category.arn
-    create_mindmap               = aws_lambda_function.create_mindmap.arn
-    get_mindmap                  = aws_lambda_function.get_mindmap.arn
-    list_mindmaps                = aws_lambda_function.list_mindmaps.arn
-    update_mindmap               = aws_lambda_function.update_mindmap.arn
-    delete_mindmap               = aws_lambda_function.delete_mindmap.arn
-    get_public_mindmap           = aws_lambda_function.get_public_mindmap.arn
-    list_public_mindmaps         = aws_lambda_function.list_public_mindmaps.arn
   }
   description = "Map of Lambda function ARNs"
 }
@@ -46,6 +41,8 @@ output "function_invoke_arns" {
     list_posts                   = aws_lambda_function.list_posts.invoke_arn
     update_post                  = aws_lambda_function.update_post.invoke_arn
     delete_post                  = aws_lambda_function.delete_post.invoke_arn
+    build_status_post            = aws_lambda_function.build_status_post.invoke_arn
+    get_post_by_slug             = aws_lambda_function.get_post_by_slug.invoke_arn
     login                        = aws_lambda_function.login.invoke_arn
     logout                       = aws_lambda_function.logout.invoke_arn
     refresh                      = aws_lambda_function.refresh.invoke_arn
@@ -56,13 +53,6 @@ output "function_invoke_arns" {
     update_category              = aws_lambda_function.update_category.invoke_arn
     update_categories_sort_order = aws_lambda_function.update_categories_sort_order.invoke_arn
     delete_category              = aws_lambda_function.delete_category.invoke_arn
-    create_mindmap               = aws_lambda_function.create_mindmap.invoke_arn
-    get_mindmap                  = aws_lambda_function.get_mindmap.invoke_arn
-    list_mindmaps                = aws_lambda_function.list_mindmaps.invoke_arn
-    update_mindmap               = aws_lambda_function.update_mindmap.invoke_arn
-    delete_mindmap               = aws_lambda_function.delete_mindmap.invoke_arn
-    get_public_mindmap           = aws_lambda_function.get_public_mindmap.invoke_arn
-    list_public_mindmaps         = aws_lambda_function.list_public_mindmaps.invoke_arn
   }
   description = "Map of Lambda function Invoke ARNs for API Gateway integrations"
 }
@@ -79,6 +69,8 @@ output "function_names" {
     aws_lambda_function.list_posts.function_name,
     aws_lambda_function.update_post.function_name,
     aws_lambda_function.delete_post.function_name,
+    aws_lambda_function.build_status_post.function_name,
+    aws_lambda_function.get_post_by_slug.function_name,
     aws_lambda_function.login.function_name,
     aws_lambda_function.logout.function_name,
     aws_lambda_function.refresh.function_name,
@@ -89,13 +81,6 @@ output "function_names" {
     aws_lambda_function.update_category.function_name,
     aws_lambda_function.update_categories_sort_order.function_name,
     aws_lambda_function.delete_category.function_name,
-    aws_lambda_function.create_mindmap.function_name,
-    aws_lambda_function.get_mindmap.function_name,
-    aws_lambda_function.list_mindmaps.function_name,
-    aws_lambda_function.update_mindmap.function_name,
-    aws_lambda_function.delete_mindmap.function_name,
-    aws_lambda_function.get_public_mindmap.function_name,
-    aws_lambda_function.list_public_mindmaps.function_name,
   ]
   description = "List of all Lambda function names"
 }
@@ -211,6 +196,36 @@ output "delete_post_function_arn" {
 output "delete_post_function_name" {
   value       = aws_lambda_function.delete_post.function_name
   description = "Delete Post Lambda function name"
+}
+
+output "build_status_post_function_arn" {
+  value       = aws_lambda_function.build_status_post.arn
+  description = "Build Status Post Lambda function ARN"
+}
+
+output "build_status_post_function_name" {
+  value       = aws_lambda_function.build_status_post.function_name
+  description = "Build Status Post Lambda function name"
+}
+
+output "build_status_post_invoke_arn" {
+  value       = aws_lambda_function.build_status_post.invoke_arn
+  description = "Build Status Post Lambda function invoke ARN for API Gateway integration"
+}
+
+output "get_post_by_slug_function_arn" {
+  value       = aws_lambda_function.get_post_by_slug.arn
+  description = "Get Post By Slug Lambda function ARN"
+}
+
+output "get_post_by_slug_function_name" {
+  value       = aws_lambda_function.get_post_by_slug.function_name
+  description = "Get Post By Slug Lambda function name"
+}
+
+output "get_post_by_slug_invoke_arn" {
+  value       = aws_lambda_function.get_post_by_slug.invoke_arn
+  description = "Get Post By Slug Lambda function invoke ARN for API Gateway integration"
 }
 
 # Auth domain
@@ -355,133 +370,3 @@ output "delete_category_invoke_arn" {
   description = "Delete Category Lambda function invoke ARN for API Gateway integration"
 }
 
-# ======================
-# Mindmaps Domain Outputs
-# ======================
-
-# Mindmaps Domain Role
-output "mindmaps_role_arn" {
-  value       = aws_iam_role.lambda_mindmaps.arn
-  description = "Mindmaps domain Lambda execution role ARN"
-}
-
-output "mindmaps_role_name" {
-  value       = aws_iam_role.lambda_mindmaps.name
-  description = "Mindmaps domain Lambda execution role name"
-}
-
-# Mindmaps Public Domain Role (read-only)
-output "mindmaps_public_role_arn" {
-  value       = aws_iam_role.lambda_mindmaps_public.arn
-  description = "Mindmaps public domain Lambda execution role ARN (read-only)"
-}
-
-output "mindmaps_public_role_name" {
-  value       = aws_iam_role.lambda_mindmaps_public.name
-  description = "Mindmaps public domain Lambda execution role name (read-only)"
-}
-
-output "create_mindmap_function_arn" {
-  value       = aws_lambda_function.create_mindmap.arn
-  description = "Create Mindmap Lambda function ARN"
-}
-
-output "create_mindmap_function_name" {
-  value       = aws_lambda_function.create_mindmap.function_name
-  description = "Create Mindmap Lambda function name"
-}
-
-output "create_mindmap_invoke_arn" {
-  value       = aws_lambda_function.create_mindmap.invoke_arn
-  description = "Create Mindmap Lambda function invoke ARN for API Gateway integration"
-}
-
-output "get_mindmap_function_arn" {
-  value       = aws_lambda_function.get_mindmap.arn
-  description = "Get Mindmap Lambda function ARN"
-}
-
-output "get_mindmap_function_name" {
-  value       = aws_lambda_function.get_mindmap.function_name
-  description = "Get Mindmap Lambda function name"
-}
-
-output "get_mindmap_invoke_arn" {
-  value       = aws_lambda_function.get_mindmap.invoke_arn
-  description = "Get Mindmap Lambda function invoke ARN for API Gateway integration"
-}
-
-output "list_mindmaps_function_arn" {
-  value       = aws_lambda_function.list_mindmaps.arn
-  description = "List Mindmaps Lambda function ARN"
-}
-
-output "list_mindmaps_function_name" {
-  value       = aws_lambda_function.list_mindmaps.function_name
-  description = "List Mindmaps Lambda function name"
-}
-
-output "list_mindmaps_invoke_arn" {
-  value       = aws_lambda_function.list_mindmaps.invoke_arn
-  description = "List Mindmaps Lambda function invoke ARN for API Gateway integration"
-}
-
-output "update_mindmap_function_arn" {
-  value       = aws_lambda_function.update_mindmap.arn
-  description = "Update Mindmap Lambda function ARN"
-}
-
-output "update_mindmap_function_name" {
-  value       = aws_lambda_function.update_mindmap.function_name
-  description = "Update Mindmap Lambda function name"
-}
-
-output "update_mindmap_invoke_arn" {
-  value       = aws_lambda_function.update_mindmap.invoke_arn
-  description = "Update Mindmap Lambda function invoke ARN for API Gateway integration"
-}
-
-output "delete_mindmap_function_arn" {
-  value       = aws_lambda_function.delete_mindmap.arn
-  description = "Delete Mindmap Lambda function ARN"
-}
-
-output "delete_mindmap_function_name" {
-  value       = aws_lambda_function.delete_mindmap.function_name
-  description = "Delete Mindmap Lambda function name"
-}
-
-output "delete_mindmap_invoke_arn" {
-  value       = aws_lambda_function.delete_mindmap.invoke_arn
-  description = "Delete Mindmap Lambda function invoke ARN for API Gateway integration"
-}
-
-output "get_public_mindmap_function_arn" {
-  value       = aws_lambda_function.get_public_mindmap.arn
-  description = "Get Public Mindmap Lambda function ARN"
-}
-
-output "get_public_mindmap_function_name" {
-  value       = aws_lambda_function.get_public_mindmap.function_name
-  description = "Get Public Mindmap Lambda function name"
-}
-
-output "get_public_mindmap_invoke_arn" {
-  value       = aws_lambda_function.get_public_mindmap.invoke_arn
-  description = "Get Public Mindmap Lambda function invoke ARN for API Gateway integration"
-}
-
-output "list_public_mindmaps_function_arn" {
-  value       = aws_lambda_function.list_public_mindmaps.arn
-  description = "List Public Mindmaps Lambda function ARN"
-}
-
-output "list_public_mindmaps_function_name" {
-  value       = aws_lambda_function.list_public_mindmaps.function_name
-  description = "List Public Mindmaps Lambda function name"
-}
-
-output "list_public_mindmaps_invoke_arn" {
-  value       = aws_lambda_function.list_public_mindmaps.invoke_arn
-  description = "List Public Mindmaps Lambda function invoke ARN for API Gateway integration"
-}

@@ -1,0 +1,126 @@
+/*
+ * Shared article typography
+ *
+ * Used by:
+ *   - frontend/public-astro/src/layouts/Layout.astro (公開ページ全体に @import)
+ *   - frontend/admin/src/index.css (Tiptap プレビューに @import)
+ *
+ * すべてのルールは `.post-content` 配下にスコープしている。
+ * 各アプリでレンダー結果を class="post-content" でラップすると適用される。
+ *
+ * 配色は `var(--color-*)` を参照する。トークンは public-astro/src/styles/global.css
+ * および admin/src/index.css で定義し、`[data-theme="dark"]` 切替に追従する。
+ */
+
+.post-content {
+  font-size: 1.125rem;
+  line-height: 1.8;
+  color: var(--color-text);
+}
+
+.post-content h1,
+.post-content h2,
+.post-content h3,
+.post-content h4,
+.post-content h5,
+.post-content h6 {
+  color: var(--color-text-heading);
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.post-content h2 {
+  font-size: 1.75rem;
+}
+
+.post-content h3 {
+  font-size: 1.5rem;
+}
+
+.post-content p {
+  margin-bottom: 1.5rem;
+}
+
+.post-content a {
+  color: var(--color-link);
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.post-content a:hover {
+  color: var(--color-link-hover);
+}
+
+.post-content ul,
+.post-content ol {
+  margin-bottom: 1.5rem;
+  padding-left: 2rem;
+}
+
+.post-content ul {
+  list-style-type: disc;
+}
+
+.post-content ol {
+  list-style-type: decimal;
+}
+
+.post-content li {
+  margin-bottom: 0.5rem;
+}
+
+.post-content blockquote {
+  border-left: 4px solid var(--color-accent);
+  padding-left: 1.5rem;
+  margin: 1.5rem 0;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.post-content code {
+  background: var(--color-code-bg);
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: 'Fira Code', 'Consolas', monospace;
+}
+
+.post-content pre {
+  background: var(--color-code-pre-bg);
+  color: var(--color-code-pre-text);
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
+.post-content pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.875rem;
+  font-family: 'Fira Code', 'Consolas', monospace;
+}
+
+.post-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+}
+
+.post-content strong {
+  font-weight: 600;
+  color: var(--color-text-heading);
+}
+
+.post-content em {
+  font-style: italic;
+}
+
+@media (max-width: 768px) {
+  .post-content {
+    font-size: 1rem;
+  }
+}

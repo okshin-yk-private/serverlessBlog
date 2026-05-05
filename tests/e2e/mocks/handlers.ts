@@ -16,7 +16,13 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { mockPosts, createMockPost } from './mockData';
+import {
+  mockPosts,
+  createMockPost,
+  mockCategories,
+  slugifyCategoryName,
+  type MockCategory,
+} from './mockData';
 
 // ブラウザ環境では import.meta.env を使用
 // nullish coalescing演算子(??)を使用して、undefinedとnullのみデフォルト値を使用
@@ -59,17 +65,119 @@ const checkAuth = (request: Request): boolean => {
   return token.split('.').length === 3;
 };
 
-// モックカテゴリデータ
-const mockCategories = [
-  { id: 'cat-1', name: 'technology', slug: 'technology', sortOrder: 1 },
-  { id: 'cat-2', name: 'life', slug: 'life', sortOrder: 2 },
-  { id: 'cat-3', name: 'business', slug: 'business', sortOrder: 3 },
-];
-
 export const handlers = [
-  // カテゴリ一覧取得（公開サイト）
+  // カテゴリ一覧取得（公開サイト・管理画面共用）
   http.get(`${API_BASE_URL}/categories`, () => {
     return HttpResponse.json(mockCategories);
+  }),
+
+  // 管理画面: カテゴリ作成
+  http.post(`${API_BASE_URL}/admin/categories`, async ({ request }) => {
+    if (!checkAuth(request)) {
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = (await request.json()) as {
+      name: string;
+      slug?: string;
+      description?: string;
+      sortOrder?: number;
+    };
+
+    const slug = body.slug?.trim() || slugifyCategoryName(body.name);
+
+    if (mockCategories.some((c) => c.slug === slug)) {
+      return HttpResponse.json(
+        { message: 'category with this slug already exists' },
+        { status: 409 }
+      );
+    }
+
+    const now = new Date().toISOString();
+    const newCategory: MockCategory = {
+      id: `cat-${Date.now()}`,
+      name: body.name,
+      slug,
+      description: body.description,
+      sortOrder:
+        body.sortOrder ??
+        Math.max(0, ...mockCategories.map((c) => c.sortOrder)) + 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    mockCategories.push(newCategory);
+
+    return HttpResponse.json(newCategory, { status: 201 });
+  }),
+
+  // 管理画面: カテゴリ更新
+  http.put(
+    `${API_BASE_URL}/admin/categories/:id`,
+    async ({ request, params }) => {
+      if (!checkAuth(request)) {
+        return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      }
+
+      const { id } = params;
+      const idx = mockCategories.findIndex((c) => c.id === id);
+      if (idx === -1) {
+        return HttpResponse.json(
+          { message: 'Category not found' },
+          { status: 404 }
+        );
+      }
+
+      const body = (await request.json()) as {
+        name?: string;
+        slug?: string;
+        description?: string;
+        sortOrder?: number;
+      };
+
+      mockCategories[idx] = {
+        ...mockCategories[idx],
+        ...body,
+        updatedAt: new Date().toISOString(),
+      };
+
+      return HttpResponse.json(mockCategories[idx]);
+    }
+  ),
+
+  // 管理画面: カテゴリ削除
+  http.delete(`${API_BASE_URL}/admin/categories/:id`, ({ request, params }) => {
+    if (!checkAuth(request)) {
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = params;
+    const idx = mockCategories.findIndex((c) => c.id === id);
+    if (idx === -1) {
+      return HttpResponse.json(
+        { message: 'Category not found' },
+        { status: 404 }
+      );
+    }
+
+    mockCategories.splice(idx, 1);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // 管理画面: カテゴリ並び順一括更新（D&D は E2E ではカバーしないが
+  // ハンドラを置かないと UI の楽観的更新が永続化に失敗してエラーバナーが
+  // 出るため、無害なスタブを提供する）
+  http.patch(`${API_BASE_URL}/admin/categories/sort`, async ({ request }) => {
+    if (!checkAuth(request)) {
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+    const body = (await request.json()) as {
+      orders: Array<{ id: string; sortOrder: number }>;
+    };
+    for (const order of body.orders) {
+      const cat = mockCategories.find((c) => c.id === order.id);
+      if (cat) cat.sortOrder = order.sortOrder;
+    }
+    return HttpResponse.json([...mockCategories]);
   }),
 
   // 記事一覧取得（公開サイト）- Happy Path Only
@@ -120,6 +228,20 @@ export const handlers = [
       count: paginatedPosts.length,
       nextToken: hasMore ? 'mock-next-token' : undefined,
     });
+  }),
+
+  // 記事詳細取得（公開サイト・slug指定 / PR7）
+  // /posts/by-slug/:slug must be matched BEFORE /posts/:id so MSW doesn't
+  // treat "by-slug" as a post id.
+  http.get(`${API_BASE_URL}/posts/by-slug/:slug`, ({ params }) => {
+    const { slug } = params;
+    const post = mockPosts.find(
+      (p) => p.slug === slug && p.publishStatus === 'published'
+    );
+    if (!post) {
+      return HttpResponse.json({ message: 'Post not found' }, { status: 404 });
+    }
+    return HttpResponse.json(post);
   }),
 
   // 記事詳細取得（公開サイト）
@@ -227,7 +349,18 @@ export const handlers = [
       contentMarkdown: string;
       category: string;
       publishStatus: 'draft' | 'published';
+      slug?: string;
+      excerpt?: string;
+      coverImageUrl?: string;
     };
+
+    // PR6: slug uniqueness — match server-side semantics (409 on collision).
+    if (body.slug && mockPosts.some((p) => p.slug === body.slug)) {
+      return HttpResponse.json(
+        { message: 'post with this slug already exists' },
+        { status: 409 }
+      );
+    }
 
     const newPost = createMockPost(body);
     mockPosts.unshift(newPost);
@@ -261,16 +394,31 @@ export const handlers = [
 
     const { id } = params;
     const body = (await request.json()) as {
-      title: string;
-      contentMarkdown: string;
-      category: string;
-      publishStatus: 'draft' | 'published';
+      title?: string;
+      contentMarkdown?: string;
+      category?: string;
+      publishStatus?: 'draft' | 'published';
+      slug?: string;
+      excerpt?: string;
+      coverImageUrl?: string;
     };
 
     const postIndex = mockPosts.findIndex((p) => p.id === id);
 
     if (postIndex === -1) {
       return HttpResponse.json({ message: 'Post not found' }, { status: 404 });
+    }
+
+    // PR6: slug uniqueness for update — only collide with *other* posts.
+    if (
+      body.slug !== undefined &&
+      body.slug !== mockPosts[postIndex].slug &&
+      mockPosts.some((p) => p.slug === body.slug && p.id !== id)
+    ) {
+      return HttpResponse.json(
+        { message: 'post with this slug already exists' },
+        { status: 409 }
+      );
     }
 
     const updatedPost = {
@@ -291,6 +439,44 @@ export const handlers = [
 
     return HttpResponse.json(updatedPost);
   }),
+
+  // 管理画面: ビルドステータス取得 (PR5b)
+  // 公開直後のサイトリビルド進捗をバッジに表示するためのモック。
+  // 各記事 ID の最初の呼び出しで `in-progress`、以降は `succeeded` を返し、
+  // ポーリングの遷移を E2E から検証できるようにする。
+  http.get(
+    `${API_BASE_URL}/admin/posts/:id/build-status`,
+    (() => {
+      const callCounts: Record<string, number> = {};
+      return ({ request, params }) => {
+        if (!checkAuth(request)) {
+          return HttpResponse.json(
+            { message: 'Unauthorized' },
+            { status: 401 }
+          );
+        }
+        const id = String(params.id);
+        callCounts[id] = (callCounts[id] ?? 0) + 1;
+        const buildId = `mock-build-${id}`;
+        const startTime = new Date().toISOString();
+        if (callCounts[id] === 1) {
+          return HttpResponse.json({
+            buildId,
+            status: 'in-progress',
+            phase: 'BUILD',
+            startTime,
+          });
+        }
+        return HttpResponse.json({
+          buildId,
+          status: 'succeeded',
+          phase: 'COMPLETED',
+          startTime,
+          endTime: new Date(Date.now() + 1000).toISOString(),
+        });
+      };
+    })()
+  ),
 
   // 管理画面: 記事削除
   http.delete(`${API_BASE_URL}/admin/posts/:id`, ({ request, params }) => {

@@ -12,6 +12,23 @@
          block on fonts.googleapis.com. -->
     <link rel="preload" href="/fonts/caveat-variable.woff2" as="font" type="font/woff2" crossorigin />
 
+    <!-- Theme bootstrap (FOUC prevention). Mirrors public-astro Layout. -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('theme');
+          if (saved !== 'light' && saved !== 'dark' && saved !== 'system') {
+            saved = 'system';
+          }
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var resolved = saved === 'system' ? (prefersDark ? 'dark' : 'light') : saved;
+          document.documentElement.setAttribute('data-theme', resolved);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
+
     <title>Bone of my fallacy - Admin</title>
   </head>
   <body>

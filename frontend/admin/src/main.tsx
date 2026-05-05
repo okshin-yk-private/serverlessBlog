@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.tsx';
 import { configureAmplify } from './config/amplify';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 /**
  * E2Eテスト時にMSWワーカーを起動
@@ -23,6 +24,14 @@ async function enableMocking() {
   try {
     const { worker } = await import('./mocks/browser');
     console.log('[main.tsx] MSW worker imported successfully');
+
+    // PR6: expose mockPosts to Playwright for tests that need to seed
+    // browser-side mock state (e.g. slug uniqueness conflict). Only available
+    // when MSW is enabled, so it's safe to leave in the bundle.
+    const mockData = await import('../../../tests/e2e/mocks/mockData');
+    (
+      window as unknown as { __e2eMockPosts?: typeof mockData.mockPosts }
+    ).__e2eMockPosts = mockData.mockPosts;
 
     // MSWワーカーを起動（コンソール警告を抑制）
     await worker.start({
@@ -50,7 +59,9 @@ enableMocking()
     console.log('[main.tsx] Rendering React app...');
     createRoot(document.getElementById('root')!).render(
       <StrictMode>
-        <App />
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
       </StrictMode>
     );
     console.log('[main.tsx] React app rendered successfully');

@@ -99,20 +99,20 @@ const siteMetadata = getSiteMetadata();
 <style>
   .about-page {
     min-height: 100vh;
-    background: #fafafa;
+    background: var(--color-bg);
   }
 
   .hero-section {
-    background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+    background: linear-gradient(135deg, var(--color-surface-elevated) 0%, var(--color-surface-muted) 100%);
     padding: 80px 32px 60px;
     text-align: center;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--color-border);
   }
 
   .hero-title {
     font-size: 3.5rem;
     font-weight: 500;
-    color: #111827;
+    color: var(--color-text-heading);
     margin: 0;
     letter-spacing: 0.02em;
     font-family: 'Caveat', cursive;
@@ -135,35 +135,35 @@ const siteMetadata = getSiteMetadata();
   .section-title {
     font-size: 1.5rem;
     font-weight: 600;
-    color: #2D2A5A;
+    color: var(--color-primary);
     margin: 0 0 24px 0;
     padding-bottom: 12px;
-    border-bottom: 2px solid #C9A857;
+    border-bottom: 2px solid var(--color-accent);
     display: inline-block;
   }
 
   .section-content {
-    background: white;
-    border: 1px solid #e5e7eb;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: 12px;
     padding: 32px;
   }
 
   .section-content p {
-    color: #4b5563;
+    color: var(--color-text);
     font-size: 1rem;
     line-height: 1.8;
     margin: 0;
   }
 
   .section-content :global(strong) {
-    color: #2D2A5A;
+    color: var(--color-primary);
   }
 
   /* Profile Card */
   .profile-card {
-    background: white;
-    border: 1px solid #e5e7eb;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: 12px;
     padding: 32px;
     display: flex;
@@ -180,7 +180,7 @@ const siteMetadata = getSiteMetadata();
     height: 120px;
     border-radius: 50%;
     object-fit: cover;
-    border: 3px solid #e5e7eb;
+    border: 3px solid var(--color-border);
   }
 
   .profile-info {
@@ -190,19 +190,19 @@ const siteMetadata = getSiteMetadata();
   .profile-name {
     font-size: 1.5rem;
     font-weight: 600;
-    color: #2D2A5A;
+    color: var(--color-primary);
     margin: 0 0 8px 0;
   }
 
   .profile-role {
     font-size: 1rem;
-    color: #C9A857;
+    color: var(--color-accent);
     font-weight: 500;
     margin: 0 0 16px 0;
   }
 
   .profile-bio {
-    color: #4b5563;
+    color: var(--color-text);
     font-size: 1rem;
     line-height: 1.8;
     margin: 0;
@@ -219,21 +219,21 @@ const siteMetadata = getSiteMetadata();
     display: flex;
     align-items: center;
     gap: 12px;
-    background: white;
-    border: 1px solid #e5e7eb;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: 12px;
     padding: 16px 24px;
     text-decoration: none;
-    color: #374151;
+    color: var(--color-text);
     font-weight: 500;
     transition: all 0.2s ease;
   }
 
   .social-link:hover {
-    border-color: #2D2A5A;
-    color: #2D2A5A;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(45, 42, 90, 0.15);
+    box-shadow: var(--shadow-card-strong);
   }
 
   .social-icon {
@@ -248,14 +248,14 @@ const siteMetadata = getSiteMetadata();
   .navigation {
     margin-top: 48px;
     padding-top: 24px;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--color-border);
   }
 
   .back-link {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    color: #6b7280;
+    color: var(--color-text-muted);
     text-decoration: none;
     font-size: 0.95rem;
     font-weight: 500;
@@ -263,7 +263,7 @@ const siteMetadata = getSiteMetadata();
   }
 
   .back-link:hover {
-    color: #C9A857;
+    color: var(--color-accent);
   }
 
   @media (max-width: 768px) {

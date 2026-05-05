@@ -142,7 +142,51 @@ async function globalTeardown(config: FullConfig) {
           console.log(`  ✅ Deleted: ${post.title}`);
         }
       } else {
-        console.log('✅ No test data to clean up');
+        console.log('✅ No test post data to clean up');
+      }
+
+      // [E2E-TEST] prefix のカテゴリも削除（admin-categories.spec.ts 用）
+      const categories = await page.evaluate(
+        async ({ apiBase }: { apiBase: string }) => {
+          const resp = await fetch(`${apiBase}/categories`);
+          if (resp.ok) {
+            return resp.json();
+          }
+          return [];
+        },
+        { apiBase: apiBaseURL }
+      );
+
+      const testCategories = (
+        categories as Array<{ id: string; name: string }>
+      ).filter((c) => c.name && c.name.startsWith(E2E_TEST_PREFIX));
+
+      if (testCategories.length > 0) {
+        console.log(
+          `🗑️  Found ${testCategories.length} test category(s) to clean up`
+        );
+        for (const cat of testCategories) {
+          await page.evaluate(
+            async ({
+              apiBase,
+              token,
+              catId,
+            }: {
+              apiBase: string;
+              token: string;
+              catId: string;
+            }) => {
+              await fetch(`${apiBase}/admin/categories/${catId}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` },
+              });
+            },
+            { apiBase: apiBaseURL, token: authToken, catId: cat.id }
+          );
+          console.log(`  ✅ Deleted category: ${cat.name}`);
+        }
+      } else {
+        console.log('✅ No test category data to clean up');
       }
 
       await context.close();

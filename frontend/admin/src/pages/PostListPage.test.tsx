@@ -17,6 +17,7 @@ vi.mock('../api/posts', () => ({
   uploadImage: vi.fn(),
   deleteImage: vi.fn(),
   extractImageKey: vi.fn(),
+  fetchBuildStatus: vi.fn().mockResolvedValue({ status: 'idle' }),
 }));
 
 // Amplifyのモック
@@ -53,6 +54,9 @@ vi.mock('../components/AdminLayout', () => ({
 const mockGetPosts = postsApi.getPosts as ReturnType<typeof vi.fn>;
 const mockDeletePost = postsApi.deletePost as ReturnType<typeof vi.fn>;
 const mockUpdatePost = postsApi.updatePost as ReturnType<typeof vi.fn>;
+const mockFetchBuildStatus = postsApi.fetchBuildStatus as ReturnType<
+  typeof vi.fn
+>;
 
 const renderPostListPage = () => {
   return render(
@@ -67,6 +71,7 @@ const renderPostListPage = () => {
 describe('PostListPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFetchBuildStatus.mockResolvedValue({ status: 'idle' });
   });
 
   describe('記事一覧のレンダリング', () => {
@@ -824,6 +829,150 @@ describe('PostListPage', () => {
         expect(
           screen.getByText(/記事のステータス更新に失敗しました/i)
         ).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('削除時のビルドステータス表示', () => {
+    it('公開済み記事を削除するとビルドステータスバッジを表示する', async () => {
+      const publishedPost = {
+        id: '1',
+        title: 'Published Post',
+        contentMarkdown: 'Content',
+        contentHtml: '<p>Content</p>',
+        category: 'tech',
+        publishStatus: 'published' as const,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      };
+
+      mockGetPosts.mockResolvedValueOnce({ posts: [publishedPost], total: 1 });
+      mockGetPosts.mockResolvedValueOnce({ posts: [], total: 0 });
+      mockDeletePost.mockResolvedValue(undefined);
+      mockFetchBuildStatus.mockResolvedValue({ status: 'in-progress' });
+
+      renderPostListPage();
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: /削除/i })
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /削除/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('confirm-yes'));
+
+      await waitFor(() => {
+        expect(mockDeletePost).toHaveBeenCalledWith('1');
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('build-status-badge')).toBeInTheDocument();
+      });
+      expect(mockFetchBuildStatus).toHaveBeenCalledWith('1');
+    });
+
+    it('下書き記事を削除した場合はビルドステータスバッジを表示しない', async () => {
+      const draftPost = {
+        id: '2',
+        title: 'Draft Post',
+        contentMarkdown: 'Content',
+        contentHtml: '<p>Content</p>',
+        category: 'tech',
+        publishStatus: 'draft' as const,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      };
+
+      // 初期表示（公開記事タブ） → 空、下書きタブ切り替え後 → 1件、削除後 → 空
+      mockGetPosts.mockResolvedValueOnce({ posts: [], total: 0 });
+      mockGetPosts.mockResolvedValueOnce({ posts: [draftPost], total: 1 });
+      mockGetPosts.mockResolvedValueOnce({ posts: [], total: 0 });
+      mockDeletePost.mockResolvedValue(undefined);
+
+      renderPostListPage();
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: /下書き/i })
+        ).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByRole('button', { name: /下書き/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Draft Post')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /削除/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('confirm-yes'));
+
+      await waitFor(() => {
+        expect(mockDeletePost).toHaveBeenCalledWith('2');
+      });
+
+      // 成功メッセージは出るがバッジは出ない
+      await waitFor(() => {
+        expect(screen.getByText(/記事を削除しました/i)).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByTestId('build-status-badge')
+      ).not.toBeInTheDocument();
+      expect(mockFetchBuildStatus).not.toHaveBeenCalled();
+    });
+
+    it('タブを切り替えるとビルドステータスバッジが消える', async () => {
+      const publishedPost = {
+        id: '1',
+        title: 'Published Post',
+        contentMarkdown: 'Content',
+        contentHtml: '<p>Content</p>',
+        category: 'tech',
+        publishStatus: 'published' as const,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      };
+
+      mockGetPosts.mockResolvedValueOnce({ posts: [publishedPost], total: 1 });
+      mockGetPosts.mockResolvedValueOnce({ posts: [], total: 0 }); // 削除後リロード
+      mockGetPosts.mockResolvedValueOnce({ posts: [], total: 0 }); // 下書きタブ
+      mockDeletePost.mockResolvedValue(undefined);
+      mockFetchBuildStatus.mockResolvedValue({ status: 'in-progress' });
+
+      renderPostListPage();
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: /削除/i })
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /削除/i }));
+      await waitFor(() => {
+        expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('confirm-yes'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('build-status-badge')).toBeInTheDocument();
+      });
+
+      // 下書きタブに切り替え
+      fireEvent.click(screen.getByRole('button', { name: /下書き/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId('build-status-badge')
+        ).not.toBeInTheDocument();
       });
     });
   });

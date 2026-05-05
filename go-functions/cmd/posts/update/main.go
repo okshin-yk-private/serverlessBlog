@@ -22,6 +22,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -34,9 +35,20 @@ import (
 )
 
 // DynamoDBClientInterface defines the interface for DynamoDB operations (for testing)
+//
+//nolint:dupl // mirror of test mock; categories/update follows the same pattern.
 type DynamoDBClientInterface interface {
 	GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
 	PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
+	Query(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
+}
+
+// slugIndexName returns the SlugIndex GSI name (overridable via env for tests).
+func slugIndexName() string {
+	if v := os.Getenv("SLUG_INDEX_NAME"); v != "" {
+		return v
+	}
+	return "SlugIndex"
 }
 
 // dynamoClientGetter is a function that returns the DynamoDB client
@@ -81,6 +93,22 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// Validate update fields
 	if validateErr := validateUpdateRequest(req); validateErr != nil {
 		return errorResponse(400, validateErr.Error())
+	}
+
+	// PR6: domain-level validation (slug regex/format)
+	if validateErr := req.Validate(); validateErr != nil {
+		return errorResponse(400, validateErr.Error())
+	}
+
+	// PR6: enforce slug uniqueness across other posts when slug changes.
+	if shouldCheckSlug(existingPost, req) {
+		exists, err := checkSlugExistsForOther(ctx, dynamoClient, tableName, *req.Slug, postID)
+		if err != nil {
+			return errorResponse(500, "failed to check slug uniqueness")
+		}
+		if exists {
+			return errorResponse(409, "post with this slug already exists")
+		}
 	}
 
 	// Build updated post
@@ -344,7 +372,65 @@ func applyUpdates(existing *domain.BlogPost, req *domain.UpdatePostRequest) doma
 		updated.PublishStatus = *req.PublishStatus
 	}
 
+	// PR6: writer-experience metadata. Pointers are forwarded as-is so
+	// "explicit empty string" is rejected upstream by domain.UpdatePostRequest.Validate
+	// for slug, while excerpt/coverImageUrl accept any string (including empty
+	// to clear a value — pointer-nil leaves the existing value untouched).
+	if req.Slug != nil {
+		updated.Slug = req.Slug
+	}
+	if req.Excerpt != nil {
+		updated.Excerpt = req.Excerpt
+	}
+	if req.CoverImageURL != nil {
+		updated.CoverImageURL = req.CoverImageURL
+	}
+
 	return updated
+}
+
+// shouldCheckSlug reports whether the request changes the slug to a non-current
+// value. If the request's slug equals the existing slug, no Query is needed.
+func shouldCheckSlug(existing *domain.BlogPost, req *domain.UpdatePostRequest) bool {
+	if req.Slug == nil {
+		return false
+	}
+	if existing.Slug != nil && *existing.Slug == *req.Slug {
+		return false
+	}
+	return true
+}
+
+// checkSlugExistsForOther returns true if a different BlogPost (id != currentPostID)
+// already owns the given slug. Uses the SlugIndex GSI.
+func checkSlugExistsForOther(ctx context.Context, client DynamoDBClientInterface, tableName, slug, currentPostID string) (bool, error) {
+	out, err := client.Query(ctx, &dynamodb.QueryInput{
+		TableName:              aws.String(tableName),
+		IndexName:              aws.String(slugIndexName()),
+		KeyConditionExpression: aws.String("slug = :slug"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":slug": &types.AttributeValueMemberS{Value: slug},
+		},
+		// We need to inspect items to compare id; cap to a small page since slug
+		// is intended-unique (Limit:2 lets us detect a duplicate without paging).
+		Limit: aws.Int32(2),
+	})
+	if err != nil {
+		return false, err
+	}
+	if out.Count == 0 {
+		return false, nil
+	}
+	for _, item := range out.Items {
+		var bp domain.BlogPost
+		if err := attributevalue.UnmarshalMap(item, &bp); err != nil {
+			continue
+		}
+		if bp.ID != currentPostID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // validationError represents a validation error

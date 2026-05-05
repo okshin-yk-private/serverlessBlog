@@ -198,6 +198,40 @@ export const handlers = [
     });
   }),
 
+  // PR5b: build-status polling endpoint. Returns "in-progress" on the first
+  // call and "succeeded" thereafter so the E2E spec can observe the badge
+  // transition without waiting on a real CodeBuild run.
+  http.get(
+    `${API_URL}/admin/posts/:id/build-status`,
+    (() => {
+      const callCounts: Record<string, number> = {};
+      return ({ params, request }) => {
+        if (!isAuthenticated(request)) {
+          return unauthorizedResponse();
+        }
+        const id = String(params.id);
+        callCounts[id] = (callCounts[id] ?? 0) + 1;
+        const buildId = `mock-build-${id}`;
+        const startTime = new Date().toISOString();
+        if (callCounts[id] === 1) {
+          return HttpResponse.json({
+            buildId,
+            status: 'in-progress',
+            phase: 'BUILD',
+            startTime,
+          });
+        }
+        return HttpResponse.json({
+          buildId,
+          status: 'succeeded',
+          phase: 'COMPLETED',
+          startTime,
+          endTime: new Date(Date.now() + 1000).toISOString(),
+        });
+      };
+    })()
+  ),
+
   // 記事削除モック（認証必要）
   http.delete(`${API_URL}/posts/:id`, ({ request }) => {
     if (!isAuthenticated(request)) {

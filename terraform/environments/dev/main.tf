@@ -23,7 +23,6 @@ module "database" {
   # Note: CDK created table without -dev suffix
   table_name            = "${var.project_name}-posts"
   categories_table_name = "${var.project_name}-categories"
-  mindmaps_table_name   = "${var.project_name}-mindmaps"
   environment           = var.environment
   enable_pitr           = true
 
@@ -94,10 +93,6 @@ module "lambda" {
   categories_table_name = module.database.categories_table_name
   categories_table_arn  = module.database.categories_table_arn
 
-  # Mindmaps domain
-  mindmaps_table_name = module.database.mindmaps_table_name
-  mindmaps_table_arn  = module.database.mindmaps_table_arn
-
   # CodeBuild integration for posts/update Lambda
   # Note: CodeBuild project name follows predictable pattern so we can set it before CodeBuild module exists
   # The actual CodeBuild project is created after CDN to get the distribution ID
@@ -125,28 +120,32 @@ module "api" {
   cors_allow_origins    = ["*"]
 
   # Lambda function ARNs (from Lambda module outputs)
-  lambda_create_post_arn            = module.lambda.function_arns["create_post"]
-  lambda_create_post_invoke_arn     = module.lambda.function_invoke_arns["create_post"]
-  lambda_list_posts_arn             = module.lambda.function_arns["list_posts"]
-  lambda_list_posts_invoke_arn      = module.lambda.function_invoke_arns["list_posts"]
-  lambda_get_post_arn               = module.lambda.function_arns["get_post"]
-  lambda_get_post_invoke_arn        = module.lambda.function_invoke_arns["get_post"]
-  lambda_get_public_post_arn        = module.lambda.function_arns["get_public_post"]
-  lambda_get_public_post_invoke_arn = module.lambda.function_invoke_arns["get_public_post"]
-  lambda_update_post_arn            = module.lambda.function_arns["update_post"]
-  lambda_update_post_invoke_arn     = module.lambda.function_invoke_arns["update_post"]
-  lambda_delete_post_arn            = module.lambda.function_arns["delete_post"]
-  lambda_delete_post_invoke_arn     = module.lambda.function_invoke_arns["delete_post"]
-  lambda_login_arn                  = module.lambda.function_arns["login"]
-  lambda_login_invoke_arn           = module.lambda.function_invoke_arns["login"]
-  lambda_logout_arn                 = module.lambda.function_arns["logout"]
-  lambda_logout_invoke_arn          = module.lambda.function_invoke_arns["logout"]
-  lambda_refresh_arn                = module.lambda.function_arns["refresh"]
-  lambda_refresh_invoke_arn         = module.lambda.function_invoke_arns["refresh"]
-  lambda_get_upload_url_arn         = module.lambda.function_arns["get_upload_url"]
-  lambda_get_upload_url_invoke_arn  = module.lambda.function_invoke_arns["get_upload_url"]
-  lambda_delete_image_arn           = module.lambda.function_arns["delete_image"]
-  lambda_delete_image_invoke_arn    = module.lambda.function_invoke_arns["delete_image"]
+  lambda_create_post_arn              = module.lambda.function_arns["create_post"]
+  lambda_create_post_invoke_arn       = module.lambda.function_invoke_arns["create_post"]
+  lambda_list_posts_arn               = module.lambda.function_arns["list_posts"]
+  lambda_list_posts_invoke_arn        = module.lambda.function_invoke_arns["list_posts"]
+  lambda_get_post_arn                 = module.lambda.function_arns["get_post"]
+  lambda_get_post_invoke_arn          = module.lambda.function_invoke_arns["get_post"]
+  lambda_get_public_post_arn          = module.lambda.function_arns["get_public_post"]
+  lambda_get_public_post_invoke_arn   = module.lambda.function_invoke_arns["get_public_post"]
+  lambda_update_post_arn              = module.lambda.function_arns["update_post"]
+  lambda_update_post_invoke_arn       = module.lambda.function_invoke_arns["update_post"]
+  lambda_delete_post_arn              = module.lambda.function_arns["delete_post"]
+  lambda_delete_post_invoke_arn       = module.lambda.function_invoke_arns["delete_post"]
+  lambda_build_status_post_arn        = module.lambda.function_arns["build_status_post"]
+  lambda_build_status_post_invoke_arn = module.lambda.function_invoke_arns["build_status_post"]
+  lambda_get_post_by_slug_arn         = module.lambda.function_arns["get_post_by_slug"]
+  lambda_get_post_by_slug_invoke_arn  = module.lambda.function_invoke_arns["get_post_by_slug"]
+  lambda_login_arn                    = module.lambda.function_arns["login"]
+  lambda_login_invoke_arn             = module.lambda.function_invoke_arns["login"]
+  lambda_logout_arn                   = module.lambda.function_arns["logout"]
+  lambda_logout_invoke_arn            = module.lambda.function_invoke_arns["logout"]
+  lambda_refresh_arn                  = module.lambda.function_arns["refresh"]
+  lambda_refresh_invoke_arn           = module.lambda.function_invoke_arns["refresh"]
+  lambda_get_upload_url_arn           = module.lambda.function_arns["get_upload_url"]
+  lambda_get_upload_url_invoke_arn    = module.lambda.function_invoke_arns["get_upload_url"]
+  lambda_delete_image_arn             = module.lambda.function_arns["delete_image"]
+  lambda_delete_image_invoke_arn      = module.lambda.function_invoke_arns["delete_image"]
 
   # Categories Lambda function ARNs
   lambda_list_categories_arn                     = module.lambda.function_arns["list_categories"]
@@ -159,22 +158,6 @@ module "api" {
   lambda_update_categories_sort_order_invoke_arn = module.lambda.function_invoke_arns["update_categories_sort_order"]
   lambda_delete_category_arn                     = module.lambda.function_arns["delete_category"]
   lambda_delete_category_invoke_arn              = module.lambda.function_invoke_arns["delete_category"]
-
-  # Mindmaps Lambda function ARNs
-  lambda_create_mindmap_arn              = module.lambda.function_arns["create_mindmap"]
-  lambda_create_mindmap_invoke_arn       = module.lambda.function_invoke_arns["create_mindmap"]
-  lambda_get_mindmap_arn                 = module.lambda.function_arns["get_mindmap"]
-  lambda_get_mindmap_invoke_arn          = module.lambda.function_invoke_arns["get_mindmap"]
-  lambda_list_mindmaps_arn               = module.lambda.function_arns["list_mindmaps"]
-  lambda_list_mindmaps_invoke_arn        = module.lambda.function_invoke_arns["list_mindmaps"]
-  lambda_update_mindmap_arn              = module.lambda.function_arns["update_mindmap"]
-  lambda_update_mindmap_invoke_arn       = module.lambda.function_invoke_arns["update_mindmap"]
-  lambda_delete_mindmap_arn              = module.lambda.function_arns["delete_mindmap"]
-  lambda_delete_mindmap_invoke_arn       = module.lambda.function_invoke_arns["delete_mindmap"]
-  lambda_get_public_mindmap_arn          = module.lambda.function_arns["get_public_mindmap"]
-  lambda_get_public_mindmap_invoke_arn   = module.lambda.function_invoke_arns["get_public_mindmap"]
-  lambda_list_public_mindmaps_arn        = module.lambda.function_arns["list_public_mindmaps"]
-  lambda_list_public_mindmaps_invoke_arn = module.lambda.function_invoke_arns["list_public_mindmaps"]
 
   tags = local.common_tags
 
@@ -323,7 +306,7 @@ module "monitoring" {
   project_name          = var.project_name
   alarm_email           = var.alarm_email
   lambda_function_names = module.lambda.function_names
-  dynamodb_table_names  = [module.database.table_name, module.database.mindmaps_table_name]
+  dynamodb_table_names  = [module.database.table_name]
   api_gateway_name      = "${var.project_name}-api-${var.environment}"
   api_gateway_stage     = var.environment
   enable_alarms         = false # Alarms disabled for dev

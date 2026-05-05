@@ -101,6 +101,26 @@ variable "lambda_delete_post_invoke_arn" {
   description = "Delete Post Lambda function invoke ARN"
 }
 
+variable "lambda_build_status_post_arn" {
+  type        = string
+  description = "Build Status Post Lambda function ARN"
+}
+
+variable "lambda_build_status_post_invoke_arn" {
+  type        = string
+  description = "Build Status Post Lambda function invoke ARN"
+}
+
+variable "lambda_get_post_by_slug_arn" {
+  type        = string
+  description = "Get Post By Slug Lambda function ARN"
+}
+
+variable "lambda_get_post_by_slug_invoke_arn" {
+  type        = string
+  description = "Get Post By Slug Lambda function invoke ARN"
+}
+
 variable "lambda_login_arn" {
   type        = string
   description = "Login Lambda function ARN"
@@ -203,80 +223,6 @@ variable "lambda_delete_category_arn" {
 variable "lambda_delete_category_invoke_arn" {
   type        = string
   description = "Delete Category Lambda function invoke ARN"
-}
-
-# ======================
-# Mindmaps Lambda Function ARNs
-# ======================
-
-variable "lambda_create_mindmap_arn" {
-  type        = string
-  description = "Create Mindmap Lambda function ARN"
-}
-
-variable "lambda_create_mindmap_invoke_arn" {
-  type        = string
-  description = "Create Mindmap Lambda function invoke ARN"
-}
-
-variable "lambda_get_mindmap_arn" {
-  type        = string
-  description = "Get Mindmap Lambda function ARN"
-}
-
-variable "lambda_get_mindmap_invoke_arn" {
-  type        = string
-  description = "Get Mindmap Lambda function invoke ARN"
-}
-
-variable "lambda_list_mindmaps_arn" {
-  type        = string
-  description = "List Mindmaps Lambda function ARN"
-}
-
-variable "lambda_list_mindmaps_invoke_arn" {
-  type        = string
-  description = "List Mindmaps Lambda function invoke ARN"
-}
-
-variable "lambda_update_mindmap_arn" {
-  type        = string
-  description = "Update Mindmap Lambda function ARN"
-}
-
-variable "lambda_update_mindmap_invoke_arn" {
-  type        = string
-  description = "Update Mindmap Lambda function invoke ARN"
-}
-
-variable "lambda_delete_mindmap_arn" {
-  type        = string
-  description = "Delete Mindmap Lambda function ARN"
-}
-
-variable "lambda_delete_mindmap_invoke_arn" {
-  type        = string
-  description = "Delete Mindmap Lambda function invoke ARN"
-}
-
-variable "lambda_get_public_mindmap_arn" {
-  type        = string
-  description = "Get Public Mindmap Lambda function ARN"
-}
-
-variable "lambda_get_public_mindmap_invoke_arn" {
-  type        = string
-  description = "Get Public Mindmap Lambda function invoke ARN"
-}
-
-variable "lambda_list_public_mindmaps_arn" {
-  type        = string
-  description = "List Public Mindmaps Lambda function ARN"
-}
-
-variable "lambda_list_public_mindmaps_invoke_arn" {
-  type        = string
-  description = "List Public Mindmaps Lambda function invoke ARN"
 }
 
 # ======================

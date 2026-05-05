@@ -72,8 +72,8 @@ export function postToRSSItem(post: Post, siteUrl: string): RSSItem {
   // descriptionはHTMLからプレーンテキストを抽出し、最大200文字に切り詰め
   const description = generateRSSDescription(post.contentHtml);
 
-  // 完全なURLを生成
-  const link = buildPostUrl(post.id, siteUrl);
+  // 完全なURLを生成 (PR7+: prefer slug, fall back to id only if slug missing)
+  const link = buildPostUrl(post.slug ?? post.id, siteUrl);
 
   // 公開日または作成日を使用
   const pubDate = new Date(post.publishedAt ?? post.createdAt);

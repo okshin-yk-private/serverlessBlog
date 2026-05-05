@@ -22,6 +22,10 @@ export interface MockPost {
   updatedAt: string;
   publishedAt?: string;
   imageUrls?: string[];
+  // PR6: writer-experience metadata fields.
+  slug?: string;
+  excerpt?: string;
+  coverImageUrl?: string;
 }
 
 /**
@@ -58,6 +62,7 @@ export const createMockPost = (overrides: Partial<MockPost> = {}): MockPost => {
 export let mockPosts: MockPost[] = [
   createMockPost({
     id: 'post-1',
+    slug: 'getting-started-with-serverless',
     title: 'Getting Started with Serverless',
     contentMarkdown:
       '# Getting Started with Serverless\n\nServerless architecture is revolutionizing cloud computing...',
@@ -72,6 +77,7 @@ export let mockPosts: MockPost[] = [
   }),
   createMockPost({
     id: 'post-2',
+    slug: 'intro-to-typescript',
     title: 'Introduction to TypeScript',
     contentMarkdown:
       '# Introduction to TypeScript\n\nTypeScript adds static typing to JavaScript...',
@@ -86,6 +92,7 @@ export let mockPosts: MockPost[] = [
   }),
   createMockPost({
     id: 'post-3',
+    slug: 'healthy-living-tips',
     title: 'Healthy Living Tips',
     contentMarkdown:
       '# Healthy Living Tips\n\nMaintaining a healthy lifestyle is essential...',
@@ -100,6 +107,7 @@ export let mockPosts: MockPost[] = [
   }),
   createMockPost({
     id: 'post-4',
+    slug: 'business-strategy-101',
     title: 'Business Strategy 101',
     contentMarkdown:
       '# Business Strategy 101\n\nUnderstanding business strategy fundamentals...',
@@ -114,6 +122,7 @@ export let mockPosts: MockPost[] = [
   }),
   createMockPost({
     id: 'post-5',
+    slug: 'draft-upcoming-feature',
     title: 'Draft: Upcoming Feature',
     contentMarkdown: '# Upcoming Feature\n\nThis is a draft article...',
     contentHtml: '<h1>Upcoming Feature</h1><p>This is a draft article...</p>',
@@ -125,6 +134,7 @@ export let mockPosts: MockPost[] = [
   }),
   createMockPost({
     id: 'post-6',
+    slug: 'draft-testing-strategies',
     title: 'Draft: Testing Strategies',
     contentMarkdown: '# Testing Strategies\n\nThis is a draft about testing...',
     contentHtml:
@@ -143,12 +153,74 @@ export let mockPosts: MockPost[] = [
 export const mockPost = mockPosts[0];
 
 /**
+ * カテゴリエンティティ
+ */
+export interface MockCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const initialCategories: MockCategory[] = [
+  {
+    id: 'cat-1',
+    name: 'technology',
+    slug: 'technology',
+    sortOrder: 1,
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'cat-2',
+    name: 'life',
+    slug: 'life',
+    sortOrder: 2,
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'cat-3',
+    name: 'business',
+    slug: 'business',
+    sortOrder: 3,
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+  },
+];
+
+export let mockCategories: MockCategory[] = [...initialCategories];
+
+/**
+ * カテゴリ用 slug 生成（実環境のサーバ生成と等価ではないが、E2E では十分）
+ */
+export const slugifyCategoryName = (name: string): string =>
+  name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+/**
+ * カテゴリのモックデータをリセット
+ */
+export const resetMockCategories = () => {
+  mockCategories = initialCategories.map((cat) => ({ ...cat }));
+};
+
+/**
  * モックデータをリセット
  */
 export const resetMockPosts = () => {
   mockPosts = [
     createMockPost({
       id: 'post-1',
+      slug: 'getting-started-with-serverless',
       title: 'Getting Started with Serverless',
       contentMarkdown:
         '# Getting Started with Serverless\n\nServerless architecture is revolutionizing cloud computing...',
@@ -163,6 +235,7 @@ export const resetMockPosts = () => {
     }),
     createMockPost({
       id: 'post-2',
+      slug: 'intro-to-typescript',
       title: 'Introduction to TypeScript',
       contentMarkdown:
         '# Introduction to TypeScript\n\nTypeScript adds static typing to JavaScript...',

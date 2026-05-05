@@ -205,7 +205,7 @@ const { posts } = Astro.props;
     left: 16px;
     width: 20px;
     height: 20px;
-    color: #9ca3af;
+    color: var(--color-text-muted);
     pointer-events: none;
   }
 
@@ -213,22 +213,22 @@ const { posts } = Astro.props;
     width: 100%;
     padding: 14px 48px 14px 48px;
     font-size: 1rem;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--color-border);
     border-radius: 12px;
-    background: white;
-    color: #111827;
+    background: var(--color-surface);
+    color: var(--color-text-heading);
     transition: all 0.2s ease;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   }
 
   .search-input:focus {
     outline: none;
-    border-color: #C9A857;
+    border-color: var(--color-accent);
     box-shadow: 0 0 0 3px rgba(201, 168, 87, 0.15), 0 1px 3px rgba(0, 0, 0, 0.05);
   }
 
   .search-input::placeholder {
-    color: #9ca3af;
+    color: var(--color-text-muted);
   }
 
   .search-clear {
@@ -242,15 +242,15 @@ const { posts } = Astro.props;
     padding: 0;
     border: none;
     background: transparent;
-    color: #9ca3af;
+    color: var(--color-text-muted);
     cursor: pointer;
     border-radius: 6px;
     transition: all 0.15s ease;
   }
 
   .search-clear:hover {
-    background: #f3f4f6;
-    color: #6b7280;
+    background: var(--color-surface-muted);
+    color: var(--color-text);
   }
 
   .search-clear svg {
@@ -260,10 +260,10 @@ const { posts } = Astro.props;
 
   .no-results-message {
     text-align: center;
-    color: #6b7280;
+    color: var(--color-text-muted);
     font-size: 1rem;
     padding: 40px 20px;
-    background: #f9fafb;
+    background: var(--color-surface-elevated);
     border-radius: 12px;
     margin-bottom: 24px;
   }

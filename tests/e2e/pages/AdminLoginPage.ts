@@ -49,10 +49,32 @@ export class AdminLoginPage extends BasePage {
 
   /**
    * ログインボタンをクリック
+   *
+   * 認証 API のレスポンスを明示的に待ち、成功時はダッシュボードへの遷移完了まで
+   * ブロックする。失敗時は /login に留まったまま return する。
+   *
+   * 背景: 旧実装は networkidle のみを待っていたため、`saveAuthToken` (sessionStorage 書込)
+   * と navigate('/dashboard') を含む onSuccess コールバックの完了前に return することがあり、
+   * 後続の `goto('/posts')` 等のフルページナビゲーションで AuthContext 再初期化時に
+   * トークンが見つからず /login にリダイレクトされる flaky を引き起こしていた
+   * (admin-crud.spec.ts のローカル失敗の真因)。
    */
   async clickLogin(): Promise<void> {
+    const responsePromise = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/auth/login') &&
+        resp.request().method() === 'POST',
+      { timeout: 10000 }
+    );
     await this.click(this.selectors.loginButton);
-    await this.waitForPageLoad();
+    const response = await responsePromise;
+
+    if (response.ok()) {
+      // 成功: onSuccess で saveAuthToken → navigate('/dashboard') が走るので、
+      // URL 遷移確定まで待つ
+      await this.page.waitForURL('**/dashboard', { timeout: 10000 });
+    }
+    // 失敗時は /login に留まる。エラーメッセージ表示の確認は呼び出し側に任せる。
   }
 
   /**

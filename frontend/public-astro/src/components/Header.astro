@@ -6,9 +6,11 @@
  * Features:
  * - Sticky header with blur effect
  * - Logo + site title (Caveat font)
- * - Navigation: Articles, About, Admin
+ * - Navigation: Articles, About, Admin, Theme toggle
  * - Responsive design
  */
+
+import ThemeToggle from './ThemeToggle.astro';
 ---
 
 <header class="site-header">
@@ -19,8 +21,8 @@
     </a>
     <nav class="site-nav">
       <a href="/" class="nav-link">Articles</a>
-      <a href="/mindmaps" class="nav-link">Mindmaps</a>
       <a href="/about" class="nav-link">About</a>
+      <ThemeToggle />
       <a href="/admin/" class="admin-icon-link" title="Admin">
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -48,14 +50,13 @@
 
 <style>
   .site-header {
-    background: #ffffff;
-    border-bottom: 1px solid #e5e7eb;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     position: sticky;
     top: 0;
     z-index: 1000;
     backdrop-filter: blur(8px);
-    background: rgba(255, 255, 255, 0.95);
   }
 
   .header-container {
@@ -85,22 +86,26 @@
     margin-right: 12px;
   }
 
+  :root[data-theme="dark"] .logo-image {
+    content: url('/dark-logo.png');
+  }
+
   .site-title {
     font-family: 'Caveat', cursive;
     font-size: 1.6rem;
     font-weight: 600;
-    color: #1f2937;
+    color: var(--color-text-heading);
     letter-spacing: 0.02em;
   }
 
   .site-nav {
     display: flex;
-    gap: 32px;
+    gap: 24px;
     align-items: center;
   }
 
   .nav-link {
-    color: #374151;
+    color: var(--color-text);
     text-decoration: none;
     font-size: 0.95rem;
     font-weight: 500;
@@ -116,12 +121,12 @@
     left: 0;
     width: 0;
     height: 2px;
-    background: #374151;
+    background: var(--color-text);
     transition: width 0.2s ease;
   }
 
   .nav-link:hover {
-    color: #111827;
+    color: var(--color-text-heading);
   }
 
   .nav-link:hover::after {
@@ -129,17 +134,16 @@
   }
 
   .admin-icon-link {
-    color: #6b7280;
+    color: var(--color-text-muted);
     text-decoration: none;
     transition: color 0.2s ease;
     display: flex;
     align-items: center;
     padding: 8px;
-    margin-left: 8px;
   }
 
   .admin-icon-link:hover {
-    color: #374151;
+    color: var(--color-text);
   }
 
   .admin-icon-svg {
@@ -163,7 +167,7 @@
     }
 
     .site-nav {
-      gap: 20px;
+      gap: 16px;
     }
 
     .nav-link {

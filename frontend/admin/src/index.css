@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* 公開サイト (public-astro) と共有する記事タイポグラフィ。
+   @import は @plugin など他の at-rule より前に置く必要がある (CSS 仕様)。 */
+@import "../../shared-ui/src/article.css";
 @plugin "@tailwindcss/typography";
 
 /* Self-hosted Caveat font - eliminates FOUT */
@@ -8,6 +11,130 @@
   font-weight: 400 700;
   font-display: optional;
   src: url('/fonts/caveat-variable.woff2') format('woff2');
+}
+
+/* ============================================
+   Design Tokens (Light theme — default)
+   public-astro/src/styles/global.css と同型に揃える。
+   Dark theme は <html data-theme="dark"> で切替。
+   ============================================ */
+:root {
+  --color-bg: #f5f5f5;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #f9fafb;
+  --color-surface-muted: #f3f4f6;
+
+  --color-text: #374151;
+  --color-text-muted: #6b7280;
+  --color-text-heading: #111827;
+  --color-text-on-primary: #ffffff;
+
+  --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
+
+  --color-primary: #2d2a5a;
+  --color-primary-hover: #3d3a6a;
+  --color-primary-soft: rgba(45, 42, 90, 0.1);
+  --color-accent: #c9a857;
+  --color-accent-hover: #b89346;
+
+  --color-success: #059669;
+  --color-success-hover: #047857;
+  --color-success-bg: #d1fae5;
+  --color-success-text: #065f46;
+  --color-success-border: #bbf7d0;
+  --color-success-alert-bg: #f0fdf4;
+
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-danger-bg: #fef2f2;
+  --color-danger-text: #991b1b;
+  --color-danger-border: #fecaca;
+  --color-danger-soft: rgba(220, 38, 38, 0.1);
+
+  --color-warning: #d97706;
+  --color-warning-hover: #b45309;
+  --color-warning-bg: #fef3c7;
+  --color-warning-text: #92400e;
+  --color-warning-alert-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+
+  --color-link: #c9a857;
+  --color-link-hover: #2d2a5a;
+
+  --color-code-bg: #f3f4f6;
+  --color-code-pre-bg: #1f2937;
+  --color-code-pre-text: #e5e7eb;
+
+  --color-focus-ring: rgba(156, 163, 175, 0.1);
+
+  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-card-strong: 0 10px 25px rgba(0, 0, 0, 0.08);
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #0f1117;
+  --color-surface: #1a1d29;
+  --color-surface-elevated: #252937;
+  --color-surface-muted: #161922;
+
+  --color-text: #d1d5db;
+  --color-text-muted: #9ca3af;
+  --color-text-heading: #f3f4f6;
+  --color-text-on-primary: #ffffff;
+
+  --color-border: #2d3142;
+  --color-border-strong: #3d4252;
+
+  --color-primary: #7a76b8;
+  --color-primary-hover: #9590ce;
+  --color-primary-soft: rgba(122, 118, 184, 0.18);
+  --color-accent: #d4b56a;
+  --color-accent-hover: #e0c47e;
+
+  --color-success: #10b981;
+  --color-success-hover: #34d399;
+  --color-success-bg: rgba(16, 185, 129, 0.15);
+  --color-success-text: #6ee7b7;
+  --color-success-border: rgba(16, 185, 129, 0.3);
+  --color-success-alert-bg: rgba(16, 185, 129, 0.08);
+
+  --color-danger: #ef4444;
+  --color-danger-hover: #f87171;
+  --color-danger-bg: rgba(239, 68, 68, 0.15);
+  --color-danger-text: #fca5a5;
+  --color-danger-border: rgba(239, 68, 68, 0.3);
+  --color-danger-soft: rgba(239, 68, 68, 0.18);
+
+  --color-warning: #f59e0b;
+  --color-warning-hover: #fbbf24;
+  --color-warning-bg: rgba(245, 158, 11, 0.15);
+  --color-warning-text: #fcd34d;
+  --color-warning-alert-bg: rgba(245, 158, 11, 0.08);
+  --color-warning-border: rgba(245, 158, 11, 0.3);
+
+  --color-link: #d4b56a;
+  --color-link-hover: #a59ee0;
+
+  --color-code-bg: rgba(255, 255, 255, 0.06);
+  --color-code-pre-bg: #0a0c12;
+  --color-code-pre-text: #e5e7eb;
+
+  --color-focus-ring: rgba(122, 118, 184, 0.25);
+
+  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-card-strong: 0 10px 25px rgba(0, 0, 0, 0.6);
+
+  color-scheme: dark;
+}
+
+@layer base {
+  html, body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+  }
 }
 
 @layer components {
@@ -24,30 +151,30 @@
   }
 
   .admin-badge-dark {
-    background: #2D2A5A;
-    color: white;
+    background: var(--color-primary);
+    color: var(--color-text-on-primary);
   }
 
   .admin-badge-light {
-    background: #f3f4f6;
-    color: #374151;
-    border: 1px solid #e5e7eb;
+    background: var(--color-surface-muted);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
   }
 
   .admin-badge-success {
-    background: #d1fae5;
-    color: #065f46;
+    background: var(--color-success-bg);
+    color: var(--color-success-text);
   }
 
   .admin-badge-warning {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--color-warning-bg);
+    color: var(--color-warning-text);
   }
 
   /* Header-specific badge variant */
   .admin-badge-header {
-    background: #2D2A5A;
-    color: white;
+    background: var(--color-primary);
+    color: var(--color-text-on-primary);
     padding: 4px 10px;
     font-size: 0.7rem;
     text-transform: uppercase;
@@ -73,50 +200,50 @@
   }
 
   .admin-btn-primary {
-    background: #2D2A5A;
-    color: white;
+    background: var(--color-primary);
+    color: var(--color-text-on-primary);
   }
 
   .admin-btn-primary:hover {
-    background: #3d3a6a;
+    background: var(--color-primary-hover);
   }
 
   .admin-btn-secondary {
-    background: white;
-    color: #374151;
-    border: 1px solid #e5e7eb;
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
   }
 
   .admin-btn-secondary:hover {
-    border-color: #d1d5db;
-    background: #f9fafb;
+    border-color: var(--color-border-strong);
+    background: var(--color-surface-elevated);
   }
 
   .admin-btn-success {
-    background: #059669;
-    color: white;
+    background: var(--color-success);
+    color: var(--color-text-on-primary);
   }
 
   .admin-btn-success:hover {
-    background: #047857;
+    background: var(--color-success-hover);
   }
 
   .admin-btn-danger {
-    background: #dc2626;
-    color: white;
+    background: var(--color-danger);
+    color: var(--color-text-on-primary);
   }
 
   .admin-btn-danger:hover {
-    background: #b91c1c;
+    background: var(--color-danger-hover);
   }
 
   .admin-btn-warning {
-    background: #d97706;
-    color: white;
+    background: var(--color-warning);
+    color: var(--color-text-on-primary);
   }
 
   .admin-btn-warning:hover {
-    background: #b45309;
+    background: var(--color-warning-hover);
   }
 
   .admin-btn-sm {
@@ -133,8 +260,8 @@
      Card Styles
      ============================================ */
   .admin-card {
-    background: white;
-    border: 1px solid #e5e7eb;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: 12px;
     padding: 24px;
     margin-bottom: 24px;
@@ -142,13 +269,13 @@
   }
 
   .admin-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-card);
   }
 
   .admin-card-title {
     font-size: 1.125rem;
     font-weight: 600;
-    color: #2D2A5A;
+    color: var(--color-primary);
     margin: 0 0 16px 0;
   }
 
@@ -163,8 +290,8 @@
   }
 
   .admin-stat-card {
-    background: white;
-    border: 1px solid #e5e7eb;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: 12px;
     padding: 24px;
     transition: all 0.2s ease;
@@ -172,12 +299,12 @@
 
   .admin-stat-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-card-strong);
   }
 
   .admin-stat-label {
     font-size: 0.875rem;
-    color: #6b7280;
+    color: var(--color-text-muted);
     margin: 0 0 8px 0;
     font-weight: 500;
   }
@@ -185,27 +312,27 @@
   .admin-stat-value {
     font-size: 2.5rem;
     font-weight: 700;
-    color: #2D2A5A;
+    color: var(--color-primary);
     margin: 0;
   }
 
   .admin-stat-value.accent {
-    color: #C9A857;
+    color: var(--color-accent);
   }
 
   /* ============================================
      List Styles
      ============================================ */
   .admin-list {
-    background: white;
-    border: 1px solid #e5e7eb;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: 12px;
     overflow: hidden;
   }
 
   .admin-list-item {
     padding: 20px 24px;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--color-border);
     transition: background 0.2s ease;
   }
 
@@ -214,7 +341,7 @@
   }
 
   .admin-list-item:hover {
-    background: #f9fafb;
+    background: var(--color-surface-elevated);
   }
 
   /* ============================================
@@ -223,21 +350,22 @@
   .admin-input {
     width: 100%;
     padding: 12px 20px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--color-border);
     border-radius: 12px;
     font-size: 0.95rem;
-    background: white;
+    background: var(--color-surface);
+    color: var(--color-text);
     transition: all 0.2s ease;
   }
 
   .admin-input:focus {
     outline: none;
-    border-color: #9ca3af;
-    box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.1);
+    border-color: var(--color-border-strong);
+    box-shadow: 0 0 0 3px var(--color-focus-ring);
   }
 
   .admin-input::placeholder {
-    color: #9ca3af;
+    color: var(--color-text-muted);
   }
 
   /* ============================================
@@ -251,10 +379,10 @@
 
   .admin-tab {
     padding: 10px 20px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--color-border);
     border-radius: 24px;
-    background: white;
-    color: #6b7280;
+    background: var(--color-surface);
+    color: var(--color-text-muted);
     font-size: 0.95rem;
     font-weight: 500;
     cursor: pointer;
@@ -262,14 +390,14 @@
   }
 
   .admin-tab:hover {
-    border-color: #d1d5db;
-    color: #374151;
+    border-color: var(--color-border-strong);
+    color: var(--color-text);
   }
 
   .admin-tab.active {
-    background: #2D2A5A;
-    color: white;
-    border-color: #2D2A5A;
+    background: var(--color-primary);
+    color: var(--color-text-on-primary);
+    border-color: var(--color-primary);
   }
 
   /* ============================================
@@ -283,21 +411,21 @@
   }
 
   .admin-alert-error {
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    color: #991b1b;
+    background: var(--color-danger-bg);
+    border: 1px solid var(--color-danger-border);
+    color: var(--color-danger-text);
   }
 
   .admin-alert-success {
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    color: #166534;
+    background: var(--color-success-alert-bg);
+    border: 1px solid var(--color-success-border);
+    color: var(--color-success-text);
   }
 
   .admin-alert-warning {
-    background: #fffbeb;
-    border: 1px solid #fde68a;
-    color: #92400e;
+    background: var(--color-warning-alert-bg);
+    border: 1px solid var(--color-warning-border);
+    color: var(--color-warning-text);
   }
 
   /* ============================================
@@ -306,13 +434,13 @@
   .admin-empty {
     text-align: center;
     padding: 48px 24px;
-    color: #6b7280;
+    color: var(--color-text-muted);
   }
 
   .admin-empty-title {
     font-size: 1.125rem;
     font-weight: 500;
-    color: #374151;
+    color: var(--color-text);
     margin: 0 0 8px 0;
   }
 
@@ -328,7 +456,7 @@
     justify-content: center;
     align-items: center;
     padding: 48px;
-    color: #6b7280;
+    color: var(--color-text-muted);
   }
 
   /* ============================================
@@ -342,62 +470,63 @@
     display: block;
     font-size: 0.875rem;
     font-weight: 500;
-    color: #374151;
+    color: var(--color-text);
     margin-bottom: 6px;
   }
 
   .admin-form-required {
-    color: #dc2626;
+    color: var(--color-danger);
   }
 
   .admin-form-input,
   .admin-form-textarea {
     width: 100%;
     padding: 12px 16px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--color-border);
     border-radius: 8px;
     font-size: 0.95rem;
-    background: white;
+    background: var(--color-surface);
+    color: var(--color-text);
     transition: all 0.2s ease;
   }
 
   .admin-form-input:focus,
   .admin-form-textarea:focus {
     outline: none;
-    border-color: #2D2A5A;
-    box-shadow: 0 0 0 3px rgba(45, 42, 90, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-soft);
   }
 
   .admin-form-input::placeholder,
   .admin-form-textarea::placeholder {
-    color: #9ca3af;
+    color: var(--color-text-muted);
   }
 
   .admin-form-input-error {
-    border-color: #dc2626;
+    border-color: var(--color-danger);
   }
 
   .admin-form-input-error:focus {
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    border-color: var(--color-danger);
+    box-shadow: 0 0 0 3px var(--color-danger-soft);
   }
 
   .admin-form-input-disabled,
   .admin-form-input:disabled {
-    background-color: #f3f4f6;
-    color: #6b7280;
+    background-color: var(--color-surface-muted);
+    color: var(--color-text-muted);
     cursor: not-allowed;
-    border-color: #e5e7eb;
+    border-color: var(--color-border);
   }
 
   .admin-form-error {
-    color: #dc2626;
+    color: var(--color-danger);
     font-size: 0.875rem;
     margin-top: 6px;
   }
 
   .admin-form-hint {
-    color: #6b7280;
+    color: var(--color-text-muted);
     font-size: 0.875rem;
     margin-top: 6px;
   }

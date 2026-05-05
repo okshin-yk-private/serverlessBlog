@@ -410,32 +410,6 @@ describe('PostEditor', () => {
       expect(img?.getAttribute('src')).toBe('https://example.com/img.png');
     });
 
-    it('mindmap マーカー挿入は独立段落として反映される', async () => {
-      const ref = createRef<PostEditorHandle>();
-      render(
-        <PostEditor
-          ref={ref}
-          onSave={mockOnSave}
-          onCancel={mockOnCancel}
-          categories={mockCategories}
-        />
-      );
-
-      await waitForTiptap();
-      act(() => {
-        ref.current?.insertAtCursor(
-          '\n{{mindmap:550e8400-e29b-41d4-a716-446655440000}}\n'
-        );
-      });
-
-      const md = await getEditorMarkdown();
-      expect(md).toContain('{{mindmap:550e8400-e29b-41d4-a716-446655440000}}');
-      // 独立段落として存在することを double-newline で確認
-      expect(md).toMatch(
-        /\{\{mindmap:550e8400-e29b-41d4-a716-446655440000\}\}/
-      );
-    });
-
     it('removeImageUrl で指定 URL の image ノードを削除する', async () => {
       const ref = createRef<PostEditorHandle>();
       const initialData: PostData = {
@@ -1056,81 +1030,6 @@ describe('PostEditor', () => {
       await user.type(tagInput, 'Test');
 
       expect(addButton).not.toBeDisabled();
-    });
-  });
-
-  describe('マインドマップ挿入ボタン', () => {
-    it('onMindmapInsertClickが渡された場合はマインドマップ挿入ボタンが表示される', () => {
-      const mockOnMindmapInsertClick = vi.fn();
-      render(
-        <PostEditor
-          onSave={mockOnSave}
-          onCancel={mockOnCancel}
-          categories={mockCategories}
-          onMindmapInsertClick={mockOnMindmapInsertClick}
-        />
-      );
-
-      expect(screen.getByTestId('mindmap-insert-button')).toBeInTheDocument();
-    });
-
-    it('onMindmapInsertClickが渡されない場合はマインドマップ挿入ボタンが表示されない', () => {
-      render(
-        <PostEditor
-          onSave={mockOnSave}
-          onCancel={mockOnCancel}
-          categories={mockCategories}
-        />
-      );
-
-      expect(
-        screen.queryByTestId('mindmap-insert-button')
-      ).not.toBeInTheDocument();
-    });
-
-    it('マインドマップ挿入ボタンをクリックするとonMindmapInsertClickが呼ばれる', async () => {
-      const user = userEvent.setup();
-      const mockOnMindmapInsertClick = vi.fn();
-      render(
-        <PostEditor
-          onSave={mockOnSave}
-          onCancel={mockOnCancel}
-          categories={mockCategories}
-          onMindmapInsertClick={mockOnMindmapInsertClick}
-        />
-      );
-
-      await user.click(screen.getByTestId('mindmap-insert-button'));
-
-      expect(mockOnMindmapInsertClick).toHaveBeenCalledTimes(1);
-    });
-
-    it('保存中はマインドマップ挿入ボタンが無効化される', async () => {
-      const user = userEvent.setup();
-      const slowSave = vi.fn(
-        () => new Promise<void>((resolve) => setTimeout(resolve, 100))
-      );
-      const mockOnMindmapInsertClick = vi.fn();
-      render(
-        <PostEditor
-          onSave={slowSave}
-          onCancel={mockOnCancel}
-          categories={mockCategories}
-          onMindmapInsertClick={mockOnMindmapInsertClick}
-        />
-      );
-
-      await user.type(screen.getByLabelText(/タイトル/i), 'テストタイトル');
-      await setEditorContent('テスト本文');
-      await user.selectOptions(screen.getByLabelText(/カテゴリ/i), 'tech');
-
-      await user.click(screen.getByRole('button', { name: /保存/i }));
-
-      expect(screen.getByTestId('mindmap-insert-button')).toBeDisabled();
-
-      await waitFor(() => {
-        expect(screen.getByTestId('mindmap-insert-button')).not.toBeDisabled();
-      });
     });
   });
 });

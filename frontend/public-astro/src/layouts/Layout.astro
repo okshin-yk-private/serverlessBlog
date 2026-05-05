@@ -12,7 +12,7 @@
 import SEO from '../components/SEO.astro';
 import JsonLd from '../components/JsonLd.astro';
 import Header from '../components/Header.astro';
-import type { JsonLdPost, JsonLdMindmap } from '../lib/jsonLdUtils';
+import type { JsonLdPost } from '../lib/jsonLdUtils';
 
 interface Props {
   /** Page title */
@@ -33,8 +33,6 @@ interface Props {
   noindex?: boolean;
   /** JSON-LD post data (for article pages) */
   jsonLdPost?: JsonLdPost;
-  /** JSON-LD mindmap data (for mindmap pages) */
-  jsonLdMindmap?: JsonLdMindmap;
   /** Show WebSite JSON-LD (for home page) */
   showWebSiteJsonLd?: boolean;
 }
@@ -52,7 +50,6 @@ const {
   modifiedAt,
   noindex = false,
   jsonLdPost,
-  jsonLdMindmap,
   showWebSiteJsonLd = false,
 } = Astro.props;
 ---
@@ -62,6 +59,25 @@ const {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Theme bootstrap (FOUC prevention).
+         Reads localStorage.theme ("light" | "dark" | "system"), falls back to system preference,
+         and applies data-theme to <html> before any styles render. Must be inline & blocking. -->
+    <script is:inline>
+      (function () {
+        try {
+          var saved = localStorage.getItem('theme');
+          if (saved !== 'light' && saved !== 'dark' && saved !== 'system') {
+            saved = 'system';
+          }
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var resolved = saved === 'system' ? (prefersDark ? 'dark' : 'light') : saved;
+          document.documentElement.setAttribute('data-theme', resolved);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="/favicon.png" />
@@ -88,9 +104,6 @@ const {
     {jsonLdPost && (
       <JsonLd type="BlogPosting" post={jsonLdPost} />
     )}
-    {jsonLdMindmap && (
-      <JsonLd type="CreativeWork" mindmap={jsonLdMindmap} />
-    )}
     {showWebSiteJsonLd && (
       <JsonLd type="WebSite" siteName={SITE_NAME} siteDescription={description} />
     )}
@@ -98,10 +111,25 @@ const {
     <!-- Global Styles -->
     <style>
       @import '../styles/global.css';
+      @import '../../../shared-ui/src/article.css';
     </style>
   </head>
-  <body class="min-h-screen bg-gray-50">
+  <body class="min-h-screen">
     <Header />
     <slot />
+
+    <!-- Live OS theme follow when user has not explicitly chosen light/dark. -->
+    <script is:inline>
+      (function () {
+        var mql = window.matchMedia('(prefers-color-scheme: dark)');
+        var handler = function (e) {
+          var saved = localStorage.getItem('theme') || 'system';
+          if (saved !== 'system') return;
+          document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+        };
+        if (mql.addEventListener) mql.addEventListener('change', handler);
+        else if (mql.addListener) mql.addListener(handler);
+      })();
+    </script>
   </body>
 </html>

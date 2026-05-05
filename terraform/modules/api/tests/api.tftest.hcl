@@ -19,6 +19,8 @@ variables {
   lambda_update_post_invoke_arn                  = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-post-go/invocations"
   lambda_delete_post_arn                         = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-post-go"
   lambda_delete_post_invoke_arn                  = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-post-go/invocations"
+  lambda_build_status_post_arn                   = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-build-status-post-go"
+  lambda_build_status_post_invoke_arn            = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-build-status-post-go/invocations"
   lambda_login_arn                               = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go"
   lambda_login_invoke_arn                        = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go/invocations"
   lambda_logout_arn                              = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-logout-go"
@@ -39,20 +41,8 @@ variables {
   lambda_update_categories_sort_order_invoke_arn = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-categories-sort-order-go/invocations"
   lambda_delete_category_arn                     = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-category-go"
   lambda_delete_category_invoke_arn              = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-category-go/invocations"
-  lambda_create_mindmap_arn                      = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-mindmap-go"
-  lambda_create_mindmap_invoke_arn               = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-create-mindmap-go/invocations"
-  lambda_get_mindmap_arn                         = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-mindmap-go"
-  lambda_get_mindmap_invoke_arn                  = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-mindmap-go/invocations"
-  lambda_list_mindmaps_arn                       = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-mindmaps-go"
-  lambda_list_mindmaps_invoke_arn                = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-mindmaps-go/invocations"
-  lambda_update_mindmap_arn                      = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-mindmap-go"
-  lambda_update_mindmap_invoke_arn               = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-update-mindmap-go/invocations"
-  lambda_delete_mindmap_arn                      = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-mindmap-go"
-  lambda_delete_mindmap_invoke_arn               = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-mindmap-go/invocations"
-  lambda_get_public_mindmap_arn                  = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-public-mindmap-go"
-  lambda_get_public_mindmap_invoke_arn           = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-public-mindmap-go/invocations"
-  lambda_list_public_mindmaps_arn                = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-public-mindmaps-go"
-  lambda_list_public_mindmaps_invoke_arn         = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-list-public-mindmaps-go/invocations"
+  lambda_get_post_by_slug_arn                    = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-post-by-slug-go"
+  lambda_get_post_by_slug_invoke_arn             = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-post-by-slug-go/invocations"
 }
 
 # ======================
@@ -244,6 +234,38 @@ run "admin_posts_id_resource_created" {
   assert {
     condition     = aws_api_gateway_resource.admin_posts_id.path_part == "{id}"
     error_message = "/admin/posts/{id} resource path must be created"
+  }
+}
+
+# PR5b: Verify /admin/posts/{id}/build-status resource and Cognito-protected GET method
+run "admin_posts_id_build_status_route_created" {
+  command = plan
+
+  variables {
+    api_name              = "serverless-blog-api"
+    environment           = "dev"
+    stage_name            = "dev"
+    cognito_user_pool_arn = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
+  }
+
+  assert {
+    condition     = aws_api_gateway_resource.admin_posts_id_build_status.path_part == "build-status"
+    error_message = "/admin/posts/{id}/build-status resource must be created"
+  }
+
+  assert {
+    condition     = aws_api_gateway_method.admin_posts_id_build_status_get.http_method == "GET"
+    error_message = "build-status method must be GET"
+  }
+
+  assert {
+    condition     = aws_api_gateway_method.admin_posts_id_build_status_get.authorization == "COGNITO_USER_POOLS"
+    error_message = "build-status GET must require Cognito authorization"
+  }
+
+  assert {
+    condition     = aws_api_gateway_method.admin_posts_id_build_status_options.authorization == "NONE"
+    error_message = "build-status OPTIONS (CORS preflight) must allow unauthenticated requests"
   }
 }
 

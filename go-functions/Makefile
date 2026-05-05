@@ -24,13 +24,7 @@ FUNCTIONS := \
 	posts/list \
 	posts/update \
 	posts/delete \
-	mindmaps/create \
-	mindmaps/get \
-	mindmaps/get_public \
-	mindmaps/list \
-	mindmaps/list_public \
-	mindmaps/update \
-	mindmaps/delete \
+	posts/build_status \
 	auth/login \
 	auth/logout \
 	auth/refresh \
@@ -88,6 +82,12 @@ fmt:
 	@echo "Formatting code..."
 	go fmt ./...
 
+# Backfill slugs for legacy BlogPosts (PR7).
+# Usage: AWS_PROFILE=dev TABLE_NAME=blog-posts-dev make backfill-slugs ARGS="--dry-run"
+backfill-slugs:
+	@echo "Running backfill-post-slugs..."
+	go run ./cmd/scripts/backfill_post_slugs $(ARGS)
+
 # Clean build artifacts
 clean:
 	@echo "Cleaning build artifacts..."
@@ -104,5 +104,6 @@ help:
 	@echo "  test       - Run tests with race detector"
 	@echo "  lint       - Run golangci-lint"
 	@echo "  fmt        - Format code"
-	@echo "  clean      - Remove build artifacts"
-	@echo "  help       - Show this help message"
+	@echo "  clean          - Remove build artifacts"
+	@echo "  backfill-slugs - Backfill slugs for legacy BlogPosts (use ARGS='--dry-run' for preview)"
+	@echo "  help           - Show this help message"

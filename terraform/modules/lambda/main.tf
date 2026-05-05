@@ -67,6 +67,16 @@ locals {
       description = "Delete blog post (Go)"
       binary_name = "posts-delete"
     }
+    build_status_post = {
+      name        = "blog-build-status-post-go"
+      description = "Get latest CodeBuild status for the Astro SSG site rebuild (Go)"
+      binary_name = "posts-build_status"
+    }
+    get_post_by_slug = {
+      name        = "blog-get-post-by-slug-go"
+      description = "Get published blog post by friendly slug (public, no-auth) (Go)"
+      binary_name = "posts-get_by_slug"
+    }
     login = {
       name        = "blog-login-go"
       description = "User authentication (Go)"
@@ -118,54 +128,12 @@ locals {
       description = "Delete existing category (Go)"
       binary_name = "categories-delete"
     }
-    # Mindmaps domain
-    create_mindmap = {
-      name        = "blog-create-mindmap-go"
-      description = "Create new mindmap (Go)"
-      binary_name = "mindmaps-create"
-    }
-    get_mindmap = {
-      name        = "blog-get-mindmap-go"
-      description = "Get mindmap by ID (admin) (Go)"
-      binary_name = "mindmaps-get"
-    }
-    list_mindmaps = {
-      name        = "blog-list-mindmaps-go"
-      description = "List mindmaps (admin) (Go)"
-      binary_name = "mindmaps-list"
-    }
-    update_mindmap = {
-      name        = "blog-update-mindmap-go"
-      description = "Update existing mindmap (Go)"
-      binary_name = "mindmaps-update"
-    }
-    delete_mindmap = {
-      name        = "blog-delete-mindmap-go"
-      description = "Delete mindmap (Go)"
-      binary_name = "mindmaps-delete"
-    }
-    get_public_mindmap = {
-      name        = "blog-get-public-mindmap-go"
-      description = "Get published mindmap by ID (public) (Go)"
-      binary_name = "mindmaps-get_public"
-    }
-    list_public_mindmaps = {
-      name        = "blog-list-public-mindmaps-go"
-      description = "List published mindmaps (public) (Go)"
-      binary_name = "mindmaps-list_public"
-    }
   }
 
   # Categories domain environment variables
   categories_environment = {
     CATEGORIES_TABLE_NAME = var.categories_table_name
     ALLOWED_ORIGIN        = var.cors_allowed_origin
-  }
-
-  # Mindmaps domain environment variables
-  mindmaps_environment = {
-    TABLE_NAME     = var.mindmaps_table_name
-    ALLOWED_ORIGIN = var.cors_allowed_origin
   }
 }
 
@@ -212,6 +180,18 @@ resource "aws_cloudwatch_log_group" "update_post" {
 
 resource "aws_cloudwatch_log_group" "delete_post" {
   name              = "/aws/lambda/${local.lambda_functions.delete_post.name}"
+  retention_in_days = local.log_retention_days
+  tags              = local.common_tags
+}
+
+resource "aws_cloudwatch_log_group" "build_status_post" {
+  name              = "/aws/lambda/${local.lambda_functions.build_status_post.name}"
+  retention_in_days = local.log_retention_days
+  tags              = local.common_tags
+}
+
+resource "aws_cloudwatch_log_group" "get_post_by_slug" {
+  name              = "/aws/lambda/${local.lambda_functions.get_post_by_slug.name}"
   retention_in_days = local.log_retention_days
   tags              = local.common_tags
 }
@@ -292,6 +272,20 @@ data "archive_file" "delete_post" {
   type             = "zip"
   source_file      = "${var.go_binary_path}/${local.lambda_functions.delete_post.binary_name}/bootstrap"
   output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.delete_post.binary_name}.zip"
+  output_file_mode = "0644"
+}
+
+data "archive_file" "build_status_post" {
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.build_status_post.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.build_status_post.binary_name}.zip"
+  output_file_mode = "0644"
+}
+
+data "archive_file" "get_post_by_slug" {
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.get_post_by_slug.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.get_post_by_slug.binary_name}.zip"
   output_file_mode = "0644"
 }
 
@@ -506,6 +500,69 @@ resource "aws_lambda_function" "delete_post" {
   }
 
   depends_on = [aws_cloudwatch_log_group.delete_post]
+
+  tags = local.common_tags
+}
+
+# GET /admin/posts/{id}/build-status - Build Status (PR5b)
+# Surfaces the latest CodeBuild result for the Astro SSG rebuild so the admin
+# UI can show "ビルド中 / ビルド完了 / 失敗" after a publish.
+resource "aws_lambda_function" "build_status_post" {
+  function_name = local.lambda_functions.build_status_post.name
+  description   = local.lambda_functions.build_status_post.description
+  role          = aws_iam_role.lambda_posts.arn
+
+  filename         = data.archive_file.build_status_post.output_path
+  source_code_hash = data.archive_file.build_status_post.output_base64sha256
+
+  runtime       = "provided.al2023"
+  architectures = ["arm64"]
+  handler       = "bootstrap"
+  memory_size   = 128
+  timeout       = 30
+
+  environment {
+    variables = merge(local.common_environment, {
+      CODEBUILD_PROJECT_NAME = var.codebuild_project_name
+    })
+  }
+
+  tracing_config {
+    mode = local.tracing_mode
+  }
+
+  depends_on = [aws_cloudwatch_log_group.build_status_post]
+
+  tags = local.common_tags
+}
+
+# GET /posts/by-slug/{slug} - Public post fetch by friendly slug (PR7).
+# No-auth public endpoint that powers Astro's slug-based static routing.
+# Reuses the lambda_posts role: dynamodb:Query on SlugIndex is already
+# permitted via the existing index/* grant.
+resource "aws_lambda_function" "get_post_by_slug" {
+  function_name = local.lambda_functions.get_post_by_slug.name
+  description   = local.lambda_functions.get_post_by_slug.description
+  role          = aws_iam_role.lambda_posts.arn
+
+  filename         = data.archive_file.get_post_by_slug.output_path
+  source_code_hash = data.archive_file.get_post_by_slug.output_base64sha256
+
+  runtime       = "provided.al2023"
+  architectures = ["arm64"]
+  handler       = "bootstrap"
+  memory_size   = 128
+  timeout       = 30
+
+  environment {
+    variables = local.common_environment
+  }
+
+  tracing_config {
+    mode = local.tracing_mode
+  }
+
+  depends_on = [aws_cloudwatch_log_group.get_post_by_slug]
 
   tags = local.common_tags
 }
@@ -897,305 +954,3 @@ resource "aws_lambda_function" "delete_category" {
   tags = local.common_tags
 }
 
-# ======================
-# Mindmaps Domain Lambda Functions
-# ======================
-
-# --- CloudWatch Log Groups ---
-
-resource "aws_cloudwatch_log_group" "create_mindmap" {
-  name              = "/aws/lambda/${local.lambda_functions.create_mindmap.name}"
-  retention_in_days = local.log_retention_days
-  tags              = local.common_tags
-}
-
-resource "aws_cloudwatch_log_group" "get_mindmap" {
-  name              = "/aws/lambda/${local.lambda_functions.get_mindmap.name}"
-  retention_in_days = local.log_retention_days
-  tags              = local.common_tags
-}
-
-resource "aws_cloudwatch_log_group" "list_mindmaps" {
-  name              = "/aws/lambda/${local.lambda_functions.list_mindmaps.name}"
-  retention_in_days = local.log_retention_days
-  tags              = local.common_tags
-}
-
-resource "aws_cloudwatch_log_group" "update_mindmap" {
-  name              = "/aws/lambda/${local.lambda_functions.update_mindmap.name}"
-  retention_in_days = local.log_retention_days
-  tags              = local.common_tags
-}
-
-resource "aws_cloudwatch_log_group" "delete_mindmap" {
-  name              = "/aws/lambda/${local.lambda_functions.delete_mindmap.name}"
-  retention_in_days = local.log_retention_days
-  tags              = local.common_tags
-}
-
-resource "aws_cloudwatch_log_group" "get_public_mindmap" {
-  name              = "/aws/lambda/${local.lambda_functions.get_public_mindmap.name}"
-  retention_in_days = local.log_retention_days
-  tags              = local.common_tags
-}
-
-resource "aws_cloudwatch_log_group" "list_public_mindmaps" {
-  name              = "/aws/lambda/${local.lambda_functions.list_public_mindmaps.name}"
-  retention_in_days = local.log_retention_days
-  tags              = local.common_tags
-}
-
-# --- Archive Data Sources ---
-
-data "archive_file" "create_mindmap" {
-  type             = "zip"
-  source_file      = "${var.go_binary_path}/${local.lambda_functions.create_mindmap.binary_name}/bootstrap"
-  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.create_mindmap.binary_name}.zip"
-  output_file_mode = "0644"
-}
-
-data "archive_file" "get_mindmap" {
-  type             = "zip"
-  source_file      = "${var.go_binary_path}/${local.lambda_functions.get_mindmap.binary_name}/bootstrap"
-  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.get_mindmap.binary_name}.zip"
-  output_file_mode = "0644"
-}
-
-data "archive_file" "list_mindmaps" {
-  type             = "zip"
-  source_file      = "${var.go_binary_path}/${local.lambda_functions.list_mindmaps.binary_name}/bootstrap"
-  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.list_mindmaps.binary_name}.zip"
-  output_file_mode = "0644"
-}
-
-data "archive_file" "update_mindmap" {
-  type             = "zip"
-  source_file      = "${var.go_binary_path}/${local.lambda_functions.update_mindmap.binary_name}/bootstrap"
-  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.update_mindmap.binary_name}.zip"
-  output_file_mode = "0644"
-}
-
-data "archive_file" "delete_mindmap" {
-  type             = "zip"
-  source_file      = "${var.go_binary_path}/${local.lambda_functions.delete_mindmap.binary_name}/bootstrap"
-  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.delete_mindmap.binary_name}.zip"
-  output_file_mode = "0644"
-}
-
-data "archive_file" "get_public_mindmap" {
-  type             = "zip"
-  source_file      = "${var.go_binary_path}/${local.lambda_functions.get_public_mindmap.binary_name}/bootstrap"
-  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.get_public_mindmap.binary_name}.zip"
-  output_file_mode = "0644"
-}
-
-data "archive_file" "list_public_mindmaps" {
-  type             = "zip"
-  source_file      = "${var.go_binary_path}/${local.lambda_functions.list_public_mindmaps.binary_name}/bootstrap"
-  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.list_public_mindmaps.binary_name}.zip"
-  output_file_mode = "0644"
-}
-
-# --- Lambda Functions ---
-
-# POST /admin/mindmaps - Create Mindmap
-resource "aws_lambda_function" "create_mindmap" {
-  function_name = local.lambda_functions.create_mindmap.name
-  description   = local.lambda_functions.create_mindmap.description
-  role          = aws_iam_role.lambda_mindmaps.arn
-
-  filename         = data.archive_file.create_mindmap.output_path
-  source_code_hash = data.archive_file.create_mindmap.output_base64sha256
-
-  runtime       = "provided.al2023"
-  architectures = ["arm64"]
-  handler       = "bootstrap"
-  memory_size   = 128
-  timeout       = 30
-
-  environment {
-    variables = merge(local.mindmaps_environment, {
-      CODEBUILD_PROJECT_NAME = var.codebuild_project_name
-    })
-  }
-
-  tracing_config {
-    mode = local.tracing_mode
-  }
-
-  depends_on = [aws_cloudwatch_log_group.create_mindmap]
-
-  tags = local.common_tags
-}
-
-# GET /admin/mindmaps/{id} - Get Mindmap
-resource "aws_lambda_function" "get_mindmap" {
-  function_name = local.lambda_functions.get_mindmap.name
-  description   = local.lambda_functions.get_mindmap.description
-  role          = aws_iam_role.lambda_mindmaps.arn
-
-  filename         = data.archive_file.get_mindmap.output_path
-  source_code_hash = data.archive_file.get_mindmap.output_base64sha256
-
-  runtime       = "provided.al2023"
-  architectures = ["arm64"]
-  handler       = "bootstrap"
-  memory_size   = 128
-  timeout       = 30
-
-  environment {
-    variables = local.mindmaps_environment
-  }
-
-  tracing_config {
-    mode = local.tracing_mode
-  }
-
-  depends_on = [aws_cloudwatch_log_group.get_mindmap]
-
-  tags = local.common_tags
-}
-
-# GET /admin/mindmaps - List Mindmaps
-resource "aws_lambda_function" "list_mindmaps" {
-  function_name = local.lambda_functions.list_mindmaps.name
-  description   = local.lambda_functions.list_mindmaps.description
-  role          = aws_iam_role.lambda_mindmaps.arn
-
-  filename         = data.archive_file.list_mindmaps.output_path
-  source_code_hash = data.archive_file.list_mindmaps.output_base64sha256
-
-  runtime       = "provided.al2023"
-  architectures = ["arm64"]
-  handler       = "bootstrap"
-  memory_size   = 128
-  timeout       = 30
-
-  environment {
-    variables = local.mindmaps_environment
-  }
-
-  tracing_config {
-    mode = local.tracing_mode
-  }
-
-  depends_on = [aws_cloudwatch_log_group.list_mindmaps]
-
-  tags = local.common_tags
-}
-
-# PUT /admin/mindmaps/{id} - Update Mindmap
-resource "aws_lambda_function" "update_mindmap" {
-  function_name = local.lambda_functions.update_mindmap.name
-  description   = local.lambda_functions.update_mindmap.description
-  role          = aws_iam_role.lambda_mindmaps.arn
-
-  filename         = data.archive_file.update_mindmap.output_path
-  source_code_hash = data.archive_file.update_mindmap.output_base64sha256
-
-  runtime       = "provided.al2023"
-  architectures = ["arm64"]
-  handler       = "bootstrap"
-  memory_size   = 128
-  timeout       = 30
-
-  environment {
-    variables = merge(local.mindmaps_environment, {
-      CODEBUILD_PROJECT_NAME = var.codebuild_project_name
-    })
-  }
-
-  tracing_config {
-    mode = local.tracing_mode
-  }
-
-  depends_on = [aws_cloudwatch_log_group.update_mindmap]
-
-  tags = local.common_tags
-}
-
-# DELETE /admin/mindmaps/{id} - Delete Mindmap
-resource "aws_lambda_function" "delete_mindmap" {
-  function_name = local.lambda_functions.delete_mindmap.name
-  description   = local.lambda_functions.delete_mindmap.description
-  role          = aws_iam_role.lambda_mindmaps.arn
-
-  filename         = data.archive_file.delete_mindmap.output_path
-  source_code_hash = data.archive_file.delete_mindmap.output_base64sha256
-
-  runtime       = "provided.al2023"
-  architectures = ["arm64"]
-  handler       = "bootstrap"
-  memory_size   = 128
-  timeout       = 30
-
-  environment {
-    variables = merge(local.mindmaps_environment, {
-      CODEBUILD_PROJECT_NAME = var.codebuild_project_name
-    })
-  }
-
-  tracing_config {
-    mode = local.tracing_mode
-  }
-
-  depends_on = [aws_cloudwatch_log_group.delete_mindmap]
-
-  tags = local.common_tags
-}
-
-# GET /public/mindmaps/{id} - Get Public Mindmap
-resource "aws_lambda_function" "get_public_mindmap" {
-  function_name = local.lambda_functions.get_public_mindmap.name
-  description   = local.lambda_functions.get_public_mindmap.description
-  role          = aws_iam_role.lambda_mindmaps_public.arn
-
-  filename         = data.archive_file.get_public_mindmap.output_path
-  source_code_hash = data.archive_file.get_public_mindmap.output_base64sha256
-
-  runtime       = "provided.al2023"
-  architectures = ["arm64"]
-  handler       = "bootstrap"
-  memory_size   = 128
-  timeout       = 30
-
-  environment {
-    variables = local.mindmaps_environment
-  }
-
-  tracing_config {
-    mode = local.tracing_mode
-  }
-
-  depends_on = [aws_cloudwatch_log_group.get_public_mindmap]
-
-  tags = local.common_tags
-}
-
-# GET /public/mindmaps - List Public Mindmaps
-resource "aws_lambda_function" "list_public_mindmaps" {
-  function_name = local.lambda_functions.list_public_mindmaps.name
-  description   = local.lambda_functions.list_public_mindmaps.description
-  role          = aws_iam_role.lambda_mindmaps_public.arn
-
-  filename         = data.archive_file.list_public_mindmaps.output_path
-  source_code_hash = data.archive_file.list_public_mindmaps.output_base64sha256
-
-  runtime       = "provided.al2023"
-  architectures = ["arm64"]
-  handler       = "bootstrap"
-  memory_size   = 128
-  timeout       = 30
-
-  environment {
-    variables = local.mindmaps_environment
-  }
-
-  tracing_config {
-    mode = local.tracing_mode
-  }
-
-  depends_on = [aws_cloudwatch_log_group.list_public_mindmaps]
-
-  tags = local.common_tags
-}

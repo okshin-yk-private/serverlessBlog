@@ -3,6 +3,8 @@ import {
   validatePostTitle,
   validatePostContent,
   validateCategory,
+  validateSlug,
+  validateExcerpt,
 } from './validation';
 
 describe('validatePostTitle', () => {
@@ -65,5 +67,55 @@ describe('validateCategory', () => {
     expect(validateCategory('tech')).toBeNull();
     expect(validateCategory('Think')).toBeNull();
     expect(validateCategory('custom-category')).toBeNull();
+  });
+});
+
+describe('validateSlug', () => {
+  it('空文字列はnullを返す（自動生成フォールバック）', () => {
+    expect(validateSlug('')).toBeNull();
+  });
+
+  it('kebab-caseの正しいslugはnullを返す', () => {
+    expect(validateSlug('hello-world')).toBeNull();
+    expect(validateSlug('post-2026')).toBeNull();
+    expect(validateSlug('a')).toBeNull();
+  });
+
+  it('大文字を含むslugはエラーを返す', () => {
+    expect(validateSlug('Hello-World')).toBe(
+      'slug は英小文字・数字・ハイフンのみ使用できます'
+    );
+  });
+
+  it('スペースを含むslugはエラーを返す', () => {
+    expect(validateSlug('hello world')).toBe(
+      'slug は英小文字・数字・ハイフンのみ使用できます'
+    );
+  });
+
+  it('80文字を超えるslugはエラーを返す', () => {
+    expect(validateSlug('a'.repeat(81))).toBe(
+      'slug は 80 文字以内で入力してください'
+    );
+  });
+
+  it('80文字ちょうどはnullを返す', () => {
+    expect(validateSlug('a'.repeat(80))).toBeNull();
+  });
+});
+
+describe('validateExcerpt', () => {
+  it('空文字列はnullを返す', () => {
+    expect(validateExcerpt('')).toBeNull();
+  });
+
+  it('160文字以内はnullを返す', () => {
+    expect(validateExcerpt('a'.repeat(160))).toBeNull();
+  });
+
+  it('161文字以上はエラーを返す', () => {
+    expect(validateExcerpt('a'.repeat(161))).toBe(
+      '概要は 160 文字以内で入力してください'
+    );
   });
 });

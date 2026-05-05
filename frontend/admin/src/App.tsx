@@ -14,9 +14,6 @@ import PostCreatePage from './pages/PostCreatePage';
 import PostEditPage from './pages/PostEditPage';
 import CategoryListPage from './pages/CategoryListPage';
 import CategoryEditPage from './pages/CategoryEditPage';
-import MindmapListPage from './pages/MindmapListPage';
-import MindmapCreatePage from './pages/MindmapCreatePage';
-import MindmapEditPage from './pages/MindmapEditPage';
 
 function App() {
   return (
@@ -81,30 +78,6 @@ function App() {
             element={
               <AuthGuard>
                 <CategoryEditPage />
-              </AuthGuard>
-            }
-          />
-          <Route
-            path="/mindmaps"
-            element={
-              <AuthGuard>
-                <MindmapListPage />
-              </AuthGuard>
-            }
-          />
-          <Route
-            path="/mindmaps/new"
-            element={
-              <AuthGuard>
-                <MindmapCreatePage />
-              </AuthGuard>
-            }
-          />
-          <Route
-            path="/mindmaps/edit/:id"
-            element={
-              <AuthGuard>
-                <MindmapEditPage />
               </AuthGuard>
             }
           />

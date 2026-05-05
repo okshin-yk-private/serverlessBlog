@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import AdminLayout from './AdminLayout';
+import { ThemeProvider } from '../contexts/ThemeContext';
 
 // Amplifyのモック
 vi.mock('aws-amplify/auth', () => ({
@@ -31,11 +32,13 @@ const renderAdminLayout = (props: {
   children?: React.ReactNode;
 }) => {
   return render(
-    <MemoryRouter>
-      <AdminLayout {...props}>
-        {props.children || <div>Content</div>}
-      </AdminLayout>
-    </MemoryRouter>
+    <ThemeProvider>
+      <MemoryRouter>
+        <AdminLayout {...props}>
+          {props.children || <div>Content</div>}
+        </AdminLayout>
+      </MemoryRouter>
+    </ThemeProvider>
   );
 };
 
