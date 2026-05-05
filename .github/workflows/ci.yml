@@ -1160,7 +1160,7 @@ jobs:
   # Job 7: E2E Tests - Admin Site (always runs if frontend tests passed)
   # =======================================
   e2e-admin-tests:
-    name: E2E Tests (Admin - Auth, CRUD & Security)
+    name: E2E Tests (Admin - Auth, CRUD, Categories & Security)
     runs-on: ubuntu-latest
     needs: [frontend-admin-tests]
     if: |
@@ -1213,8 +1213,13 @@ jobs:
           sudo rm -f /etc/apt/sources.list.d/azure-cli.list || true
           bunx playwright install-deps chromium
 
-      - name: Run E2E tests (Admin - Auth, CRUD & Security) - Chromium only
-        run: bun run test:e2e:admin -- tests/e2e/specs/admin-auth.spec.ts tests/e2e/specs/admin-crud.spec.ts tests/e2e/specs/admin-unauthorized-access.spec.ts --project=chromium --workers=1
+      - name: Run E2E tests (Admin - Auth, CRUD, Categories & Security) - Chromium only
+        # PR 時にゲートする admin spec を 4 件に拡張（旧: auth/crud/security の 3 件）。
+        # 残りの admin-*.spec.ts (tiptap / image / metadata / autosave / unsaved-guard /
+        # publish-flow / preview-parity / slug-conflict) は MSW 環境で flakiness があり、
+        # post-deploy AWS E2E ジョブ (deploy.yml) で全件実行する運用とする。
+        # 安定化したら順次 PR CI に追加する。
+        run: bun run test:e2e:admin -- tests/e2e/specs/admin-auth.spec.ts tests/e2e/specs/admin-crud.spec.ts tests/e2e/specs/admin-categories.spec.ts tests/e2e/specs/admin-unauthorized-access.spec.ts --project=chromium --workers=1
         env:
           CI: true
 
