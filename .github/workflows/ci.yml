@@ -761,12 +761,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-labels, terraform-validate-dev, terraform-merge-artifacts]
     environment: dev
-    # Serialize Plan jobs across all PRs to avoid Terraform state lock contention.
-    # Without this, concurrent Dependabot PRs all race for the same DynamoDB lock
-    # and most fail with "Error acquiring the state lock".
-    concurrency:
-      group: terraform-plan-dev
-      cancel-in-progress: false
+    # NOTE: Plan jobs are NOT serialized via a shared `concurrency` group.
+    # A single fixed group only keeps one pending run and cancels the rest, so
+    # concurrent Dependabot PRs surfaced as false "cancelled" failures.
+    # Instead we let plans run in parallel and wait politely for the shared
+    # DynamoDB state lock via `terraform plan -lock-timeout` (see the Plan step).
     if: |
       always() &&
       needs.setup-labels.outputs.has-terraform == 'true' &&
@@ -839,7 +838,9 @@ jobs:
         id: plan
         working-directory: terraform/environments/dev
         run: |
-          terraform plan -out=tfplan.binary -detailed-exitcode -no-color 2>&1 | tee tfplan_output.txt || exitcode=$?
+          # -lock-timeout lets concurrent PR plans wait for the shared DynamoDB
+          # state lock instead of failing immediately with "Error acquiring the state lock".
+          terraform plan -out=tfplan.binary -lock-timeout=5m -detailed-exitcode -no-color 2>&1 | tee tfplan_output.txt || exitcode=$?
           terraform show -json tfplan.binary > tfplan.json
           terraform show -no-color tfplan.binary > tfplan.txt
           echo "exitcode=${exitcode:-0}" >> $GITHUB_OUTPUT
@@ -886,12 +887,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-labels, terraform-validate-prd, terraform-merge-artifacts]
     environment: prod
-    # Serialize Plan jobs across all PRs to avoid Terraform state lock contention.
-    # Without this, concurrent Dependabot PRs all race for the same DynamoDB lock
-    # and most fail with "Error acquiring the state lock".
-    concurrency:
-      group: terraform-plan-prd
-      cancel-in-progress: false
+    # NOTE: Plan jobs are NOT serialized via a shared `concurrency` group.
+    # A single fixed group only keeps one pending run and cancels the rest, so
+    # concurrent Dependabot PRs surfaced as false "cancelled" failures.
+    # Instead we let plans run in parallel and wait politely for the shared
+    # DynamoDB state lock via `terraform plan -lock-timeout` (see the Plan step).
     if: |
       always() &&
       needs.setup-labels.outputs.has-terraform == 'true' &&
@@ -957,7 +957,9 @@ jobs:
         id: plan
         working-directory: terraform/environments/prd
         run: |
-          terraform plan -out=tfplan.binary -detailed-exitcode -no-color 2>&1 | tee tfplan_output.txt || exitcode=$?
+          # -lock-timeout lets concurrent PR plans wait for the shared DynamoDB
+          # state lock instead of failing immediately with "Error acquiring the state lock".
+          terraform plan -out=tfplan.binary -lock-timeout=5m -detailed-exitcode -no-color 2>&1 | tee tfplan_output.txt || exitcode=$?
           terraform show -json tfplan.binary > tfplan.json
           terraform show -no-color tfplan.binary > tfplan.txt
           echo "exitcode=${exitcode:-0}" >> $GITHUB_OUTPUT
