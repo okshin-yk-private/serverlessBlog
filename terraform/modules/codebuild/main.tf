@@ -287,6 +287,7 @@ resource "aws_codebuild_project" "astro_build" {
 # =============================================================================
 
 resource "aws_ssm_parameter" "codebuild_project_name" {
+  #checkov:skip=CKV2_AWS_34:Stores a non-sensitive resource name used to trigger builds; revisit if this parameter becomes sensitive.
   name        = "/${var.project_name}/${var.environment}/codebuild/astro-build-project"
   description = "CodeBuild project name for Astro SSG builds"
   type        = "String"
