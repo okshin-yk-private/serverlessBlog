@@ -109,7 +109,7 @@ const siteMetadata = getSiteMetadata();
   .hero-section {
     position: relative;
     overflow: hidden;
-    padding: 64px 32px;
+    padding: 68px 32px;
     text-align: center;
     border-bottom: 1px solid var(--color-border);
   }
@@ -146,12 +146,13 @@ const siteMetadata = getSiteMetadata();
   }
 
   .hero-primary {
-    margin: 0 0 28px;
+    margin: 0 0 18px;
     color: var(--color-text-muted);
     font-family: var(--font-display);
-    font-size: 0.72rem;
+    font-size: clamp(1.5rem, 3vw, 2rem);
     font-weight: 600;
-    letter-spacing: 0.22em;
+    letter-spacing: 0.16em;
+    line-height: 1.25;
     text-transform: uppercase;
   }
 
@@ -159,7 +160,7 @@ const siteMetadata = getSiteMetadata();
     margin: 0;
     color: var(--color-text-muted);
     font-family: var(--font-body);
-    font-size: 0.72rem;
+    font-size: 0.84rem;
     font-weight: 400;
     letter-spacing: 0.08em;
     line-height: 1.6;
@@ -169,7 +170,7 @@ const siteMetadata = getSiteMetadata();
     display: block;
     width: 42px;
     height: 42px;
-    margin: 34px auto 0;
+    margin: 28px auto 0;
     background: url('/favicon-light.png') center / contain no-repeat;
   }
 
@@ -335,22 +336,22 @@ const siteMetadata = getSiteMetadata();
 
   @media (max-width: 768px) {
     .hero-section {
-      padding: 48px 20px;
+      padding: 50px 20px;
     }
 
     .hero-primary {
-      margin-bottom: 24px;
-      font-size: 0.62rem;
+      margin-bottom: 14px;
+      font-size: 1.35rem;
     }
 
     .hero-secondary {
-      font-size: 0.62rem;
+      font-size: 0.72rem;
     }
 
     .hero-seed {
       width: 36px;
       height: 36px;
-      margin-top: 30px;
+      margin-top: 24px;
     }
 
     .content-container {
