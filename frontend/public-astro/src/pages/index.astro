@@ -57,10 +57,6 @@ const searchablePosts: SearchablePost[] = posts.map((post) => ({
   <section class="hero-section" aria-labelledby="hero-title">
     <div class="hero-inner">
       <p class="hero-eyebrow">Thoughts, technology &amp; everyday life</p>
-      <div class="hero-logo" aria-hidden="true">
-        <img src="/logo-light.png" alt="" class="hero-logo-image hero-logo-light" />
-        <img src="/logo-dark.png" alt="" class="hero-logo-image hero-logo-dark" />
-      </div>
       <h1 id="hero-title" class="hero-title">I am the bone of my fallacy</h1>
       <span class="hero-seed" aria-hidden="true"></span>
     </div>
@@ -131,7 +127,7 @@ const searchablePosts: SearchablePost[] = posts.map((post) => ({
   }
 
   .hero-eyebrow {
-    margin: 0 0 36px;
+    margin: 0 0 28px;
     color: var(--color-text-muted);
     font-family: var(--font-display);
     font-size: 0.72rem;
@@ -140,51 +136,21 @@ const searchablePosts: SearchablePost[] = posts.map((post) => ({
     text-transform: uppercase;
   }
 
-  .hero-logo {
-    position: relative;
-    width: min(100%, 650px);
-    aspect-ratio: 1080 / 410;
-    margin: 0 auto 30px;
-  }
-
-  .hero-logo-image {
-    position: absolute;
-    inset: 0;
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    mix-blend-mode: multiply;
-  }
-
-  .hero-logo-dark {
-    display: none;
-    mix-blend-mode: normal;
-  }
-
-  :global(:root[data-theme='dark']) .hero-logo-light {
-    display: none;
-  }
-
-  :global(:root[data-theme='dark']) .hero-logo-dark {
-    display: block;
-  }
-
   .hero-title {
     margin: 0;
-    color: var(--color-text-muted);
+    color: var(--color-text-heading);
     font-family: var(--font-display);
-    font-size: 0.78rem;
+    font-size: clamp(2.8rem, 7vw, 5.8rem);
     font-weight: 500;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
+    letter-spacing: -0.065em;
+    line-height: 1.04;
   }
 
   .hero-seed {
     display: block;
     width: 9px;
     height: 9px;
-    margin: 30px auto 0;
+    margin: 38px auto 0;
     background: var(--color-accent-bright);
     border-radius: 70% 0 70% 0;
     transform: rotate(45deg);
