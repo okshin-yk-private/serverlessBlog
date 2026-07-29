@@ -73,6 +73,17 @@ resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
   bucket = aws_s3_bucket.access_logs[0].id
 
   rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+
+  rule {
     id     = "expire-access-logs"
     status = "Enabled"
 
@@ -137,6 +148,17 @@ resource "aws_s3_bucket_public_access_block" "images" {
 # Requirement 3.4: Create lifecycle policy for version management
 resource "aws_s3_bucket_lifecycle_configuration" "images" {
   bucket = aws_s3_bucket.images.id
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
 
   rule {
     id     = "transition-to-ia"
@@ -260,6 +282,17 @@ resource "aws_s3_bucket_public_access_block" "public_site" {
 # Requirement 6.7: Lifecycle policy to cleanup old versions (retain for rollback window)
 resource "aws_s3_bucket_lifecycle_configuration" "public_site" {
   bucket = aws_s3_bucket.public_site.id
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
 
   rule {
     id     = "cleanup-old-versions"
@@ -390,6 +423,7 @@ resource "aws_s3_bucket_policy" "admin_site" {
 #------------------------------------------------------------------------------
 
 resource "aws_ssm_parameter" "public_site_bucket_name" {
+  #checkov:skip=CKV2_AWS_34:Stores a non-sensitive bucket name used by CI/CD; revisit if this parameter becomes sensitive.
   name        = "/serverless-blog/${var.environment}/storage/public-site-bucket-name"
   description = "Public site S3 bucket name for ${var.environment} environment"
   type        = "String"
@@ -399,6 +433,7 @@ resource "aws_ssm_parameter" "public_site_bucket_name" {
 }
 
 resource "aws_ssm_parameter" "admin_site_bucket_name" {
+  #checkov:skip=CKV2_AWS_34:Stores a non-sensitive bucket name used by CI/CD; revisit if this parameter becomes sensitive.
   name        = "/serverless-blog/${var.environment}/storage/admin-site-bucket-name"
   description = "Admin site S3 bucket name for ${var.environment} environment"
   type        = "String"

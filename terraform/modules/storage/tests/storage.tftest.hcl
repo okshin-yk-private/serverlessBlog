@@ -85,6 +85,16 @@ run "image_bucket_lifecycle" {
     condition     = length(aws_s3_bucket_lifecycle_configuration.images.rule) > 0
     error_message = "Image bucket must have lifecycle rules configured"
   }
+
+  assert {
+    condition = anytrue([
+      for rule in aws_s3_bucket_lifecycle_configuration.images.rule :
+      rule.id == "abort-incomplete-multipart-uploads" &&
+      rule.status == "Enabled" &&
+      rule.abort_incomplete_multipart_upload[0].days_after_initiation == 7
+    ])
+    error_message = "Image bucket must abort incomplete multipart uploads after 7 days"
+  }
 }
 
 # Test 5: Verify public site bucket is created
@@ -326,6 +336,16 @@ run "access_logs_bucket_enabled" {
     condition     = aws_s3_bucket.access_logs[0].bucket != null
     error_message = "Access logs bucket must be created when enable_access_logs is true"
   }
+
+  assert {
+    condition = anytrue([
+      for rule in aws_s3_bucket_lifecycle_configuration.access_logs[0].rule :
+      rule.id == "abort-incomplete-multipart-uploads" &&
+      rule.status == "Enabled" &&
+      rule.abort_incomplete_multipart_upload[0].days_after_initiation == 7
+    ])
+    error_message = "Access logs bucket must abort incomplete multipart uploads after 7 days"
+  }
 }
 
 # Test 18: Verify access logs bucket is NOT created when disabled
@@ -373,6 +393,16 @@ run "public_site_bucket_lifecycle" {
   assert {
     condition     = length(aws_s3_bucket_lifecycle_configuration.public_site.rule) > 0
     error_message = "Public site bucket must have lifecycle rules for version cleanup"
+  }
+
+  assert {
+    condition = anytrue([
+      for rule in aws_s3_bucket_lifecycle_configuration.public_site.rule :
+      rule.id == "abort-incomplete-multipart-uploads" &&
+      rule.status == "Enabled" &&
+      rule.abort_incomplete_multipart_upload[0].days_after_initiation == 7
+    ])
+    error_message = "Public site bucket must abort incomplete multipart uploads after 7 days"
   }
 }
 

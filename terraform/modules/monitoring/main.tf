@@ -16,6 +16,7 @@ locals {
 
 #trivy:ignore:AVD-AWS-0095 Alarm notifications contain non-sensitive operational data; CMK adds cost
 resource "aws_sns_topic" "alarms" {
+  #checkov:skip=CKV_AWS_26:Carries non-sensitive production alarm metadata; TLS is enforced and CMK misconfiguration could block critical notifications. Revisit for sensitive payloads or compliance requirements.
   count = var.enable_alarms ? 1 : 0
 
   name         = "BlogPlatform-Alarms"
