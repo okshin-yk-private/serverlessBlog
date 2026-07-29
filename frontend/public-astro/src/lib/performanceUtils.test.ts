@@ -14,9 +14,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  type PerformanceBudget,
   type BuildArtifact,
-  type PerformanceValidationResult,
   DEFAULT_PERFORMANCE_BUDGET,
   validateBuildArtifact,
   calculateTotalJsSize,

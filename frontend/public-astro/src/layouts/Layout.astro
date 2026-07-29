@@ -148,8 +148,7 @@ const {
           if (saved !== 'system') return;
           document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
         };
-        if (mql.addEventListener) mql.addEventListener('change', handler);
-        else if (mql.addListener) mql.addListener(handler);
+        mql.addEventListener('change', handler);
       })();
     </script>
   </body>
