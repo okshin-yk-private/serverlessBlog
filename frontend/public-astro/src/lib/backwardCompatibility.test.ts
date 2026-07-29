@@ -23,7 +23,6 @@ import {
   IMAGE_PATHS,
   PUBLIC_URL_STRUCTURE,
   ROLLBACK_CONFIG,
-  type RouteVerificationResult,
   type RollbackConfig,
 } from './backwardCompatibility';
 
