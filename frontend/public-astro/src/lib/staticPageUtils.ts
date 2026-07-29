@@ -53,7 +53,7 @@ export interface NotFoundPageContent {
  */
 export function getSiteMetadata(): SiteMetadata {
   return {
-    siteName: 'Bone of my fallacy',
+    siteName: 'bone of my fallacy',
     siteDescription:
       'テクノロジー、ライフスタイル、プログラミングなど様々なトピックを扱う個人ブログ。',
     author: {

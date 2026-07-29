@@ -76,6 +76,14 @@ describe('Astro Build Output', () => {
         expect(cssFiles.length).toBeGreaterThanOrEqual(0);
       }
     });
+
+    it('should include theme-aware favicon assets', () => {
+      const indexHtml = readFileSync(join(distDir, 'index.html'), 'utf-8');
+      expect(indexHtml).toContain('/favicon-light.png');
+      expect(indexHtml).toContain('/favicon-dark.png');
+      expect(existsSync(join(distDir, 'favicon-light.png'))).toBe(true);
+      expect(existsSync(join(distDir, 'favicon-dark.png'))).toBe(true);
+    });
   });
 
   describe('About Page (Requirement 2.4)', () => {

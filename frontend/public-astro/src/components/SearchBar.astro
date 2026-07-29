@@ -49,7 +49,7 @@ const { posts } = Astro.props;
 </div>
 
 <!-- 検索用データを埋め込み -->
-<script id="search-data" type="application/json" set:html={JSON.stringify(posts)} />
+<script is:inline id="search-data" type="application/json" set:html={JSON.stringify(posts)} />
 
 <script>
   /**
@@ -189,9 +189,8 @@ const { posts } = Astro.props;
 
 <style>
   .search-container {
-    max-width: 600px;
-    margin: 0 auto 32px;
-    padding: 0 16px;
+    max-width: 720px;
+    margin: 0 auto 28px;
   }
 
   .search-input-wrapper {
@@ -202,29 +201,30 @@ const { posts } = Astro.props;
 
   .search-icon {
     position: absolute;
-    left: 16px;
-    width: 20px;
-    height: 20px;
+    left: 22px;
+    width: 18px;
+    height: 18px;
     color: var(--color-text-muted);
     pointer-events: none;
   }
 
   .search-input {
     width: 100%;
-    padding: 14px 48px 14px 48px;
-    font-size: 1rem;
+    padding: 17px 54px;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
     border: 1px solid var(--color-border);
-    border-radius: 12px;
+    border-radius: 999px;
     background: var(--color-surface);
     color: var(--color-text-heading);
     transition: all 0.2s ease;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-card);
   }
 
   .search-input:focus {
     outline: none;
     border-color: var(--color-accent);
-    box-shadow: 0 0 0 3px rgba(201, 168, 87, 0.15), 0 1px 3px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 0 0 4px var(--color-focus-ring), var(--shadow-card);
   }
 
   .search-input::placeholder {
@@ -233,7 +233,7 @@ const { posts } = Astro.props;
 
   .search-clear {
     position: absolute;
-    right: 12px;
+    right: 15px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -244,7 +244,7 @@ const { posts } = Astro.props;
     background: transparent;
     color: var(--color-text-muted);
     cursor: pointer;
-    border-radius: 6px;
+    border-radius: 50%;
     transition: all 0.15s ease;
   }
 
@@ -263,8 +263,9 @@ const { posts } = Astro.props;
     color: var(--color-text-muted);
     font-size: 1rem;
     padding: 40px 20px;
-    background: var(--color-surface-elevated);
-    border-radius: 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
     margin-bottom: 24px;
   }
 
@@ -274,11 +275,12 @@ const { posts } = Astro.props;
     }
 
     .search-input {
-      padding: 12px 44px 12px 44px;
-      font-size: 0.95rem;
+      padding: 14px 46px;
+      font-size: 0.88rem;
     }
 
     .search-icon {
+      left: 18px;
       width: 18px;
       height: 18px;
     }

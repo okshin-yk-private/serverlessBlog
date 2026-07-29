@@ -5,7 +5,7 @@
  * Navigation header with logo, site title, and navigation links.
  * Features:
  * - Sticky header with blur effect
- * - Logo + site title (Caveat font)
+ * - Theme-aware brand wordmark
  * - Navigation: Articles, About, Admin, Theme toggle
  * - Responsive design
  */
@@ -15,15 +15,15 @@ import ThemeToggle from './ThemeToggle.astro';
 
 <header class="site-header">
   <div class="header-container">
-    <a href="/" class="site-logo">
-      <img src="/fallacy.png" alt="Logo" class="logo-image" />
-      <span class="site-title">Bone of my fallacy</span>
+    <a href="/" class="site-logo" aria-label="bone of my fallacy - Home">
+      <img src="/logo-light.png" alt="bone of my fallacy" class="logo-image logo-image-light" />
+      <img src="/logo-dark.png" alt="" class="logo-image logo-image-dark" aria-hidden="true" />
     </a>
-    <nav class="site-nav">
+    <nav class="site-nav" aria-label="Main navigation">
       <a href="/" class="nav-link">Articles</a>
       <a href="/about" class="nav-link">About</a>
       <ThemeToggle />
-      <a href="/admin/" class="admin-icon-link" title="Admin">
+      <a href="/admin/" class="admin-icon-link" title="Admin" aria-label="Admin">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
@@ -50,87 +50,85 @@ import ThemeToggle from './ThemeToggle.astro';
 
 <style>
   .site-header {
-    background: var(--color-surface);
+    background: color-mix(in srgb, var(--color-bg) 88%, transparent);
     border-bottom: 1px solid var(--color-border);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     position: sticky;
     top: 0;
     z-index: 1000;
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
   }
 
   .header-container {
-    max-width: 1200px;
+    max-width: 1240px;
     margin: 0 auto;
-    padding: 0 32px;
+    padding: 0 40px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    height: 72px;
+    height: 88px;
   }
 
   .site-logo {
     text-decoration: none;
-    display: flex;
+    display: block;
     align-items: center;
-    transition: opacity 0.2s ease;
+    line-height: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
   }
 
   .site-logo:hover {
-    opacity: 0.8;
+    opacity: 0.82;
+    transform: translateY(-1px);
   }
 
   .logo-image {
-    height: 40px;
+    display: block;
+    height: 58px;
     width: auto;
-    margin-right: 12px;
+    max-width: 230px;
+    object-fit: contain;
   }
 
-  :root[data-theme="dark"] .logo-image {
-    content: url('/dark-logo.png');
+  .logo-image-dark {
+    display: none;
   }
 
-  .site-title {
-    font-family: 'Caveat', cursive;
-    font-size: 1.6rem;
-    font-weight: 600;
-    color: var(--color-text-heading);
-    letter-spacing: 0.02em;
+  .logo-image-light {
+    mix-blend-mode: multiply;
+  }
+
+  :global(:root[data-theme='dark']) .logo-image-light {
+    display: none;
+  }
+
+  :global(:root[data-theme='dark']) .logo-image-dark {
+    display: block;
   }
 
   .site-nav {
     display: flex;
-    gap: 24px;
+    gap: 8px;
     align-items: center;
   }
 
   .nav-link {
-    color: var(--color-text);
+    color: var(--color-text-muted);
     text-decoration: none;
-    font-size: 0.95rem;
-    font-weight: 500;
-    transition: color 0.2s ease;
-    padding: 8px 0;
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    transition: color 0.2s ease, background 0.2s ease;
+    padding: 10px 14px;
+    border-radius: 999px;
     position: relative;
-  }
-
-  .nav-link::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 0;
-    height: 2px;
-    background: var(--color-text);
-    transition: width 0.2s ease;
   }
 
   .nav-link:hover {
     color: var(--color-text-heading);
-  }
-
-  .nav-link:hover::after {
-    width: 100%;
+    background: var(--color-primary-soft);
   }
 
   .admin-icon-link {
@@ -139,11 +137,17 @@ import ThemeToggle from './ThemeToggle.astro';
     transition: color 0.2s ease;
     display: flex;
     align-items: center;
-    padding: 8px;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid transparent;
   }
 
   .admin-icon-link:hover {
-    color: var(--color-text);
+    color: var(--color-accent);
+    border-color: var(--color-border);
+    background: var(--color-surface);
   }
 
   .admin-icon-svg {
@@ -153,25 +157,37 @@ import ThemeToggle from './ThemeToggle.astro';
 
   @media (max-width: 768px) {
     .header-container {
-      height: 64px;
+      height: 72px;
       padding: 0 20px;
     }
 
     .logo-image {
-      height: 32px;
-      margin-right: 8px;
-    }
-
-    .site-title {
-      font-size: 1.2rem;
+      height: 46px;
+      max-width: 178px;
     }
 
     .site-nav {
-      gap: 16px;
+      gap: 2px;
     }
 
     .nav-link {
-      font-size: 0.9rem;
+      font-size: 0.68rem;
+      padding: 8px 9px;
+    }
+
+    .admin-icon-link {
+      display: none;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .logo-image {
+      height: 40px;
+      max-width: 145px;
+    }
+
+    .nav-link {
+      padding-inline: 6px;
     }
   }
 </style>
