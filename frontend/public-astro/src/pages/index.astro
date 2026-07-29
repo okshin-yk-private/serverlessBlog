@@ -90,7 +90,7 @@ const searchablePosts: SearchablePost[] = posts.map((post) => ({
   .hero-section {
     position: relative;
     overflow: hidden;
-    padding: 64px 32px;
+    padding: 68px 32px;
     text-align: center;
     border-bottom: 1px solid var(--color-border);
   }
@@ -127,10 +127,10 @@ const searchablePosts: SearchablePost[] = posts.map((post) => ({
   }
 
   .hero-eyebrow {
-    margin: 0 0 28px;
+    margin: 0 0 20px;
     color: var(--color-text-muted);
     font-family: var(--font-display);
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     font-weight: 600;
     letter-spacing: 0.22em;
     text-transform: uppercase;
@@ -140,17 +140,17 @@ const searchablePosts: SearchablePost[] = posts.map((post) => ({
     margin: 0;
     color: var(--color-text-muted);
     font-family: var(--font-body);
-    font-size: 0.72rem;
-    font-weight: 400;
-    letter-spacing: 0.08em;
-    line-height: 1.6;
+    font-size: clamp(1.25rem, 2.4vw, 1.75rem);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    line-height: 1.45;
   }
 
   .hero-seed {
     display: block;
     width: 42px;
     height: 42px;
-    margin: 34px auto 0;
+    margin: 28px auto 0;
     background: url('/favicon-light.png') center / contain no-repeat;
   }
 
@@ -207,22 +207,22 @@ const searchablePosts: SearchablePost[] = posts.map((post) => ({
 
   @media (max-width: 768px) {
     .hero-section {
-      padding: 48px 20px;
+      padding: 50px 20px;
     }
 
     .hero-eyebrow {
-      margin-bottom: 24px;
-      font-size: 0.62rem;
+      margin-bottom: 16px;
+      font-size: 0.68rem;
     }
 
     .hero-title {
-      font-size: 0.62rem;
+      font-size: 1.05rem;
     }
 
     .hero-seed {
       width: 36px;
       height: 36px;
-      margin-top: 30px;
+      margin-top: 24px;
     }
 
     .search-section {
