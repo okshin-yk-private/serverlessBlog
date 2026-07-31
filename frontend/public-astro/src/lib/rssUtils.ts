@@ -11,7 +11,7 @@
  */
 
 import type { Post } from './api';
-import { stripHtml } from './postUtils';
+import { stripHtml, getPostPathSegment } from './postUtils';
 
 /**
  * RSSフィードアイテムの型定義
@@ -73,7 +73,7 @@ export function postToRSSItem(post: Post, siteUrl: string): RSSItem {
   const description = generateRSSDescription(post.contentHtml);
 
   // 完全なURLを生成 (PR7+: prefer slug, fall back to id only if slug missing)
-  const link = buildPostUrl(post.slug ?? post.id, siteUrl);
+  const link = buildPostUrl(getPostPathSegment(post), siteUrl);
 
   // 公開日または作成日を使用
   const pubDate = new Date(post.publishedAt ?? post.createdAt);

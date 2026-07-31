@@ -2,9 +2,9 @@
 /**
  * [slug].astro - 記事詳細ページ (PR7: friendly slug ルーティング)
  *
- * `/posts/<slug>/index.html` として静的生成する。slug を持つ投稿のみ対象。
- * 動作・スタイル・JSON-LD は [id].astro と同一。
- * SEO の canonical はこの slug ベースの URL を採用する。
+ * `/posts/<slug>/index.html` として静的生成する。slug を持たない記事は
+ * `/posts/<id>/index.html` にフォールバックする。
+ * SEO の canonical は生成された URL をそのまま採用する。
  */
 import Layout from '../../layouts/Layout.astro';
 import { fetchAllPosts, type Post } from '../../lib/api';
@@ -15,20 +15,23 @@ import {
   getPostImageUrls,
 } from '../../lib/postDetailUtils';
 import type { JsonLdPost } from '../../lib/jsonLdUtils';
+import { getPostPathSegment } from '../../lib/postUtils';
 
 /**
- * getStaticPaths: slug を持つ全公開記事のパスを生成。slug が無い投稿は
- * [id].astro 側で従来通り id ベースで配信される。
+ * getStaticPaths: 全公開記事のパスを生成する。
+ *
+ * slug は任意項目なので、持たない記事は id をパスに使う。PostCard が
+ * `post.slug ?? post.id` でリンクを組み立てるため、ここで同じ規則を使わないと
+ * slug の無い記事のリンク先が生成されず、S3 が AccessDenied を返す。
+ * (以前は [id].astro が id ベースの配信を担っていたが、そのファイルは削除済み。)
  */
 export async function getStaticPaths() {
   const posts = await fetchAllPosts();
 
-  return posts
-    .filter((post) => Boolean(post.slug))
-    .map((post) => ({
-      params: { slug: post.slug! },
-      props: { post },
-    }));
+  return posts.map((post) => ({
+    params: { slug: getPostPathSegment(post) },
+    props: { post },
+  }));
 }
 
 interface Props {

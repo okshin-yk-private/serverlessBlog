@@ -59,6 +59,24 @@ export function formatDateJa(dateString: string): string {
 }
 
 /**
+ * 記事 URL に使う識別子を返す。
+ *
+ * slug は任意項目なので、持たない記事は id にフォールバックする。この規則は
+ * getStaticPaths（生成されるパス）、PostCard（一覧のリンク先）、RSS、JSON-LD の
+ * すべてで一致していなければならない。かつて getStaticPaths だけが slug 無しの
+ * 記事を除外していたため、一覧からリンクされているのに実体が生成されず S3 が
+ * AccessDenied を返す状態になっていた。
+ */
+export function getPostPathSegment(post: {
+  id: string;
+  slug?: string;
+}): string {
+  // Truthiness, not `??`: an empty-string slug must fall back to the id too,
+  // otherwise the URL degrades to `/posts//`.
+  return post.slug || post.id;
+}
+
+/**
  * 記事を作成日時の降順でソートする
  */
 export function sortPostsByDate(posts: Post[]): Post[] {
