@@ -62,7 +62,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       {/* グローバルエラーメッセージ */}
       {error && (
         <div
-          className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded"
+          className="admin-alert admin-alert-error"
           data-testid="error-message"
         >
           {error}
@@ -71,7 +71,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       {/* バリデーションエラー */}
       {validationErrors.length > 0 && (
         <div
-          className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded"
+          className="admin-alert admin-alert-error"
           data-testid="error-message"
         >
           {validationErrors.map((err, idx) => (
@@ -82,10 +82,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
       {/* メールアドレス */}
       <div>
-        <label
-          htmlFor="email"
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
+        <label htmlFor="email" className="admin-form-label">
           メールアドレス
         </label>
         <input
@@ -94,19 +91,14 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-            emailError ? 'border-red-500' : 'border-gray-300'
-          }`}
+          className={`admin-form-input ${emailError ? 'admin-form-input-error' : ''}`}
           disabled={isSubmitting}
         />
       </div>
 
       {/* パスワード */}
       <div>
-        <label
-          htmlFor="password"
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
+        <label htmlFor="password" className="admin-form-label">
           パスワード
         </label>
         <input
@@ -115,9 +107,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-            passwordError ? 'border-red-500' : 'border-gray-300'
-          }`}
+          className={`admin-form-input ${passwordError ? 'admin-form-input-error' : ''}`}
           disabled={isSubmitting}
         />
       </div>
@@ -132,7 +122,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             data-testid="remember-me"
             className="mr-2"
           />
-          <span className="text-sm text-gray-700">ログイン状態を保持</span>
+          <span className="login-form-remember">ログイン状態を保持</span>
         </label>
 
         {onForgotPassword && (
@@ -140,7 +130,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             type="button"
             onClick={onForgotPassword}
             data-testid="forgot-password"
-            className="text-sm text-blue-600 hover:text-blue-800"
+            className="login-form-link"
           >
             パスワードを忘れた
           </button>

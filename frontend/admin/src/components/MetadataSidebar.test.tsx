@@ -120,7 +120,7 @@ describe('MetadataSidebar', () => {
     ) as HTMLTextAreaElement;
     fireEvent.change(excerpt, { target: { value: 'x'.repeat(161) } });
     const counter = screen.getByTestId('metadata-excerpt-counter');
-    expect(counter.className).toContain('text-red-600');
+    expect(counter.className).toContain('admin-field-error');
   });
 
   it('「本文先頭画像から」で coverImageUrl が埋まる', () => {

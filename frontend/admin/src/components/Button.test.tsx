@@ -38,19 +38,19 @@ describe('Button', () => {
   it('variantがprimaryの場合、適切なクラスが設定される', () => {
     render(<Button variant="primary">プライマリ</Button>);
     const button = screen.getByText('プライマリ');
-    expect(button).toHaveClass('bg-blue-600');
+    expect(button).toHaveClass('admin-btn', 'admin-btn-primary');
   });
 
   it('variantがsecondaryの場合、適切なクラスが設定される', () => {
     render(<Button variant="secondary">セカンダリ</Button>);
     const button = screen.getByText('セカンダリ');
-    expect(button).toHaveClass('bg-gray-200');
+    expect(button).toHaveClass('admin-btn', 'admin-btn-secondary');
   });
 
   it('variantがdangerの場合、適切なクラスが設定される', () => {
     render(<Button variant="danger">危険</Button>);
     const button = screen.getByText('危険');
-    expect(button).toHaveClass('bg-red-600');
+    expect(button).toHaveClass('admin-btn', 'admin-btn-danger');
   });
 
   it('disabled属性が正しく設定される', () => {

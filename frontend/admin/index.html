@@ -2,15 +2,12 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link id="site-favicon" rel="icon" type="image/png" href="/favicon-light.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Preload Caveat font (self-hosted to eliminate FOUT).
-         Note: Shippori Mincho was previously linked from Google Fonts here
-         but the admin app does not actually use it (Caveat is the only
-         non-system font referenced by admin CSS). Removed to clear the CSP
-         block on fonts.googleapis.com. -->
-    <link rel="preload" href="/fonts/caveat-variable.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- Preload Shippori Mincho (self-hosted). 公開サイト (public-astro) と同じ
+         本文書体を管理画面でも使うため、Google Fonts ではなく自前配信する。 -->
+    <link rel="preload" href="/fonts/shippori-mincho-400.woff2" as="font" type="font/woff2" crossorigin />
 
     <!-- Theme bootstrap (FOUC prevention). Mirrors public-astro Layout. -->
     <script>
@@ -26,6 +23,25 @@
         } catch (e) {
           document.documentElement.setAttribute('data-theme', 'light');
         }
+      })();
+    </script>
+
+    <!-- Theme-aware favicon. Mirrors public-astro Layout. -->
+    <script>
+      (function () {
+        var favicon = document.getElementById('site-favicon');
+        if (!favicon) return;
+
+        var syncFavicon = function () {
+          var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+          favicon.setAttribute('href', isDark ? '/favicon-dark.png' : '/favicon-light.png');
+        };
+
+        syncFavicon();
+        new MutationObserver(syncFavicon).observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ['data-theme'],
+        });
       })();
     </script>
 

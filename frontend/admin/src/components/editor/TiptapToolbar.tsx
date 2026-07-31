@@ -33,10 +33,10 @@ function ToolbarButton({
       aria-pressed={active}
       data-testid={testId}
       className={[
-        'inline-flex items-center justify-center min-w-[32px] h-8 px-2 text-sm rounded',
-        'border border-transparent',
-        'hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed',
-        active ? 'bg-gray-200 border-gray-300 font-semibold' : 'text-gray-700',
+        'admin-editor-tool',
+        'inline-flex items-center justify-center min-w-[32px] h-8 px-2 text-sm',
+        'disabled:opacity-50 disabled:cursor-not-allowed',
+        active ? 'is-active' : '',
       ].join(' ')}
     >
       {children}
@@ -84,7 +84,7 @@ export function TiptapToolbar({
   if (!editor) {
     return (
       <div
-        className="flex flex-wrap items-center gap-1 px-2 py-1 bg-gray-50 rounded-t-md"
+        className="admin-editor-toolbar flex flex-wrap items-center gap-1 px-2 py-1"
         data-testid="tiptap-toolbar"
         aria-busy="true"
       />
@@ -95,7 +95,7 @@ export function TiptapToolbar({
 
   return (
     <div
-      className="flex flex-wrap items-center gap-1 px-2 py-1 bg-gray-50 rounded-t-md"
+      className="admin-editor-toolbar flex flex-wrap items-center gap-1 px-2 py-1"
       data-testid="tiptap-toolbar"
       role="toolbar"
       aria-label="本文書式"
@@ -136,7 +136,7 @@ export function TiptapToolbar({
       >
         H4
       </ToolbarButton>
-      <span className="w-px h-5 bg-gray-300 mx-1" aria-hidden />
+      <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBold().run()}
         active={editor.isActive('bold')}
@@ -173,7 +173,7 @@ export function TiptapToolbar({
       >
         {'<>'}
       </ToolbarButton>
-      <span className="w-px h-5 bg-gray-300 mx-1" aria-hidden />
+      <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBulletList().run()}
         active={editor.isActive('bulletList')}
@@ -218,7 +218,7 @@ export function TiptapToolbar({
       >
         ―
       </ToolbarButton>
-      <span className="w-px h-5 bg-gray-300 mx-1" aria-hidden />
+      <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
       <ToolbarButton
         onClick={handleSetLink}
         active={editor.isActive('link')}
@@ -244,7 +244,7 @@ export function TiptapToolbar({
         data-testid="toolbar-image-input"
         onChange={handleFileInputChange}
       />
-      <span className="w-px h-5 bg-gray-300 mx-1" aria-hidden />
+      <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
       <ToolbarButton
         onClick={() => editor.chain().focus().undo().run()}
         disabled={isDisabled || !editor.can().undo()}

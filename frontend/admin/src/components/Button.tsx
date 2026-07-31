@@ -13,13 +13,13 @@ export const Button: React.FC<ButtonProps> = ({
   className,
   ...restProps
 }) => {
-  const baseClass = 'px-4 py-2 rounded font-medium transition-colors';
+  // 公開サイトと共通のデザイントークンで定義した admin-btn プリミティブを使う
+  const baseClass = 'admin-btn';
 
   const variantClasses = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300',
-    secondary:
-      'bg-gray-200 text-gray-800 hover:bg-gray-300 disabled:bg-gray-100',
-    danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300',
+    primary: 'admin-btn-primary',
+    secondary: 'admin-btn-secondary',
+    danger: 'admin-btn-danger',
   };
 
   return (
