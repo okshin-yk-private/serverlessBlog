@@ -36,6 +36,15 @@ variable "api_url" {
   description = "API URL for Astro build (PUBLIC_API_URL environment variable)"
 }
 
+variable "site_url" {
+  type        = string
+  description = "Canonical site URL for the Astro build (SITE_URL environment variable). Drives sitemap, canonical links, OGP and RSS URLs — without it the build falls back to https://example.com."
+  validation {
+    condition     = can(regex("^https://", var.site_url))
+    error_message = "site_url must be an https:// URL"
+  }
+}
+
 variable "build_timeout" {
   type        = number
   description = "Build timeout in minutes"

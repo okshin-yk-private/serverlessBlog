@@ -39,6 +39,7 @@ version: 0.2
 env:
   variables:
     API_URL: "${var.api_url}"
+    SITE_URL: "${var.site_url}"
     DEPLOYMENT_BUCKET: "${var.public_site_bucket_name}"
     CLOUDFRONT_DISTRIBUTION_ID: "${var.cloudfront_distribution_id}"
   shell: bash

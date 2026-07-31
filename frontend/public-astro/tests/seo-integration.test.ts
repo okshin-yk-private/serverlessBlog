@@ -18,7 +18,8 @@ import { join } from 'path';
 import { mockPosts } from './mock-api-server';
 
 const distDir = join(import.meta.dirname, '../dist');
-const SITE_URL = 'https://example.com';
+// ビルド時の SITE_URL と同じ値で検証する（build-with-mock.sh のデフォルトは example.com）
+const SITE_URL = process.env.SITE_URL ?? 'https://example.com';
 const SITE_NAME = 'bone of my fallacy';
 
 /**
