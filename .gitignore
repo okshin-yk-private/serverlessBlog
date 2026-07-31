@@ -109,6 +109,18 @@ go-functions/coverage*.html
 # Jest
 .jest/
 
+# Playwright (outputDir / reporter outputs — see playwright*.config.ts)
+test-results/
+test-results-admin/
+playwright-report/
+playwright-report-admin/
+blob-report/
+.playwright/
+playwright/.cache/
+
+# Security scan output
+*.sarif
+
 # ===================================
 # Logs & Temporary Files
 # ===================================
