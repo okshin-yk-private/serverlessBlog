@@ -236,6 +236,11 @@ layers/**/*.js
 # Project Specific
 # ===================================
 
+# Security/architecture review notes (keep local)
+# 稼働中システムの弱点をファイル名・行番号付きで列挙した内容を含むため、
+# 公開リポジトリである本リポジトリにはコミットしない。
+docs/reviews/
+
 # Serena (AI Assistant)
 .serena/memories/
 .serena/cache/
