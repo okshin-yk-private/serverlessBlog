@@ -9,6 +9,14 @@ export default defineConfig(({ command }) => ({
   // 開発サーバー(dev)では / を使用（localhost:3001でアクセスするため）
   // Public Siteと同じ動作パターン
   base: command === 'build' ? '/admin/' : '/',
+  resolve: {
+    // Amplify は @aws-amplify/core のモジュールスコープに設定を保持する
+    // シングルトンなので、バンドルに複数コピーが入ると Amplify.configure() が
+    // 設定したインスタンスと aws-amplify/auth が参照するインスタンスがずれ、
+    // 実行時に "Auth UserPool not configured" で認証が全て失敗する。
+    // パッケージマネージャがネストして入れた複製を 1 つに解決させる。
+    dedupe: ['aws-amplify', '@aws-amplify/core', '@aws-amplify/auth'],
+  },
   css: {
     postcss: {
       plugins: [tailwindcss()],

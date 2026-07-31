@@ -583,6 +583,15 @@ jobs:
           VITE_API_URL: "/api"
           VITE_CLOUDFRONT_URL: ${{ steps.cloudfront.outputs.url }}
 
+      # ビルドが成功しても実行時に認証が全滅する壊れ方 (Cognito 設定の埋め込み
+      # 漏れ / Amplify シングルトンの重複) を、デプロイ前に成果物から検出する
+      - name: Verify build artifact
+        working-directory: frontend/admin
+        run: bun run verify:bundle
+        env:
+          VITE_COGNITO_USER_POOL_ID: ${{ steps.cognito.outputs.user_pool_id }}
+          VITE_COGNITO_USER_POOL_CLIENT_ID: ${{ steps.cognito.outputs.client_id }}
+
       - name: Upload build artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
