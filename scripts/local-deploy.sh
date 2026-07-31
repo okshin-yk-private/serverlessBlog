@@ -881,14 +881,32 @@ build_frontend() {
         local cognito_pool_id
         local cognito_client_id
 
+        # Vite embeds VITE_* at build time. Building without the Cognito config
+        # produces an admin bundle whose Amplify.configure() receives undefined
+        # values, so every login / password-reset fails at runtime with
+        # "AuthUserPoolException: Auth UserPool not configured." — and nothing
+        # in the deploy itself looks broken. So: never build without it.
         if cognito_pool_id=$(fetch_ssm "$ssm_pool_path" false) && \
-           cognito_client_id=$(fetch_ssm "$ssm_client_path" false); then
+           cognito_client_id=$(fetch_ssm "$ssm_client_path" false) && \
+           [[ -n "$cognito_pool_id" && "$cognito_pool_id" != "None" ]] && \
+           [[ -n "$cognito_client_id" && "$cognito_client_id" != "None" ]]; then
             export VITE_COGNITO_USER_POOL_ID="$cognito_pool_id"
             export VITE_COGNITO_USER_POOL_CLIENT_ID="$cognito_client_id"
-            export VITE_API_URL="/api"
+            export VITE_API_URL="${VITE_API_URL:-/api}"
             log_success "Cognito config loaded from SSM"
+        elif [[ -n "${VITE_COGNITO_USER_POOL_ID:-}" && -n "${VITE_COGNITO_USER_POOL_CLIENT_ID:-}" ]]; then
+            export VITE_API_URL="${VITE_API_URL:-/api}"
+            log_warning "Could not fetch Cognito config from SSM; using pre-set environment variables"
         else
-            log_warning "Could not fetch Cognito config, using environment variables"
+            log_error "Admin Site: Cognito config unavailable — aborting before build"
+            log_error "  SSM: $ssm_pool_path"
+            log_error "  SSM: $ssm_client_path"
+            log_error "  Building now would ship an admin site where login and password"
+            log_error "  reset fail with 'Auth UserPool not configured'."
+            log_error "  Fix: refresh AWS credentials ('aws sso login') and retry,"
+            log_error "  or export VITE_COGNITO_USER_POOL_ID / VITE_COGNITO_USER_POOL_CLIENT_ID."
+            FAILED_STEPS+=("Frontend Admin Cognito Config")
+            return 1
         fi
 
         cd "$PROJECT_ROOT/frontend/admin"
@@ -914,6 +932,17 @@ build_frontend() {
         if [[ "$VERBOSE" == true ]]; then
             echo "$build_output"
         fi
+
+        # Verify the User Pool ID actually made it into the bundle. Guards
+        # against future regressions in how the config reaches the build.
+        if ! grep -rqF "$VITE_COGNITO_USER_POOL_ID" dist/assets 2>/dev/null; then
+            log_error "Admin Site: built bundle does not contain the Cognito User Pool ID"
+            log_error "  Expected to find: $VITE_COGNITO_USER_POOL_ID"
+            log_error "  Deploying this build would break login and password reset."
+            FAILED_STEPS+=("Frontend Admin Build Verification")
+            return 1
+        fi
+        log_verbose "Cognito config embedded in bundle: verified"
 
         local admin_size
         admin_size=$(du -sh dist 2>/dev/null | cut -f1)
