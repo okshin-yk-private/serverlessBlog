@@ -2,6 +2,7 @@
 name: review-pr-comments
 description: PRのレビューコメントを確認し、修正が必要なものは修正してコミット・プッシュし、全コメントに返信する
 argument-hint: <PR番号 or PR URL>
+disable-model-invocation: true
 ---
 
 # PRレビューコメント対応ワークフロー

@@ -1,9 +1,5 @@
 {
   "mcpServers": {
-    "aws-knowledge-mcp-server": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://knowledge-mcp.global.api.aws"]
-    },
     "sequential-thinking": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
@@ -18,10 +14,6 @@
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
-    },
-    "playwright": {
-      "command": "npx",
-      "args": ["@playwright/mcp@latest"]
     },
     "aws-mcp": {
       "command": "uvx",
