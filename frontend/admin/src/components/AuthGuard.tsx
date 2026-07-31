@@ -17,7 +17,7 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-600">{loadingMessage}</div>
+        <div className="admin-loading">{loadingMessage}</div>
       </div>
     );
   }

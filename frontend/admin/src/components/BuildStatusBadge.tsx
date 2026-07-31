@@ -23,10 +23,10 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_CLASS: Record<string, string> = {
-  idle: 'bg-gray-100 text-gray-700',
-  'in-progress': 'bg-blue-100 text-blue-800',
-  succeeded: 'bg-green-100 text-green-800',
-  failed: 'bg-red-100 text-red-800',
+  idle: 'admin-badge-light',
+  'in-progress': 'admin-badge-dark',
+  succeeded: 'admin-badge-success',
+  failed: 'admin-badge-danger',
 };
 
 /**
@@ -61,23 +61,19 @@ export const BuildStatusBadge: React.FC<BuildStatusBadgeProps> = ({
       data-testid="build-status-badge"
       data-status={status}
     >
-      <span
-        className={`inline-flex items-center px-2 py-1 rounded font-medium ${className}`}
-      >
-        {label}
-      </span>
+      <span className={`admin-badge ${className}`}>{label}</span>
       {status === 'succeeded' && publicUrl && (
         <a
           href={publicUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:underline"
+          className="admin-inline-link"
         >
           公開サイトを開く
         </a>
       )}
       {error && (
-        <span className="text-xs text-red-600" role="alert">
+        <span className="admin-field-error" role="alert">
           {error}
         </span>
       )}

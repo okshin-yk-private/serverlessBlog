@@ -61,7 +61,7 @@ test.describe('Admin Metadata Sidebar', () => {
     const excerpt = page.getByTestId('metadata-excerpt-input');
     await excerpt.fill('a'.repeat(161));
     const counter = page.getByTestId('metadata-excerpt-counter');
-    await expect(counter).toHaveClass(/text-red-600/);
+    await expect(counter).toHaveClass(/admin-field-error/);
     await expect(counter).toHaveText('161 / 160');
   });
 
