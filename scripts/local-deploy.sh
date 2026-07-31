@@ -933,16 +933,17 @@ build_frontend() {
             echo "$build_output"
         fi
 
-        # Verify the User Pool ID actually made it into the bundle. Guards
-        # against future regressions in how the config reaches the build.
-        if ! grep -rqF "$VITE_COGNITO_USER_POOL_ID" dist/assets 2>/dev/null; then
-            log_error "Admin Site: built bundle does not contain the Cognito User Pool ID"
-            log_error "  Expected to find: $VITE_COGNITO_USER_POOL_ID"
-            log_error "  Deploying this build would break login and password reset."
+        # Catch the failure modes that build cleanly but break every login at
+        # runtime: missing Cognito config, or duplicated Amplify singletons.
+        # Same check the CI pipeline runs before uploading the artifact.
+        local verify_output
+        if ! verify_output=$(bun run verify:bundle 2>&1); then
+            log_error "Admin Site: build artifact verification failed"
+            echo "$verify_output" | tail -10
             FAILED_STEPS+=("Frontend Admin Build Verification")
             return 1
         fi
-        log_verbose "Cognito config embedded in bundle: verified"
+        log_verbose "Build artifact verified"
 
         local admin_size
         admin_size=$(du -sh dist 2>/dev/null | cut -f1)

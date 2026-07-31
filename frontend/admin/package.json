@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:e2e": "vite --mode test",
     "build": "vite build",
+    "verify:bundle": "node scripts/verify-bundle.mjs",
     "type-check": "tsc --noEmit",
     "test": "vitest",
     "test:ui": "vitest --ui",
@@ -16,7 +17,6 @@
     "deploy": "npm run build && aws s3 sync dist/ s3://${S3_BUCKET_NAME}/ --delete"
   },
   "dependencies": {
-    "@aws-amplify/ui-react": "^6.13.1",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
