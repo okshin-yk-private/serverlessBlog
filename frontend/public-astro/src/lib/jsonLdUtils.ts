@@ -10,6 +10,8 @@
  * - 4.4: JSON-LD structured data with @type: "WebSite" schema for home page
  */
 
+import { getPostPathSegment } from './postUtils';
+
 /**
  * Input data for generating BlogPosting JSON-LD
  */
@@ -129,7 +131,7 @@ export function generateBlogPostingJsonLd(
   post: JsonLdPost,
   siteUrl: string
 ): BlogPostingJsonLd {
-  const postUrl = buildPostUrl(post.slug ?? post.id, siteUrl);
+  const postUrl = buildPostUrl(getPostPathSegment(post), siteUrl);
   const dateModified = post.updatedAt ?? post.publishedAt;
 
   const jsonLd: BlogPostingJsonLd = {

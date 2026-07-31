@@ -14,6 +14,7 @@ import {
   getFirstImage,
   getPostImageUrls,
 } from '../../../lib/postDetailUtils';
+import { getPostPathSegment } from '../../../lib/postUtils';
 import type { Post } from '../../../lib/api';
 
 /**
@@ -102,47 +103,51 @@ describe('Post Detail Page - Utility Functions', () => {
   });
 
   describe('getStaticPaths Output Format', () => {
-    it('should produce correct params structure', () => {
-      // Simulate what getStaticPaths returns
-      const posts: Post[] = [mockPost];
-      const paths = posts.map((post) => ({
-        params: { id: post.id },
+    // getStaticPaths lives inside the .astro file and cannot be imported here,
+    // but it delegates the identifier choice to getPostPathSegment. Asserting
+    // on that helper is what actually guards the contract, because PostCard
+    // builds its href from the very same call.
+    const buildPaths = (posts: Post[]) =>
+      posts.map((post) => ({
+        params: { slug: getPostPathSegment(post) },
         props: { post },
       }));
+
+    it('should use the slug when the post has one', () => {
+      const paths = buildPaths([{ ...mockPost, slug: 'test-article' }]);
 
       expect(paths).toHaveLength(1);
-      expect(paths[0].params.id).toBe('test-123');
-      expect(paths[0].props.post).toEqual(mockPost);
+      expect(paths[0].params.slug).toBe('test-article');
+      expect(paths[0].props.post.id).toBe('test-123');
     });
 
-    it('should handle multiple posts', () => {
-      const posts: Post[] = [
-        mockPost,
-        { ...mockPost, id: 'test-456', title: '別の記事' },
-        { ...mockPost, id: 'test-789', title: 'さらに別の記事' },
-      ];
+    it('should fall back to the id when the post has no slug', () => {
+      // Regression: getStaticPaths used to filter these posts out entirely.
+      // PostCard still linked to /posts/<id>/, so the page was never built and
+      // S3 answered AccessDenied.
+      const paths = buildPaths([mockPost]);
 
-      const paths = posts.map((post) => ({
-        params: { id: post.id },
-        props: { post },
-      }));
+      expect(paths).toHaveLength(1);
+      expect(paths[0].params.slug).toBe('test-123');
+    });
+
+    it('should emit a path for every post, mixing slug and id', () => {
+      const paths = buildPaths([
+        { ...mockPost, id: 'test-123', slug: 'first-post' },
+        { ...mockPost, id: 'test-456', title: '別の記事' },
+        { ...mockPost, id: 'test-789', slug: 'third-post' },
+      ]);
 
       expect(paths).toHaveLength(3);
-      expect(paths.map((p) => p.params.id)).toEqual([
-        'test-123',
+      expect(paths.map((p) => p.params.slug)).toEqual([
+        'first-post',
         'test-456',
-        'test-789',
+        'third-post',
       ]);
     });
 
     it('should handle empty posts array', () => {
-      const posts: Post[] = [];
-      const paths = posts.map((post) => ({
-        params: { id: post.id },
-        props: { post },
-      }));
-
-      expect(paths).toHaveLength(0);
+      expect(buildPaths([])).toHaveLength(0);
     });
   });
 
