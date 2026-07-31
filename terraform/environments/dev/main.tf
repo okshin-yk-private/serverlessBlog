@@ -367,17 +367,18 @@ module "acm" {
 }
 
 # Route53 Hosted Zone for dev subdomain
-# Note: cloudfront_domain_name is NOT passed here to avoid circular dependency
-# The A/AAAA records pointing to CloudFront are created separately below
+# The module owns the hosted zone and the ACM validation records only.
+# The A/AAAA records pointing to CloudFront are created separately below,
+# because declaring them inside the module would close a dependency cycle
+# (CDN -> ACM -> validation records -> zone -> alias -> CDN).
 module "dns_route53" {
   source = "../../modules/dns-route53"
 
   count = var.enable_custom_domain ? 1 : 0
 
-  zone_name              = var.domain_name # dev.boneofmyfallacy.net
-  cloudfront_domain_name = ""              # Created separately after CDN to avoid cycle
-  environment            = var.environment
-  project_name           = var.project_name
+  zone_name    = var.domain_name # dev.boneofmyfallacy.net
+  environment  = var.environment
+  project_name = var.project_name
 
   # ACM validation records
   acm_domain_validation_options = var.enable_custom_domain ? module.acm[0].domain_validation_options : []

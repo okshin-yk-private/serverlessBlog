@@ -19,35 +19,13 @@ resource "aws_route53_zone" "subdomain" {
   )
 }
 
-# Apex record (A alias) → CloudFront
-resource "aws_route53_record" "apex" {
-  count = var.cloudfront_domain_name != "" ? 1 : 0
-
-  zone_id = aws_route53_zone.subdomain.zone_id
-  name    = var.zone_name
-  type    = "A"
-
-  alias {
-    name                   = var.cloudfront_domain_name
-    zone_id                = var.cloudfront_hosted_zone_id
-    evaluate_target_health = false
-  }
-}
-
-# IPv6 apex record (AAAA alias) → CloudFront
-resource "aws_route53_record" "apex_ipv6" {
-  count = var.cloudfront_domain_name != "" && var.create_ipv6_records ? 1 : 0
-
-  zone_id = aws_route53_zone.subdomain.zone_id
-  name    = var.zone_name
-  type    = "AAAA"
-
-  alias {
-    name                   = var.cloudfront_domain_name
-    zone_id                = var.cloudfront_hosted_zone_id
-    evaluate_target_health = false
-  }
-}
+# Apex A/AAAA alias records are NOT defined here.
+#
+# Pointing them at CloudFront from inside this module creates a dependency
+# cycle: the CDN needs the ACM certificate, the certificate needs the
+# validation records in this zone, and the alias would need the CDN. Each
+# environment therefore declares its apex records next to the CDN instead —
+# see aws_route53_record.cloudfront_apex in environments/dev/main.tf.
 
 # ACM certificate DNS validation records
 resource "aws_route53_record" "acm_validation" {
