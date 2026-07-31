@@ -304,6 +304,26 @@ skip-check:
   # Mitigation: CloudTrail for audit trail; metrics for long-term trends
   - CKV_AWS_338
 
+  # --------------------------------------
+  # Route53 Rules
+  # --------------------------------------
+
+  # CKV2_AWS_23: Route53 A Record has Attached Resource
+  # Justification: False positive on a resource that is never instantiated.
+  # The check FAILS only for module.dns_route53[0].aws_route53_record.apex
+  # (modules/dns-route53/main.tf:23-35), whose alias target is the variable
+  # cloudfront_domain_name. dev passes "" for that variable to break the
+  # CDN <-> Route53 dependency cycle, so its `count` evaluates to 0 and the
+  # record is never created; prd declares no Route53 records at all. Checkov
+  # evaluates the module statically and cannot resolve the variable, so it
+  # reports the uninstantiated resource as dangling.
+  # The record that is actually created, aws_route53_record.cloudfront_apex in
+  # environments/dev/main.tf, PASSES this check because its alias target
+  # (module.cdn.distribution_domain_name) is resolvable.
+  # Mitigation: terraform plan resolves the alias targets; a genuinely dangling
+  # record would fail apply.
+  - CKV2_AWS_23
+
 # ======================================
 # External Check Configuration
 # ======================================
