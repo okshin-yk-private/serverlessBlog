@@ -30,6 +30,8 @@ locals {
 
 # Requirement: Enable access logging for production
 resource "aws_s3_bucket" "access_logs" {
+  #checkov:skip=CKV_AWS_21:This bucket stores append-only access logs under unique keys and expires them through lifecycle management. Revisit if it begins storing mutable objects.
+  #checkov:skip=CKV2_AWS_6:False positive: the conditional bucket uses an indexed public access block with all four protections enabled.
   count  = var.enable_access_logs ? 1 : 0
   bucket = local.access_logs_bucket_name
 
@@ -381,6 +383,40 @@ resource "aws_s3_bucket_public_access_block" "admin_site" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+# Enable versioning to support short-term rollback of admin site deployments
+resource "aws_s3_bucket_versioning" "admin_site" {
+  bucket = aws_s3_bucket.admin_site.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Retain previous admin site versions for rollback and clean up incomplete uploads
+resource "aws_s3_bucket_lifecycle_configuration" "admin_site" {
+  bucket = aws_s3_bucket.admin_site.id
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+
+  rule {
+    id     = "cleanup-old-versions"
+    status = "Enabled"
+
+    noncurrent_version_expiration {
+      noncurrent_days = 7
+    }
+  }
 }
 
 # Configure access logging for admin site bucket (when enabled)

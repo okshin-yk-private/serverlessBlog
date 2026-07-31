@@ -50,11 +50,19 @@ skip-check:
   # Mitigation: CloudTrail enabled for all S3 API calls
   - CKV_AWS_18
 
-  # CKV_AWS_145: Ensure that S3 bucket has cross-region replication enabled
+  # CKV_AWS_144: Ensure that S3 bucket has cross-region replication enabled
   # Justification: Cross-region replication is not required for this single-region
-  # blog application. State bucket uses S3 versioning for disaster recovery.
-  # Enabling CRR would double storage costs without matching business requirement.
-  # Mitigation: S3 versioning enabled for point-in-time recovery
+  # blog application. Enabling CRR would require destination buckets, replication
+  # IAM roles, and additional storage and transfer costs without matching the
+  # recovery objectives of this low-traffic personal blog.
+  # Mitigation: S3 regional durability and versioning on mutable content buckets
+  - CKV_AWS_144
+
+  # CKV_AWS_145: Ensure that S3 buckets are encrypted with a customer-managed KMS key
+  # Justification: SSE-S3 and AWS-managed encryption provide sufficient protection
+  # for non-sensitive blog assets and access logs. Customer-managed KMS keys add
+  # recurring cost and key lifecycle dependencies without a compliance requirement.
+  # Mitigation: Server-side encryption is enabled on every bucket
   - CKV_AWS_145
 
   # CKV2_AWS_62: Ensure S3 bucket has event notifications enabled
