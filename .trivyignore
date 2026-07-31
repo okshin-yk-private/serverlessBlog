@@ -16,3 +16,20 @@
 # DynamoDB PITR is enabled by default but configurable
 # Production enforces this via terraform.tfvars
 # AVD-AWS-0024
+
+# ---------------------------------------------------------------------------
+# Dependency vulnerabilities
+# ---------------------------------------------------------------------------
+
+# react-router: RSC Mode CSRF Bypass Allows Action Execution Before 400 Response
+#
+# 影響範囲は react-router の RSC (React Server Components) モードのみ。
+# frontend/admin と frontend/public はいずれも Vite の SPA で、
+# react-router-dom の BrowserRouter を使う classic 構成であり RSC モードは未使用
+# (react-router/rsc, unstable_RSC, routeRSCServerRequest 等の API 参照ゼロ)。
+#
+# 修正版は react-router 8.3.0 のみだが、両アプリが依存する react-router-dom は
+# 7.18.2 が最新で v8 系が存在しない。解消するには react-router v8 への
+# フレームワーク移行が必要なため、到達不能な指摘として抑制する。
+# 移行時にこの抑制を削除すること。
+GHSA-qwww-vcr4-c8h2

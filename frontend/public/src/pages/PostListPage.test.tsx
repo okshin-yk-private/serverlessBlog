@@ -605,7 +605,10 @@ describe('PostListPage', () => {
         const calls = vi.mocked(axios.default.get).mock.calls;
         const lastCall = calls[calls.length - 1];
         expect(lastCall[1]?.params).toBeDefined();
-        expect(lastCall[1]?.params.q).toBeUndefined();
+        // axios 1.19 で params の型が any から unknown に厳格化されたため明示的に絞る
+        expect(
+          (lastCall[1]?.params as Record<string, unknown>).q
+        ).toBeUndefined();
       });
     });
 

@@ -150,8 +150,8 @@ jobs:
   # baseline. continue-on-error keeps the job non-blocking in Phase 1; the
   # subsequent debug step prints diagnostics regardless of outcome so we can
   # iterate on flag/config issues from the workflow logs. Misconfig, license
-  # scanners and trivyignore wiring will be re-enabled in a follow-up once the
-  # baseline run completes successfully.
+  # scanners will be re-enabled in a follow-up once the baseline run completes
+  # successfully. trivyignore wiring is now enabled (see trivyignores below).
   # =======================================
   trivy-fs:
     name: Trivy (filesystem)
@@ -171,6 +171,9 @@ jobs:
           output: 'trivy-fs.sarif'
           severity: 'HIGH,CRITICAL'
           exit-code: '0'
+          # 到達不能と判断した指摘を根拠付きで抑制する。
+          # 抑制理由は .trivyignore 側にコメントで記載すること。
+          trivyignores: '.trivyignore'
 
       - name: Trivy debug
         if: always()
