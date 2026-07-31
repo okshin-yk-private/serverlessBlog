@@ -676,6 +676,7 @@ resource "aws_cloudfront_distribution" "main" {
 # SSM Parameters for CDN configuration (used by CI/CD)
 #------------------------------------------------------------------------------
 resource "aws_ssm_parameter" "api_endpoint" {
+  #checkov:skip=CKV2_AWS_34:Stores a public API URL used by CI/CD; revisit if this parameter becomes sensitive.
   name        = "/serverless-blog/${var.environment}/api/endpoint"
   description = "API endpoint URL for ${var.environment} environment (via CloudFront)"
   type        = "String"
@@ -692,6 +693,7 @@ resource "aws_ssm_parameter" "api_endpoint" {
 }
 
 resource "aws_ssm_parameter" "distribution_id" {
+  #checkov:skip=CKV2_AWS_34:Stores a non-sensitive CloudFront resource identifier; revisit if this parameter becomes sensitive.
   name        = "/serverless-blog/${var.environment}/cdn/distribution-id"
   description = "CloudFront distribution ID for ${var.environment} environment"
   type        = "String"
@@ -708,6 +710,7 @@ resource "aws_ssm_parameter" "distribution_id" {
 }
 
 resource "aws_ssm_parameter" "public_url" {
+  #checkov:skip=CKV2_AWS_34:Stores a public site URL used by CI/CD; revisit if this parameter becomes sensitive.
   name        = "/serverless-blog/${var.environment}/cdn/public-url"
   description = "Public site URL for ${var.environment} environment"
   type        = "String"
@@ -722,4 +725,3 @@ resource "aws_ssm_parameter" "public_url" {
     var.tags
   )
 }
-

@@ -109,6 +109,18 @@ go-functions/coverage*.html
 # Jest
 .jest/
 
+# Playwright (outputDir / reporter outputs — see playwright*.config.ts)
+test-results/
+test-results-admin/
+playwright-report/
+playwright-report-admin/
+blob-report/
+.playwright/
+playwright/.cache/
+
+# Security scan output
+*.sarif
+
 # ===================================
 # Logs & Temporary Files
 # ===================================
@@ -223,6 +235,11 @@ layers/**/*.js
 # ===================================
 # Project Specific
 # ===================================
+
+# Security/architecture review notes (keep local)
+# 稼働中システムの弱点をファイル名・行番号付きで列挙した内容を含むため、
+# 公開リポジトリである本リポジトリにはコミットしない。
+docs/reviews/
 
 # Serena (AI Assistant)
 .serena/memories/

@@ -30,6 +30,8 @@ locals {
 
 # Requirement: Enable access logging for production
 resource "aws_s3_bucket" "access_logs" {
+  #checkov:skip=CKV_AWS_21:This bucket stores append-only access logs under unique keys and expires them through lifecycle management. Revisit if it begins storing mutable objects.
+  #checkov:skip=CKV2_AWS_6:False positive: the conditional bucket uses an indexed public access block with all four protections enabled.
   count  = var.enable_access_logs ? 1 : 0
   bucket = local.access_logs_bucket_name
 
@@ -71,6 +73,17 @@ resource "aws_s3_bucket_public_access_block" "access_logs" {
 resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
   count  = var.enable_access_logs ? 1 : 0
   bucket = aws_s3_bucket.access_logs[0].id
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
 
   rule {
     id     = "expire-access-logs"
@@ -137,6 +150,17 @@ resource "aws_s3_bucket_public_access_block" "images" {
 # Requirement 3.4: Create lifecycle policy for version management
 resource "aws_s3_bucket_lifecycle_configuration" "images" {
   bucket = aws_s3_bucket.images.id
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
 
   rule {
     id     = "transition-to-ia"
@@ -262,6 +286,17 @@ resource "aws_s3_bucket_lifecycle_configuration" "public_site" {
   bucket = aws_s3_bucket.public_site.id
 
   rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+
+  rule {
     id     = "cleanup-old-versions"
     status = "Enabled"
 
@@ -350,6 +385,40 @@ resource "aws_s3_bucket_public_access_block" "admin_site" {
   restrict_public_buckets = true
 }
 
+# Enable versioning to support short-term rollback of admin site deployments
+resource "aws_s3_bucket_versioning" "admin_site" {
+  bucket = aws_s3_bucket.admin_site.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Retain previous admin site versions for rollback and clean up incomplete uploads
+resource "aws_s3_bucket_lifecycle_configuration" "admin_site" {
+  bucket = aws_s3_bucket.admin_site.id
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+
+  rule {
+    id     = "cleanup-old-versions"
+    status = "Enabled"
+
+    noncurrent_version_expiration {
+      noncurrent_days = 7
+    }
+  }
+}
+
 # Configure access logging for admin site bucket (when enabled)
 resource "aws_s3_bucket_logging" "admin_site" {
   count  = var.enable_access_logs ? 1 : 0
@@ -390,6 +459,7 @@ resource "aws_s3_bucket_policy" "admin_site" {
 #------------------------------------------------------------------------------
 
 resource "aws_ssm_parameter" "public_site_bucket_name" {
+  #checkov:skip=CKV2_AWS_34:Stores a non-sensitive bucket name used by CI/CD; revisit if this parameter becomes sensitive.
   name        = "/serverless-blog/${var.environment}/storage/public-site-bucket-name"
   description = "Public site S3 bucket name for ${var.environment} environment"
   type        = "String"
@@ -399,6 +469,7 @@ resource "aws_ssm_parameter" "public_site_bucket_name" {
 }
 
 resource "aws_ssm_parameter" "admin_site_bucket_name" {
+  #checkov:skip=CKV2_AWS_34:Stores a non-sensitive bucket name used by CI/CD; revisit if this parameter becomes sensitive.
   name        = "/serverless-blog/${var.environment}/storage/admin-site-bucket-name"
   description = "Admin site S3 bucket name for ${var.environment} environment"
   type        = "String"

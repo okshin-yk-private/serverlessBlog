@@ -1,14 +1,5 @@
 @import "tailwindcss";
 
-/* Self-hosted Caveat font with preload for fast loading */
-@font-face {
-  font-family: 'Caveat';
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url('/fonts/caveat-variable.woff2') format('woff2');
-}
-
 @font-face {
   font-family: 'Shippori Mincho';
   font-style: normal;
@@ -25,24 +16,25 @@
   src: url('/fonts/shippori-mincho-600.woff2') format('woff2');
 }
 
-/* Design tokens — light theme defaults.
+/* Brand tokens derived from the light/dark logo artwork.
    Dark theme overrides via [data-theme="dark"]. FOUC bootstrap in Layout.astro. */
 :root {
-  --color-bg: #f5f5f5;
-  --color-surface: #ffffff;
-  --color-surface-elevated: #f9fafb;
-  --color-surface-muted: #f3f4f6;
-  --color-text: #374151;
-  --color-text-muted: #6b7280;
-  --color-text-heading: #111827;
+  --color-bg: #f8f7f3;
+  --color-surface: #fffefa;
+  --color-surface-elevated: #f2f4ec;
+  --color-surface-muted: #ecefe5;
+  --color-text: #454642;
+  --color-text-muted: #74766f;
+  --color-text-heading: #292a28;
   --color-text-on-primary: #ffffff;
-  --color-border: #e5e7eb;
-  --color-border-strong: #d1d5db;
-  --color-primary: #2d2a5a;
-  --color-primary-hover: #3d3a6a;
-  --color-primary-soft: rgba(45, 42, 90, 0.1);
-  --color-accent: #c9a857;
-  --color-accent-hover: #b89346;
+  --color-border: #dedfd7;
+  --color-border-strong: #bec3b8;
+  --color-primary: #24783b;
+  --color-primary-hover: #175c2b;
+  --color-primary-soft: rgba(36, 120, 59, 0.1);
+  --color-accent: #24783b;
+  --color-accent-hover: #175c2b;
+  --color-accent-bright: #5dcf91;
   --color-success: #059669;
   --color-success-hover: #047857;
   --color-success-bg: #d1fae5;
@@ -61,33 +53,36 @@
   --color-warning-text: #92400e;
   --color-warning-alert-bg: #fffbeb;
   --color-warning-border: #fde68a;
-  --color-link: #c9a857;
-  --color-link-hover: #2d2a5a;
-  --color-code-bg: #f3f4f6;
-  --color-code-pre-bg: #1f2937;
+  --color-link: #24783b;
+  --color-link-hover: #175c2b;
+  --color-code-bg: #ecefe5;
+  --color-code-pre-bg: #171b2d;
   --color-code-pre-text: #e5e7eb;
-  --color-focus-ring: rgba(156, 163, 175, 0.1);
-  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.05);
-  --shadow-card-strong: 0 10px 25px rgba(0, 0, 0, 0.08);
+  --color-focus-ring: rgba(36, 120, 59, 0.18);
+  --shadow-card: 0 10px 30px rgba(36, 43, 31, 0.05);
+  --shadow-card-strong: 0 24px 60px rgba(36, 43, 31, 0.1);
+  --font-display: 'Helvetica Neue', 'Avenir Next', 'Segoe UI', sans-serif;
+  --font-body: 'Shippori Mincho', 'Yu Mincho', serif;
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-  --color-bg: #0f1117;
-  --color-surface: #1a1d29;
-  --color-surface-elevated: #252937;
-  --color-surface-muted: #161922;
-  --color-text: #d1d5db;
-  --color-text-muted: #9ca3af;
-  --color-text-heading: #f3f4f6;
-  --color-text-on-primary: #ffffff;
-  --color-border: #2d3142;
-  --color-border-strong: #3d4252;
-  --color-primary: #7a76b8;
-  --color-primary-hover: #9590ce;
-  --color-primary-soft: rgba(122, 118, 184, 0.18);
-  --color-accent: #d4b56a;
-  --color-accent-hover: #e0c47e;
+  --color-bg: #121526;
+  --color-surface: #181b2d;
+  --color-surface-elevated: #1d2135;
+  --color-surface-muted: #15182a;
+  --color-text: #d9d8d1;
+  --color-text-muted: #9699a7;
+  --color-text-heading: #f2efe8;
+  --color-text-on-primary: #101426;
+  --color-border: #2a2f45;
+  --color-border-strong: #3a4059;
+  --color-primary: #66dda1;
+  --color-primary-hover: #8cebb9;
+  --color-primary-soft: rgba(102, 221, 161, 0.13);
+  --color-accent: #66dda1;
+  --color-accent-hover: #8cebb9;
+  --color-accent-bright: #66dda1;
   --color-success: #10b981;
   --color-success-hover: #34d399;
   --color-success-bg: rgba(16, 185, 129, 0.15);
@@ -106,33 +101,56 @@
   --color-warning-text: #fcd34d;
   --color-warning-alert-bg: rgba(245, 158, 11, 0.08);
   --color-warning-border: rgba(245, 158, 11, 0.3);
-  --color-link: #d4b56a;
-  --color-link-hover: #a59ee0;
+  --color-link: #66dda1;
+  --color-link-hover: #8cebb9;
   --color-code-bg: rgba(255, 255, 255, 0.06);
   --color-code-pre-bg: #0a0c12;
   --color-code-pre-text: #e5e7eb;
-  --color-focus-ring: rgba(122, 118, 184, 0.25);
-  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.45);
-  --shadow-card-strong: 0 10px 25px rgba(0, 0, 0, 0.6);
+  --color-focus-ring: rgba(102, 221, 161, 0.22);
+  --shadow-card: 0 12px 30px rgba(3, 5, 14, 0.24);
+  --shadow-card-strong: 0 28px 70px rgba(3, 5, 14, 0.42);
   color-scheme: dark;
 }
 
 @layer base {
+  * {
+    box-sizing: border-box;
+  }
+
   html {
-    font-family: 'Shippori Mincho', serif;
+    font-family: var(--font-body);
     background-color: var(--color-bg);
     color: var(--color-text);
+    scroll-behavior: smooth;
   }
 
   body {
+    min-width: 320px;
+    margin: 0;
     background-color: var(--color-bg);
+    background-image:
+      radial-gradient(circle at 8% 0%, var(--color-primary-soft), transparent 28rem),
+      radial-gradient(circle at 92% 35%, var(--color-primary-soft), transparent 30rem);
     color: var(--color-text);
-    line-height: 1.625;
+    line-height: 1.75;
+    min-height: 100vh;
+    text-rendering: optimizeLegibility;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Caveat', cursive;
+    font-family: var(--font-display);
     color: var(--color-text-heading);
+    letter-spacing: -0.035em;
+  }
+
+  ::selection {
+    color: var(--color-text-heading);
+    background: var(--color-primary-soft);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 4px;
   }
 }
 

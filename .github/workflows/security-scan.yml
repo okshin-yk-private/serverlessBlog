@@ -46,7 +46,7 @@ jobs:
       GITLEAKS_VERSION: '8.24.3'
     steps:
       - name: Checkout (full history)
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
 
@@ -78,7 +78,7 @@ jobs:
         # Code Scanning API rate limit can fail this step when many Dependabot PRs
         # run concurrently. SARIF visibility is best-effort, so don't fail the job.
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3
+        uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
         with:
           sarif_file: gitleaks.sarif
           category: gitleaks
@@ -121,7 +121,7 @@ jobs:
             build-mode: none
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Setup Go
         if: matrix.language == 'go'
@@ -132,14 +132,14 @@ jobs:
           cache-dependency-path: go-functions/go.sum
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3
+        uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-and-quality
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3
+        uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
         with:
           category: /language:${{ matrix.language }}
 
@@ -150,15 +150,15 @@ jobs:
   # baseline. continue-on-error keeps the job non-blocking in Phase 1; the
   # subsequent debug step prints diagnostics regardless of outcome so we can
   # iterate on flag/config issues from the workflow logs. Misconfig, license
-  # scanners and trivyignore wiring will be re-enabled in a follow-up once the
-  # baseline run completes successfully.
+  # scanners will be re-enabled in a follow-up once the baseline run completes
+  # successfully. trivyignore wiring is now enabled (see trivyignores below).
   # =======================================
   trivy-fs:
     name: Trivy (filesystem)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Run Trivy filesystem scan
         id: trivy
@@ -171,6 +171,9 @@ jobs:
           output: 'trivy-fs.sarif'
           severity: 'HIGH,CRITICAL'
           exit-code: '0'
+          # 到達不能と判断した指摘を根拠付きで抑制する。
+          # 抑制理由は .trivyignore 側にコメントで記載すること。
+          trivyignores: '.trivyignore'
 
       - name: Trivy debug
         if: always()
@@ -190,7 +193,7 @@ jobs:
         # Code Scanning API rate limit can fail this step when many Dependabot PRs
         # run concurrently. SARIF visibility is best-effort, so don't fail the job.
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3
+        uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
         with:
           sarif_file: trivy-fs.sarif
           category: trivy-fs

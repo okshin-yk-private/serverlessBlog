@@ -4,6 +4,8 @@
 
 # Route53 hosted zone for subdomain
 resource "aws_route53_zone" "subdomain" {
+  #checkov:skip=CKV2_AWS_38:This development-only child zone is delegated from Cloudflare; KMS/KSK and DS coordination add outage risk. Revisit if the zone becomes production-critical.
+  #checkov:skip=CKV2_AWS_39:This low-traffic development zone has no DNS forensic workflow; query logging adds CloudWatch cost and operational overhead. Revisit if detection or compliance requires it.
   name    = var.zone_name
   comment = "Hosted zone for ${var.zone_name} - ${var.environment} environment"
 

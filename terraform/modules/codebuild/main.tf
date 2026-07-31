@@ -46,7 +46,11 @@ env:
 phases:
   install:
     runtime-versions:
-      nodejs: 20
+      # Astro 6 以降は Node.js >= 22.12 が必須。
+      # 現行イメージ amazonlinux2-aarch64-standard:3.0 は 2024-11 に
+      # amazonlinux-aarch64-standard:3.0 へ改称された Amazon Linux 2023 イメージの
+      # 旧エイリアスで、nodejs 22 に対応済みのためイメージ変更は不要。
+      nodejs: 22
     commands:
       - echo "Installing Bun..."
       - curl -fsSL https://bun.sh/install | bash
@@ -287,6 +291,7 @@ resource "aws_codebuild_project" "astro_build" {
 # =============================================================================
 
 resource "aws_ssm_parameter" "codebuild_project_name" {
+  #checkov:skip=CKV2_AWS_34:Stores a non-sensitive resource name used to trigger builds; revisit if this parameter becomes sensitive.
   name        = "/${var.project_name}/${var.environment}/codebuild/astro-build-project"
   description = "CodeBuild project name for Astro SSG builds"
   type        = "String"

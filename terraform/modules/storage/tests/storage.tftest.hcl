@@ -85,6 +85,16 @@ run "image_bucket_lifecycle" {
     condition     = length(aws_s3_bucket_lifecycle_configuration.images.rule) > 0
     error_message = "Image bucket must have lifecycle rules configured"
   }
+
+  assert {
+    condition = anytrue([
+      for rule in aws_s3_bucket_lifecycle_configuration.images.rule :
+      rule.id == "abort-incomplete-multipart-uploads" &&
+      rule.status == "Enabled" &&
+      rule.abort_incomplete_multipart_upload[0].days_after_initiation == 7
+    ])
+    error_message = "Image bucket must abort incomplete multipart uploads after 7 days"
+  }
 }
 
 # Test 5: Verify public site bucket is created
@@ -326,6 +336,16 @@ run "access_logs_bucket_enabled" {
     condition     = aws_s3_bucket.access_logs[0].bucket != null
     error_message = "Access logs bucket must be created when enable_access_logs is true"
   }
+
+  assert {
+    condition = anytrue([
+      for rule in aws_s3_bucket_lifecycle_configuration.access_logs[0].rule :
+      rule.id == "abort-incomplete-multipart-uploads" &&
+      rule.status == "Enabled" &&
+      rule.abort_incomplete_multipart_upload[0].days_after_initiation == 7
+    ])
+    error_message = "Access logs bucket must abort incomplete multipart uploads after 7 days"
+  }
 }
 
 # Test 18: Verify access logs bucket is NOT created when disabled
@@ -374,6 +394,16 @@ run "public_site_bucket_lifecycle" {
     condition     = length(aws_s3_bucket_lifecycle_configuration.public_site.rule) > 0
     error_message = "Public site bucket must have lifecycle rules for version cleanup"
   }
+
+  assert {
+    condition = anytrue([
+      for rule in aws_s3_bucket_lifecycle_configuration.public_site.rule :
+      rule.id == "abort-incomplete-multipart-uploads" &&
+      rule.status == "Enabled" &&
+      rule.abort_incomplete_multipart_upload[0].days_after_initiation == 7
+    ])
+    error_message = "Public site bucket must abort incomplete multipart uploads after 7 days"
+  }
 }
 
 # Test 21: Verify all three buckets are created with correct naming
@@ -401,5 +431,40 @@ run "all_buckets_created" {
   assert {
     condition     = aws_s3_bucket.admin_site.bucket != null
     error_message = "Admin site bucket must be created"
+  }
+}
+
+# Test 22: Verify admin site deployment rollback and incomplete upload cleanup
+run "admin_site_bucket_versioning_and_lifecycle" {
+  command = plan
+
+  variables {
+    project_name = "serverless-blog"
+    environment  = "dev"
+  }
+
+  assert {
+    condition     = aws_s3_bucket_versioning.admin_site.versioning_configuration[0].status == "Enabled"
+    error_message = "Admin site bucket must have versioning enabled for deployment rollback"
+  }
+
+  assert {
+    condition = anytrue([
+      for rule in aws_s3_bucket_lifecycle_configuration.admin_site.rule :
+      rule.id == "abort-incomplete-multipart-uploads" &&
+      rule.status == "Enabled" &&
+      rule.abort_incomplete_multipart_upload[0].days_after_initiation == 7
+    ])
+    error_message = "Admin site bucket must abort incomplete multipart uploads after 7 days"
+  }
+
+  assert {
+    condition = anytrue([
+      for rule in aws_s3_bucket_lifecycle_configuration.admin_site.rule :
+      rule.id == "cleanup-old-versions" &&
+      rule.status == "Enabled" &&
+      rule.noncurrent_version_expiration[0].noncurrent_days == 7
+    ])
+    error_message = "Admin site bucket must retain noncurrent versions for a 7-day rollback window"
   }
 }

@@ -110,6 +110,7 @@ resource "aws_cognito_user_pool_client" "main" {
 # SSM Parameters for Cognito configuration (used by frontend build)
 # These parameters are managed by Terraform and read by CI/CD pipeline
 resource "aws_ssm_parameter" "user_pool_id" {
+  #checkov:skip=CKV2_AWS_34:Stores a non-sensitive Cognito resource identifier; revisit if this parameter becomes sensitive.
   name        = "/serverless-blog/${var.environment}/cognito/user-pool-id"
   description = "Cognito User Pool ID for ${var.environment} environment"
   type        = "String"
@@ -119,6 +120,7 @@ resource "aws_ssm_parameter" "user_pool_id" {
 }
 
 resource "aws_ssm_parameter" "user_pool_client_id" {
+  #checkov:skip=CKV2_AWS_34:Stores a public Cognito app client identifier; revisit if this parameter becomes sensitive.
   name        = "/serverless-blog/${var.environment}/cognito/user-pool-client-id"
   description = "Cognito User Pool Client ID for ${var.environment} environment"
   type        = "String"
