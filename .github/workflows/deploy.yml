@@ -1109,8 +1109,20 @@ jobs:
           echo "basic_user=$BASIC_USER" >> $GITHUB_OUTPUT
           echo "basic_pass=$BASIC_PASS" >> $GITHUB_OUTPUT
 
+      # The SSM read above swallows errors, so an unreadable parameter used to
+      # skip the E2E run silently and still report the job green. The cdn module
+      # creates /serverless-blog/dev/cdn/public-url unconditionally, so an empty
+      # value means the post-deploy verification did not happen at all. (#480)
+      - name: Verify BASE_URL was resolved
+        run: |
+          if [ -z "${{ steps.config.outputs.base_url }}" ]; then
+            echo "❌ BASE_URL is empty - could not read /serverless-blog/dev/cdn/public-url"
+            echo "   Post-deploy verification cannot run, so this deploy is unverified."
+            exit 1
+          fi
+          echo "✓ BASE_URL resolved"
+
       - name: Run Post-Deploy E2E Tests
-        if: steps.config.outputs.base_url != ''
         run: bun run test:e2e:aws -- --project=chromium --workers=1
         env:
           CI: true
@@ -1118,10 +1130,6 @@ jobs:
           DEV_BASIC_AUTH_USERNAME: ${{ steps.config.outputs.basic_user }}
           DEV_BASIC_AUTH_PASSWORD: ${{ steps.config.outputs.basic_pass }}
           VITE_ENABLE_MSW_MOCK: 'false'
-
-      - name: Skip notice
-        if: steps.config.outputs.base_url == ''
-        run: echo "⚠️ Skipping post-deploy E2E tests - BASE_URL not configured in SSM"
 
       - name: Upload E2E Test Report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -1296,9 +1304,10 @@ jobs:
              [ "${{ needs.deploy-admin-prd.result }}" == "failure" ] || \
              [ "${{ needs.deploy-astro-dev.result }}" == "failure" ] || \
              [ "${{ needs.deploy-astro-prd.result }}" == "failure" ] || \
+             [ "${{ needs.post-deploy-e2e-dev.result }}" == "failure" ] || \
              [ "${{ needs.post-deploy-smoke-prd.result }}" == "failure" ]; then
-            echo "❌ One or more deployments failed"
+            echo "❌ One or more deploy or verification steps failed"
             exit 1
           fi
 
-          echo "✓ All deployments completed successfully!"
+          echo "✓ All deployments and post-deploy checks completed successfully!"
