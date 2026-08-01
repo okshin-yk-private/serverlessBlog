@@ -37,10 +37,12 @@ const (
 )
 
 // SearchQueryMaxLength bounds the "q" search parameter (issue #491).
-// 200 runes is well beyond a realistic search phrase; requests exceeding it
-// have their search filter dropped rather than erroring, matching the
-// graceful-fallback behavior of other query parameters (e.g. an invalid
-// limit) in this handler.
+// 200 runes is well beyond a realistic search phrase.
+//
+// An over-long query is rejected rather than ignored: silently dropping the
+// filter would answer a request to narrow the list by returning every post,
+// which reads as "search is broken". That differs from limit, where falling
+// back to a default still honors what the caller asked for.
 const SearchQueryMaxLength = 200
 
 // DynamoDBClientInterface defines the interface for DynamoDB operations (for testing)
@@ -102,9 +104,11 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// Parse category filter
 	category := queryParams["category"]
 
-	// Parse search query, dropping the filter entirely if it exceeds the
-	// maximum length rather than rejecting the whole request.
-	searchQuery := sanitizeSearchQuery(queryParams["q"])
+	// Parse search query, rejecting one that exceeds the maximum length
+	searchQuery, err := sanitizeSearchQuery(queryParams["q"])
+	if err != nil {
+		return errorResponse(400, "search query is too long")
+	}
 
 	// Parse nextToken for pagination
 	exclusiveStartKey := parseNextToken(queryParams["nextToken"])
@@ -187,12 +191,16 @@ func parseLimit(limitParam string) int32 {
 // sanitizeSearchQuery discards a "q" parameter that exceeds SearchQueryMaxLength
 // runes, returning an empty string (no search filter) instead. This bounds the
 // work done by filterBySearch's per-item string scan.
-func sanitizeSearchQuery(q string) string {
+func sanitizeSearchQuery(q string) (string, error) {
 	if utf8.RuneCountInString(q) > SearchQueryMaxLength {
-		return ""
+		return "", ErrSearchQueryTooLong
 	}
-	return q
+	return q, nil
 }
+
+// ErrSearchQueryTooLong is returned when the "q" parameter exceeds
+// SearchQueryMaxLength runes.
+var ErrSearchQueryTooLong = errors.New("search query is too long")
 
 // ErrInvalidPublishStatus is returned when an invalid publishStatus value is provided
 var ErrInvalidPublishStatus = errors.New("invalid publishStatus value")
