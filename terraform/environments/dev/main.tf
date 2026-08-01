@@ -331,6 +331,7 @@ module "codebuild" {
   public_site_bucket_arn     = module.storage.public_site_bucket_arn
   cloudfront_distribution_id = module.cdn.distribution_id
   api_url                    = module.cdn.api_base_url
+  site_url                   = var.enable_custom_domain ? "https://${var.domain_name}" : "https://${module.cdn.distribution_domain_name}"
 
   # GitHub source configuration for Astro SSG builds
   github_repo   = "https://github.com/okshin-yk-private/serverlessBlog.git"

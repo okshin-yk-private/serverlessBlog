@@ -758,6 +758,15 @@ jobs:
         with:
           working-directory: frontend/public-astro
 
+      - name: Set site URL
+        id: site
+        run: |
+          if [ "${{ needs.detect-changes.outputs.target-env }}" == "prd" ]; then
+            echo "url=https://boneofmyfallacy.net" >> $GITHUB_OUTPUT
+          else
+            echo "url=https://dev.boneofmyfallacy.net" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build Astro project
         working-directory: frontend/public-astro
         # Requirement 9.10: API_URL as environment variable
@@ -777,6 +786,7 @@ jobs:
           NODE_ENV: production
           PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
           API_URL: ${{ steps.api.outputs.api_url }}
+          SITE_URL: ${{ steps.site.outputs.url }}
 
       - name: Validate build output
         working-directory: frontend/public-astro

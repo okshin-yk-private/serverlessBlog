@@ -21,7 +21,8 @@ import { stripHtml } from '../src/lib/postUtils';
 
 const projectDir = join(import.meta.dirname, '..');
 const distDir = join(projectDir, 'dist');
-const SITE_URL = 'https://example.com';
+// ビルド時の SITE_URL と同じ値で検証する（build-with-mock.sh のデフォルトは example.com）
+const SITE_URL = process.env.SITE_URL ?? 'https://example.com';
 
 /**
  * RSSフィードからアイテム要素を抽出

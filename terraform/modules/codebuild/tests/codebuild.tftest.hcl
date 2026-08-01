@@ -5,6 +5,11 @@
 # Mock provider for testing without AWS credentials
 mock_provider "aws" {}
 
+# File-level variables shared by every run block (run-level variables merge on top)
+variables {
+  site_url = "https://dev.example.test"
+}
+
 # =============================================================================
 # Test Group 1: CodeBuild Project Creation
 # =============================================================================
@@ -92,6 +97,7 @@ run "codebuild_timeout" {
 # =============================================================================
 
 # Test 5: Verify API_URL environment variable is set
+# (renamed from PUBLIC_API_URL in #113; the assert lagged behind)
 run "codebuild_env_api_url" {
   command = plan
 
@@ -107,9 +113,9 @@ run "codebuild_env_api_url" {
   assert {
     condition = anytrue([
       for env_var in aws_codebuild_project.astro_build.environment[0].environment_variable :
-      env_var.name == "PUBLIC_API_URL" && env_var.value == "https://example.cloudfront.net/api"
+      env_var.name == "API_URL" && env_var.value == "https://example.cloudfront.net/api"
     ])
-    error_message = "CodeBuild must have PUBLIC_API_URL environment variable set"
+    error_message = "CodeBuild must have API_URL environment variable set"
   }
 }
 
@@ -467,5 +473,27 @@ run "buildspec_configured" {
   assert {
     condition     = aws_codebuild_project.astro_build.source[0].buildspec != null && aws_codebuild_project.astro_build.source[0].buildspec != ""
     error_message = "CodeBuild must have buildspec configured"
+  }
+}
+
+# Test 22: Verify SITE_URL is passed into the buildspec
+# Without it the Astro build falls back to https://example.com for
+# sitemap / canonical / OGP / RSS URLs (Issue #463)
+run "buildspec_contains_site_url" {
+  command = plan
+
+  variables {
+    project_name               = "serverless-blog"
+    environment                = "dev"
+    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    cloudfront_distribution_id = "E1234567890ABC"
+    api_url                    = "https://example.cloudfront.net/api"
+    site_url                   = "https://blog.example.test"
+  }
+
+  assert {
+    condition     = strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "SITE_URL: \"https://blog.example.test\"")
+    error_message = "BuildSpec must export SITE_URL to the Astro build"
   }
 }
