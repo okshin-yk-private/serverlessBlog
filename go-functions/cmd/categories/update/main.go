@@ -268,8 +268,8 @@ const maxTransactWriteItems = 100
 // updateCategoryWithPosts updates the category and all posts referencing the old slug
 // Requirement 4.7: Update category and posts (handles large numbers of posts via batching)
 func updateCategoryWithPosts(ctx context.Context, client DynamoDBClientInterface, tableName, postsTableName, categoryIndexName, oldSlug string, category *domain.Category) (events.APIGatewayProxyResponse, error) {
-	// Find all posts referencing the old slug
-	posts, err := getPostsByCategory(ctx, client, postsTableName, categoryIndexName, oldSlug)
+	// Find the IDs of all posts referencing the old slug
+	postIDs, err := getPostsByCategory(ctx, client, postsTableName, categoryIndexName, oldSlug)
 	if err != nil {
 		return errorResponse(500, "failed to query posts")
 	}
@@ -285,7 +285,7 @@ func updateCategoryWithPosts(ctx context.Context, client DynamoDBClientInterface
 	newSlugReservationID := "SLUG#" + category.Slug
 
 	// If no posts to update, just update the category with slug reservation management
-	if len(posts) == 0 {
+	if len(postIDs) == 0 {
 		transactItems := []types.TransactWriteItem{
 			{
 				Put: &types.Put{
@@ -336,7 +336,7 @@ func updateCategoryWithPosts(ctx context.Context, client DynamoDBClientInterface
 	subsequentBatchSize := maxTransactWriteItems
 
 	// Calculate total batches
-	remainingPosts := len(posts)
+	remainingPosts := len(postIDs)
 	totalBatches := 1
 	if remainingPosts > firstBatchSize {
 		remainingPosts -= firstBatchSize
@@ -353,12 +353,12 @@ func updateCategoryWithPosts(ctx context.Context, client DynamoDBClientInterface
 		}
 
 		end := processedPosts + batchSize
-		if end > len(posts) {
-			end = len(posts)
+		if end > len(postIDs) {
+			end = len(postIDs)
 		}
 
-		batchPosts := posts[processedPosts:end]
-		transactItems := make([]types.TransactWriteItem, 0, len(batchPosts)+3)
+		batchIDs := postIDs[processedPosts:end]
+		transactItems := make([]types.TransactWriteItem, 0, len(batchIDs)+3)
 
 		// Include category update and slug reservation management only in first batch
 		if batchIndex == 0 {
@@ -395,12 +395,12 @@ func updateCategoryWithPosts(ctx context.Context, client DynamoDBClientInterface
 		}
 
 		// Add post updates for this batch
-		for i := range batchPosts {
+		for i := range batchIDs {
 			transactItems = append(transactItems, types.TransactWriteItem{
 				Update: &types.Update{
 					TableName: aws.String(postsTableName),
 					Key: map[string]types.AttributeValue{
-						"id": &types.AttributeValueMemberS{Value: batchPosts[i].ID},
+						"id": &types.AttributeValueMemberS{Value: batchIDs[i]},
 					},
 					UpdateExpression: aws.String("SET category = :newCategory"),
 					ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -426,9 +426,27 @@ func updateCategoryWithPosts(ctx context.Context, client DynamoDBClientInterface
 	return middleware.JSONResponse(200, category)
 }
 
-// getPostsByCategory retrieves all posts with a given category slug using pagination
-func getPostsByCategory(ctx context.Context, client DynamoDBClientInterface, tableName, indexName, category string) ([]domain.BlogPost, error) {
-	var allPosts []domain.BlogPost
+// postIDProjection is the unmarshal target for getPostsByCategory's
+// ProjectionExpression: "id" query - it deliberately mirrors only the
+// attribute actually requested from DynamoDB, not the full domain.BlogPost
+// shape.
+type postIDProjection struct {
+	ID string `dynamodbav:"id"`
+}
+
+// getPostsByCategory retrieves the IDs of all posts with a given category
+// slug, using pagination.
+//
+// Restricted to ProjectionExpression "id" (issue #489, inefficiency 2):
+// updateCategoryWithPosts only ever needs each post's ID, to build a
+// "SET category = :newCategory" update per post. CategoryIndex projects ALL
+// attributes, so without a ProjectionExpression this query pulled every
+// post's full content - including contentMarkdown / contentHtml - into the
+// Lambda's memory just to discard everything but the ID. For a category
+// with many or large posts that unnecessarily pushes a 128MB Lambda toward
+// its memory limit.
+func getPostsByCategory(ctx context.Context, client DynamoDBClientInterface, tableName, indexName, category string) ([]string, error) {
+	var postIDs []string
 	var lastEvaluatedKey map[string]types.AttributeValue
 
 	for {
@@ -439,7 +457,8 @@ func getPostsByCategory(ctx context.Context, client DynamoDBClientInterface, tab
 			ExpressionAttributeValues: map[string]types.AttributeValue{
 				":cat": &types.AttributeValueMemberS{Value: category},
 			},
-			ExclusiveStartKey: lastEvaluatedKey,
+			ProjectionExpression: aws.String("id"),
+			ExclusiveStartKey:    lastEvaluatedKey,
 		}
 
 		result, err := client.Query(ctx, queryInput)
@@ -447,12 +466,14 @@ func getPostsByCategory(ctx context.Context, client DynamoDBClientInterface, tab
 			return nil, err
 		}
 
-		var posts []domain.BlogPost
-		if err := attributevalue.UnmarshalListOfMaps(result.Items, &posts); err != nil {
+		var page []postIDProjection
+		if err := attributevalue.UnmarshalListOfMaps(result.Items, &page); err != nil {
 			return nil, err
 		}
 
-		allPosts = append(allPosts, posts...)
+		for _, p := range page {
+			postIDs = append(postIDs, p.ID)
+		}
 
 		// Check if there are more items to fetch
 		if result.LastEvaluatedKey == nil {
@@ -461,7 +482,7 @@ func getPostsByCategory(ctx context.Context, client DynamoDBClientInterface, tab
 		lastEvaluatedKey = result.LastEvaluatedKey
 	}
 
-	return allPosts, nil
+	return postIDs, nil
 }
 
 // errorResponse creates an error response with CORS headers

@@ -1282,6 +1282,11 @@ func TestExecuteCountQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Each case exercises testTableName with a possibly-repeated
+			// publishStatus (e.g. "published" appears in three cases); clear
+			// the cache so an earlier case's cached count can't mask this
+			// one's mock and assertions.
+
 			mockClient := &MockDynamoDBClient{
 				QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
 					// Verify it's a count query
@@ -2593,6 +2598,330 @@ func TestHandler_SearchNoResults(t *testing.T) {
 	// No results expected
 	if len(listResp.Items) != 0 {
 		t.Errorf("expected 0 items for non-matching search, got %d", len(listResp.Items))
+	}
+}
+
+// newSearchTestPost builds a minimal, fully-populated BlogPost for the
+// cross-page search tests below, where only ID/Title/CreatedAt/PublishStatus
+// vary between cases.
+func newSearchTestPost(id, title, createdAt string) domain.BlogPost {
+	return domain.BlogPost{
+		ID:            id,
+		Title:         title,
+		ContentHTML:   "<p>Content</p>",
+		Category:      "technology",
+		Tags:          []string{},
+		PublishStatus: domain.PublishStatusPublished,
+		AuthorID:      "author-123",
+		CreatedAt:     createdAt,
+		UpdatedAt:     testUpdatedAt,
+		ImageURLs:     []string{},
+	}
+}
+
+// TestHandler_SearchMatchesOnlyOnSecondPage guards the core fix for issue
+// #489 bug 2: a match that only exists on the *second* DynamoDB page must
+// still be found and returned. Before the fix, "q" only ever filtered the
+// single page already fetched for the response, so this match would have
+// been silently missed.
+func TestHandler_SearchMatchesOnlyOnSecondPage(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	page1Post := newSearchTestPost("post-page1", "Learning Go", "2024-01-15T12:00:00Z")
+	page1AV, err := attributevalue.MarshalMap(page1Post)
+	if err != nil {
+		t.Fatalf("failed to marshal post: %v", err)
+	}
+
+	page2Post := newSearchTestPost("post-page2", "Learning React", "2024-01-14T12:00:00Z")
+	page2AV, err := attributevalue.MarshalMap(page2Post)
+	if err != nil {
+		t.Fatalf("failed to marshal post: %v", err)
+	}
+
+	page1Key := map[string]types.AttributeValue{
+		"id":            &types.AttributeValueMemberS{Value: "post-page1"},
+		"publishStatus": &types.AttributeValueMemberS{Value: "published"},
+		"createdAt":     &types.AttributeValueMemberS{Value: "2024-01-15T12:00:00Z"},
+	}
+
+	queryCallCount := 0
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			queryCallCount++
+			if params.ExclusiveStartKey == nil {
+				return &dynamodb.QueryOutput{
+					Items:            []map[string]types.AttributeValue{page1AV},
+					LastEvaluatedKey: page1Key,
+				}, nil
+			}
+			// Second page: verify we actually resumed from page 1's key.
+			if idVal, ok := params.ExclusiveStartKey["id"].(*types.AttributeValueMemberS); !ok || idVal.Value != "post-page1" {
+				t.Errorf("expected second Query to resume from post-page1, got %+v", params.ExclusiveStartKey)
+			}
+			return &dynamodb.QueryOutput{
+				Items:            []map[string]types.AttributeValue{page2AV},
+				LastEvaluatedKey: nil,
+			}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	request := events.APIGatewayProxyRequest{
+		QueryStringParameters: map[string]string{
+			"q": "react",
+		},
+	}
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d. Body: %s", resp.StatusCode, resp.Body)
+	}
+
+	var listResp ListPostsResponseBody
+	if err := json.Unmarshal([]byte(resp.Body), &listResp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if len(listResp.Items) != 1 {
+		t.Fatalf("expected 1 matching item across pages, got %d", len(listResp.Items))
+	}
+	if listResp.Items[0].ID != "post-page2" {
+		t.Errorf("expected post-page2, got %s", listResp.Items[0].ID)
+	}
+	if queryCallCount != 2 {
+		t.Errorf("expected search to walk 2 pages, got %d Query calls", queryCallCount)
+	}
+	if listResp.NextToken != nil {
+		t.Errorf("expected nil nextToken once DynamoDB reports no more data, got %v", *listResp.NextToken)
+	}
+}
+
+// TestHandler_SearchAcrossPagesRespectsLimit checks that a search spanning
+// multiple pages still stops exactly at `limit`, and that it does not walk
+// further pages once `limit` matches have already been found on an earlier
+// one (issue #489: search+pagination combined must not produce a broken
+// item count, and must not do unnecessary extra Query calls).
+func TestHandler_SearchAcrossPagesRespectsLimit(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	post1 := newSearchTestPost("post-1", "First Post", "2024-01-15T12:00:00Z")
+	post2 := newSearchTestPost("post-2", "Second Post", "2024-01-14T12:00:00Z")
+	post3 := newSearchTestPost("post-3", "Third Post", "2024-01-13T12:00:00Z")
+
+	av1, _ := attributevalue.MarshalMap(post1)
+	av2, _ := attributevalue.MarshalMap(post2)
+	av3, _ := attributevalue.MarshalMap(post3)
+
+	page1Key := map[string]types.AttributeValue{
+		"id":            &types.AttributeValueMemberS{Value: "post-2"},
+		"publishStatus": &types.AttributeValueMemberS{Value: "published"},
+		"createdAt":     &types.AttributeValueMemberS{Value: "2024-01-14T12:00:00Z"},
+	}
+
+	queryCallCount := 0
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			queryCallCount++
+			if params.ExclusiveStartKey == nil {
+				return &dynamodb.QueryOutput{
+					Items:            []map[string]types.AttributeValue{av1, av2},
+					LastEvaluatedKey: page1Key,
+				}, nil
+			}
+			// Should never be reached: the first page already fills `limit`.
+			return &dynamodb.QueryOutput{
+				Items:            []map[string]types.AttributeValue{av3},
+				LastEvaluatedKey: nil,
+			}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	request := events.APIGatewayProxyRequest{
+		QueryStringParameters: map[string]string{
+			"q":     "Post",
+			"limit": "2",
+		},
+	}
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d. Body: %s", resp.StatusCode, resp.Body)
+	}
+
+	var listResp ListPostsResponseBody
+	if err := json.Unmarshal([]byte(resp.Body), &listResp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if len(listResp.Items) != 2 {
+		t.Fatalf("expected exactly 2 items (limit), got %d", len(listResp.Items))
+	}
+	if queryCallCount != 1 {
+		t.Errorf("expected exactly 1 Query call (first page already filled limit), got %d", queryCallCount)
+	}
+	if listResp.NextToken == nil {
+		t.Error("expected nextToken to be set since more posts exist beyond what was returned")
+	}
+}
+
+// TestExecuteSearchQuery_CursorAfterPartialPageMatch verifies that when a
+// page yields more matches than needed to fill `limit`, the returned cursor
+// resumes right after the last item actually included in the response - not
+// after the whole page. Using the page's own LastEvaluatedKey there would
+// permanently skip every unclaimed match later in that same page, since the
+// next Query would start after the whole page instead of after the item
+// that was cut off.
+func TestExecuteSearchQuery_CursorAfterPartialPageMatch(t *testing.T) {
+	matchA := newSearchTestPost("post-a", "React A", "2024-01-15T12:00:00Z")
+	matchB := newSearchTestPost("post-b", "React B", "2024-01-14T12:00:00Z")
+	avA, _ := attributevalue.MarshalMap(matchA)
+	avB, _ := attributevalue.MarshalMap(matchB)
+
+	// The page's own LastEvaluatedKey points past *both* items. If the
+	// implementation used this as the resume cursor instead of post-a's own
+	// key, "React B" would never be reachable by any future request.
+	pageLastKey := map[string]types.AttributeValue{
+		"id":            &types.AttributeValueMemberS{Value: "post-b"},
+		"publishStatus": &types.AttributeValueMemberS{Value: "published"},
+		"createdAt":     &types.AttributeValueMemberS{Value: "2024-01-14T12:00:00Z"},
+	}
+
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			return &dynamodb.QueryOutput{
+				Items:            []map[string]types.AttributeValue{avA, avB},
+				LastEvaluatedKey: pageLastKey,
+			}, nil
+		},
+	}
+
+	items, cursor, err := executeSearchQuery(context.Background(), mockClient, testTableName, 1, "", "published", "react", nil)
+	if err != nil {
+		t.Fatalf("executeSearchQuery returned unexpected error: %v", err)
+	}
+
+	if len(items) != 1 || items[0].ID != "post-a" {
+		t.Fatalf("expected exactly [post-a] (first match, limit=1), got %+v", items)
+	}
+
+	if cursor == nil {
+		t.Fatal("expected a non-nil cursor")
+	}
+	idVal, ok := cursor["id"].(*types.AttributeValueMemberS)
+	if !ok || idVal.Value != "post-a" {
+		t.Errorf("expected cursor to resume after post-a (the last item actually returned), got %+v", cursor)
+	}
+}
+
+// TestExecuteSearchQuery_CursorUsesCategoryKeyWhenFiltered verifies that
+// exclusiveStartKeyFromItem extracts "category" (not "publishStatus") when
+// the search is combined with a category filter - matching CategoryIndex's
+// actual key schema (category HASH, createdAt RANGE) so the resulting
+// cursor is a valid ExclusiveStartKey for a subsequent CategoryIndex Query.
+func TestExecuteSearchQuery_CursorUsesCategoryKeyWhenFiltered(t *testing.T) {
+	matchA := newSearchTestPost("post-a", "React A", "2024-01-15T12:00:00Z")
+	matchA.Category = "technology"
+	matchB := newSearchTestPost("post-b", "React B", "2024-01-14T12:00:00Z")
+	matchB.Category = "technology"
+	avA, _ := attributevalue.MarshalMap(matchA)
+	avB, _ := attributevalue.MarshalMap(matchB)
+
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			if params.IndexName == nil || *params.IndexName != "CategoryIndex" {
+				t.Errorf("expected CategoryIndex to be used, got %v", params.IndexName)
+			}
+			return &dynamodb.QueryOutput{
+				Items: []map[string]types.AttributeValue{avA, avB},
+				LastEvaluatedKey: map[string]types.AttributeValue{
+					"id":        &types.AttributeValueMemberS{Value: "post-b"},
+					"category":  &types.AttributeValueMemberS{Value: "technology"},
+					"createdAt": &types.AttributeValueMemberS{Value: "2024-01-14T12:00:00Z"},
+				},
+			}, nil
+		},
+	}
+
+	items, cursor, err := executeSearchQuery(context.Background(), mockClient, testTableName, 1, "technology", "published", "react", nil)
+	if err != nil {
+		t.Fatalf("executeSearchQuery returned unexpected error: %v", err)
+	}
+	if len(items) != 1 || items[0].ID != "post-a" {
+		t.Fatalf("expected exactly [post-a], got %+v", items)
+	}
+
+	if cursor == nil {
+		t.Fatal("expected a non-nil cursor")
+	}
+	if _, ok := cursor["category"]; !ok {
+		t.Errorf("expected cursor to contain 'category' for a CategoryIndex query, got %+v", cursor)
+	}
+	if _, ok := cursor["publishStatus"]; ok {
+		t.Errorf("expected cursor to NOT contain 'publishStatus' for a CategoryIndex query, got %+v", cursor)
+	}
+}
+
+// TestExecuteSearchQuery_PageCapReached verifies the page-walk cap
+// (maxSearchPages): when a search term matches rarely or never across a
+// huge table, the walk must stop after maxSearchPages pages rather than
+// continuing indefinitely (which would eventually hit the Lambda timeout).
+// When the cap is hit with more data still available, the caller must still
+// get a resumable cursor.
+func TestExecuteSearchQuery_PageCapReached(t *testing.T) {
+	nonMatchingPost := newSearchTestPost("post-nomatch", "Completely Unrelated Title", "2024-01-15T12:00:00Z")
+	itemAV, err := attributevalue.MarshalMap(nonMatchingPost)
+	if err != nil {
+		t.Fatalf("failed to marshal post: %v", err)
+	}
+
+	lastKey := map[string]types.AttributeValue{
+		"id":            &types.AttributeValueMemberS{Value: "post-nomatch"},
+		"publishStatus": &types.AttributeValueMemberS{Value: "published"},
+		"createdAt":     &types.AttributeValueMemberS{Value: "2024-01-15T12:00:00Z"},
+	}
+
+	callCount := 0
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			callCount++
+			// Always reports more data available - simulates a huge table
+			// with no matches for the search term.
+			return &dynamodb.QueryOutput{
+				Items:            []map[string]types.AttributeValue{itemAV},
+				LastEvaluatedKey: lastKey,
+			}, nil
+		},
+	}
+
+	items, cursor, err := executeSearchQuery(context.Background(), mockClient, testTableName, 10, "", "published", "nonexistent-term", nil)
+	if err != nil {
+		t.Fatalf("executeSearchQuery returned unexpected error: %v", err)
+	}
+
+	if callCount != maxSearchPages {
+		t.Errorf("expected exactly maxSearchPages (%d) Query calls, got %d", maxSearchPages, callCount)
+	}
+	if len(items) != 0 {
+		t.Errorf("expected 0 matches, got %d", len(items))
+	}
+	if cursor == nil {
+		t.Fatal("expected a non-nil cursor when the page cap is reached with more data still available")
 	}
 }
 
