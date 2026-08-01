@@ -17,10 +17,15 @@ BIN_DIR := bin
 CMD_DIR := cmd
 
 # All Lambda functions (domain/function format)
+# Must stay in sync with the build matrices in .github/workflows/{ci,deploy}.yml
+# and the archive_file sources in terraform/modules/lambda/main.tf.
+# Intentionally excluded: categories/seed (one-off seeding tool, not deployed),
+# scripts/backfill_post_slugs (CLI, see backfill-slugs target).
 FUNCTIONS := \
 	posts/create \
 	posts/get \
 	posts/get_public \
+	posts/get_by_slug \
 	posts/list \
 	posts/update \
 	posts/delete \
