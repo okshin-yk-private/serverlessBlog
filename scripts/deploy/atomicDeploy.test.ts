@@ -10,6 +10,7 @@ import * as path from 'node:path';
 import {
   atomicDeploy,
   calculateDirectorySize,
+  createKeyValueStoreClient,
   DeployErrorCode,
   generateBuildId,
   getCacheControl,
@@ -185,6 +186,41 @@ describe('promoteRelease', () => {
       )
     ).resolves.toMatchObject({ promoted: true });
     expect(updateAttempts).toBe(2);
+  });
+});
+
+describe('CloudFront KVS client', () => {
+  test('signs KVS requests with the explicitly configured JS SigV4A signer', async () => {
+    const client = createKeyValueStoreClient();
+    let authorization: string | undefined;
+    const requestHandler = {
+      handle: vi.fn(async (request: { headers: Record<string, string> }) => {
+        authorization = request.headers.authorization;
+        return {
+          response: {
+            statusCode: 200,
+            headers: { 'content-type': 'application/json' },
+            body: new TextEncoder().encode('{}'),
+          },
+        };
+      }),
+    };
+
+    client.config.credentials = async () => ({
+      accessKeyId: 'AKIDEXAMPLE',
+      secretAccessKey: 'test-secret',
+    });
+    client.config.requestHandler =
+      requestHandler as unknown as typeof client.config.requestHandler;
+
+    await client.send(
+      new DescribeKeyValueStoreCommand({
+        KvsARN: 'arn:aws:cloudfront::123456789012:key-value-store/test',
+      })
+    );
+
+    expect(authorization).toMatch(/^AWS4-ECDSA-P256-SHA256 /);
+    expect(requestHandler.handle).toHaveBeenCalledOnce();
   });
 });
 
