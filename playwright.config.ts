@@ -104,10 +104,14 @@ export default defineConfig({
   outputDir: 'test-results/',
 
   // Webサーバー設定（ローカル開発用）
-  // E2Eテスト時にMSWモックを有効化
-  // --mode test でviteを実行し、.env.testファイルからVITE_ENABLE_MSW_MOCK=trueを読み込む
+  //
+  // 公開サイトは Astro SSG になったため、ブラウザ内 MSW ではなく
+  // ビルド済み dist を astro preview で配信して検証する。
+  // 記事データはビルド時に焼き込まれるので、事前に
+  //   cd frontend/public-astro && bash tests/build-with-mock.sh
+  // でモック API に対してビルドしておくこと（CI もこの順で実行する）。
   webServer: {
-    command: '(cd frontend/public && npm run dev:e2e)',
+    command: '(cd frontend/public-astro && bunx astro preview --port 3000)',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,

@@ -1,7 +1,0 @@
-# Robots.txt for Serverless Blog
-
-User-agent: *
-Allow: /
-
-# Sitemap
-Sitemap: https://example.com/sitemap.xml
