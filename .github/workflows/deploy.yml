@@ -1109,8 +1109,20 @@ jobs:
           echo "basic_user=$BASIC_USER" >> $GITHUB_OUTPUT
           echo "basic_pass=$BASIC_PASS" >> $GITHUB_OUTPUT
 
+      # The SSM read above swallows errors, so an unreadable parameter used to
+      # skip the E2E run silently and still report the job green. The cdn module
+      # creates /serverless-blog/dev/cdn/public-url unconditionally, so an empty
+      # value means the post-deploy verification did not happen at all. (#480)
+      - name: Verify BASE_URL was resolved
+        run: |
+          if [ -z "${{ steps.config.outputs.base_url }}" ]; then
+            echo "❌ BASE_URL is empty - could not read /serverless-blog/dev/cdn/public-url"
+            echo "   Post-deploy verification cannot run, so this deploy is unverified."
+            exit 1
+          fi
+          echo "✓ BASE_URL resolved"
+
       - name: Run Post-Deploy E2E Tests
-        if: steps.config.outputs.base_url != ''
         run: bun run test:e2e:aws -- --project=chromium --workers=1
         env:
           CI: true
@@ -1119,10 +1131,6 @@ jobs:
           DEV_BASIC_AUTH_PASSWORD: ${{ steps.config.outputs.basic_pass }}
           VITE_ENABLE_MSW_MOCK: 'false'
 
-      - name: Skip notice
-        if: steps.config.outputs.base_url == ''
-        run: echo "⚠️ Skipping post-deploy E2E tests - BASE_URL not configured in SSM"
-
       - name: Upload E2E Test Report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -1130,6 +1138,120 @@ jobs:
           name: playwright-report-aws
           path: playwright-report-aws/
           retention-days: 3
+
+  # =======================================
+  # Post-Deploy Smoke Test (PRD)
+  # Production had no post-deploy verification at all, which is how #463
+  # (every canonical / sitemap / RSS URL pointing at https://example.com)
+  # went unnoticed. Plain HTTP checks only: prd has no Basic Auth and the
+  # public site needs no AWS credentials, so this needs no environment gate.
+  # =======================================
+  post-deploy-smoke-prd:
+    name: Post-Deploy Smoke Test (PRD)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-admin-prd, deploy-astro-prd]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.target-env == 'prd' &&
+      (needs.deploy-admin-prd.result == 'success' || needs.deploy-admin-prd.result == 'skipped') &&
+      (needs.deploy-astro-prd.result == 'success' || needs.deploy-astro-prd.result == 'skipped')
+    env:
+      # Deliberately literal, not read from SSM: comparing the live page against
+      # the domain we EXPECT is what catches a misconfigured SITE_URL. An
+      # SSM-derived expectation would agree with a broken deploy.
+      SITE_URL: https://boneofmyfallacy.net
+
+    steps:
+      - name: Verify public site
+        run: |
+          set -uo pipefail
+          FAILED=0
+
+          check_status() {
+            local path="$1"
+            local code
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+              --max-time 30 --retry 3 --retry-delay 5 --retry-all-errors \
+              "${SITE_URL}${path}" || echo "000")
+            if [ "$code" = "200" ]; then
+              echo "✓ ${path} → ${code}"
+            else
+              echo "❌ ${path} → ${code} (expected 200)"
+              FAILED=1
+            fi
+          }
+
+          echo "========================================="
+          echo "Smoke test against ${SITE_URL}"
+          echo "========================================="
+
+          check_status "/"
+          check_status "/sitemap-index.xml"
+          check_status "/rss.xml"
+          check_status "/robots.txt"
+
+          echo ""
+          echo "--- robots.txt points at our sitemap ---"
+          ROBOTS=$(curl -sS --max-time 30 "${SITE_URL}/robots.txt" || echo "")
+          if echo "$ROBOTS" | grep -qF "Sitemap: ${SITE_URL}/sitemap-index.xml"; then
+            echo "✓ Sitemap line references ${SITE_URL}"
+          else
+            echo "❌ robots.txt has no 'Sitemap: ${SITE_URL}/sitemap-index.xml' line"
+            echo "$ROBOTS"
+            FAILED=1
+          fi
+
+          echo ""
+          echo "--- canonical / og:url use the production domain ---"
+          HOME_HTML=$(curl -sS --max-time 30 "${SITE_URL}/" || echo "")
+
+          CANONICAL=$(echo "$HOME_HTML" | grep -o '<link rel="canonical" href="[^"]*"' | head -1)
+          OG_URL=$(echo "$HOME_HTML" | grep -o '<meta property="og:url" content="[^"]*"' | head -1)
+
+          for tag in "$CANONICAL" "$OG_URL"; do
+            if [ -z "$tag" ]; then
+              echo "❌ Missing canonical or og:url tag on the home page"
+              FAILED=1
+            elif echo "$tag" | grep -qF "example.com"; then
+              echo "❌ ${tag} — SITE_URL fell back to the example.com placeholder"
+              FAILED=1
+            elif echo "$tag" | grep -qF "${SITE_URL}"; then
+              echo "✓ ${tag}"
+            else
+              echo "❌ ${tag} — does not reference ${SITE_URL}"
+              FAILED=1
+            fi
+          done
+
+          echo ""
+          echo "--- a real article page renders ---"
+          RSS=$(curl -sS --max-time 30 "${SITE_URL}/rss.xml" || echo "")
+          ARTICLE_URL=$(echo "$RSS" \
+            | grep -o '<link>[^<]*/posts/[^<]*</link>' \
+            | head -1 | sed -e 's|<link>||' -e 's|</link>||')
+
+          if [ -z "$ARTICLE_URL" ]; then
+            echo "⚠️ No article found in the RSS feed - skipping article check"
+          else
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+              --max-time 30 --retry 3 --retry-delay 5 --retry-all-errors \
+              "$ARTICLE_URL" || echo "000")
+            if [ "$code" = "200" ]; then
+              echo "✓ ${ARTICLE_URL} → ${code}"
+            else
+              echo "❌ ${ARTICLE_URL} → ${code} (expected 200)"
+              FAILED=1
+            fi
+          fi
+
+          echo ""
+          if [ "$FAILED" = "1" ]; then
+            echo "❌ Production smoke test failed"
+            exit 1
+          fi
+          echo "========================================="
+          echo "✓ Production smoke test passed"
+          echo "========================================="
 
   # =======================================
   # Deployment Summary
@@ -1146,6 +1268,7 @@ jobs:
       - deploy-astro-dev
       - deploy-astro-prd
       - post-deploy-e2e-dev
+      - post-deploy-smoke-prd
     if: always()
     steps:
       - name: Summary
@@ -1168,8 +1291,9 @@ jobs:
           echo "  DEV: ${{ needs.deploy-astro-dev.result }}"
           echo "  PRD: ${{ needs.deploy-astro-prd.result }}"
           echo ""
-          echo "--- Post-Deploy E2E Tests ---"
-          echo "  DEV: ${{ needs.post-deploy-e2e-dev.result }}"
+          echo "--- Post-Deploy Verification ---"
+          echo "  DEV (E2E):   ${{ needs.post-deploy-e2e-dev.result }}"
+          echo "  PRD (smoke): ${{ needs.post-deploy-smoke-prd.result }}"
           echo ""
           echo "========================================="
 
@@ -1179,9 +1303,11 @@ jobs:
              [ "${{ needs.deploy-admin-dev.result }}" == "failure" ] || \
              [ "${{ needs.deploy-admin-prd.result }}" == "failure" ] || \
              [ "${{ needs.deploy-astro-dev.result }}" == "failure" ] || \
-             [ "${{ needs.deploy-astro-prd.result }}" == "failure" ]; then
-            echo "❌ One or more deployments failed"
+             [ "${{ needs.deploy-astro-prd.result }}" == "failure" ] || \
+             [ "${{ needs.post-deploy-e2e-dev.result }}" == "failure" ] || \
+             [ "${{ needs.post-deploy-smoke-prd.result }}" == "failure" ]; then
+            echo "❌ One or more deploy or verification steps failed"
             exit 1
           fi
 
-          echo "✓ All deployments completed successfully!"
+          echo "✓ All deployments and post-deploy checks completed successfully!"
