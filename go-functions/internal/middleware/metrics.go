@@ -8,6 +8,13 @@
 //     CloudWatch EMFを使用してカスタムメトリクスを出力
 package middleware
 
+// NOTE: as of this writing, this file (metrics.go) is not imported by any
+// Lambda handler under cmd/. The implementation works and is covered by
+// tests, but whether to adopt it (wire it into handlers) or remove it is
+// an open decision deferred to the P3 observability/error-handling
+// refactor. See issue #483 for context; do not let this sit unresolved
+// past that milestone.
+
 import (
 	"encoding/json"
 	"fmt"
