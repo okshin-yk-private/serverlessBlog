@@ -24,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/google/uuid"
 
+	"serverless-blog/go-functions/internal/auth"
 	"serverless-blog/go-functions/internal/buildtrigger"
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
@@ -70,7 +71,7 @@ var uuidGenerator = func() string {
 //nolint:gocyclo // validates auth, body, slug uniqueness, and triggers CodeBuild — branches add up but flow is linear.
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Extract author ID from Cognito claims (authentication check)
-	authorID := extractAuthorID(request)
+	authorID := auth.UserID(request)
 	if authorID == "" {
 		return errorResponse(401, "unauthorized")
 	}
@@ -182,35 +183,6 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	// Return created post with 201 status
 	return middleware.JSONResponse(201, post)
-}
-
-// extractAuthorID extracts the user ID from Cognito authorizer claims
-func extractAuthorID(request events.APIGatewayProxyRequest) string {
-	if request.RequestContext.Authorizer == nil {
-		return ""
-	}
-
-	claims, ok := request.RequestContext.Authorizer["claims"]
-	if !ok {
-		return ""
-	}
-
-	claimsMap, ok := claims.(map[string]interface{})
-	if !ok {
-		return ""
-	}
-
-	sub, ok := claimsMap["sub"]
-	if !ok {
-		return ""
-	}
-
-	subStr, ok := sub.(string)
-	if !ok {
-		return ""
-	}
-
-	return subStr
 }
 
 // errorResponse creates an error response with CORS headers
