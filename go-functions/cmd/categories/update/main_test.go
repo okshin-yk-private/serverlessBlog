@@ -1125,6 +1125,84 @@ func TestHandler_TransactWriteError(t *testing.T) {
 	}
 }
 
+// TestGetPostsByCategory_ProjectsIDOnly guards inefficiency 2 from issue
+// #489: getPostsByCategory must request only the "id" attribute via
+// ProjectionExpression, not the full BlogPost (including contentMarkdown /
+// contentHtml). updateCategoryWithPosts only ever needs each post's ID to
+// build a "SET category = :newCategory" update, so pulling full post bodies
+// into Lambda memory for every post in the category was unnecessary.
+func TestGetPostsByCategory_ProjectsIDOnly(t *testing.T) {
+	var capturedProjection *string
+
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			capturedProjection = params.ProjectionExpression
+			// Simulate what DynamoDB actually returns under this
+			// projection: only the "id" attribute, nothing else - in
+			// particular, no contentMarkdown/contentHtml.
+			return &dynamodb.QueryOutput{
+				Items: []map[string]types.AttributeValue{
+					{"id": &types.AttributeValueMemberS{Value: "post-1"}},
+					{"id": &types.AttributeValueMemberS{Value: "post-2"}},
+				},
+			}, nil
+		},
+	}
+
+	postIDs, err := getPostsByCategory(context.Background(), mockClient, "posts-table", testCategoryIndex, "tech")
+	if err != nil {
+		t.Fatalf("getPostsByCategory returned unexpected error: %v", err)
+	}
+
+	if capturedProjection == nil || *capturedProjection != "id" {
+		t.Errorf(`expected ProjectionExpression "id", got %v`, capturedProjection)
+	}
+
+	if len(postIDs) != 2 || postIDs[0] != "post-1" || postIDs[1] != "post-2" {
+		t.Errorf("expected [post-1 post-2], got %v", postIDs)
+	}
+}
+
+// TestGetPostsByCategory_MultiPageProjection verifies pagination still works
+// correctly when each page carries only the "id" attribute (as it would
+// under the real ProjectionExpression), following LastEvaluatedKey across
+// pages just like before the projection was added.
+func TestGetPostsByCategory_MultiPageProjection(t *testing.T) {
+	lastKey := map[string]types.AttributeValue{
+		"id":       &types.AttributeValueMemberS{Value: "post-1"},
+		"category": &types.AttributeValueMemberS{Value: "tech"},
+	}
+
+	callCount := 0
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			callCount++
+			if params.ExclusiveStartKey == nil {
+				return &dynamodb.QueryOutput{
+					Items:            []map[string]types.AttributeValue{{"id": &types.AttributeValueMemberS{Value: "post-1"}}},
+					LastEvaluatedKey: lastKey,
+				}, nil
+			}
+			return &dynamodb.QueryOutput{
+				Items:            []map[string]types.AttributeValue{{"id": &types.AttributeValueMemberS{Value: "post-2"}}},
+				LastEvaluatedKey: nil,
+			}, nil
+		},
+	}
+
+	postIDs, err := getPostsByCategory(context.Background(), mockClient, "posts-table", testCategoryIndex, "tech")
+	if err != nil {
+		t.Fatalf("getPostsByCategory returned unexpected error: %v", err)
+	}
+
+	if callCount != 2 {
+		t.Errorf("expected 2 Query calls (one per page), got %d", callCount)
+	}
+	if len(postIDs) != 2 || postIDs[0] != "post-1" || postIDs[1] != "post-2" {
+		t.Errorf("expected [post-1 post-2], got %v", postIDs)
+	}
+}
+
 // Ensure unused import warning is silenced
 var _ = aws.String
 

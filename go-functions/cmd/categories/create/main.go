@@ -195,29 +195,46 @@ func isTransactionCanceledError(err error) bool {
 	return errors.As(err, &tcErr)
 }
 
-// getMaxSortOrder finds the maximum sortOrder value among existing categories
+// getMaxSortOrder finds the maximum sortOrder value among existing categories.
+//
+// Scans the full table across all pages (issue #489). A DynamoDB Scan returns
+// at most ~1MB per call; the previous implementation only inspected the
+// first page and ignored LastEvaluatedKey, so once the Categories table grew
+// past that size, the computed max could be smaller than the true max and a
+// newly created category could collide with (or be inserted before) an
+// existing sortOrder that only appeared on a later page.
 func getMaxSortOrder(ctx context.Context, client DynamoDBClientInterface, tableName string) (int, error) {
-	scanInput := &dynamodb.ScanInput{
-		TableName:            aws.String(tableName),
-		ProjectionExpression: aws.String("sortOrder"),
-	}
-
-	result, err := client.Scan(ctx, scanInput)
-	if err != nil {
-		return 0, err
-	}
-
 	maxSortOrder := 0
-	for _, item := range result.Items {
-		var category struct {
-			SortOrder int `dynamodbav:"sortOrder"`
+	var exclusiveStartKey map[string]types.AttributeValue
+
+	for {
+		scanInput := &dynamodb.ScanInput{
+			TableName:            aws.String(tableName),
+			ProjectionExpression: aws.String("sortOrder"),
+			ExclusiveStartKey:    exclusiveStartKey,
 		}
-		if err := attributevalue.UnmarshalMap(item, &category); err != nil {
-			continue
+
+		result, err := client.Scan(ctx, scanInput)
+		if err != nil {
+			return 0, err
 		}
-		if category.SortOrder > maxSortOrder {
-			maxSortOrder = category.SortOrder
+
+		for _, item := range result.Items {
+			var category struct {
+				SortOrder int `dynamodbav:"sortOrder"`
+			}
+			if err := attributevalue.UnmarshalMap(item, &category); err != nil {
+				continue
+			}
+			if category.SortOrder > maxSortOrder {
+				maxSortOrder = category.SortOrder
+			}
 		}
+
+		if result.LastEvaluatedKey == nil {
+			break
+		}
+		exclusiveStartKey = result.LastEvaluatedKey
 	}
 
 	return maxSortOrder, nil
