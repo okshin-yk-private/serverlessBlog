@@ -3,10 +3,17 @@ package middleware
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/aws/aws-lambda-go/events"
 )
+
+// PublicCacheMaxAgeSeconds is how long a response to an anonymous read may be
+// reused. It is deliberately short: publishing a post triggers a site rebuild
+// and a CloudFront invalidation, and a minute of staleness on the API is well
+// inside the time that pipeline takes.
+const PublicCacheMaxAgeSeconds = 60
 
 // CORSHeaders returns standard CORS headers.
 // The Access-Control-Allow-Origin value is read from the ALLOWED_ORIGIN
@@ -25,6 +32,32 @@ func CORSHeaders() map[string]string {
 		"X-Frame-Options":              "DENY",
 		"Cache-Control":                "no-store",
 	}
+}
+
+// PublicCacheHeaders returns the standard headers with a short shared-cache
+// window instead of no-store.
+//
+// Only use this for responses that contain nothing but published content
+// served to an anonymous caller. no-store stays the default in CORSHeaders so
+// that anything not explicitly opted in — admin reads, drafts, tokens —
+// cannot be cached by omission.
+func PublicCacheHeaders() map[string]string {
+	headers := CORSHeaders()
+	headers["Cache-Control"] = fmt.Sprintf("public, max-age=%d", PublicCacheMaxAgeSeconds)
+	return headers
+}
+
+// PublicJSONResponse creates a JSON response that a shared cache may reuse for
+// PublicCacheMaxAgeSeconds. See PublicCacheHeaders for when this is allowed.
+func PublicJSONResponse(statusCode int, body interface{}) (events.APIGatewayProxyResponse, error) {
+	response, err := JSONResponse(statusCode, body)
+	if err != nil {
+		// Marshaling failed, so the body is an error payload: leave it uncached.
+		return response, err
+	}
+
+	response.Headers = PublicCacheHeaders()
+	return response, nil
 }
 
 // JSONResponse creates a JSON response with CORS headers.

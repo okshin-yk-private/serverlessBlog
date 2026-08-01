@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"testing"
@@ -125,5 +126,60 @@ func TestErrorResponse(t *testing.T) {
 	}
 	if parsed["error"] != "bad request" {
 		t.Errorf("body error = %q, want 'bad request'", parsed["error"])
+	}
+}
+
+// TestCORSHeadersDefaultsToNoStore pins the default. Public caching is opt-in
+// (PublicJSONResponse); if this default ever flips, every endpoint that never
+// opted in — admin reads, drafts, token responses — silently becomes
+// cacheable.
+func TestCORSHeadersDefaultsToNoStore(t *testing.T) {
+	if got := CORSHeaders()["Cache-Control"]; got != "no-store" {
+		t.Errorf("CORSHeaders()[Cache-Control] = %q, want %q", got, "no-store")
+	}
+}
+
+func TestPublicCacheHeaders(t *testing.T) {
+	headers := PublicCacheHeaders()
+
+	want := fmt.Sprintf("public, max-age=%d", PublicCacheMaxAgeSeconds)
+	if got := headers["Cache-Control"]; got != want {
+		t.Errorf("Cache-Control = %q, want %q", got, want)
+	}
+
+	// The rest of the security headers must survive the override.
+	for _, key := range []string{"X-Content-Type-Options", "X-Frame-Options", "Content-Type"} {
+		if headers[key] == "" {
+			t.Errorf("PublicCacheHeaders() dropped %s", key)
+		}
+	}
+}
+
+func TestPublicJSONResponse(t *testing.T) {
+	resp, err := PublicJSONResponse(200, map[string]string{"hello": "world"})
+	if err != nil {
+		t.Fatalf("PublicJSONResponse() unexpected error: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Errorf("StatusCode = %d, want 200", resp.StatusCode)
+	}
+	want := fmt.Sprintf("public, max-age=%d", PublicCacheMaxAgeSeconds)
+	if got := resp.Headers["Cache-Control"]; got != want {
+		t.Errorf("Cache-Control = %q, want %q", got, want)
+	}
+	if resp.Body != `{"hello":"world"}` {
+		t.Errorf("Body = %q", resp.Body)
+	}
+}
+
+// A body that cannot be marshaled produces an error payload, which must not
+// be handed to a shared cache.
+func TestPublicJSONResponseDoesNotCacheMarshalFailure(t *testing.T) {
+	resp, err := PublicJSONResponse(200, make(chan int))
+	if err == nil {
+		t.Fatal("PublicJSONResponse() error = nil, want a marshaling error")
+	}
+	if got := resp.Headers["Cache-Control"]; got != "no-store" {
+		t.Errorf("Cache-Control = %q, want %q", got, "no-store")
 	}
 }

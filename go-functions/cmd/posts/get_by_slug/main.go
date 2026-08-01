@@ -90,7 +90,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return errorResponse(404, "post not found")
 	}
 
-	return middleware.JSONResponse(200, post)
+	return middleware.PublicJSONResponse(200, post)
 }
 
 // errorResponse creates an error response with CORS headers.
