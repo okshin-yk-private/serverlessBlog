@@ -21,6 +21,9 @@ export default [
       '**/test-results/**',
       '**/.serena/**',
       '**/.husky/**',
+      // Claude Code agent worktrees are full checkouts of this repo; linting
+      // them makes `bun run verify` fail on a copy while an agent is running.
+      '.claude/worktrees/**',
       'infrastructure/bin/**',
       'infrastructure/lib/**/*.js', // Transpiled CDK files
       'infrastructure/test/**/*.js', // Transpiled test files

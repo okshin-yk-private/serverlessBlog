@@ -149,12 +149,15 @@ describe('Task 8.3: Development Environment and Build Validation', () => {
         expect(hasTestJob).toBe(true);
       });
 
-      it('should have frontend-public-tests job', () => {
+      // 公開サイトは Astro SSG。旧 React SPA の frontend-public-tests ジョブは
+      // frontend/public の削除に伴い廃止された
+      it('should have frontend-astro-tests job', () => {
         const content = readFileSync(ciPath, 'utf-8');
         const workflow = yaml.load(content) as Record<string, unknown>;
         const jobs = workflow.jobs as Record<string, unknown>;
 
-        expect(jobs['frontend-public-tests']).toBeDefined();
+        expect(jobs['frontend-astro-tests']).toBeDefined();
+        expect(jobs['frontend-public-tests']).toBeUndefined();
       });
 
       it('should have ci-success job that checks all results', () => {
