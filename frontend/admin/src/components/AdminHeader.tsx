@@ -29,9 +29,22 @@ const AdminHeader: React.FC = () => {
     <>
       <header className="admin-header">
         <div className="admin-header-container">
-          <Link to="/dashboard" className="admin-logo">
-            <img src="/fallacy.png" alt="Logo" className="admin-logo-image" />
-            <span className="admin-site-title">Bone of my fallacy</span>
+          <Link
+            to="/dashboard"
+            className="admin-logo"
+            aria-label="Bone of my fallacy - Admin"
+          >
+            <img
+              src="/logo-light.png"
+              alt="Bone of my fallacy"
+              className="admin-logo-image admin-logo-image-light"
+            />
+            <img
+              src="/logo-dark.png"
+              alt=""
+              aria-hidden="true"
+              className="admin-logo-image admin-logo-image-dark"
+            />
             <span className="admin-badge admin-badge-header">Admin</span>
           </Link>
           <nav className="admin-nav">
@@ -88,112 +101,103 @@ const AdminHeader: React.FC = () => {
       </header>
 
       <style>{`
+        /* 公開サイト (public-astro) の Header.astro と同じヘッダー表現 */
         .admin-header {
-          background: var(--color-surface);
+          background: color-mix(in srgb, var(--color-bg) 88%, transparent);
           border-bottom: 1px solid var(--color-border);
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
           position: sticky;
           top: 0;
           z-index: 1000;
-          backdrop-filter: blur(8px);
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
         }
 
         .admin-header-container {
-          max-width: 1200px;
+          max-width: 1240px;
           margin: 0 auto;
-          padding: 0 32px;
+          padding: 0 40px;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          height: 72px;
+          height: 88px;
         }
 
         .admin-logo {
           text-decoration: none;
           display: flex;
           align-items: center;
-          transition: opacity 0.2s ease;
+          gap: 12px;
+          line-height: 0;
+          transition: opacity 0.2s ease, transform 0.2s ease;
         }
 
         .admin-logo:hover {
-          opacity: 0.8;
+          opacity: 0.82;
+          transform: translateY(-1px);
         }
 
         .admin-logo-image {
-          height: 40px;
+          display: block;
+          height: 58px;
           width: auto;
-          margin-right: 12px;
+          max-width: 230px;
+          object-fit: contain;
         }
 
-        :root[data-theme="dark"] .admin-logo-image {
-          content: url('/dark-logo.png');
+        .admin-logo-image-light {
+          mix-blend-mode: multiply;
         }
 
-        .admin-site-title {
-          font-family: 'Caveat', cursive;
-          font-size: 1.6rem;
-          font-weight: 600;
-          color: var(--color-text-heading);
-          letter-spacing: 0.02em;
-          margin-right: 12px;
+        .admin-logo-image-dark {
+          display: none;
+        }
+
+        :root[data-theme="dark"] .admin-logo-image-light {
+          display: none;
+        }
+
+        :root[data-theme="dark"] .admin-logo-image-dark {
+          display: block;
         }
 
         .admin-nav {
           display: flex;
-          gap: 20px;
+          gap: 8px;
           align-items: center;
         }
 
         .admin-nav-link {
-          color: var(--color-text);
+          color: var(--color-text-muted);
           text-decoration: none;
-          font-size: 0.95rem;
-          font-weight: 500;
-          transition: color 0.2s ease;
-          padding: 8px 0;
+          font-family: var(--font-display);
+          font-size: 0.78rem;
+          font-weight: 600;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          transition: color 0.2s ease, background 0.2s ease;
+          padding: 10px 14px;
+          border-radius: 999px;
           position: relative;
-        }
-
-        .admin-nav-link::after {
-          content: '';
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          width: 0;
-          height: 2px;
-          background: var(--color-primary);
-          transition: width 0.2s ease;
         }
 
         .admin-nav-link:hover {
           color: var(--color-text-heading);
-        }
-
-        .admin-nav-link:hover::after {
-          width: 100%;
+          background: var(--color-primary-soft);
         }
 
         .admin-nav-link.active {
-          color: var(--color-text-heading);
-        }
-
-        .admin-nav-link.active::after {
-          width: 100%;
+          color: var(--color-primary);
+          background: var(--color-primary-soft);
         }
 
         .admin-nav-external {
           display: flex;
           align-items: center;
           gap: 6px;
-          color: var(--color-text-muted) !important;
         }
 
         .admin-nav-external:hover {
-          color: var(--color-primary) !important;
-        }
-
-        .admin-nav-external::after {
-          display: none;
+          color: var(--color-accent);
         }
 
         .external-icon {
@@ -201,76 +205,70 @@ const AdminHeader: React.FC = () => {
         }
 
         .admin-nav-new {
-          background: var(--color-primary);
-          color: var(--color-text-on-primary) !important;
-          padding: 8px 16px;
-          border-radius: 8px;
-          transition: all 0.2s ease;
-        }
-
-        .admin-nav-new::after {
-          display: none;
+          border: 1px solid var(--color-border);
+          background: var(--color-surface);
+          color: var(--color-primary);
         }
 
         .admin-nav-new:hover {
-          background: var(--color-primary-hover);
-          color: var(--color-text-on-primary) !important;
+          border-color: var(--color-accent);
+          color: var(--color-accent);
+          background: var(--color-primary-soft);
         }
 
         .admin-logout-btn {
           background: transparent;
-          border: 1px solid var(--color-border);
+          border: 1px solid transparent;
           color: var(--color-text-muted);
-          padding: 8px 16px;
-          border-radius: 8px;
-          font-size: 0.95rem;
-          font-weight: 500;
+          padding: 10px 14px;
+          border-radius: 999px;
+          font-family: var(--font-display);
+          font-size: 0.78rem;
+          font-weight: 600;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
         }
 
         .admin-logout-btn:hover {
-          border-color: var(--color-primary);
-          color: var(--color-primary);
-          background: var(--color-surface-elevated);
+          border-color: var(--color-border);
+          color: var(--color-accent);
+          background: var(--color-surface);
         }
 
         @media (max-width: 768px) {
           .admin-header-container {
-            height: 64px;
+            height: 72px;
             padding: 0 20px;
           }
 
-          .admin-logo-image {
-            height: 32px;
-            margin-right: 8px;
+          .admin-logo {
+            gap: 8px;
           }
 
-          .admin-site-title {
-            font-size: 1.2rem;
-            margin-right: 8px;
+          .admin-logo-image {
+            height: 46px;
+            max-width: 178px;
           }
 
           .admin-nav {
-            gap: 12px;
+            gap: 2px;
           }
 
-          .admin-nav-link {
-            font-size: 0.85rem;
-          }
-
-          .admin-nav-new {
-            padding: 6px 12px;
-          }
-
+          .admin-nav-link,
           .admin-logout-btn {
-            padding: 6px 12px;
-            font-size: 0.85rem;
+            font-size: 0.68rem;
+            padding: 8px 9px;
           }
         }
 
         @media (max-width: 640px) {
-          .admin-site-title {
+          .admin-badge-header {
+            display: none;
+          }
+
+          .admin-nav-external {
             display: none;
           }
         }

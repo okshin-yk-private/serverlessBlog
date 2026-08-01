@@ -22,6 +22,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
+	"serverless-blog/go-functions/internal/auth"
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/middleware"
@@ -53,9 +54,15 @@ var timeNow = func() string {
 // Requirement 4B.2: Require Cognito authorization
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Requirement 4B.2: Check authentication
-	authorID := extractAuthorID(request)
+	authorID := auth.UserID(request)
 	if authorID == "" {
 		return errorResponse(401, "unauthorized")
+	}
+
+	// Categories are site-wide, so being signed in is not enough to change
+	// them: the caller has to be in the admin group.
+	if !auth.IsAdmin(request) {
+		return errorResponse(403, "forbidden")
 	}
 
 	// Parse request body
@@ -114,35 +121,6 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	}
 
 	return middleware.JSONResponse(200, updatedCategories)
-}
-
-// extractAuthorID extracts the user ID from Cognito authorizer claims
-func extractAuthorID(request events.APIGatewayProxyRequest) string {
-	if request.RequestContext.Authorizer == nil {
-		return ""
-	}
-
-	claims, ok := request.RequestContext.Authorizer["claims"]
-	if !ok {
-		return ""
-	}
-
-	claimsMap, ok := claims.(map[string]interface{})
-	if !ok {
-		return ""
-	}
-
-	sub, ok := claimsMap["sub"]
-	if !ok {
-		return ""
-	}
-
-	subStr, ok := sub.(string)
-	if !ok {
-		return ""
-	}
-
-	return subStr
 }
 
 // verifyCategories verifies all category IDs exist and returns existing categories and invalid IDs

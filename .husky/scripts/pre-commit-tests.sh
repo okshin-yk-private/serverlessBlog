@@ -18,26 +18,18 @@ if [ -z "$STAGED_FILES" ]; then
 fi
 
 # Detection flags
-HAS_INFRASTRUCTURE=false
 HAS_GO=false
 HAS_FRONTEND_ADMIN=false
-HAS_FRONTEND_PUBLIC=false
 HAS_FRONTEND_PUBLIC_ASTRO=false
 
 # Check which components have changes
 for file in $STAGED_FILES; do
   case "$file" in
-    infrastructure/*)
-      HAS_INFRASTRUCTURE=true
-      ;;
     go-functions/*.go)
       HAS_GO=true
       ;;
     frontend/admin/*)
       HAS_FRONTEND_ADMIN=true
-      ;;
-    frontend/public/*)
-      HAS_FRONTEND_PUBLIC=true
       ;;
     frontend/public-astro/*)
       HAS_FRONTEND_PUBLIC_ASTRO=true
@@ -47,17 +39,13 @@ done
 
 # Track what will be checked
 echo -e "${BLUE}Detected changes in:${NC}"
-[ "$HAS_INFRASTRUCTURE" = true ] && echo "  - infrastructure/ (CDK)"
 [ "$HAS_GO" = true ] && echo "  - go-functions/ (Go Lambda)"
 [ "$HAS_FRONTEND_ADMIN" = true ] && echo "  - frontend/admin/ (Admin App)"
-[ "$HAS_FRONTEND_PUBLIC" = true ] && echo "  - frontend/public/ (Public Site)"
 [ "$HAS_FRONTEND_PUBLIC_ASTRO" = true ] && echo "  - frontend/public-astro/ (Public Site / Astro SSG)"
 
 # If nothing to check, exit early
-if [ "$HAS_INFRASTRUCTURE" = false ] && \
-   [ "$HAS_GO" = false ] && \
+if [ "$HAS_GO" = false ] && \
    [ "$HAS_FRONTEND_ADMIN" = false ] && \
-   [ "$HAS_FRONTEND_PUBLIC" = false ] && \
    [ "$HAS_FRONTEND_PUBLIC_ASTRO" = false ]; then
   echo -e "${GREEN}No testable components changed. Skipping tests.${NC}"
   exit 0
@@ -67,37 +55,10 @@ echo ""
 FAILED=false
 
 # =========================================
-# Infrastructure Tests (CDK)
-# =========================================
-if [ "$HAS_INFRASTRUCTURE" = true ]; then
-  echo -e "${BLUE}[1/5] Running Infrastructure tests...${NC}"
-
-  # Run Jest tests
-  if (cd infrastructure && npm test -- --passWithNoTests); then
-    echo -e "${GREEN}  ✓ Infrastructure unit tests passed${NC}"
-  else
-    echo -e "${RED}  ✗ Infrastructure unit tests failed${NC}"
-    FAILED=true
-  fi
-
-  # Run CDK diff (non-blocking - informational only)
-  if [ "$FAILED" = false ]; then
-    echo -e "${YELLOW}  Running cdk diff (informational)...${NC}"
-    if (cd infrastructure && npx cdk diff --all --context stage=dev 2>/dev/null); then
-      echo -e "${GREEN}  ✓ CDK diff completed${NC}"
-    else
-      echo -e "${YELLOW}  ⚠ CDK diff skipped (requires AWS credentials or failed)${NC}"
-    fi
-  fi
-else
-  echo -e "${YELLOW}[1/5] Infrastructure: No changes, skipping${NC}"
-fi
-
-# =========================================
 # Go Lambda Tests
 # =========================================
 if [ "$HAS_GO" = true ]; then
-  echo -e "${BLUE}[2/5] Running Go tests...${NC}"
+  echo -e "${BLUE}[1/3] Running Go tests...${NC}"
 
   if (cd go-functions && make lint test); then
     echo -e "${GREEN}  ✓ Go lint and tests passed${NC}"
@@ -117,14 +78,14 @@ if [ "$HAS_GO" = true ]; then
     fi
   fi
 else
-  echo -e "${YELLOW}[2/5] Go Lambda: No changes, skipping${NC}"
+  echo -e "${YELLOW}[1/3] Go Lambda: No changes, skipping${NC}"
 fi
 
 # =========================================
 # Frontend Admin Tests
 # =========================================
 if [ "$HAS_FRONTEND_ADMIN" = true ]; then
-  echo -e "${BLUE}[3/5] Running Frontend Admin lint + tests...${NC}"
+  echo -e "${BLUE}[2/3] Running Frontend Admin lint + tests...${NC}"
 
   # Run ESLint from frontend/admin using its own config (root config ignores frontend/)
   if (cd frontend/admin && bun run lint); then
@@ -134,37 +95,21 @@ if [ "$HAS_FRONTEND_ADMIN" = true ]; then
     FAILED=true
   fi
 
-  if (cd frontend/admin && npm run test -- --run); then
+  if (cd frontend/admin && bun run test -- --run); then
     echo -e "${GREEN}  ✓ Frontend Admin tests passed${NC}"
   else
     echo -e "${RED}  ✗ Frontend Admin tests failed${NC}"
     FAILED=true
   fi
 else
-  echo -e "${YELLOW}[3/5] Frontend Admin: No changes, skipping${NC}"
-fi
-
-# =========================================
-# Frontend Public Tests
-# =========================================
-if [ "$HAS_FRONTEND_PUBLIC" = true ]; then
-  echo -e "${BLUE}[4/5] Running Frontend Public tests...${NC}"
-
-  if (cd frontend/public && npm run test -- --run); then
-    echo -e "${GREEN}  ✓ Frontend Public tests passed${NC}"
-  else
-    echo -e "${RED}  ✗ Frontend Public tests failed${NC}"
-    FAILED=true
-  fi
-else
-  echo -e "${YELLOW}[4/5] Frontend Public: No changes, skipping${NC}"
+  echo -e "${YELLOW}[2/3] Frontend Admin: No changes, skipping${NC}"
 fi
 
 # =========================================
 # Frontend Public (Astro SSG) Tests
 # =========================================
 if [ "$HAS_FRONTEND_PUBLIC_ASTRO" = true ]; then
-  echo -e "${BLUE}[5/5] Running Frontend Public (Astro) tests...${NC}"
+  echo -e "${BLUE}[3/3] Running Frontend Public (Astro) tests...${NC}"
 
   # Astro プロジェクトは bun 管理。統合テストはビルド済み dist/ を前提とするため
   # ここではユニットテストのみ実行する。
@@ -175,7 +120,7 @@ if [ "$HAS_FRONTEND_PUBLIC_ASTRO" = true ]; then
     FAILED=true
   fi
 else
-  echo -e "${YELLOW}[5/5] Frontend Public (Astro): No changes, skipping${NC}"
+  echo -e "${YELLOW}[3/3] Frontend Public (Astro): No changes, skipping${NC}"
 fi
 
 # =========================================

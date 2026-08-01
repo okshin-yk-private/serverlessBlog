@@ -181,9 +181,9 @@ export const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(
     );
 
     return (
-      <div className="border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white">
+      <div className="admin-editor-shell">
         <TiptapToolbar editor={editor} disabled={disabled} />
-        <div data-testid="tiptap-editor" className="border-t border-gray-200">
+        <div data-testid="tiptap-editor" className="admin-editor-body">
           <EditorContent editor={editor} />
         </div>
       </div>

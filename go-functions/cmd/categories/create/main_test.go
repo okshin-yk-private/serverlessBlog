@@ -101,7 +101,8 @@ func createAuthenticatedRequest(body string) events.APIGatewayProxyRequest {
 		RequestContext: events.APIGatewayProxyRequestContext{
 			Authorizer: map[string]interface{}{
 				"claims": map[string]interface{}{
-					"sub": testAuthorID,
+					"sub":            testAuthorID,
+					"cognito:groups": []string{"admin"},
 				},
 			},
 		},
@@ -977,5 +978,162 @@ func TestHandler_FirstCategorySortOrder(t *testing.T) {
 	}
 }
 
+// TestGetMaxSortOrder_MultiPageScan tests that getMaxSortOrder follows
+// LastEvaluatedKey across multiple Scan pages instead of only inspecting the
+// first page (issue #489, bug 1). The item with the highest sortOrder is
+// placed on the *second* page; a correct implementation must see it to
+// return the true maximum.
+func TestGetMaxSortOrder_MultiPageScan(t *testing.T) {
+	page1Cat := domain.Category{ID: "cat-1", SortOrder: 5}
+	page1AV, _ := attributevalue.MarshalMap(page1Cat)
+
+	// The highest sortOrder only appears on the second page.
+	page2Cat := domain.Category{ID: "cat-2", SortOrder: 42}
+	page2AV, _ := attributevalue.MarshalMap(page2Cat)
+
+	lastKey := map[string]types.AttributeValue{
+		"id": &types.AttributeValueMemberS{Value: "cat-1"},
+	}
+
+	var scanCalls []*dynamodb.ScanInput
+
+	mockClient := &MockDynamoDBClient{
+		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+			scanCalls = append(scanCalls, params)
+
+			if params.ExclusiveStartKey == nil {
+				// First page: one item, more data available.
+				return &dynamodb.ScanOutput{
+					Items:            []map[string]types.AttributeValue{page1AV},
+					LastEvaluatedKey: lastKey,
+				}, nil
+			}
+
+			// Second page: verify we resumed from the first page's key.
+			if params.ExclusiveStartKey["id"].(*types.AttributeValueMemberS).Value != "cat-1" {
+				t.Errorf("expected ExclusiveStartKey to resume from cat-1")
+			}
+			return &dynamodb.ScanOutput{
+				Items:            []map[string]types.AttributeValue{page2AV},
+				LastEvaluatedKey: nil, // No more pages
+			}, nil
+		},
+	}
+
+	maxSortOrder, err := getMaxSortOrder(context.Background(), mockClient, testTableName)
+	if err != nil {
+		t.Fatalf("getMaxSortOrder returned unexpected error: %v", err)
+	}
+
+	if maxSortOrder != 42 {
+		t.Errorf("expected maxSortOrder 42 (from second page), got %d", maxSortOrder)
+	}
+
+	if len(scanCalls) != 2 {
+		t.Fatalf("expected 2 Scan calls (one per page), got %d", len(scanCalls))
+	}
+	if scanCalls[0].ExclusiveStartKey != nil {
+		t.Errorf("expected first Scan call to have no ExclusiveStartKey")
+	}
+}
+
+// TestHandler_AutoAssignSortOrder_MultiPageScan is the end-to-end version of
+// TestGetMaxSortOrder_MultiPageScan: it drives the fix through Handler to
+// confirm the auto-assigned sortOrder reflects a category that only exists
+// on the second Scan page.
+func TestHandler_AutoAssignSortOrder_MultiPageScan(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	testUUID := "test-uuid-multipage"
+	testTime := "2024-01-15T10:00:00Z"
+	uuidGenerator = func() string { return testUUID }
+	timeNow = func() string { return testTime }
+
+	page1Cat := domain.Category{ID: "cat-1", SortOrder: 5}
+	page1AV, _ := attributevalue.MarshalMap(page1Cat)
+	page2Cat := domain.Category{ID: "cat-2", SortOrder: 42}
+	page2AV, _ := attributevalue.MarshalMap(page2Cat)
+
+	lastKey := map[string]types.AttributeValue{
+		"id": &types.AttributeValueMemberS{Value: "cat-1"},
+	}
+
+	mockClient := &MockDynamoDBClient{
+		ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+			if params.ExclusiveStartKey == nil {
+				return &dynamodb.ScanOutput{
+					Items:            []map[string]types.AttributeValue{page1AV},
+					LastEvaluatedKey: lastKey,
+				}, nil
+			}
+			return &dynamodb.ScanOutput{
+				Items:            []map[string]types.AttributeValue{page2AV},
+				LastEvaluatedKey: nil,
+			}, nil
+		},
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return &dynamodb.TransactWriteItemsOutput{}, nil
+		},
+	}
+
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return mockClient, nil
+	}
+
+	reqBody := `{"name":"New Category"}`
+	request := createAuthenticatedRequest(reqBody)
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+	if resp.StatusCode != 201 {
+		t.Fatalf("expected status 201, got %d. Body: %s", resp.StatusCode, resp.Body)
+	}
+
+	var category domain.Category
+	if err := json.Unmarshal([]byte(resp.Body), &category); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	// Without pagination, the handler would have seen only page 1 (max 5)
+	// and assigned sortOrder 6, colliding with the true max of 42 on page 2.
+	if category.SortOrder != 43 {
+		t.Errorf("expected sortOrder 43 (42 from page 2 + 1), got %d", category.SortOrder)
+	}
+}
+
 // Ensure unused import warning is silenced
 var _ = aws.String
+
+// createNonAdminRequest builds a request from a signed-in user who is not in
+// the admin group. Categories are site-wide, so this must be rejected.
+func createNonAdminRequest(body string) events.APIGatewayProxyRequest {
+	return events.APIGatewayProxyRequest{
+		Body: body,
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{
+				"claims": map[string]interface{}{
+					"sub":            testAuthorID,
+					"cognito:groups": []string{"editor"},
+				},
+			},
+		},
+	}
+}
+
+// TestHandler_NonAdminForbidden guards the authorization rule added in #488:
+// before it, any authenticated Cognito user could mutate categories.
+func TestHandler_NonAdminForbidden(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	resp, err := Handler(context.Background(), createNonAdminRequest(`{"name":"テスト"}`))
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+	if resp.StatusCode != 403 {
+		t.Errorf("StatusCode = %d, want 403", resp.StatusCode)
+	}
+}

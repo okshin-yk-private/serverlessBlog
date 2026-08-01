@@ -330,11 +330,16 @@ const ForgotPasswordPage = () => {
             <div className="forgot-header">
               <Link to="/" className="forgot-logo">
                 <img
-                  src="/fallacy.png"
-                  alt="Logo"
-                  className="forgot-logo-image"
+                  src="/logo-light.png"
+                  alt="Bone of my fallacy"
+                  className="forgot-logo-image forgot-logo-image-light"
                 />
-                <span className="forgot-site-title">Bone of my fallacy</span>
+                <img
+                  src="/logo-dark.png"
+                  alt=""
+                  aria-hidden="true"
+                  className="forgot-logo-image forgot-logo-image-dark"
+                />
               </Link>
               <span className="forgot-badge">Admin</span>
             </div>
@@ -350,7 +355,6 @@ const ForgotPasswordPage = () => {
       <style>{`
         .forgot-page {
           min-height: 100vh;
-          background: linear-gradient(135deg, var(--color-surface-elevated) 0%, var(--color-surface-muted) 100%);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -365,7 +369,7 @@ const ForgotPasswordPage = () => {
         .forgot-card {
           background: var(--color-surface);
           border: 1px solid var(--color-border);
-          border-radius: 16px;
+          border-radius: 24px;
           padding: 40px;
           box-shadow: var(--shadow-card);
         }
@@ -384,38 +388,47 @@ const ForgotPasswordPage = () => {
         }
 
         .forgot-logo-image {
-          height: 40px;
+          display: block;
+          height: 52px;
           width: auto;
-          margin-right: 12px;
+          max-width: 210px;
+          object-fit: contain;
         }
 
-        :root[data-theme="dark"] .forgot-logo-image {
-          content: url('/dark-logo.png');
+        .forgot-logo-image-light {
+          mix-blend-mode: multiply;
         }
 
-        .forgot-site-title {
-          font-family: 'Caveat', cursive;
-          font-size: 1.5rem;
-          font-weight: 600;
-          color: var(--color-text-heading);
-          letter-spacing: 0.02em;
+        .forgot-logo-image-dark {
+          display: none;
+        }
+
+        :root[data-theme="dark"] .forgot-logo-image-light {
+          display: none;
+        }
+
+        :root[data-theme="dark"] .forgot-logo-image-dark {
+          display: block;
         }
 
         .forgot-badge {
-          background: var(--color-primary);
-          color: var(--color-text-on-primary);
-          padding: 4px 10px;
-          border-radius: 6px;
-          font-size: 0.75rem;
-          font-weight: 600;
+          background: var(--color-primary-soft);
+          color: var(--color-primary);
+          padding: 5px 12px;
+          border-radius: 999px;
+          font-family: var(--font-display);
+          font-size: 0.62rem;
+          font-weight: 700;
           text-transform: uppercase;
-          letter-spacing: 0.05em;
+          letter-spacing: 0.12em;
         }
 
         .forgot-title {
+          font-family: var(--font-display);
           font-size: 1.5rem;
-          font-weight: 700;
-          color: var(--color-primary);
+          font-weight: 600;
+          letter-spacing: -0.035em;
+          color: var(--color-text-heading);
           text-align: center;
           margin: 0 0 16px 0;
         }
@@ -434,17 +447,20 @@ const ForgotPasswordPage = () => {
 
         .forgot-label {
           display: block;
-          font-size: 0.875rem;
-          font-weight: 500;
-          color: var(--color-text);
-          margin-bottom: 6px;
+          font-family: var(--font-display);
+          font-size: 0.72rem;
+          font-weight: 600;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: var(--color-text-muted);
+          margin-bottom: 10px;
         }
 
         .forgot-input {
           width: 100%;
           padding: 12px 16px;
           border: 1px solid var(--color-border);
-          border-radius: 10px;
+          border-radius: 999px;
           font-size: 0.95rem;
           background: var(--color-surface);
           transition: all 0.2s ease;
@@ -471,7 +487,7 @@ const ForgotPasswordPage = () => {
           border: 1px solid var(--color-danger-border);
           color: var(--color-danger-text);
           padding: 12px 16px;
-          border-radius: 10px;
+          border-radius: 999px;
           margin-bottom: 20px;
           font-size: 0.875rem;
         }
@@ -487,7 +503,7 @@ const ForgotPasswordPage = () => {
           border: 1px solid var(--color-success-border);
           color: var(--color-success-text);
           padding: 16px;
-          border-radius: 10px;
+          border-radius: 999px;
           margin-bottom: 20px;
           font-size: 0.95rem;
           text-align: center;
@@ -500,8 +516,9 @@ const ForgotPasswordPage = () => {
           background: var(--color-primary);
           color: var(--color-text-on-primary);
           border: none;
-          border-radius: 10px;
-          font-size: 0.95rem;
+          border-radius: 999px;
+          font-family: var(--font-display);
+          font-size: 0.9rem;
           font-weight: 600;
           cursor: pointer;
           transition: all 0.2s ease;

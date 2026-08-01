@@ -181,6 +181,40 @@ describe('CategoryEditPage', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/categories');
       });
     });
+
+    it('保存成功後は不要な setSaving(false) を呼ばない（アンマウント後のstate更新防止）', async () => {
+      // navigate 実行後、実際のアプリではコンポーネントがアンマウントされるため
+      // setSaving(false) を呼んではいけない。このテストでは navigate をモックしており
+      // 実際にはアンマウントされないので、保存成功後もボタンが「保存中...」のまま
+      // 変化しないことをもって、setSaving(false) が呼ばれていないことを確認する。
+      const user = userEvent.setup();
+      const newCategory = {
+        id: 'new-id',
+        name: 'テストカテゴリ',
+        slug: 'test-category',
+        description: '',
+        sortOrder: 1,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      };
+
+      mockCreateCategory.mockResolvedValue(newCategory);
+
+      renderCategoryEditPageNewMode();
+
+      const nameInput = screen.getByLabelText(/カテゴリ名/i);
+      const submitButton = screen.getByRole('button', { name: /保存/i });
+
+      await user.type(nameInput, 'テストカテゴリ');
+      await user.click(submitButton);
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/categories');
+      });
+
+      expect(submitButton).toBeDisabled();
+      expect(submitButton).toHaveTextContent('保存中...');
+    });
   });
 
   describe('編集モード', () => {

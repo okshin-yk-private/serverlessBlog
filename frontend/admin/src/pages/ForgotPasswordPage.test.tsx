@@ -35,12 +35,14 @@ describe('ForgotPasswordPage', () => {
     describe('レンダリング', () => {
       it('ロゴが表示される', () => {
         renderForgotPasswordPage();
-        expect(screen.getByAltText('Logo')).toBeInTheDocument();
+        expect(screen.getByAltText('Bone of my fallacy')).toBeInTheDocument();
       });
 
-      it('サイトタイトルが表示される', () => {
+      it('サイトタイトルがロゴの代替テキストとして提供される', () => {
         renderForgotPasswordPage();
-        expect(screen.getByText('Bone of my fallacy')).toBeInTheDocument();
+        expect(
+          screen.getByRole('img', { name: 'Bone of my fallacy' })
+        ).toBeInTheDocument();
       });
 
       it('Adminバッジが表示される', () => {

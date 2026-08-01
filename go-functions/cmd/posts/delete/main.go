@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
+	"serverless-blog/go-functions/internal/auth"
 	"serverless-blog/go-functions/internal/buildtrigger"
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
@@ -63,7 +64,7 @@ var codebuildClientGetter = clients.GetCodeBuild
 // Handler handles DELETE /posts/:id requests
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Validate authentication first
-	userID := getUserIDFromRequest(request)
+	userID := auth.UserID(request)
 	if userID == "" {
 		return errorResponse(401, "unauthorized")
 	}
@@ -239,41 +240,6 @@ func extractS3KeyFromURL(imageURL string) string {
 
 	// Remove leading slash from path
 	return strings.TrimPrefix(parsedURL.Path, "/")
-}
-
-// getUserIDFromRequest extracts the user ID from the request context
-// Returns empty string if user is not authenticated
-func getUserIDFromRequest(request events.APIGatewayProxyRequest) string {
-	// Check if authorizer is present
-	if request.RequestContext.Authorizer == nil {
-		return ""
-	}
-
-	// Get claims from authorizer
-	claims, ok := request.RequestContext.Authorizer["claims"]
-	if !ok || claims == nil {
-		return ""
-	}
-
-	// Type assert claims to map
-	claimsMap, ok := claims.(map[string]interface{})
-	if !ok {
-		return ""
-	}
-
-	// Get sub (user ID) from claims
-	sub, ok := claimsMap["sub"]
-	if !ok {
-		return ""
-	}
-
-	// Type assert sub to string
-	userID, ok := sub.(string)
-	if !ok || userID == "" {
-		return ""
-	}
-
-	return userID
 }
 
 // errorResponse creates an error response with CORS headers

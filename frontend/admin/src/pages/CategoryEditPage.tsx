@@ -48,6 +48,7 @@ const CategoryEditPage = () => {
 
         if (!category) {
           setNotFound(true);
+          setLoading(false);
           return;
         }
 
@@ -56,10 +57,10 @@ const CategoryEditPage = () => {
           slug: category.slug,
           description: category.description || '',
         });
+        setLoading(false);
       } catch (err) {
         console.error('カテゴリ取得エラー:', err);
         setError('カテゴリの取得に失敗しました');
-      } finally {
         setLoading(false);
       }
     };
@@ -106,6 +107,8 @@ const CategoryEditPage = () => {
         await createCategory(categoryData);
       }
 
+      // 保存成功時は一覧ページへ遷移してこのコンポーネントはアンマウントされる。
+      // ここで setSaving(false) を呼ぶとアンマウント後の state 更新になるため呼ばない。
       navigate('/categories');
     } catch (err) {
       console.error('保存エラー:', err);
@@ -118,7 +121,7 @@ const CategoryEditPage = () => {
         // 一般的なエラー（ネットワークエラー等）
         setError('カテゴリの保存に失敗しました');
       }
-    } finally {
+      // エラー時はこのページに留まるため、保存ボタンを再度押せるように戻す
       setSaving(false);
     }
   };

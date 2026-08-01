@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { LoginForm } from '../components/LoginForm';
 import { useAuth } from '../hooks/useAuth';
-import { validatePassword } from '../utils/auth';
+import { validatePassword, consumeRedirectPath } from '../utils/auth';
 
 /**
  * エラーオブジェクトの型ガード
@@ -45,9 +45,10 @@ const LoginPage = () => {
       setError(null);
       const result = await login(credentials.email, credentials.password);
 
-      // 新パスワードが必要な場合はダッシュボードに遷移しない（LoginPageが新パスワード設定画面を表示）
+      // 新パスワードが必要な場合は遷移しない（LoginPageが新パスワード設定画面を表示）
       if (!result.requiresNewPassword) {
-        navigate('/dashboard');
+        // AuthGuard が保存した遷移元（セッション失効時など）があればそこへ戻る
+        navigate(consumeRedirectPath() ?? '/dashboard', { replace: true });
       }
     } catch (err) {
       console.error('ログインエラー:', err);
@@ -94,7 +95,7 @@ const LoginPage = () => {
     setIsSubmitting(true);
     try {
       await confirmNewPassword(newPassword);
-      navigate('/dashboard');
+      navigate(consumeRedirectPath() ?? '/dashboard', { replace: true });
     } catch (err) {
       console.error('パスワード変更エラー:', err);
       if (isErrorWithMessage(err)) {
@@ -140,11 +141,16 @@ const LoginPage = () => {
               <div className="login-header">
                 <Link to="/" className="login-logo">
                   <img
-                    src="/fallacy.png"
-                    alt="Logo"
-                    className="login-logo-image"
+                    src="/logo-light.png"
+                    alt="Bone of my fallacy"
+                    className="login-logo-image login-logo-image-light"
                   />
-                  <span className="login-site-title">Bone of my fallacy</span>
+                  <img
+                    src="/logo-dark.png"
+                    alt=""
+                    aria-hidden="true"
+                    className="login-logo-image login-logo-image-dark"
+                  />
                 </Link>
                 <span className="login-badge">Admin</span>
               </div>
@@ -223,7 +229,6 @@ const LoginPage = () => {
         <style>{`
           .login-page {
             min-height: 100vh;
-            background: linear-gradient(135deg, var(--color-surface-elevated) 0%, var(--color-surface-muted) 100%);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -238,7 +243,7 @@ const LoginPage = () => {
           .login-card {
             background: var(--color-surface);
             border: 1px solid var(--color-border);
-            border-radius: 16px;
+            border-radius: 24px;
             padding: 40px;
             box-shadow: var(--shadow-card);
           }
@@ -257,38 +262,47 @@ const LoginPage = () => {
           }
 
           .login-logo-image {
-            height: 40px;
+            display: block;
+            height: 52px;
             width: auto;
-            margin-right: 12px;
+            max-width: 210px;
+            object-fit: contain;
           }
 
-          :root[data-theme="dark"] .login-logo-image {
-            content: url('/dark-logo.png');
+          .login-logo-image-light {
+            mix-blend-mode: multiply;
           }
 
-          .login-site-title {
-            font-family: 'Caveat', cursive;
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: var(--color-text-heading);
-            letter-spacing: 0.02em;
+          .login-logo-image-dark {
+            display: none;
+          }
+
+          :root[data-theme="dark"] .login-logo-image-light {
+            display: none;
+          }
+
+          :root[data-theme="dark"] .login-logo-image-dark {
+            display: block;
           }
 
           .login-badge {
-            background: var(--color-primary);
-            color: var(--color-text-on-primary);
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 0.75rem;
-            font-weight: 600;
+            background: var(--color-primary-soft);
+            color: var(--color-primary);
+            padding: 5px 12px;
+            border-radius: 999px;
+            font-family: var(--font-display);
+            font-size: 0.62rem;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.12em;
           }
 
           .login-title {
+            font-family: var(--font-display);
             font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--color-primary);
+            font-weight: 600;
+            letter-spacing: -0.035em;
+            color: var(--color-text-heading);
             text-align: center;
             margin: 0 0 8px 0;
           }
@@ -312,28 +326,32 @@ const LoginPage = () => {
 
           .login-label {
             display: block;
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: var(--color-text);
-            margin-bottom: 6px;
+            font-family: var(--font-display);
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--color-text-muted);
+            margin-bottom: 10px;
           }
 
           .login-input {
             width: 100%;
             padding: 12px 16px;
             border: 1px solid var(--color-border);
-            border-radius: 10px;
+            border-radius: 999px;
+            font-family: var(--font-body);
             font-size: 0.95rem;
             background: var(--color-surface);
-            color: var(--color-text);
+            color: var(--color-text-heading);
             transition: all 0.2s ease;
             box-sizing: border-box;
           }
 
           .login-input:focus {
             outline: none;
-            border-color: var(--color-border-strong);
-            box-shadow: 0 0 0 3px var(--color-focus-ring);
+            border-color: var(--color-accent);
+            box-shadow: 0 0 0 4px var(--color-focus-ring);
           }
 
           .login-input.error {
@@ -350,7 +368,7 @@ const LoginPage = () => {
             border: 1px solid var(--color-danger-border);
             color: var(--color-danger-text);
             padding: 12px 16px;
-            border-radius: 10px;
+            border-radius: 999px;
             margin-bottom: 20px;
             font-size: 0.875rem;
           }
@@ -373,8 +391,9 @@ const LoginPage = () => {
             background: var(--color-primary);
             color: var(--color-text-on-primary);
             border: none;
-            border-radius: 10px;
-            font-size: 0.95rem;
+            border-radius: 999px;
+            font-family: var(--font-display);
+            font-size: 0.9rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -431,11 +450,16 @@ const LoginPage = () => {
             <div className="login-header">
               <Link to="/" className="login-logo">
                 <img
-                  src="/fallacy.png"
-                  alt="Logo"
-                  className="login-logo-image"
+                  src="/logo-light.png"
+                  alt="Bone of my fallacy"
+                  className="login-logo-image login-logo-image-light"
                 />
-                <span className="login-site-title">Bone of my fallacy</span>
+                <img
+                  src="/logo-dark.png"
+                  alt=""
+                  aria-hidden="true"
+                  className="login-logo-image login-logo-image-dark"
+                />
               </Link>
               <span className="login-badge">Admin</span>
             </div>
@@ -453,7 +477,6 @@ const LoginPage = () => {
       <style>{`
         .login-page {
           min-height: 100vh;
-          background: linear-gradient(135deg, var(--color-surface-elevated) 0%, var(--color-surface-muted) 100%);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -468,7 +491,7 @@ const LoginPage = () => {
         .login-card {
           background: var(--color-surface);
           border: 1px solid var(--color-border);
-          border-radius: 16px;
+          border-radius: 24px;
           padding: 40px;
           box-shadow: var(--shadow-card);
         }
@@ -487,38 +510,47 @@ const LoginPage = () => {
         }
 
         .login-logo-image {
-          height: 40px;
+          display: block;
+          height: 52px;
           width: auto;
-          margin-right: 12px;
+          max-width: 210px;
+          object-fit: contain;
         }
 
-        :root[data-theme="dark"] .login-logo-image {
-          content: url('/dark-logo.png');
+        .login-logo-image-light {
+          mix-blend-mode: multiply;
         }
 
-        .login-site-title {
-          font-family: 'Caveat', cursive;
-          font-size: 1.5rem;
-          font-weight: 600;
-          color: var(--color-text-heading);
-          letter-spacing: 0.02em;
+        .login-logo-image-dark {
+          display: none;
+        }
+
+        :root[data-theme="dark"] .login-logo-image-light {
+          display: none;
+        }
+
+        :root[data-theme="dark"] .login-logo-image-dark {
+          display: block;
         }
 
         .login-badge {
-          background: var(--color-primary);
-          color: var(--color-text-on-primary);
-          padding: 4px 10px;
-          border-radius: 6px;
-          font-size: 0.75rem;
-          font-weight: 600;
+          background: var(--color-primary-soft);
+          color: var(--color-primary);
+          padding: 5px 12px;
+          border-radius: 999px;
+          font-family: var(--font-display);
+          font-size: 0.62rem;
+          font-weight: 700;
           text-transform: uppercase;
-          letter-spacing: 0.05em;
+          letter-spacing: 0.12em;
         }
 
         .login-title {
+          font-family: var(--font-display);
           font-size: 1.5rem;
-          font-weight: 700;
-          color: var(--color-primary);
+          font-weight: 600;
+          letter-spacing: -0.035em;
+          color: var(--color-text-heading);
           text-align: center;
           margin: 0 0 8px 0;
         }
@@ -535,18 +567,19 @@ const LoginPage = () => {
           width: 100%;
           padding: 12px 16px;
           border: 1px solid var(--color-border);
-          border-radius: 10px;
+          border-radius: 999px;
+          font-family: var(--font-body);
           font-size: 0.95rem;
           background: var(--color-surface);
-          color: var(--color-text);
+          color: var(--color-text-heading);
           transition: all 0.2s ease;
           box-sizing: border-box;
         }
 
         .login-card input:focus {
           outline: none;
-          border-color: var(--color-border-strong);
-          box-shadow: 0 0 0 3px var(--color-focus-ring);
+          border-color: var(--color-accent);
+          box-shadow: 0 0 0 4px var(--color-focus-ring);
         }
 
         .login-card input::placeholder {
@@ -559,8 +592,9 @@ const LoginPage = () => {
           background: var(--color-primary);
           color: var(--color-text-on-primary);
           border: none;
-          border-radius: 10px;
-          font-size: 0.95rem;
+          border-radius: 999px;
+          font-family: var(--font-display);
+          font-size: 0.9rem;
           font-weight: 600;
           cursor: pointer;
           transition: all 0.2s ease;

@@ -10,6 +10,7 @@ import {
   generateExcerpt,
   formatDateJa,
   sortPostsByDate,
+  getPostPathSegment,
 } from './postUtils';
 import type { Post } from './api';
 
@@ -187,6 +188,27 @@ describe('postUtils', () => {
       const sorted = sortPostsByDate(posts);
       expect(sorted).toHaveLength(1);
       expect(sorted[0].id).toBe('1');
+    });
+  });
+
+  describe('getPostPathSegment', () => {
+    it('should prefer the slug when present', () => {
+      expect(
+        getPostPathSegment({ id: 'c71fccbe-33cb', slug: 'my-first-post' })
+      ).toBe('my-first-post');
+    });
+
+    it('should fall back to the id when slug is undefined', () => {
+      // Legacy posts predate the slug field. Every consumer (getStaticPaths,
+      // PostCard, RSS, JSON-LD) must agree on this fallback, otherwise the
+      // list links to a page that was never generated.
+      expect(getPostPathSegment({ id: 'c71fccbe-33cb' })).toBe('c71fccbe-33cb');
+    });
+
+    it('should treat an empty slug as absent', () => {
+      expect(getPostPathSegment({ id: 'c71fccbe-33cb', slug: '' })).toBe(
+        'c71fccbe-33cb'
+      );
     });
   });
 });

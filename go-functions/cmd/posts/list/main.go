@@ -15,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -34,6 +35,15 @@ const (
 	MaxLimit     = 100
 	MinLimit     = 1
 )
+
+// SearchQueryMaxLength bounds the "q" search parameter (issue #491).
+// 200 runes is well beyond a realistic search phrase.
+//
+// An over-long query is rejected rather than ignored: silently dropping the
+// filter would answer a request to narrow the list by returning every post,
+// which reads as "search is broken". That differs from limit, where falling
+// back to a default still honors what the caller asked for.
+const SearchQueryMaxLength = 200
 
 // DynamoDBClientInterface defines the interface for DynamoDB operations (for testing)
 type DynamoDBClientInterface interface {
@@ -94,8 +104,11 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// Parse category filter
 	category := queryParams["category"]
 
-	// Parse search query
-	searchQuery := queryParams["q"]
+	// Parse search query, rejecting one that exceeds the maximum length
+	searchQuery, err := sanitizeSearchQuery(queryParams["q"])
+	if err != nil {
+		return errorResponse(400, "search query is too long")
+	}
 
 	// Parse nextToken for pagination
 	exclusiveStartKey := parseNextToken(queryParams["nextToken"])
@@ -118,27 +131,47 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		}
 	}
 
-	// Build DynamoDB Query input
-	queryInput := buildQueryInput(tableName, limit, category, publishStatus, exclusiveStartKey)
+	// Normalize the search query the same way matchesSearch/filterBySearch
+	// do: a whitespace-only "q" is treated as "no search" so it takes the
+	// plain single-page path below, matching filterBySearch's historical
+	// behavior of returning every item unfiltered in that case.
+	searchLower := strings.ToLower(strings.TrimSpace(searchQuery))
 
-	// Execute query
-	result, err := dynamoClient.Query(ctx, queryInput)
-	if err != nil {
-		return errorResponse(500, "failed to retrieve posts")
-	}
+	var items []ListPostsResponseItem
+	var lastEvaluatedKey map[string]types.AttributeValue
 
-	// Process results - exclude contentMarkdown
-	items := processResults(result.Items)
+	if searchLower != "" {
+		// Bug fix (issue #489): "q" previously only filtered the single
+		// DynamoDB page fetched for this request, so matches on later pages
+		// were invisible and a page full of non-matches came back as an
+		// (incorrectly) short or empty result. executeSearchQuery walks
+		// pages on the caller's behalf until it has `limit` matches, runs
+		// out of data, or hits the page-walk cap - see its doc comment and
+		// maxSearchPages for the exact contract.
+		var searchErr error
+		items, lastEvaluatedKey, searchErr = executeSearchQuery(ctx, dynamoClient, tableName, limit, category, publishStatus, searchLower, exclusiveStartKey)
+		if searchErr != nil {
+			return errorResponse(500, "failed to retrieve posts")
+		}
+	} else {
+		// Build DynamoDB Query input
+		queryInput := buildQueryInput(tableName, limit, category, publishStatus, exclusiveStartKey)
 
-	// Apply search filter (post-processing for case-insensitive matching)
-	if searchQuery != "" {
-		items = filterBySearch(items, searchQuery)
+		// Execute query
+		result, err := dynamoClient.Query(ctx, queryInput)
+		if err != nil {
+			return errorResponse(500, "failed to retrieve posts")
+		}
+
+		// Process results - exclude contentMarkdown
+		items = processResults(result.Items)
+		lastEvaluatedKey = result.LastEvaluatedKey
 	}
 
 	// Generate next token if there are more results
 	var nextToken *string
-	if result.LastEvaluatedKey != nil {
-		token := generateNextToken(result.LastEvaluatedKey)
+	if lastEvaluatedKey != nil {
+		token := generateNextToken(lastEvaluatedKey)
 		nextToken = &token
 	}
 
@@ -155,9 +188,14 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 			return errorResponse(500, "failed to retrieve posts")
 		}
 		response.Count = &count
+
+		// This endpoint is mounted both publicly and under /admin. An
+		// authenticated response can contain drafts, so it must not be
+		// cacheable even though the public one is.
+		return middleware.JSONResponse(200, response)
 	}
 
-	return middleware.JSONResponse(200, response)
+	return middleware.PublicJSONResponse(200, response)
 }
 
 // parseLimit parses and validates the limit parameter
@@ -174,6 +212,22 @@ func parseLimit(limitParam string) int32 {
 	//nolint:gosec // G109: limit is bounded by MaxLimit (100), safe for int32
 	return int32(limit)
 }
+
+// sanitizeSearchQuery rejects a "q" parameter that exceeds SearchQueryMaxLength
+// runes by returning ErrSearchQueryTooLong, which the caller turns into a 400
+// response, rather than silently dropping the filter. This bounds the work
+// done by matchesSearch's per-item string scan; see SearchQueryMaxLength for
+// why an oversized query is rejected instead of ignored.
+func sanitizeSearchQuery(q string) (string, error) {
+	if utf8.RuneCountInString(q) > SearchQueryMaxLength {
+		return "", ErrSearchQueryTooLong
+	}
+	return q, nil
+}
+
+// ErrSearchQueryTooLong is returned when the "q" parameter exceeds
+// SearchQueryMaxLength runes.
+var ErrSearchQueryTooLong = errors.New("search query is too long")
 
 // ErrInvalidPublishStatus is returned when an invalid publishStatus value is provided
 var ErrInvalidPublishStatus = errors.New("invalid publishStatus value")
@@ -313,26 +367,152 @@ func filterBySearch(items []ListPostsResponseItem, searchQuery string) []ListPos
 	filtered := make([]ListPostsResponseItem, 0)
 
 	for i := range items {
-		// Check title (case-insensitive partial match)
-		if strings.Contains(strings.ToLower(items[i].Title), searchLower) {
-			filtered = append(filtered, items[i])
-			continue
-		}
-
-		// Check tags (case-insensitive partial match)
-		matched := false
-		for _, tag := range items[i].Tags {
-			if strings.Contains(strings.ToLower(tag), searchLower) {
-				matched = true
-				break
-			}
-		}
-		if matched {
+		if matchesSearch(items[i], searchLower) {
 			filtered = append(filtered, items[i])
 		}
 	}
 
 	return filtered
+}
+
+// matchesSearch reports whether item's title or any tag contains searchLower
+// (case-insensitive partial match). searchLower must already be lower-cased
+// and trimmed by the caller (see filterBySearch and executeSearchQuery).
+func matchesSearch(item ListPostsResponseItem, searchLower string) bool {
+	if strings.Contains(strings.ToLower(item.Title), searchLower) {
+		return true
+	}
+	for _, tag := range item.Tags {
+		if strings.Contains(strings.ToLower(tag), searchLower) {
+			return true
+		}
+	}
+	return false
+}
+
+// maxSearchPages bounds how many DynamoDB pages executeSearchQuery will fetch
+// while trying to accumulate `limit` search matches for a "q" query.
+//
+// Each page holds at most `limit` raw items (`limit` is itself capped at
+// MaxLimit = 100), so this caps a single request at roughly
+// maxSearchPages * MaxLimit = 2000 items scanned - enough to make search
+// feel like it covers the whole table in ordinary use, while keeping worst
+// case (a query that matches rarely or never across a huge table) well
+// inside the Lambda's timeout instead of walking indefinitely.
+//
+// nextToken contract when the cap is reached: executeSearchQuery returns
+// whatever matches it already accumulated (possibly fewer than `limit`,
+// including zero) together with a non-nil cursor for the next page it would
+// have fetched, as long as DynamoDB still has more data. The caller (see
+// Handler) turns that cursor into nextToken exactly like the non-search
+// path, so a client that keeps requesting nextToken will eventually walk
+// through the whole table in maxSearchPages-sized strides. Only when
+// DynamoDB itself reports no more data (LastEvaluatedKey == nil) does
+// executeSearchQuery return a nil cursor.
+const maxSearchPages = 20
+
+// executeSearchQuery walks DynamoDB pages (via buildQueryInput, so it uses
+// the same index/filter selection as the non-search path) applying
+// matchesSearch to each item, until it has collected `limit` matches,
+// DynamoDB reports no more data, or maxSearchPages pages have been fetched
+// (see maxSearchPages for the exact cap and nextToken contract in each
+// case). This fixes issue #489: search previously only ever looked at the
+// single page already fetched for the response, so matches on later pages
+// were never found and a page with too few (or zero) matches made the
+// response come back short of `limit` even though more matches existed.
+//
+// searchLower must already be lower-cased and trimmed (non-empty) - the
+// Handler only calls this when there is an active search term.
+//
+// When a page yields more matches than needed to fill out `limit`, the
+// returned cursor is derived from the *last included* item's own key
+// attributes (see exclusiveStartKeyFromItem) rather than the whole page's
+// LastEvaluatedKey. Using the page boundary there would skip every
+// unclaimed match later in that same page on the next request, since the
+// next Query would start after the whole page instead of after the last
+// item actually returned.
+func executeSearchQuery(
+	ctx context.Context,
+	client DynamoDBClientInterface,
+	tableName string,
+	limit int32,
+	category, publishStatus, searchLower string,
+	exclusiveStartKey map[string]types.AttributeValue,
+) ([]ListPostsResponseItem, map[string]types.AttributeValue, error) {
+	matched := make([]ListPostsResponseItem, 0, limit)
+	currentKey := exclusiveStartKey
+	var resumeKey map[string]types.AttributeValue
+
+	for page := 0; page < maxSearchPages; page++ {
+		queryInput := buildQueryInput(tableName, limit, category, publishStatus, currentKey)
+
+		result, err := client.Query(ctx, queryInput)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, rawItem := range result.Items {
+			converted := processResults([]map[string]types.AttributeValue{rawItem})
+			if len(converted) == 0 {
+				continue // malformed item; processResults already skipped it
+			}
+			if !matchesSearch(converted[0], searchLower) {
+				continue
+			}
+
+			matched = append(matched, converted[0])
+			// Widen limit (int32, bounded by MaxLimit=100) to int rather
+			// than narrowing len(matched) to int32, so this comparison
+			// never needs a gosec G115 suppression for a theoretical
+			// overflow that can't happen at these sizes.
+			if len(matched) >= int(limit) {
+				return matched, exclusiveStartKeyFromItem(rawItem, category), nil
+			}
+		}
+
+		if result.LastEvaluatedKey == nil {
+			// DynamoDB has no more data at all; nothing more to find.
+			return matched, nil, nil
+		}
+		currentKey = result.LastEvaluatedKey
+		resumeKey = result.LastEvaluatedKey
+	}
+
+	// maxSearchPages reached without filling `limit` or exhausting the
+	// table. resumeKey is the LastEvaluatedKey of the last fully-consumed
+	// page (every item on it was already checked and, if matching,
+	// included), so it is a safe page-boundary cursor for the next request.
+	return matched, resumeKey, nil
+}
+
+// exclusiveStartKeyFromItem builds a DynamoDB ExclusiveStartKey from a raw
+// item's own key attributes, so pagination can resume immediately after that
+// specific item rather than after the whole page it came from.
+//
+// The base table's only primary key attribute is "id" (no sort key); both
+// GSIs used by this handler (CategoryIndex, PublishStatusIndex) add
+// "createdAt" as their sort key, with "category" or "publishStatus"
+// respectively as their partition key. Both indexes project ALL attributes,
+// so every raw item already carries all of these regardless of which index
+// was queried.
+func exclusiveStartKeyFromItem(item map[string]types.AttributeValue, category string) map[string]types.AttributeValue {
+	key := make(map[string]types.AttributeValue)
+
+	if v, ok := item["id"]; ok {
+		key["id"] = v
+	}
+	if v, ok := item["createdAt"]; ok {
+		key["createdAt"] = v
+	}
+	if category != "" {
+		if v, ok := item["category"]; ok {
+			key["category"] = v
+		}
+	} else if v, ok := item["publishStatus"]; ok {
+		key["publishStatus"] = v
+	}
+
+	return key
 }
 
 // generateNextToken generates a base64-encoded token from LastEvaluatedKey
@@ -365,7 +545,7 @@ func isAuthenticated(request events.APIGatewayProxyRequest) bool {
 
 // executeCountQuery executes a count query on PublishStatusIndex for the given publishStatus
 // This is used to get the total count of articles for admin dashboard statistics
-// Uses pagination to ensure accurate count even when data exceeds 1MB per query
+// Uses pagination to ensure accurate count even when data exceeds 1MB per query.
 func executeCountQuery(ctx context.Context, client DynamoDBClientInterface, tableName, publishStatus string) (int64, error) {
 	var totalCount int64
 	var lastEvaluatedKey map[string]types.AttributeValue

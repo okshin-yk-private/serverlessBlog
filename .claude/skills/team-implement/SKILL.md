@@ -2,6 +2,7 @@
 name: team-implement
 description: 複数のGitHub Issueを並列TDD実装する（Commander + Executor Agent Teams）
 argument-hint: <Issue番号1> <Issue番号2> ... [-y]
+disable-model-invocation: true
 ---
 
 # Team Implement: 並列Issue実装ワークフロー
@@ -13,8 +14,10 @@ argument-hint: <Issue番号1> <Issue番号2> ... [-y]
 
 - 引数 `$ARGUMENTS` に1つ以上のIssue番号がスペース区切りで渡される
 - `-y` フラグが付いている場合、実行計画の確認をスキップする
-- 環境変数 `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` が設定済みであること
+- 環境変数 `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` が設定済みであること（`.claude/settings.json`）
 - ベースブランチ: `origin/develop`
+- Worktree の作成先: `.claude/worktrees/`（`.gitignore` 済み）
+- Teammate モード: auto（tmux 検出時は split-pane、それ以外は in-process）
 
 ## Phase 1: Issue情報取得 & コンフリクト分析
 

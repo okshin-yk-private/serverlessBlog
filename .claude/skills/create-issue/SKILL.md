@@ -2,6 +2,7 @@
 name: create-issue
 description: 要望やバグ報告の概要からコードベースを調査し、修正方針を含む詳細なIssueを作成する
 argument-hint: <要望の概要テキスト>
+disable-model-invocation: true
 ---
 
 # 要望調査 & Issue作成ワークフロー

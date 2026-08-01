@@ -89,15 +89,35 @@ output "function_names" {
 # IAM Role Outputs (Function Group-Specific)
 # ======================
 
-# Posts Domain Role
-output "posts_role_arn" {
-  value       = aws_iam_role.lambda_posts.arn
-  description = "Posts domain Lambda execution role ARN"
+# Posts Domain Roles (split into read/write/build-status - see issue #493)
+output "posts_read_role_arn" {
+  value       = aws_iam_role.lambda_posts_read.arn
+  description = "Posts domain read-only Lambda execution role ARN"
 }
 
-output "posts_role_name" {
-  value       = aws_iam_role.lambda_posts.name
-  description = "Posts domain Lambda execution role name"
+output "posts_read_role_name" {
+  value       = aws_iam_role.lambda_posts_read.name
+  description = "Posts domain read-only Lambda execution role name"
+}
+
+output "posts_write_role_arn" {
+  value       = aws_iam_role.lambda_posts_write.arn
+  description = "Posts domain write Lambda execution role ARN"
+}
+
+output "posts_write_role_name" {
+  value       = aws_iam_role.lambda_posts_write.name
+  description = "Posts domain write Lambda execution role name"
+}
+
+output "posts_build_status_role_arn" {
+  value       = aws_iam_role.lambda_posts_build_status.arn
+  description = "Posts domain build-status Lambda execution role ARN"
+}
+
+output "posts_build_status_role_name" {
+  value       = aws_iam_role.lambda_posts_build_status.name
+  description = "Posts domain build-status Lambda execution role name"
 }
 
 # Auth Domain Role
@@ -124,13 +144,13 @@ output "images_role_name" {
 
 # Legacy alias for backward compatibility
 output "execution_role_arn" {
-  value       = aws_iam_role.lambda_posts.arn
-  description = "Lambda execution role ARN (deprecated, use posts_role_arn)"
+  value       = aws_iam_role.lambda_posts_write.arn
+  description = "Lambda execution role ARN (deprecated, use posts_write_role_arn)"
 }
 
 output "execution_role_name" {
-  value       = aws_iam_role.lambda_posts.name
-  description = "Lambda execution role name (deprecated, use posts_role_name)"
+  value       = aws_iam_role.lambda_posts_write.name
+  description = "Lambda execution role name (deprecated, use posts_write_role_name)"
 }
 
 # ======================
@@ -284,15 +304,25 @@ output "delete_image_function_name" {
 # Categories Domain Outputs
 # ======================
 
-# Categories Domain Role
-output "categories_role_arn" {
-  value       = aws_iam_role.lambda_categories.arn
-  description = "Categories domain Lambda execution role ARN"
+# Categories Domain Roles (split into read/write - see issue #493)
+output "categories_read_role_arn" {
+  value       = aws_iam_role.lambda_categories_read.arn
+  description = "Categories domain read-only Lambda execution role ARN"
 }
 
-output "categories_role_name" {
-  value       = aws_iam_role.lambda_categories.name
-  description = "Categories domain Lambda execution role name"
+output "categories_read_role_name" {
+  value       = aws_iam_role.lambda_categories_read.name
+  description = "Categories domain read-only Lambda execution role name"
+}
+
+output "categories_write_role_arn" {
+  value       = aws_iam_role.lambda_categories_write.arn
+  description = "Categories domain write Lambda execution role ARN"
+}
+
+output "categories_write_role_name" {
+  value       = aws_iam_role.lambda_categories_write.name
+  description = "Categories domain write Lambda execution role name"
 }
 
 output "list_categories_function_arn" {

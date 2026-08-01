@@ -28,7 +28,7 @@ export function UploadImageNodeView({ node }: NodeViewProps) {
           data-testid="image-upload-spinner"
           className="absolute inset-0 flex items-center justify-center pointer-events-none"
         >
-          <span className="block w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+          <span className="block w-6 h-6 rounded-full border-2 border-t-transparent admin-spinner animate-spin" />
         </div>
       ) : null}
     </NodeViewWrapper>

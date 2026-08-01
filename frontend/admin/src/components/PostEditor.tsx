@@ -299,10 +299,7 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
         <div className="space-y-6">
           {/* タイトル */}
           <div>
-            <label
-              htmlFor="title"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
+            <label htmlFor="title" className="admin-form-label">
               タイトル
             </label>
             <input
@@ -311,12 +308,12 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="admin-form-input"
               disabled={isSaving}
             />
             {titleError && (
               <p
-                className="mt-1 text-sm text-red-600"
+                className="admin-field-error mt-1"
                 data-testid="validation-error"
               >
                 {titleError}
@@ -327,10 +324,7 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
           {/* 本文 */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label
-                htmlFor="content"
-                className="block text-sm font-medium text-gray-700"
-              >
+              <label htmlFor="content" className="admin-form-label">
                 本文
               </label>
               <div className="flex items-center gap-2">
@@ -338,7 +332,7 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
                 <div
                   role="tablist"
                   aria-label="本文表示モード"
-                  className="inline-flex border border-gray-300 rounded-md overflow-hidden"
+                  className="admin-segmented inline-flex overflow-hidden"
                 >
                   <button
                     type="button"
@@ -346,10 +340,8 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
                     aria-selected={editorMode === 'edit'}
                     data-testid="editor-tab-edit"
                     onClick={() => setEditorMode('edit')}
-                    className={`px-3 py-1 text-sm ${
-                      editorMode === 'edit'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                    className={`admin-segmented-item px-3 py-1 text-sm ${
+                      editorMode === 'edit' ? 'is-active' : ''
                     }`}
                     disabled={isSaving}
                   >
@@ -361,10 +353,8 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
                     aria-selected={editorMode === 'preview'}
                     data-testid="editor-tab-preview"
                     onClick={() => setEditorMode('preview')}
-                    className={`px-3 py-1 text-sm ${
-                      editorMode === 'preview'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                    className={`admin-segmented-item px-3 py-1 text-sm ${
+                      editorMode === 'preview' ? 'is-active' : ''
                     }`}
                     disabled={isSaving}
                   >
@@ -377,14 +367,14 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
               <div
                 role="alert"
                 data-testid="image-upload-error"
-                className="mb-2 flex items-start justify-between gap-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700"
+                className="admin-alert admin-alert-error mb-2 flex items-start justify-between gap-2"
               >
                 <span>{uploadError.message}</span>
                 <div className="flex shrink-0 gap-2">
                   <button
                     type="button"
                     data-testid="image-upload-retry"
-                    className="text-red-700 underline hover:text-red-900"
+                    className="admin-alert-action underline"
                     onClick={() => {
                       const retry = uploadError.retry;
                       setUploadError(null);
@@ -396,7 +386,7 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
                   <button
                     type="button"
                     aria-label="エラーを閉じる"
-                    className="text-red-700 hover:text-red-900"
+                    className="admin-alert-action"
                     onClick={() => setUploadError(null)}
                   >
                     ×
@@ -418,7 +408,7 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
               {editorMode === 'preview' && (
                 <div
                   data-testid="markdown-preview"
-                  className="post-content max-w-none p-4 border border-gray-300 rounded-md bg-gray-50 min-h-[400px]"
+                  className="post-content admin-preview max-w-none p-4 min-h-[400px]"
                   dangerouslySetInnerHTML={{
                     __html:
                       previewHtml ||
@@ -429,7 +419,7 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
             </div>
             {contentError && (
               <p
-                className="mt-1 text-sm text-red-600"
+                className="admin-field-error mt-1"
                 data-testid="validation-error"
               >
                 {contentError}
@@ -439,7 +429,7 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
 
           {categoryError && (
             <p
-              className="mt-1 text-sm text-red-600"
+              className="admin-field-error mt-1"
               data-testid="validation-error"
             >
               {categoryError}
@@ -447,7 +437,7 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
           )}
           {metadataError && (
             <p
-              className="mt-1 text-sm text-red-600"
+              className="admin-field-error mt-1"
               data-testid="validation-error"
             >
               {metadataError}
@@ -483,12 +473,10 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
                 data-autosave-status={autosave.status}
                 className={`ml-auto text-sm ${
                   autosave.status === 'error'
-                    ? 'text-red-600'
+                    ? 'admin-autosave-error'
                     : autosave.status === 'saving'
-                      ? 'text-blue-600'
-                      : autosave.status === 'saved'
-                        ? 'text-gray-500'
-                        : 'text-gray-400'
+                      ? 'admin-autosave-active'
+                      : 'admin-autosave-idle'
                 }`}
                 aria-live="polite"
               >

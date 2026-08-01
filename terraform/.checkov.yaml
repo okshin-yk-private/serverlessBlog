@@ -115,8 +115,11 @@ skip-check:
   # CKV_AWS_115: Ensure AWS Lambda function is configured for ReservedConcurrentExecutions
   # Justification: Reserved concurrency limits are not set to allow elastic scaling
   # during traffic spikes. Setting limits could cause throttling during legitimate
-  # high-traffic periods. Cost is controlled through monitoring and alerts.
-  # Mitigation: CloudWatch alarms for concurrency; budget alerts configured
+  # high-traffic periods.
+  # Mitigation: CloudWatch alarm on Lambda throttles
+  # (module.monitoring.aws_cloudwatch_metric_alarm.lambda_throttles_all).
+  # Budget-based cost control (aws_budgets_*) is NOT implemented in this
+  # repository; it is tracked as separate future work, not a mitigation here.
   - CKV_AWS_115
 
   # CKV_AWS_272: Ensure Lambda function code signing is enabled
@@ -148,8 +151,10 @@ skip-check:
 
   # CKV_AWS_76: Ensure API Gateway has Access Logging enabled
   # Note: This check is enabled and should NOT be skipped.
-  # Our API module should configure access logging.
-  # TODO: Implement access logging in modules/api
+  # Implemented in modules/api/main.tf: aws_cloudwatch_log_group.api_access_logs
+  # and aws_api_gateway_stage.main access_log_settings, gated on
+  # local.is_production (enabled in prd with 90-day retention; disabled in
+  # dev to reduce cost and noise).
 
   # CKV2_AWS_51: Ensure AWS API Gateway endpoints use certificates
   # Justification: API Gateway is accessed only through CloudFront distribution
@@ -190,9 +195,12 @@ skip-check:
   - CKV_AWS_68
 
   # CKV2_AWS_42: Ensure CloudFront distribution uses response headers policy
-  # Justification: Custom response headers policy is planned for Phase 2.
-  # Current configuration relies on S3 bucket CORS settings.
-  # Mitigation: S3 CORS headers; future implementation planned
+  # Note: Implemented. aws_cloudfront_response_headers_policy.security_headers
+  # (terraform/modules/cdn/main.tf:466-497) configures HSTS, CSP, frame-options
+  # and referrer-policy headers, and is attached via response_headers_policy_id
+  # on every cache behavior of the distribution. Skip is retained only for
+  # compatibility with checkov versions that still evaluate this check ID
+  # (the ID is no longer present in the currently pinned checkov release).
   - CKV2_AWS_42
 
   # CKV2_AWS_47: Ensure CloudFront distributions associate with origin access identity
@@ -303,6 +311,11 @@ skip-check:
   # storage costs without proportional benefit for blog application.
   # Mitigation: CloudTrail for audit trail; metrics for long-term trends
   - CKV_AWS_338
+
+  # Note: CKV2_AWS_23 (Route53 A Record has Attached Resource) was skipped here
+  # while modules/dns-route53 declared apex records that no environment ever
+  # instantiated. Those records have been removed, the check passes on its own,
+  # and the skip is no longer needed.
 
 # ======================================
 # External Check Configuration

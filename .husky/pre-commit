@@ -10,7 +10,15 @@ npx lint-staged || exit 1
 if git diff --cached --name-only | grep -q '^terraform/'; then
   echo ""
   echo "=== Running Terraform checks (fmt, validate, trivy) ==="
-  export PATH="/home/okshin/.local/bin:$PATH"
+  # Make uv-installed tools (pre-commit) reachable when git runs with a minimal
+  # PATH. Uses $HOME so this works on macOS and Linux alike; a hardcoded
+  # /home/<user> path silently skipped these checks on other machines.
+  export PATH="$HOME/.local/bin:$PATH"
+
+  if ! command -v terraform >/dev/null 2>&1; then
+    echo "✗ terraform not found on PATH. Install it (see .terraform-version) or commit with --no-verify."
+    exit 1
+  fi
 
   # 2a: terraform fmt -check -recursive (catches .tf and .tftest.hcl files)
   echo "--- Terraform fmt check ---"

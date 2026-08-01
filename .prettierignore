@@ -9,6 +9,7 @@ playwright-report-admin/
 test-results/
 test-results-admin/
 .serena/
+.claude/worktrees/
 package-lock.json
 *.min.js
 *.md

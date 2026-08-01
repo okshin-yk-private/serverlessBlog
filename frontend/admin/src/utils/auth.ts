@@ -103,6 +103,34 @@ export const removeAuthToken = (): void => {
   }
 };
 
+// 未認証リダイレクト時の遷移元パスを保持するsessionStorageのキー
+const REDIRECT_PATH_KEY = 'auth_redirect_path';
+
+/**
+ * ログイン後に戻るべきパスを保存
+ * AuthGuard が /login へリダイレクトする際に呼ばれる
+ */
+export const saveRedirectPath = (path: string): void => {
+  try {
+    sessionStorage.setItem(REDIRECT_PATH_KEY, path);
+  } catch {
+    // sessionStorageが使えない場合は復帰先なしで動作
+  }
+};
+
+/**
+ * ログイン後に戻るべきパスを取り出す（取り出したら削除）
+ */
+export const consumeRedirectPath = (): string | null => {
+  try {
+    const path = sessionStorage.getItem(REDIRECT_PATH_KEY);
+    sessionStorage.removeItem(REDIRECT_PATH_KEY);
+    return path;
+  } catch {
+    return null;
+  }
+};
+
 /**
  * localStorageからの移行処理
  * 既存のlocalStorageトークンをsessionStorageに移行し、localStorageから削除

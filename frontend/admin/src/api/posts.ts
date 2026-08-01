@@ -1,8 +1,5 @@
 import axios from 'axios';
-import { getAuthToken } from '../utils/auth';
-
-// E2Eテスト時は空文字列を使用して相対パスにする（MSWは同一オリジンのリクエストをインターセプトできる）
-const API_URL = import.meta.env.VITE_API_URL ?? '/api';
+import { apiClient } from './client';
 
 export interface Post {
   id: string;
@@ -45,13 +42,7 @@ export interface UpdatePostRequest {
  * 記事を作成
  */
 export const createPost = async (data: CreatePostRequest): Promise<Post> => {
-  const token = getAuthToken();
-  const response = await axios.post(`${API_URL}/admin/posts`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
+  const response = await apiClient.post('/admin/posts', data);
   return response.data;
 };
 
@@ -62,13 +53,7 @@ export const updatePost = async (
   id: string,
   data: UpdatePostRequest
 ): Promise<Post> => {
-  const token = getAuthToken();
-  const response = await axios.put(`${API_URL}/admin/posts/${id}`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
+  const response = await apiClient.put(`/admin/posts/${id}`, data);
   return response.data;
 };
 
@@ -76,12 +61,7 @@ export const updatePost = async (
  * 記事を取得
  */
 export const getPost = async (id: string): Promise<Post> => {
-  const token = getAuthToken();
-  const response = await axios.get(`${API_URL}/admin/posts/${id}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  const response = await apiClient.get(`/admin/posts/${id}`);
   return response.data;
 };
 
@@ -92,17 +72,10 @@ export const getUploadUrl = async (
   filename: string,
   contentType: string
 ): Promise<{ uploadUrl: string; imageUrl: string }> => {
-  const token = getAuthToken();
-  const response = await axios.post(
-    `${API_URL}/admin/images/upload-url`,
-    { fileName: filename, contentType },
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    }
-  );
+  const response = await apiClient.post('/admin/images/upload-url', {
+    fileName: filename,
+    contentType,
+  });
   // バックエンドは "url" を返すが、フロントエンドは "imageUrl" を期待するためマッピング
   return {
     uploadUrl: response.data.uploadUrl,
@@ -117,7 +90,7 @@ export const uploadImage = async (file: File): Promise<string> => {
   // Pre-signed URL取得
   const { uploadUrl, imageUrl } = await getUploadUrl(file.name, file.type);
 
-  // S3に直接アップロード
+  // S3に直接アップロード（Pre-signed URLのため Authorization ヘッダーを付けない素の axios を使う）
   await axios.put(uploadUrl, file, {
     headers: {
       'Content-Type': file.type,
@@ -145,7 +118,6 @@ export interface GetPostsResponse {
 export const getPosts = async (
   params?: GetPostsParams
 ): Promise<GetPostsResponse> => {
-  const token = getAuthToken();
   const queryParams = new URLSearchParams();
 
   if (params?.publishStatus) {
@@ -158,13 +130,8 @@ export const getPosts = async (
     queryParams.append('nextToken', params.nextToken);
   }
 
-  const response = await axios.get(
-    `${API_URL}/admin/posts?${queryParams.toString()}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
+  const response = await apiClient.get(
+    `/admin/posts?${queryParams.toString()}`
   );
 
   return {
@@ -178,12 +145,7 @@ export const getPosts = async (
  * 記事を削除
  */
 export const deletePost = async (id: string): Promise<void> => {
-  const token = getAuthToken();
-  await axios.delete(`${API_URL}/admin/posts/${id}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  await apiClient.delete(`/admin/posts/${id}`);
 };
 
 /**
@@ -206,14 +168,8 @@ export interface BuildStatusResponse {
 export const fetchBuildStatus = async (
   postId: string
 ): Promise<BuildStatusResponse> => {
-  const token = getAuthToken();
-  const response = await axios.get<BuildStatusResponse>(
-    `${API_URL}/admin/posts/${postId}/build-status`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
+  const response = await apiClient.get<BuildStatusResponse>(
+    `/admin/posts/${postId}/build-status`
   );
   return response.data;
 };
@@ -247,13 +203,8 @@ export const extractImageKey = (imageUrl: string): string => {
  * @param imageUrl CloudFront形式の画像URL（例: https://xxxxx.cloudfront.net/user-id/image.jpg）
  */
 export const deleteImage = async (imageUrl: string): Promise<void> => {
-  const token = getAuthToken();
   const key = extractImageKey(imageUrl);
   const encodedKey = encodeURIComponent(key);
 
-  await axios.delete(`${API_URL}/admin/images/${encodedKey}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  await apiClient.delete(`/admin/images/${encodedKey}`);
 };

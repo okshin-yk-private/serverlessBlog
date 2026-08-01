@@ -5,7 +5,7 @@ export const PostEditSkeleton: React.FC = () => (
     {/* 画像アップローダーカード */}
     <div className="admin-card">
       <Skeleton className="h-5 w-32 mb-4" />
-      <Skeleton className="h-32 w-full rounded-lg border-2 border-dashed border-gray-200" />
+      <Skeleton className="h-32 w-full rounded-lg admin-skeleton-outline border-2 border-dashed" />
     </div>
 
     {/* エディターカード */}

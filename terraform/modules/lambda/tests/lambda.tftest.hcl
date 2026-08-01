@@ -8,12 +8,66 @@
 # - Environment variables
 # - X-Ray tracing (production only)
 
-# Mock AWS provider with data source override for IAM policy document
+# Mock AWS provider with data source override for IAM policy document, plus
+# resource overrides so each role's computed ARN is well-formed and known
+# at plan time (mock_provider otherwise generates opaque placeholder
+# strings for computed attributes, which fail the AWS provider's own
+# "role must be an ARN" validation on aws_lambda_function - and are
+# unknown, not comparable, at plan time without an override).
 mock_provider "aws" {
   override_data {
     target = data.aws_iam_policy_document.lambda_assume_role
     values = {
       json = "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+    }
+  }
+
+  override_resource {
+    target = aws_iam_role.lambda_posts_read
+    values = {
+      arn = "arn:aws:iam::123456789012:role/blog-lambda-posts-read-role"
+    }
+  }
+
+  override_resource {
+    target = aws_iam_role.lambda_posts_write
+    values = {
+      arn = "arn:aws:iam::123456789012:role/blog-lambda-posts-write-role"
+    }
+  }
+
+  override_resource {
+    target = aws_iam_role.lambda_posts_build_status
+    values = {
+      arn = "arn:aws:iam::123456789012:role/blog-lambda-posts-build-status-role"
+    }
+  }
+
+  override_resource {
+    target = aws_iam_role.lambda_auth
+    values = {
+      arn = "arn:aws:iam::123456789012:role/blog-lambda-auth-role"
+    }
+  }
+
+  override_resource {
+    target = aws_iam_role.lambda_images
+    values = {
+      arn = "arn:aws:iam::123456789012:role/blog-lambda-images-role"
+    }
+  }
+
+  override_resource {
+    target = aws_iam_role.lambda_categories_read
+    values = {
+      arn = "arn:aws:iam::123456789012:role/blog-lambda-categories-read-role"
+    }
+  }
+
+  override_resource {
+    target = aws_iam_role.lambda_categories_write
+    values = {
+      arn = "arn:aws:iam::123456789012:role/blog-lambda-categories-write-role"
     }
   }
 }
@@ -393,15 +447,33 @@ run "xray_tracing_enabled_in_prd" {
 }
 
 # ======================
-# IAM Role Tests (Domain-specific roles per design.md)
+# IAM Role Tests (Domain-specific, least-privilege roles - issue #493)
 # ======================
 
-run "lambda_posts_role_created" {
+run "lambda_posts_read_role_created" {
   command = plan
 
   assert {
-    condition     = aws_iam_role.lambda_posts.name == "blog-lambda-posts-role"
-    error_message = "Lambda posts role should be created with correct name"
+    condition     = aws_iam_role.lambda_posts_read.name == "blog-lambda-posts-read-role"
+    error_message = "Lambda posts read role should be created with correct name"
+  }
+}
+
+run "lambda_posts_write_role_created" {
+  command = plan
+
+  assert {
+    condition     = aws_iam_role.lambda_posts_write.name == "blog-lambda-posts-write-role"
+    error_message = "Lambda posts write role should be created with correct name"
+  }
+}
+
+run "lambda_posts_build_status_role_created" {
+  command = plan
+
+  assert {
+    condition     = aws_iam_role.lambda_posts_build_status.name == "blog-lambda-posts-build-status-role"
+    error_message = "Lambda posts build-status role should be created with correct name"
   }
 }
 
@@ -423,12 +495,175 @@ run "lambda_images_role_created" {
   }
 }
 
-run "lambda_posts_role_trust_policy" {
+run "lambda_categories_read_role_created" {
   command = plan
 
   assert {
-    condition     = can(jsondecode(aws_iam_role.lambda_posts.assume_role_policy))
-    error_message = "Lambda posts role should have valid trust policy"
+    condition     = aws_iam_role.lambda_categories_read.name == "blog-lambda-categories-read-role"
+    error_message = "Lambda categories read role should be created with correct name"
+  }
+}
+
+run "lambda_categories_write_role_created" {
+  command = plan
+
+  assert {
+    condition     = aws_iam_role.lambda_categories_write.name == "blog-lambda-categories-write-role"
+    error_message = "Lambda categories write role should be created with correct name"
+  }
+}
+
+run "lambda_posts_read_role_trust_policy" {
+  command = plan
+
+  assert {
+    condition     = can(jsondecode(aws_iam_role.lambda_posts_read.assume_role_policy))
+    error_message = "Lambda posts read role should have valid trust policy"
+  }
+}
+
+run "lambda_posts_write_role_trust_policy" {
+  command = plan
+
+  assert {
+    condition     = can(jsondecode(aws_iam_role.lambda_posts_write.assume_role_policy))
+    error_message = "Lambda posts write role should have valid trust policy"
+  }
+}
+
+# ======================
+# Function-to-Role Assignment Tests (least privilege - issue #493)
+# ======================
+
+run "read_only_posts_functions_use_read_role" {
+  # Role ARNs are only known after apply; mock_provider makes apply safe
+  # here (no real AWS calls are made).
+  command = apply
+
+  assert {
+    condition     = aws_lambda_function.get_post.role == aws_iam_role.lambda_posts_read.arn
+    error_message = "get_post must use the read-only posts role"
+  }
+
+  assert {
+    condition     = aws_lambda_function.get_public_post.role == aws_iam_role.lambda_posts_read.arn
+    error_message = "get_public_post must use the read-only posts role"
+  }
+
+  assert {
+    condition     = aws_lambda_function.list_posts.role == aws_iam_role.lambda_posts_read.arn
+    error_message = "list_posts must use the read-only posts role"
+  }
+
+  assert {
+    condition     = aws_lambda_function.get_post_by_slug.role == aws_iam_role.lambda_posts_read.arn
+    error_message = "get_post_by_slug must use the read-only posts role"
+  }
+}
+
+run "write_posts_functions_use_write_role" {
+  command = apply
+
+  assert {
+    condition     = aws_lambda_function.create_post.role == aws_iam_role.lambda_posts_write.arn
+    error_message = "create_post must use the posts write role"
+  }
+
+  assert {
+    condition     = aws_lambda_function.update_post.role == aws_iam_role.lambda_posts_write.arn
+    error_message = "update_post must use the posts write role"
+  }
+
+  assert {
+    condition     = aws_lambda_function.delete_post.role == aws_iam_role.lambda_posts_write.arn
+    error_message = "delete_post must use the posts write role"
+  }
+}
+
+run "build_status_function_uses_build_status_role" {
+  command = apply
+
+  assert {
+    condition     = aws_lambda_function.build_status_post.role == aws_iam_role.lambda_posts_build_status.arn
+    error_message = "build_status_post must use the dedicated build-status role, not the write role"
+  }
+}
+
+run "read_only_categories_function_uses_read_role" {
+  command = apply
+
+  assert {
+    condition     = aws_lambda_function.list_categories.role == aws_iam_role.lambda_categories_read.arn
+    error_message = "list_categories must use the read-only categories role"
+  }
+}
+
+run "write_categories_functions_use_write_role" {
+  command = apply
+
+  assert {
+    condition     = aws_lambda_function.create_category.role == aws_iam_role.lambda_categories_write.arn
+    error_message = "create_category must use the categories write role"
+  }
+
+  assert {
+    condition     = aws_lambda_function.update_category.role == aws_iam_role.lambda_categories_write.arn
+    error_message = "update_category must use the categories write role"
+  }
+
+  assert {
+    condition     = aws_lambda_function.delete_category.role == aws_iam_role.lambda_categories_write.arn
+    error_message = "delete_category must use the categories write role"
+  }
+
+  assert {
+    condition     = aws_lambda_function.update_categories_sort_order.role == aws_iam_role.lambda_categories_write.arn
+    error_message = "update_categories_sort_order must use the categories write role"
+  }
+}
+
+# ======================
+# Policy Content Tests (least privilege - issue #493)
+# ======================
+
+run "posts_read_policy_excludes_write_actions" {
+  command = plan
+
+  assert {
+    condition = !contains(
+      jsondecode(aws_iam_role_policy.lambda_posts_read_dynamodb.policy).Statement[0].Action,
+      "dynamodb:PutItem"
+    )
+    error_message = "Posts read policy must not grant dynamodb:PutItem"
+  }
+
+  assert {
+    condition = !contains(
+      jsondecode(aws_iam_role_policy.lambda_posts_read_dynamodb.policy).Statement[0].Action,
+      "dynamodb:DeleteItem"
+    )
+    error_message = "Posts read policy must not grant dynamodb:DeleteItem"
+  }
+}
+
+run "categories_read_policy_only_grants_scan" {
+  command = plan
+
+  assert {
+    condition     = jsondecode(aws_iam_role_policy.lambda_categories_read_dynamodb.policy).Statement[0].Action == ["dynamodb:Scan"]
+    error_message = "Categories read policy must grant only dynamodb:Scan"
+  }
+}
+
+run "categories_write_policy_includes_batch_get_item" {
+  command = plan
+
+  assert {
+    condition = contains(
+      jsondecode(aws_iam_role_policy.lambda_categories_write_dynamodb.policy).Statement[0].Action,
+      "dynamodb:BatchGetItem"
+    )
+    error_message = "Categories write policy must grant dynamodb:BatchGetItem (required by update_categories_sort_order)"
   }
 }
 
@@ -581,9 +816,12 @@ run "lambda_function_names_output" {
 run "lambda_execution_role_name_output" {
   command = plan
 
-  # execution_role_name is a legacy alias for posts_role_name
+  # execution_role_name is a legacy alias, now pointing at the posts write
+  # role (issue #493 split posts_role into posts_read/posts_write/
+  # posts_build_status; write is the closest equivalent to the old
+  # combined role for backward-compatible callers).
   assert {
-    condition     = output.execution_role_name == "blog-lambda-posts-role"
-    error_message = "execution_role_name output should have correct value (alias to posts_role_name)"
+    condition     = output.execution_role_name == "blog-lambda-posts-write-role"
+    error_message = "execution_role_name output should have correct value (alias to posts_write_role_name)"
   }
 }

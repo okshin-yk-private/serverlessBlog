@@ -15,8 +15,9 @@ infrastructure:
 frontend:
   - changed-files:
     - any-glob-to-any-file:
-      - 'frontend/public/**'
+      - 'frontend/public-astro/**'
       - 'frontend/admin/**'
+      - 'frontend/shared-ui/**'
       - 'playwright.config.ts'
       - 'playwright.admin.config.ts'
       - 'tests/e2e/**'

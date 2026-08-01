@@ -99,7 +99,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	}
 
 	// Return response (empty array if no categories)
-	return middleware.JSONResponse(200, response)
+	return middleware.PublicJSONResponse(200, response)
 }
 
 // processResults converts DynamoDB items to Category structs

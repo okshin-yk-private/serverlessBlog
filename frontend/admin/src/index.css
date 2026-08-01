@@ -4,13 +4,21 @@
 @import "../../shared-ui/src/article.css";
 @plugin "@tailwindcss/typography";
 
-/* Self-hosted Caveat font - eliminates FOUT */
+/* Self-hosted Shippori Mincho - 公開サイト (public-astro) と同一の本文書体 */
 @font-face {
-  font-family: 'Caveat';
+  font-family: 'Shippori Mincho';
   font-style: normal;
-  font-weight: 400 700;
-  font-display: optional;
-  src: url('/fonts/caveat-variable.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/shippori-mincho-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Shippori Mincho';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/shippori-mincho-600.woff2') format('woff2');
 }
 
 /* ============================================
@@ -19,24 +27,25 @@
    Dark theme は <html data-theme="dark"> で切替。
    ============================================ */
 :root {
-  --color-bg: #f5f5f5;
-  --color-surface: #ffffff;
-  --color-surface-elevated: #f9fafb;
-  --color-surface-muted: #f3f4f6;
+  --color-bg: #f8f7f3;
+  --color-surface: #fffefa;
+  --color-surface-elevated: #f2f4ec;
+  --color-surface-muted: #ecefe5;
 
-  --color-text: #374151;
-  --color-text-muted: #6b7280;
-  --color-text-heading: #111827;
+  --color-text: #454642;
+  --color-text-muted: #74766f;
+  --color-text-heading: #292a28;
   --color-text-on-primary: #ffffff;
 
-  --color-border: #e5e7eb;
-  --color-border-strong: #d1d5db;
+  --color-border: #dedfd7;
+  --color-border-strong: #bec3b8;
 
-  --color-primary: #2d2a5a;
-  --color-primary-hover: #3d3a6a;
-  --color-primary-soft: rgba(45, 42, 90, 0.1);
-  --color-accent: #c9a857;
-  --color-accent-hover: #b89346;
+  --color-primary: #24783b;
+  --color-primary-hover: #175c2b;
+  --color-primary-soft: rgba(36, 120, 59, 0.1);
+  --color-accent: #24783b;
+  --color-accent-hover: #175c2b;
+  --color-accent-bright: #5dcf91;
 
   --color-success: #059669;
   --color-success-hover: #047857;
@@ -59,40 +68,44 @@
   --color-warning-alert-bg: #fffbeb;
   --color-warning-border: #fde68a;
 
-  --color-link: #c9a857;
-  --color-link-hover: #2d2a5a;
+  --color-link: #24783b;
+  --color-link-hover: #175c2b;
 
-  --color-code-bg: #f3f4f6;
-  --color-code-pre-bg: #1f2937;
+  --color-code-bg: #ecefe5;
+  --color-code-pre-bg: #171b2d;
   --color-code-pre-text: #e5e7eb;
 
-  --color-focus-ring: rgba(156, 163, 175, 0.1);
+  --color-focus-ring: rgba(36, 120, 59, 0.18);
 
-  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.05);
-  --shadow-card-strong: 0 10px 25px rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 10px 30px rgba(36, 43, 31, 0.05);
+  --shadow-card-strong: 0 24px 60px rgba(36, 43, 31, 0.1);
+
+  --font-display: 'Helvetica Neue', 'Avenir Next', 'Segoe UI', sans-serif;
+  --font-body: 'Shippori Mincho', 'Yu Mincho', serif;
 
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-  --color-bg: #0f1117;
-  --color-surface: #1a1d29;
-  --color-surface-elevated: #252937;
-  --color-surface-muted: #161922;
+  --color-bg: #121526;
+  --color-surface: #181b2d;
+  --color-surface-elevated: #1d2135;
+  --color-surface-muted: #15182a;
 
-  --color-text: #d1d5db;
-  --color-text-muted: #9ca3af;
-  --color-text-heading: #f3f4f6;
-  --color-text-on-primary: #ffffff;
+  --color-text: #d9d8d1;
+  --color-text-muted: #9699a7;
+  --color-text-heading: #f2efe8;
+  --color-text-on-primary: #101426;
 
-  --color-border: #2d3142;
-  --color-border-strong: #3d4252;
+  --color-border: #2a2f45;
+  --color-border-strong: #3a4059;
 
-  --color-primary: #7a76b8;
-  --color-primary-hover: #9590ce;
-  --color-primary-soft: rgba(122, 118, 184, 0.18);
-  --color-accent: #d4b56a;
-  --color-accent-hover: #e0c47e;
+  --color-primary: #66dda1;
+  --color-primary-hover: #8cebb9;
+  --color-primary-soft: rgba(102, 221, 161, 0.13);
+  --color-accent: #66dda1;
+  --color-accent-hover: #8cebb9;
+  --color-accent-bright: #66dda1;
 
   --color-success: #10b981;
   --color-success-hover: #34d399;
@@ -115,25 +128,54 @@
   --color-warning-alert-bg: rgba(245, 158, 11, 0.08);
   --color-warning-border: rgba(245, 158, 11, 0.3);
 
-  --color-link: #d4b56a;
-  --color-link-hover: #a59ee0;
+  --color-link: #66dda1;
+  --color-link-hover: #8cebb9;
 
   --color-code-bg: rgba(255, 255, 255, 0.06);
   --color-code-pre-bg: #0a0c12;
   --color-code-pre-text: #e5e7eb;
 
-  --color-focus-ring: rgba(122, 118, 184, 0.25);
+  --color-focus-ring: rgba(102, 221, 161, 0.22);
 
-  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.45);
-  --shadow-card-strong: 0 10px 25px rgba(0, 0, 0, 0.6);
+  --shadow-card: 0 12px 30px rgba(3, 5, 14, 0.24);
+  --shadow-card-strong: 0 28px 70px rgba(3, 5, 14, 0.42);
 
   color-scheme: dark;
 }
 
 @layer base {
-  html, body {
+  /* public-astro/src/styles/global.css の base レイヤーと同じ地の表現 */
+  html {
+    font-family: var(--font-body);
     background-color: var(--color-bg);
     color: var(--color-text);
+  }
+
+  body {
+    background-color: var(--color-bg);
+    background-image:
+      radial-gradient(circle at 8% 0%, var(--color-primary-soft), transparent 28rem),
+      radial-gradient(circle at 92% 35%, var(--color-primary-soft), transparent 30rem);
+    color: var(--color-text);
+    line-height: 1.75;
+    min-height: 100vh;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    color: var(--color-text-heading);
+    letter-spacing: -0.035em;
+  }
+
+  ::selection {
+    color: var(--color-text-heading);
+    background: var(--color-primary-soft);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 4px;
   }
 }
 
@@ -141,18 +183,22 @@
   /* ============================================
      Badge Styles
      ============================================ */
+  /* 公開サイトの記事カテゴリバッジ (PostCard .category) と同じピル表現 */
   .admin-badge {
     display: inline-flex;
     align-items: center;
-    padding: 4px 12px;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
   .admin-badge-dark {
-    background: var(--color-primary);
-    color: var(--color-text-on-primary);
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
   }
 
   .admin-badge-light {
@@ -171,32 +217,45 @@
     color: var(--color-warning-text);
   }
 
+  .admin-badge-danger {
+    background: var(--color-danger-bg);
+    color: var(--color-danger-text);
+  }
+
   /* Header-specific badge variant */
   .admin-badge-header {
-    background: var(--color-primary);
-    color: var(--color-text-on-primary);
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
     padding: 4px 10px;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
   }
 
   /* ============================================
      Button Styles
      ============================================ */
+  /* 公開サイトの pill (social-link / nav-link) と同じ丸型ボタン */
   .admin-btn {
-    padding: 10px 20px;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    font-weight: 500;
+    padding: 11px 22px;
+    border-radius: 999px;
+    font-family: var(--font-display);
+    font-size: 0.88rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease,
+      border-color 0.25s ease, color 0.25s ease;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    border: none;
+    border: 1px solid transparent;
+  }
+
+  .admin-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card);
   }
 
   .admin-btn-primary {
@@ -247,8 +306,8 @@
   }
 
   .admin-btn-sm {
-    padding: 6px 14px;
-    font-size: 0.875rem;
+    padding: 7px 16px;
+    font-size: 0.8rem;
   }
 
   .admin-btn:disabled {
@@ -259,24 +318,30 @@
   /* ============================================
      Card Styles
      ============================================ */
+  /* 公開サイトの PostCard / about のカードと同じ面・角丸・余白 */
   .admin-card {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-radius: 12px;
-    padding: 24px;
+    border-radius: 24px;
+    padding: 32px;
     margin-bottom: 24px;
-    transition: all 0.2s ease;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
   }
 
   .admin-card:hover {
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--shadow-card-strong);
+    border-color: var(--color-border-strong);
   }
 
+  /* ヒーローの eyebrow / about のセクション見出しと同じマイクロラベル */
   .admin-card-title {
-    font-size: 1.125rem;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
     font-weight: 600;
-    color: var(--color-primary);
-    margin: 0 0 16px 0;
+    color: var(--color-text-muted);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    margin: 0 0 20px 0;
   }
 
   /* ============================================
@@ -290,29 +355,54 @@
   }
 
   .admin-stat-card {
+    position: relative;
+    overflow: hidden;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-radius: 12px;
-    padding: 24px;
-    transition: all 0.2s ease;
+    border-radius: 24px;
+    padding: 32px;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+
+  /* PostCard と同じアクセントバー */
+  .admin-stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 32px;
+    width: 44px;
+    height: 3px;
+    background: var(--color-accent);
+    border-radius: 0 0 999px 999px;
+    transition: width 0.25s ease;
   }
 
   .admin-stat-card:hover {
-    transform: translateY(-2px);
+    transform: translateY(-5px);
     box-shadow: var(--shadow-card-strong);
+    border-color: var(--color-border-strong);
+  }
+
+  .admin-stat-card:hover::before {
+    width: 72px;
   }
 
   .admin-stat-label {
-    font-size: 0.875rem;
+    font-family: var(--font-display);
+    font-size: 0.72rem;
     color: var(--color-text-muted);
-    margin: 0 0 8px 0;
-    font-weight: 500;
+    margin: 8px 0 10px 0;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
 
   .admin-stat-value {
+    font-family: var(--font-display);
     font-size: 2.5rem;
-    font-weight: 700;
-    color: var(--color-primary);
+    font-weight: 600;
+    color: var(--color-text-heading);
+    letter-spacing: -0.035em;
     margin: 0;
   }
 
@@ -326,12 +416,12 @@
   .admin-list {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-radius: 12px;
+    border-radius: 24px;
     overflow: hidden;
   }
 
   .admin-list-item {
-    padding: 20px 24px;
+    padding: 22px 28px;
     border-bottom: 1px solid var(--color-border);
     transition: background 0.2s ease;
   }
@@ -347,21 +437,24 @@
   /* ============================================
      Input Styles
      ============================================ */
+  /* 公開サイトの SearchBar (.search-input) と同じ丸型入力 */
   .admin-input {
     width: 100%;
-    padding: 12px 20px;
+    padding: 15px 24px;
     border: 1px solid var(--color-border);
-    border-radius: 12px;
+    border-radius: 999px;
+    font-family: var(--font-body);
     font-size: 0.95rem;
     background: var(--color-surface);
-    color: var(--color-text);
+    color: var(--color-text-heading);
     transition: all 0.2s ease;
+    box-shadow: var(--shadow-card);
   }
 
   .admin-input:focus {
     outline: none;
-    border-color: var(--color-border-strong);
-    box-shadow: 0 0 0 3px var(--color-focus-ring);
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 4px var(--color-focus-ring), var(--shadow-card);
   }
 
   .admin-input::placeholder {
@@ -378,25 +471,29 @@
   }
 
   .admin-tab {
-    padding: 10px 20px;
+    padding: 10px 18px;
     border: 1px solid var(--color-border);
-    border-radius: 24px;
+    border-radius: 999px;
     background: var(--color-surface);
     color: var(--color-text-muted);
-    font-size: 0.95rem;
-    font-weight: 500;
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
     cursor: pointer;
     transition: all 0.2s ease;
   }
 
   .admin-tab:hover {
     border-color: var(--color-border-strong);
-    color: var(--color-text);
+    color: var(--color-text-heading);
+    background: var(--color-primary-soft);
   }
 
   .admin-tab.active {
-    background: var(--color-primary);
-    color: var(--color-text-on-primary);
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
     border-color: var(--color-primary);
   }
 
@@ -404,10 +501,11 @@
      Alert Styles
      ============================================ */
   .admin-alert {
-    padding: 16px 20px;
-    border-radius: 12px;
+    padding: 16px 22px;
+    border-radius: 20px;
     margin-bottom: 24px;
-    font-size: 0.95rem;
+    font-size: 0.93rem;
+    line-height: 1.85;
   }
 
   .admin-alert-error {
@@ -438,9 +536,11 @@
   }
 
   .admin-empty-title {
+    font-family: var(--font-display);
     font-size: 1.125rem;
-    font-weight: 500;
-    color: var(--color-text);
+    font-weight: 600;
+    color: var(--color-text-heading);
+    letter-spacing: -0.035em;
     margin: 0 0 8px 0;
   }
 
@@ -468,10 +568,13 @@
 
   .admin-form-label {
     display: block;
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--color-text);
-    margin-bottom: 6px;
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
   }
 
   .admin-form-required {
@@ -481,20 +584,26 @@
   .admin-form-input,
   .admin-form-textarea {
     width: 100%;
-    padding: 12px 16px;
+    padding: 13px 20px;
     border: 1px solid var(--color-border);
-    border-radius: 8px;
+    border-radius: 999px;
+    font-family: var(--font-body);
     font-size: 0.95rem;
     background: var(--color-surface);
-    color: var(--color-text);
+    color: var(--color-text-heading);
     transition: all 0.2s ease;
+  }
+
+  /* 複数行入力は丸めすぎないよう、カードと同じ角丸に寄せる */
+  .admin-form-textarea {
+    border-radius: 20px;
   }
 
   .admin-form-input:focus,
   .admin-form-textarea:focus {
     outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px var(--color-primary-soft);
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 4px var(--color-focus-ring);
   }
 
   .admin-form-input::placeholder,
@@ -541,18 +650,286 @@
     gap: 12px;
     margin-top: 24px;
   }
+
+  /* ============================================
+     Dialog
+     ============================================ */
+  .admin-dialog {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 24px;
+    padding: 32px;
+    max-width: 28rem;
+    width: 100%;
+    margin: 0 1rem;
+    box-shadow: var(--shadow-card-strong);
+  }
+
+  .admin-dialog-message {
+    color: var(--color-text);
+    font-size: 1rem;
+    line-height: 1.85;
+  }
+
+  /* ============================================
+     Editor (Tiptap)
+     ============================================ */
+  .admin-editor-shell {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    overflow: hidden;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .admin-editor-shell:focus-within {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 4px var(--color-focus-ring);
+  }
+
+  .admin-editor-toolbar {
+    background: var(--color-surface-muted);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .admin-editor-body {
+    background: var(--color-surface);
+  }
+
+  .admin-editor-tool {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--color-text-muted);
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .admin-editor-tool:hover:not(:disabled) {
+    background: var(--color-primary-soft);
+    color: var(--color-text-heading);
+  }
+
+  .admin-editor-tool.is-active {
+    background: var(--color-primary-soft);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  .admin-spinner {
+    border-color: var(--color-accent);
+    border-top-color: transparent;
+  }
+
+  /* ============================================
+     Sidebar Panel / Field primitives
+     ============================================ */
+  .admin-panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    padding: 20px;
+  }
+
+  .admin-panel-label {
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  .admin-field {
+    padding: 9px 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    background: var(--color-surface);
+    color: var(--color-text-heading);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  textarea.admin-field {
+    border-radius: 16px;
+  }
+
+  .admin-field:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 4px var(--color-focus-ring);
+  }
+
+  .admin-field-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  .admin-field-invalid {
+    border-color: var(--color-danger);
+  }
+
+  .admin-field-readonly {
+    background: var(--color-surface-muted);
+    color: var(--color-text-muted);
+  }
+
+  .admin-field-hint {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+  }
+
+  .admin-field-error {
+    font-size: 0.72rem;
+    color: var(--color-danger);
+  }
+
+  .admin-field-warning {
+    font-size: 0.72rem;
+    color: var(--color-warning);
+  }
+
+  .admin-inline-link {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--color-accent);
+    cursor: pointer;
+    transition: color 0.2s ease;
+  }
+
+  .admin-inline-link:hover {
+    color: var(--color-accent-hover);
+    text-decoration: underline;
+  }
+
+  .admin-thumb {
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+  }
+
+  .admin-tag {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    font-weight: 600;
+  }
+
+  .admin-tag-remove {
+    border-radius: 999px;
+    color: var(--color-primary);
+    transition: background 0.2s ease;
+  }
+
+  .admin-tag-remove:hover {
+    background: var(--color-primary-soft);
+  }
+
+  /* ============================================
+     Segmented control / Preview / Autosave
+     ============================================ */
+  .admin-segmented {
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-surface);
+  }
+
+  .admin-segmented-item {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    background: transparent;
+    border-radius: 999px;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  .admin-segmented-item:hover:not(:disabled) {
+    color: var(--color-text-heading);
+    background: var(--color-primary-soft);
+  }
+
+  .admin-segmented-item.is-active {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+  }
+
+  .admin-preview {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+  }
+
+  .admin-alert-action {
+    color: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .admin-autosave-error {
+    color: var(--color-danger);
+  }
+
+  .admin-autosave-active {
+    color: var(--color-accent);
+  }
+
+  .admin-autosave-idle {
+    color: var(--color-text-muted);
+  }
+
+  .admin-editor-divider {
+    background: var(--color-border);
+  }
+
+  .admin-skeleton-outline {
+    border-color: var(--color-border);
+  }
+
+  /* ============================================
+     LoginForm helpers
+     ============================================ */
+  .login-form-remember {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+  }
+
+  .login-form-link {
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+    transition: color 0.2s ease;
+  }
+
+  .login-form-link:hover {
+    color: var(--color-accent);
+  }
 }
 
 /* ============================================
    Responsive (outside @layer for proper cascade)
    ============================================ */
 @media (max-width: 768px) {
-  .admin-card {
-    padding: 20px;
+  .admin-card,
+  .admin-stat-card {
+    padding: 28px;
+    border-radius: 20px;
+  }
+
+  .admin-stat-card::before {
+    left: 28px;
+  }
+
+  .admin-list {
+    border-radius: 20px;
   }
 
   .admin-badge-header {
-    font-size: 0.6rem;
-    padding: 3px 6px;
+    font-size: 0.58rem;
+    padding: 3px 8px;
   }
 }

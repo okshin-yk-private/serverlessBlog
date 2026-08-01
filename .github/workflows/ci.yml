@@ -43,7 +43,7 @@ permissions:
   id-token: write # Required for AWS OIDC authentication
 
 env:
-  GO_VERSION: '1.25.9'
+  GO_VERSION: '1.25.12'
   TERRAFORM_VERSION: '1.14.0'
   AWS_REGION: 'ap-northeast-1'
 
@@ -165,6 +165,44 @@ jobs:
       - name: Lint frontend
         working-directory: frontend/admin
         run: bun run lint
+
+  # =======================================
+  # Job 1.5: Type Check (always runs, no label gate)
+  # Without this, TypeScript / Astro type errors only surface in deploy.yml's
+  # build-astro job — i.e. after terraform apply has already run.
+  # =======================================
+  typecheck:
+    needs: [setup-labels]
+    name: Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun + Install Dependencies (root)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: .
+
+      - name: Setup Bun + Install Dependencies (admin)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: frontend/admin
+
+      - name: Setup Bun + Install Dependencies (public-astro)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: frontend/public-astro
+
+      # tsc --noEmit for admin/public, astro check for public-astro
+      - name: Run type check
+        run: bun run typecheck
 
   # =======================================
   # Job 2: Backend Unit Tests - REMOVED (Task 21.3)
@@ -1025,11 +1063,19 @@ jobs:
   # =======================================
 
   # =======================================
-  # Job 3: Frontend Tests - Public (conditional)
+  # Job 3: Frontend Tests - Public (REMOVED)
+  # The legacy React SPA (frontend/public) was deleted; the public site is
+  # Astro SSG and is covered by frontend-astro-tests below.
   # =======================================
-  frontend-public-tests:
+
+  # =======================================
+  # Job 4: Frontend Tests - Public Astro SSG (conditional)
+  # This is the site actually served in production. Its unit tests and the
+  # build-output integration suite previously ran nowhere in CI.
+  # =======================================
+  frontend-astro-tests:
     needs: [setup-labels]
-    name: Frontend Tests (Public Site)
+    name: Frontend Tests (Public Site - Astro)
     runs-on: ubuntu-latest
     if: needs.setup-labels.outputs.has-frontend == 'true'
 
@@ -1042,29 +1088,30 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Bun + Install Dependencies (root)
+      - name: Setup Bun + Install Dependencies (public-astro)
         uses: ./.github/actions/setup-bun-deps
         with:
-          working-directory: .
+          working-directory: frontend/public-astro
 
-      - name: Setup Bun + Install Dependencies (public)
-        uses: ./.github/actions/setup-bun-deps
-        with:
-          working-directory: frontend/public
-
-      - name: Run frontend (public) tests with coverage
-        working-directory: frontend/public
-        run: bun run test:coverage
+      - name: Run frontend (public-astro) unit tests
+        working-directory: frontend/public-astro
+        run: bun run test -- --run
         env:
           CI: true
 
-      - name: Upload frontend (public) coverage reports
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: frontend-public-coverage
-          path: frontend/public/coverage/
-          retention-days: 3
+      # vitest.config.ts excludes tests/**, so the build-output, sitemap, rss
+      # and seo-integration suites need a real build against a mock API first.
+      - name: Build against mock API
+        working-directory: frontend/public-astro
+        run: bash tests/build-with-mock.sh
+        env:
+          CI: true
+
+      - name: Run frontend (public-astro) integration tests
+        working-directory: frontend/public-astro
+        run: bun run test:integration -- --run
+        env:
+          CI: true
 
   # =======================================
   # Job 5: Frontend Tests - Admin (conditional)
@@ -1110,14 +1157,17 @@ jobs:
 
   # =======================================
   # Job 6: E2E Tests - Public Site (always runs if frontend tests passed)
+  # The public site is Astro SSG, so the browser tests run against a real
+  # build served by `astro preview` rather than a dev server with in-browser
+  # mocks: the post data is baked in at build time.
   # =======================================
   e2e-public-tests:
     name: E2E Tests (Public Site)
     runs-on: ubuntu-latest
-    needs: [frontend-public-tests]
+    needs: [frontend-astro-tests]
     if: |
       !cancelled() &&
-      (needs.frontend-public-tests.result == 'success')
+      (needs.frontend-astro-tests.result == 'success')
 
     steps:
       - name: Checkout code
@@ -1133,10 +1183,10 @@ jobs:
         with:
           working-directory: .
 
-      - name: Setup Bun + Install Dependencies (public)
+      - name: Setup Bun + Install Dependencies (public-astro)
         uses: ./.github/actions/setup-bun-deps
         with:
-          working-directory: frontend/public
+          working-directory: frontend/public-astro
 
       - name: Get Playwright version
         id: playwright-version
@@ -1164,6 +1214,14 @@ jobs:
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list || true
           sudo rm -f /etc/apt/sources.list.d/azure-cli.list || true
           bunx playwright install-deps chromium
+
+      # astro preview (started by playwright.config.ts) serves dist/, so the
+      # site has to be built against the mock API before Playwright runs.
+      - name: Build Astro site against mock API
+        working-directory: frontend/public-astro
+        run: bash tests/build-with-mock.sh
+        env:
+          CI: true
 
       - name: Run E2E tests (Public Site) - Chromium only
         run: bun run test:e2e -- --project=chromium --workers=1
@@ -1263,12 +1321,10 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - go-tests
-      - frontend-public-tests
       - frontend-admin-tests
     if: |
       !cancelled() &&
       (needs.go-tests.result == 'success' ||
-       needs.frontend-public-tests.result == 'success' ||
        needs.frontend-admin-tests.result == 'success')
 
     steps:
@@ -1281,13 +1337,6 @@ jobs:
         with:
           name: go-coverage
           path: coverage-go/
-
-      - name: Download frontend (public) coverage
-        if: needs.frontend-public-tests.result == 'success'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: frontend-public-coverage
-          path: coverage-frontend-public/
 
       - name: Download frontend (admin) coverage
         if: needs.frontend-admin-tests.result == 'success'
@@ -1308,9 +1357,8 @@ jobs:
 
       - name: Reorganize coverage files
         run: |
-          mkdir -p go-functions frontend/public/coverage frontend/admin/coverage
+          mkdir -p go-functions frontend/admin/coverage
           cp -r coverage-go/* go-functions/ || true
-          cp -r coverage-frontend-public/* frontend/public/coverage/ || true
           cp -r coverage-frontend-admin/* frontend/admin/coverage/ || true
 
       - name: Generate coverage badges
@@ -1373,6 +1421,7 @@ jobs:
     needs:
       - setup-labels
       - lint
+      - typecheck
       # Go Backend
       - go-lint
       - go-tests
@@ -1387,7 +1436,7 @@ jobs:
       - terraform-plan-dev
       - terraform-plan-prd
       # Frontend
-      - frontend-public-tests
+      - frontend-astro-tests
       - frontend-admin-tests
       - e2e-public-tests
       - e2e-admin-tests
@@ -1409,6 +1458,7 @@ jobs:
           echo ""
           echo "--- Lint ---"
           echo "  ESLint & Prettier: ${{ needs.lint.result }}"
+          echo "  Type Check: ${{ needs.typecheck.result }}"
           echo ""
           echo "--- Go Backend ---"
           echo "  Go Lint: ${{ needs.go-lint.result }}"
@@ -1426,7 +1476,7 @@ jobs:
           echo "  Plan (PRD): ${{ needs.terraform-plan-prd.result }}"
           echo ""
           echo "--- Frontend ---"
-          echo "  Public Tests: ${{ needs.frontend-public-tests.result }}"
+          echo "  Public Astro Tests: ${{ needs.frontend-astro-tests.result }}"
           echo "  Admin Tests: ${{ needs.frontend-admin-tests.result }}"
           echo "  E2E Public: ${{ needs.e2e-public-tests.result }}"
           echo "  E2E Admin: ${{ needs.e2e-admin-tests.result }}"
@@ -1439,6 +1489,12 @@ jobs:
           # Lint is always required
           if [ "${{ needs.lint.result }}" != "success" ]; then
             echo "❌ Lint check failed or was cancelled"
+            exit 1
+          fi
+
+          # Type check runs on every PR (no label gate), so it is always required
+          if [ "${{ needs.typecheck.result }}" != "success" ]; then
+            echo "❌ Type check failed or was cancelled"
             exit 1
           fi
 
@@ -1465,7 +1521,7 @@ jobs:
           fi
 
           # Frontend failures
-          if [ "${{ needs.frontend-public-tests.result }}" == "failure" ] || \
+          if [ "${{ needs.frontend-astro-tests.result }}" == "failure" ] || \
              [ "${{ needs.frontend-admin-tests.result }}" == "failure" ] || \
              [ "${{ needs.e2e-public-tests.result }}" == "failure" ] || \
              [ "${{ needs.e2e-admin-tests.result }}" == "failure" ] || \

@@ -129,11 +129,8 @@ export const MetadataSidebar = ({
       className="space-y-6 lg:sticky lg:top-4 lg:self-start"
     >
       {/* 公開状態 */}
-      <section className="rounded-md border border-gray-200 p-4">
-        <label
-          htmlFor="publishStatus"
-          className="mb-1 block text-sm font-semibold text-gray-700"
-        >
+      <section className="admin-panel">
+        <label htmlFor="publishStatus" className="admin-panel-label mb-1 block">
           公開状態
         </label>
         <select
@@ -146,7 +143,7 @@ export const MetadataSidebar = ({
             })
           }
           disabled={disabled}
-          className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+          className="admin-field w-full"
         >
           {(['draft', 'published'] as const).map((s) => (
             <option key={s} value={s}>
@@ -157,12 +154,9 @@ export const MetadataSidebar = ({
       </section>
 
       {/* Slug */}
-      <section className="rounded-md border border-gray-200 p-4">
+      <section className="admin-panel">
         <div className="mb-1 flex items-center justify-between">
-          <label
-            htmlFor="metadata-slug"
-            className="text-sm font-semibold text-gray-700"
-          >
+          <label htmlFor="metadata-slug" className="admin-panel-label">
             Slug
           </label>
           <button
@@ -170,7 +164,7 @@ export const MetadataSidebar = ({
             data-testid="metadata-slug-lock"
             aria-pressed={value.slugLocked}
             onClick={() => onChange({ slugLocked: !value.slugLocked })}
-            className="text-xs text-blue-600 hover:underline"
+            className="admin-inline-link"
             disabled={disabled}
           >
             {value.slugLocked ? '🔒 手動編集中' : '🔓 自動生成中'}
@@ -184,17 +178,17 @@ export const MetadataSidebar = ({
           onChange={(e) => onChange({ slug: e.target.value })}
           readOnly={!value.slugLocked}
           maxLength={SLUG_MAX}
-          className={`w-full rounded border px-2 py-1 font-mono text-sm ${
-            slugError ? 'border-red-400' : 'border-gray-300'
-          } ${!value.slugLocked ? 'bg-gray-50 text-gray-600' : 'bg-white'}`}
+          className={`admin-field admin-field-mono w-full ${
+            slugError ? 'admin-field-invalid' : ''
+          } ${!value.slugLocked ? 'admin-field-readonly' : ''}`}
           disabled={disabled}
         />
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="admin-field-hint mt-1">
           {value.slug ? `/posts/${value.slug}` : '— (未設定)'}
         </p>
         {slugError && (
           <p
-            className="mt-1 text-xs text-red-600"
+            className="admin-field-error mt-1"
             data-testid="metadata-slug-error"
           >
             {slugError}
@@ -203,18 +197,15 @@ export const MetadataSidebar = ({
       </section>
 
       {/* Excerpt */}
-      <section className="rounded-md border border-gray-200 p-4">
+      <section className="admin-panel">
         <div className="mb-1 flex items-center justify-between">
-          <label
-            htmlFor="metadata-excerpt"
-            className="text-sm font-semibold text-gray-700"
-          >
+          <label htmlFor="metadata-excerpt" className="admin-panel-label">
             概要 (excerpt)
           </label>
           <button
             type="button"
             onClick={fillExcerptFromBody}
-            className="text-xs text-blue-600 hover:underline"
+            className="admin-inline-link"
             data-testid="metadata-excerpt-autofill"
             disabled={disabled}
           >
@@ -227,16 +218,14 @@ export const MetadataSidebar = ({
           value={value.excerpt}
           onChange={(e) => onChange({ excerpt: e.target.value })}
           rows={3}
-          className={`w-full rounded border px-2 py-1 text-sm ${
-            excerptError ? 'border-red-400' : 'border-gray-300'
-          }`}
+          className={`admin-field w-full ${excerptError ? 'admin-field-invalid' : ''}`}
           disabled={disabled}
         />
         <p
-          className={`mt-1 text-right text-xs ${
+          className={`mt-1 text-right ${
             value.excerpt.length > EXCERPT_MAX
-              ? 'text-red-600'
-              : 'text-gray-500'
+              ? 'admin-field-error'
+              : 'admin-field-hint'
           }`}
           data-testid="metadata-excerpt-counter"
         >
@@ -244,7 +233,7 @@ export const MetadataSidebar = ({
         </p>
         {excerptError && (
           <p
-            className="mt-1 text-xs text-red-600"
+            className="admin-field-error mt-1"
             data-testid="metadata-excerpt-error"
           >
             {excerptError}
@@ -253,18 +242,15 @@ export const MetadataSidebar = ({
       </section>
 
       {/* Cover image */}
-      <section className="rounded-md border border-gray-200 p-4">
+      <section className="admin-panel">
         <div className="mb-1 flex items-center justify-between">
-          <label
-            htmlFor="metadata-cover"
-            className="text-sm font-semibold text-gray-700"
-          >
+          <label htmlFor="metadata-cover" className="admin-panel-label">
             カバー画像
           </label>
           <button
             type="button"
             onClick={fillCoverFromBody}
-            className="text-xs text-blue-600 hover:underline"
+            className="admin-inline-link"
             data-testid="metadata-cover-autofill"
             disabled={disabled}
           >
@@ -278,11 +264,11 @@ export const MetadataSidebar = ({
           value={value.coverImageUrl}
           onChange={(e) => onChange({ coverImageUrl: e.target.value })}
           placeholder="https://..."
-          className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+          className="admin-field w-full"
           disabled={disabled}
         />
         {value.coverImageUrl && (
-          <div className="mt-2 overflow-hidden rounded border border-gray-200">
+          <div className="admin-thumb mt-2 overflow-hidden">
             <img
               src={value.coverImageUrl}
               alt="カバー画像プレビュー"
@@ -294,10 +280,10 @@ export const MetadataSidebar = ({
       </section>
 
       {/* Category */}
-      <section className="rounded-md border border-gray-200 p-4">
+      <section className="admin-panel">
         <label
           htmlFor="metadata-category"
-          className="mb-1 block text-sm font-semibold text-gray-700"
+          className="admin-panel-label mb-1 block"
         >
           カテゴリ
         </label>
@@ -306,7 +292,7 @@ export const MetadataSidebar = ({
           data-testid="post-category-select"
           value={value.category}
           onChange={(e) => onChange({ category: e.target.value })}
-          className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+          className="admin-field w-full"
           disabled={disabled || categoriesLoading}
         >
           {categoriesLoading ? (
@@ -326,7 +312,7 @@ export const MetadataSidebar = ({
         </select>
         {categoriesError && (
           <div className="mt-1">
-            <p className="text-xs text-red-600">{categoriesError}</p>
+            <p className="admin-field-error">{categoriesError}</p>
             {onCategoriesRefetch && (
               <Button
                 type="button"
@@ -340,7 +326,7 @@ export const MetadataSidebar = ({
           </div>
         )}
         {isCategoryMissing && (
-          <p className="mt-1 text-xs text-yellow-600">
+          <p className="admin-field-warning mt-1">
             選択されているカテゴリ「{initialCategoryName}
             」は現在利用できません。別のカテゴリを選択してください。
           </p>
@@ -348,27 +334,21 @@ export const MetadataSidebar = ({
       </section>
 
       {/* Tags */}
-      <section className="rounded-md border border-gray-200 p-4">
-        <label
-          htmlFor="tags"
-          className="mb-1 block text-sm font-semibold text-gray-700"
-        >
+      <section className="admin-panel">
+        <label htmlFor="tags" className="admin-panel-label mb-1 block">
           タグ
         </label>
         {value.tags.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1" data-testid="tags-list">
             {value.tags.map((tag, index) => (
-              <span
-                key={index}
-                className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800"
-              >
+              <span key={index} className="admin-tag inline-flex items-center">
                 {tag}
                 <button
                   type="button"
                   onClick={() => removeTag(index)}
                   aria-label={`${tag}を削除`}
                   data-testid={`remove-tag-${index}`}
-                  className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-blue-400 hover:bg-blue-200 hover:text-blue-600"
+                  className="admin-tag-remove ml-1 inline-flex h-4 w-4 items-center justify-center"
                 >
                   ×
                 </button>
@@ -385,7 +365,7 @@ export const MetadataSidebar = ({
             onChange={(e) => setTagInput(e.target.value)}
             onKeyDown={handleTagKeyDown}
             placeholder="Enterで追加"
-            className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
+            className="admin-field flex-1"
             disabled={disabled}
           />
           <Button

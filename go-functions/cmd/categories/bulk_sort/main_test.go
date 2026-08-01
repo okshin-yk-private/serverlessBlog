@@ -84,7 +84,8 @@ func createAuthenticatedRequest(body string) events.APIGatewayProxyRequest {
 		RequestContext: events.APIGatewayProxyRequestContext{
 			Authorizer: map[string]interface{}{
 				"claims": map[string]interface{}{
-					"sub": testAuthorID,
+					"sub":            testAuthorID,
+					"cognito:groups": []string{"admin"},
 				},
 			},
 		},
@@ -863,3 +864,34 @@ func TestHandler_ExceedsMaxItemsLimit(t *testing.T) {
 
 // Ensure unused import warning is silenced
 var _ = aws.String
+
+// createNonAdminRequest builds a request from a signed-in user who is not in
+// the admin group. Categories are site-wide, so this must be rejected.
+func createNonAdminRequest(body string) events.APIGatewayProxyRequest {
+	return events.APIGatewayProxyRequest{
+		Body: body,
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{
+				"claims": map[string]interface{}{
+					"sub":            testAuthorID,
+					"cognito:groups": []string{"editor"},
+				},
+			},
+		},
+	}
+}
+
+// TestHandler_NonAdminForbidden guards the authorization rule added in #488:
+// before it, any authenticated Cognito user could mutate categories.
+func TestHandler_NonAdminForbidden(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	resp, err := Handler(context.Background(), createNonAdminRequest(`{"orders":[{"id":"cat-1","sortOrder":1}]}`))
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+	if resp.StatusCode != 403 {
+		t.Errorf("StatusCode = %d, want 403", resp.StatusCode)
+	}
+}

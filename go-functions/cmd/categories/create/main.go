@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/google/uuid"
 
+	"serverless-blog/go-functions/internal/auth"
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/middleware"
@@ -63,9 +64,15 @@ var timeNow = func() string {
 // Requirement 3.2: Require Cognito authorization
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Requirement 3.2: Check authentication
-	authorID := extractAuthorID(request)
+	authorID := auth.UserID(request)
 	if authorID == "" {
 		return errorResponse(401, "unauthorized")
+	}
+
+	// Categories are site-wide, so being signed in is not enough to change
+	// them: the caller has to be in the admin group.
+	if !auth.IsAdmin(request) {
+		return errorResponse(403, "forbidden")
 	}
 
 	// Parse request body
@@ -181,35 +188,6 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	return middleware.JSONResponse(201, category)
 }
 
-// extractAuthorID extracts the user ID from Cognito authorizer claims
-func extractAuthorID(request events.APIGatewayProxyRequest) string {
-	if request.RequestContext.Authorizer == nil {
-		return ""
-	}
-
-	claims, ok := request.RequestContext.Authorizer["claims"]
-	if !ok {
-		return ""
-	}
-
-	claimsMap, ok := claims.(map[string]interface{})
-	if !ok {
-		return ""
-	}
-
-	sub, ok := claimsMap["sub"]
-	if !ok {
-		return ""
-	}
-
-	subStr, ok := sub.(string)
-	if !ok {
-		return ""
-	}
-
-	return subStr
-}
-
 // isTransactionCanceledError checks if the error is a DynamoDB TransactionCanceledException
 // This typically happens when a condition expression fails (e.g., slug already exists)
 func isTransactionCanceledError(err error) bool {
@@ -217,29 +195,46 @@ func isTransactionCanceledError(err error) bool {
 	return errors.As(err, &tcErr)
 }
 
-// getMaxSortOrder finds the maximum sortOrder value among existing categories
+// getMaxSortOrder finds the maximum sortOrder value among existing categories.
+//
+// Scans the full table across all pages (issue #489). A DynamoDB Scan returns
+// at most ~1MB per call; the previous implementation only inspected the
+// first page and ignored LastEvaluatedKey, so once the Categories table grew
+// past that size, the computed max could be smaller than the true max and a
+// newly created category could collide with (or be inserted before) an
+// existing sortOrder that only appeared on a later page.
 func getMaxSortOrder(ctx context.Context, client DynamoDBClientInterface, tableName string) (int, error) {
-	scanInput := &dynamodb.ScanInput{
-		TableName:            aws.String(tableName),
-		ProjectionExpression: aws.String("sortOrder"),
-	}
-
-	result, err := client.Scan(ctx, scanInput)
-	if err != nil {
-		return 0, err
-	}
-
 	maxSortOrder := 0
-	for _, item := range result.Items {
-		var category struct {
-			SortOrder int `dynamodbav:"sortOrder"`
+	var exclusiveStartKey map[string]types.AttributeValue
+
+	for {
+		scanInput := &dynamodb.ScanInput{
+			TableName:            aws.String(tableName),
+			ProjectionExpression: aws.String("sortOrder"),
+			ExclusiveStartKey:    exclusiveStartKey,
 		}
-		if err := attributevalue.UnmarshalMap(item, &category); err != nil {
-			continue
+
+		result, err := client.Scan(ctx, scanInput)
+		if err != nil {
+			return 0, err
 		}
-		if category.SortOrder > maxSortOrder {
-			maxSortOrder = category.SortOrder
+
+		for _, item := range result.Items {
+			var category struct {
+				SortOrder int `dynamodbav:"sortOrder"`
+			}
+			if err := attributevalue.UnmarshalMap(item, &category); err != nil {
+				continue
+			}
+			if category.SortOrder > maxSortOrder {
+				maxSortOrder = category.SortOrder
+			}
 		}
+
+		if result.LastEvaluatedKey == nil {
+			break
+		}
+		exclusiveStartKey = result.LastEvaluatedKey
 	}
 
 	return maxSortOrder, nil

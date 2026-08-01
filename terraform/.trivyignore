@@ -65,7 +65,9 @@ AVD-AWS-0121
 
 # AVD-AWS-0001: API Gateway access logging not enabled
 # Note: This should NOT be ignored for production.
-# TODO: Enable access logging in modules/api
+# Implemented in modules/api/main.tf (aws_cloudwatch_log_group.api_access_logs,
+# aws_api_gateway_stage.main access_log_settings), gated on local.is_production
+# so it is enabled in prd and disabled in dev to reduce cost and noise.
 
 # AVD-AWS-0004: API Gateway domain not using TLS 1.2
 # Note: NOT ignored - TLS 1.2 minimum is configured

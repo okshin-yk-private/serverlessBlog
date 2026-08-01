@@ -24,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/codebuild"
 	"github.com/aws/aws-sdk-go-v2/service/codebuild/types"
 
+	"serverless-blog/go-functions/internal/auth"
 	"serverless-blog/go-functions/internal/buildtrigger"
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
@@ -47,7 +48,7 @@ type BuildStatusResponse struct {
 
 // Handler handles GET /admin/posts/{id}/build-status.
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	if userID := getUserIDFromRequest(request); userID == "" {
+	if userID := auth.UserID(request); userID == "" {
 		return errorResponse(401, "unauthorized")
 	}
 
@@ -126,29 +127,6 @@ func mapBuildStatus(status types.StatusType) string {
 	default:
 		return "idle"
 	}
-}
-
-func getUserIDFromRequest(request events.APIGatewayProxyRequest) string {
-	if request.RequestContext.Authorizer == nil {
-		return ""
-	}
-	claims, ok := request.RequestContext.Authorizer["claims"]
-	if !ok || claims == nil {
-		return ""
-	}
-	claimsMap, ok := claims.(map[string]interface{})
-	if !ok {
-		return ""
-	}
-	sub, ok := claimsMap["sub"]
-	if !ok {
-		return ""
-	}
-	userID, ok := sub.(string)
-	if !ok {
-		return ""
-	}
-	return userID
 }
 
 func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {

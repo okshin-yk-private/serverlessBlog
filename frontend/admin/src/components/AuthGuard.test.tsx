@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter } from 'react-router-dom';
 import { AuthGuard } from './AuthGuard';
+import { consumeRedirectPath } from '../utils/auth';
 
 // モックのuseAuth
 const mockUseAuth = vi.fn();
@@ -11,6 +12,10 @@ vi.mock('../hooks/useAuth', () => ({
 }));
 
 describe('AuthGuard', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
   it('認証済みの場合は子要素を表示する', () => {
     mockUseAuth.mockReturnValue({
       isAuthenticated: true,
@@ -122,5 +127,41 @@ describe('AuthGuard', () => {
 
     // userがnullの場合はリダイレクトされる
     expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+  });
+
+  it('未認証リダイレクト時に遷移元パスを保存する（ログイン後の復帰用）', () => {
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: false,
+      isLoading: false,
+      user: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/posts?page=2']}>
+        <AuthGuard>
+          <div>Protected Content</div>
+        </AuthGuard>
+      </MemoryRouter>
+    );
+
+    expect(consumeRedirectPath()).toBe('/posts?page=2');
+  });
+
+  it('/login 上では遷移元パスを保存しない', () => {
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: false,
+      isLoading: false,
+      user: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/login']}>
+        <AuthGuard>
+          <div>Protected Content</div>
+        </AuthGuard>
+      </MemoryRouter>
+    );
+
+    expect(consumeRedirectPath()).toBeNull();
   });
 });
