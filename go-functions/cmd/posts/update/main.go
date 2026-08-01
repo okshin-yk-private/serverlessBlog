@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
+	"serverless-blog/go-functions/internal/auth"
 	"serverless-blog/go-functions/internal/buildtrigger"
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
@@ -137,7 +138,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 // Returns postID, request, userID, and error response
 func validateAndParseRequest(request events.APIGatewayProxyRequest) (postID string, req *domain.UpdatePostRequest, userID string, errResp *events.APIGatewayProxyResponse) {
 	// Validate authentication
-	userID = getUserIDFromRequest(request)
+	userID = auth.UserID(request)
 	if userID == "" {
 		resp, _ := errorResponse(401, "unauthorized")
 		return "", nil, "", &resp
@@ -440,41 +441,6 @@ type validationError struct {
 
 func (e *validationError) Error() string {
 	return e.message
-}
-
-// getUserIDFromRequest extracts the user ID from the request context
-// Returns empty string if user is not authenticated
-func getUserIDFromRequest(request events.APIGatewayProxyRequest) string {
-	// Check if authorizer is present
-	if request.RequestContext.Authorizer == nil {
-		return ""
-	}
-
-	// Get claims from authorizer
-	claims, ok := request.RequestContext.Authorizer["claims"]
-	if !ok || claims == nil {
-		return ""
-	}
-
-	// Type assert claims to map
-	claimsMap, ok := claims.(map[string]interface{})
-	if !ok {
-		return ""
-	}
-
-	// Get sub (user ID) from claims
-	sub, ok := claimsMap["sub"]
-	if !ok {
-		return ""
-	}
-
-	// Type assert sub to string
-	userID, ok := sub.(string)
-	if !ok || userID == "" {
-		return ""
-	}
-
-	return userID
 }
 
 // errorResponse creates an error response with CORS headers

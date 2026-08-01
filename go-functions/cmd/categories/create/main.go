@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/google/uuid"
 
+	"serverless-blog/go-functions/internal/auth"
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/middleware"
@@ -63,9 +64,15 @@ var timeNow = func() string {
 // Requirement 3.2: Require Cognito authorization
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Requirement 3.2: Check authentication
-	authorID := extractAuthorID(request)
+	authorID := auth.UserID(request)
 	if authorID == "" {
 		return errorResponse(401, "unauthorized")
+	}
+
+	// Categories are site-wide, so being signed in is not enough to change
+	// them: the caller has to be in the admin group.
+	if !auth.IsAdmin(request) {
+		return errorResponse(403, "forbidden")
 	}
 
 	// Parse request body
@@ -179,35 +186,6 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	// Return created category with 201 status
 	return middleware.JSONResponse(201, category)
-}
-
-// extractAuthorID extracts the user ID from Cognito authorizer claims
-func extractAuthorID(request events.APIGatewayProxyRequest) string {
-	if request.RequestContext.Authorizer == nil {
-		return ""
-	}
-
-	claims, ok := request.RequestContext.Authorizer["claims"]
-	if !ok {
-		return ""
-	}
-
-	claimsMap, ok := claims.(map[string]interface{})
-	if !ok {
-		return ""
-	}
-
-	sub, ok := claimsMap["sub"]
-	if !ok {
-		return ""
-	}
-
-	subStr, ok := sub.(string)
-	if !ok {
-		return ""
-	}
-
-	return subStr
 }
 
 // isTransactionCanceledError checks if the error is a DynamoDB TransactionCanceledException

@@ -128,3 +128,20 @@ resource "aws_ssm_parameter" "user_pool_client_id" {
 
   tags = local.tags
 }
+
+# Admin group
+# Categories are site-wide resources. The category Lambdas require the caller
+# to be in this group, so being a signed-in Cognito user is not by itself
+# enough to change them (see issue #488).
+#
+# Membership is NOT managed here: the user pool's users are created out of
+# band (allow_admin_create_user_only = true), so Terraform has no list of
+# usernames to attach. Add an existing user with:
+#   aws cognito-idp admin-add-user-to-group \
+#     --user-pool-id <pool-id> --username <username> --group-name admin
+resource "aws_cognito_user_group" "admin" {
+  name         = "admin"
+  user_pool_id = aws_cognito_user_pool.main.id
+  description  = "Users allowed to manage site-wide resources such as categories"
+  precedence   = 0
+}
