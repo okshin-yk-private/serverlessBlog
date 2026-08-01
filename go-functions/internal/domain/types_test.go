@@ -3,6 +3,7 @@ package domain
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -205,6 +206,182 @@ func TestCreatePostRequestValidation(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "title exactly at max length is valid",
+			request: CreatePostRequest{
+				Title:           strings.Repeat("あ", PostTitleMaxLength),
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+			},
+			wantErr: false,
+		},
+		{
+			name: "title exceeding max length is rejected",
+			request: CreatePostRequest{
+				Title:           strings.Repeat("あ", PostTitleMaxLength+1),
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+			},
+			wantErr: true,
+		},
+		{
+			name: "contentMarkdown exactly at max length is valid",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: strings.Repeat("a", PostContentMarkdownMaxLength),
+				Category:        "technology",
+			},
+			wantErr: false,
+		},
+		{
+			name: "contentMarkdown exceeding max length is rejected",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: strings.Repeat("a", PostContentMarkdownMaxLength+1),
+				Category:        "technology",
+			},
+			wantErr: true,
+		},
+		{
+			name: "excerpt exactly at max length is valid",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				Excerpt:         strPtr(strings.Repeat("あ", PostExcerptMaxLength)),
+			},
+			wantErr: false,
+		},
+		{
+			name: "excerpt exceeding max length is rejected",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				Excerpt:         strPtr(strings.Repeat("あ", PostExcerptMaxLength+1)),
+			},
+			wantErr: true,
+		},
+		{
+			name: "tag exactly at max length is valid",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				Tags:            []string{strings.Repeat("t", PostTagMaxLength)},
+			},
+			wantErr: false,
+		},
+		{
+			name: "tag exceeding max length is rejected",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				Tags:            []string{strings.Repeat("t", PostTagMaxLength+1)},
+			},
+			wantErr: true,
+		},
+		{
+			name: "tags count exactly at max is valid",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				Tags:            repeatTags(PostTagsMaxCount),
+			},
+			wantErr: false,
+		},
+		{
+			name: "tags count exceeding max is rejected",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				Tags:            repeatTags(PostTagsMaxCount + 1),
+			},
+			wantErr: true,
+		},
+		{
+			name: "https coverImageUrl is valid",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				CoverImageURL:   strPtr("https://example.com/cover.jpg"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "http coverImageUrl is valid",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				CoverImageURL:   strPtr("http://example.com/cover.jpg"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty coverImageUrl is accepted (no cover image)",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				CoverImageURL:   strPtr(""),
+			},
+			wantErr: false,
+		},
+		{
+			name: "javascript scheme coverImageUrl is rejected",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				CoverImageURL:   strPtr("javascript:alert(1)"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "schemeless coverImageUrl is rejected",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				CoverImageURL:   strPtr("/images/cover.jpg"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "ftp scheme coverImageUrl is rejected",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				CoverImageURL:   strPtr("ftp://example.com/cover.jpg"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "malformed coverImageUrl (invalid percent-escape) is rejected",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				CoverImageURL:   strPtr("http://example.com/%zz"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "coverImageUrl with http scheme but no host is rejected",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				CoverImageURL:   strPtr("http:///no-host"),
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -222,8 +399,20 @@ func TestCreatePostRequestValidation(t *testing.T) {
 	}
 }
 
-// TestUpdatePostRequestValidation tests UpdatePostRequest.Validate (slug format only).
-// Other fields use partial-update semantics and have no required-field rules.
+// repeatTags returns n distinct tag strings, used for exercising the
+// PostTagsMaxCount boundary.
+func repeatTags(n int) []string {
+	tags := make([]string, n)
+	for i := range tags {
+		tags[i] = "tag"
+	}
+	return tags
+}
+
+// TestUpdatePostRequestValidation tests UpdatePostRequest.Validate. Only fields
+// that are provided (non-nil) are validated, using the same rune-length and
+// format rules as CreatePostRequest.Validate (issue #491: parity between
+// create and update validation).
 func TestUpdatePostRequestValidation(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -251,7 +440,7 @@ func TestUpdatePostRequestValidation(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "non-slug fields ignored even when slug is nil",
+			name: "valid non-slug fields accepted",
 			request: UpdatePostRequest{
 				Title:           strPtr("New title"),
 				ContentMarkdown: strPtr("# Body"),
@@ -261,6 +450,76 @@ func TestUpdatePostRequestValidation(t *testing.T) {
 				ImageURLs:       []string{"https://example.com/image.jpg"},
 			},
 			wantErr: false,
+		},
+		{
+			name:    "empty title rejected",
+			request: UpdatePostRequest{Title: strPtr("")},
+			wantErr: true,
+		},
+		{
+			name:    "title exceeding max length rejected",
+			request: UpdatePostRequest{Title: strPtr(strings.Repeat("あ", PostTitleMaxLength+1))},
+			wantErr: true,
+		},
+		{
+			name:    "title exactly at max length accepted",
+			request: UpdatePostRequest{Title: strPtr(strings.Repeat("あ", PostTitleMaxLength))},
+			wantErr: false,
+		},
+		{
+			name:    "empty contentMarkdown rejected",
+			request: UpdatePostRequest{ContentMarkdown: strPtr("")},
+			wantErr: true,
+		},
+		{
+			name:    "contentMarkdown exceeding max length rejected",
+			request: UpdatePostRequest{ContentMarkdown: strPtr(strings.Repeat("a", PostContentMarkdownMaxLength+1))},
+			wantErr: true,
+		},
+		{
+			name:    "empty category rejected",
+			request: UpdatePostRequest{Category: strPtr("")},
+			wantErr: true,
+		},
+		{
+			name:    "excerpt exceeding max length rejected",
+			request: UpdatePostRequest{Excerpt: strPtr(strings.Repeat("あ", PostExcerptMaxLength+1))},
+			wantErr: true,
+		},
+		{
+			name:    "excerpt exactly at max length accepted",
+			request: UpdatePostRequest{Excerpt: strPtr(strings.Repeat("あ", PostExcerptMaxLength))},
+			wantErr: false,
+		},
+		{
+			name:    "too many tags rejected",
+			request: UpdatePostRequest{Tags: repeatTags(PostTagsMaxCount + 1)},
+			wantErr: true,
+		},
+		{
+			name:    "tag exceeding max length rejected",
+			request: UpdatePostRequest{Tags: []string{strings.Repeat("t", PostTagMaxLength+1)}},
+			wantErr: true,
+		},
+		{
+			name:    "empty coverImageUrl accepted (clears the value)",
+			request: UpdatePostRequest{CoverImageURL: strPtr("")},
+			wantErr: false,
+		},
+		{
+			name:    "https coverImageUrl accepted",
+			request: UpdatePostRequest{CoverImageURL: strPtr("https://example.com/cover.jpg")},
+			wantErr: false,
+		},
+		{
+			name:    "javascript scheme coverImageUrl rejected",
+			request: UpdatePostRequest{CoverImageURL: strPtr("javascript:alert(1)")},
+			wantErr: true,
+		},
+		{
+			name:    "schemeless coverImageUrl rejected",
+			request: UpdatePostRequest{CoverImageURL: strPtr("/images/cover.jpg")},
+			wantErr: true,
 		},
 	}
 
@@ -717,6 +976,24 @@ func TestCreateCategoryRequestValidation(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			// Regression test for issue #491: the 100-character limit must be
+			// counted in runes, not bytes. Each "あ" is 3 bytes in UTF-8, so a
+			// byte-based check would previously reject this at ~33 characters.
+			name: "Japanese name exactly 100 runes is valid",
+			request: CreateCategoryRequest{
+				Name: strings.Repeat("あ", 100),
+			},
+			wantErr: false,
+		},
+		{
+			name: "Japanese name exceeding 100 runes is rejected",
+			request: CreateCategoryRequest{
+				Name: strings.Repeat("あ", 101),
+			},
+			wantErr: true,
+			errMsg:  "name must be 100 characters or less",
+		},
+		{
 			name: "invalid slug with uppercase",
 			request: CreateCategoryRequest{
 				Name: "Test",
@@ -1009,6 +1286,22 @@ func TestUpdateCategoryRequestValidation(t *testing.T) {
 				Name: strPtr("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), // 100 chars
 			},
 			wantErr: false,
+		},
+		{
+			// Regression test for issue #491 (rune- vs byte-based length check).
+			name: "Japanese name exactly 100 runes is valid",
+			request: UpdateCategoryRequest{
+				Name: strPtr(strings.Repeat("あ", 100)),
+			},
+			wantErr: false,
+		},
+		{
+			name: "Japanese name exceeding 100 runes is rejected",
+			request: UpdateCategoryRequest{
+				Name: strPtr(strings.Repeat("あ", 101)),
+			},
+			wantErr: true,
+			errMsg:  "name must be 100 characters or less",
 		},
 		{
 			name: "invalid slug with uppercase",

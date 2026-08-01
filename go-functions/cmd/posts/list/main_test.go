@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -1940,6 +1941,52 @@ func TestHandler_PostWithNilTags(t *testing.T) {
 	}
 	if listResp.Items[0].ImageURLs == nil {
 		t.Errorf("expected imageUrls to be empty array, not nil")
+	}
+}
+
+// TestSanitizeSearchQuery tests that the "q" search parameter is bounded by
+// SearchQueryMaxLength (issue #491): oversized input has its filter dropped
+// (returns "") instead of being rejected outright.
+func TestSanitizeSearchQuery(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+		want  string
+	}{
+		{
+			name:  "empty query returned as-is",
+			query: "",
+			want:  "",
+		},
+		{
+			name:  "normal query returned as-is",
+			query: "React",
+			want:  "React",
+		},
+		{
+			name:  "query exactly at max length returned as-is",
+			query: strings.Repeat("a", SearchQueryMaxLength),
+			want:  strings.Repeat("a", SearchQueryMaxLength),
+		},
+		{
+			name:  "query exceeding max length is dropped",
+			query: strings.Repeat("a", SearchQueryMaxLength+1),
+			want:  "",
+		},
+		{
+			name:  "multi-byte query exceeding max rune length is dropped",
+			query: strings.Repeat("あ", SearchQueryMaxLength+1),
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeSearchQuery(tt.query)
+			if got != tt.want {
+				t.Errorf("sanitizeSearchQuery(len=%d) = %q, want %q", len([]rune(tt.query)), got, tt.want)
+			}
+		})
 	}
 }
 

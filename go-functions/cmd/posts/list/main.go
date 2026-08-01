@@ -15,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -34,6 +35,13 @@ const (
 	MaxLimit     = 100
 	MinLimit     = 1
 )
+
+// SearchQueryMaxLength bounds the "q" search parameter (issue #491).
+// 200 runes is well beyond a realistic search phrase; requests exceeding it
+// have their search filter dropped rather than erroring, matching the
+// graceful-fallback behavior of other query parameters (e.g. an invalid
+// limit) in this handler.
+const SearchQueryMaxLength = 200
 
 // DynamoDBClientInterface defines the interface for DynamoDB operations (for testing)
 type DynamoDBClientInterface interface {
@@ -94,8 +102,9 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// Parse category filter
 	category := queryParams["category"]
 
-	// Parse search query
-	searchQuery := queryParams["q"]
+	// Parse search query, dropping the filter entirely if it exceeds the
+	// maximum length rather than rejecting the whole request.
+	searchQuery := sanitizeSearchQuery(queryParams["q"])
 
 	// Parse nextToken for pagination
 	exclusiveStartKey := parseNextToken(queryParams["nextToken"])
@@ -173,6 +182,16 @@ func parseLimit(limitParam string) int32 {
 
 	//nolint:gosec // G109: limit is bounded by MaxLimit (100), safe for int32
 	return int32(limit)
+}
+
+// sanitizeSearchQuery discards a "q" parameter that exceeds SearchQueryMaxLength
+// runes, returning an empty string (no search filter) instead. This bounds the
+// work done by filterBySearch's per-item string scan.
+func sanitizeSearchQuery(q string) string {
+	if utf8.RuneCountInString(q) > SearchQueryMaxLength {
+		return ""
+	}
+	return q
 }
 
 // ErrInvalidPublishStatus is returned when an invalid publishStatus value is provided

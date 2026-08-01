@@ -3,10 +3,13 @@ package domain
 
 import (
 	"errors"
+	"fmt"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/gojp/kana"
 	"github.com/ikawaha/kagome-dict/ipa"
@@ -18,6 +21,73 @@ const (
 	PublishStatusDraft     = "draft"
 	PublishStatusPublished = "published"
 )
+
+// Validation limits for post and category fields.
+//
+// Limits are counted in runes (not bytes) so multi-byte scripts such as
+// Japanese are not unfairly truncated - see issue #491. Values are chosen
+// with generous headroom over realistic content so an update to existing
+// data is not rejected by these limits alone:
+//   - CategoryNameMaxLength: unchanged from the original 100-character
+//     requirement, now counted correctly in runes.
+//   - PostTitleMaxLength: 200 runes comfortably covers even long,
+//     descriptive blog titles.
+//   - PostExcerptMaxLength: 500 runes is several times a typical 1-2
+//     sentence summary.
+//   - PostContentMarkdownMaxLength: 100,000 runes is roughly 5-10x the
+//     length of a very long blog post, while still bounding worst-case
+//     payload size.
+//   - PostTagMaxLength / PostTagsMaxCount: 50 runes per tag and 20 tags
+//     per post are both well above normal tagging usage.
+const (
+	CategoryNameMaxLength        = 100
+	PostTitleMaxLength           = 200
+	PostExcerptMaxLength         = 500
+	PostContentMarkdownMaxLength = 100000
+	PostTagMaxLength             = 50
+	PostTagsMaxCount             = 20
+)
+
+// validateRuneLength returns an error if value exceeds maxRunes, counting
+// length by rune (not byte) so multi-byte scripts are not unfairly rejected.
+func validateRuneLength(value, fieldName string, maxRunes int) error {
+	if utf8.RuneCountInString(value) > maxRunes {
+		return fmt.Errorf("%s must be %d characters or less", fieldName, maxRunes)
+	}
+	return nil
+}
+
+// validatePostTags validates the number of tags and the length of each tag.
+func validatePostTags(tags []string) error {
+	if len(tags) > PostTagsMaxCount {
+		return fmt.Errorf("tags must contain %d items or less", PostTagsMaxCount)
+	}
+	for _, tag := range tags {
+		if err := validateRuneLength(tag, "tag", PostTagMaxLength); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateCoverImageURL validates that value is an absolute URL using the
+// http or https scheme, rejecting values such as "javascript:..." that
+// could be used for script injection if rendered as a link or image source.
+// Callers should treat an empty string as "no cover image" and skip this
+// check rather than calling it, since empty is used to clear the field.
+func validateCoverImageURL(value string) error {
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return errors.New("coverImageUrl must be a valid URL")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return errors.New("coverImageUrl must use the http or https scheme")
+	}
+	if parsed.Host == "" {
+		return errors.New("coverImageUrl must be a valid URL")
+	}
+	return nil
+}
 
 // Allowed file extensions for image upload
 var allowedExtensions = map[string]bool{
@@ -98,21 +168,28 @@ func (r *CreatePostRequest) Validate() error {
 	if r.Title == "" {
 		return errors.New("title is required")
 	}
+	if err := validateRuneLength(r.Title, "title", PostTitleMaxLength); err != nil {
+		return err
+	}
 	if r.ContentMarkdown == "" {
 		return errors.New("contentMarkdown is required")
+	}
+	if err := validateRuneLength(r.ContentMarkdown, "contentMarkdown", PostContentMarkdownMaxLength); err != nil {
+		return err
 	}
 	if r.Category == "" {
 		return errors.New("category is required")
 	}
-	if r.Slug != nil {
-		if *r.Slug == "" {
-			return errors.New("slug cannot be empty when provided")
-		}
-		if !slugPattern.MatchString(*r.Slug) {
-			return errors.New("slug must contain only lowercase alphanumeric characters and hyphens")
-		}
+	if err := validateOptionalExcerpt(r.Excerpt); err != nil {
+		return err
 	}
-	return nil
+	if err := validatePostTags(r.Tags); err != nil {
+		return err
+	}
+	if err := validateOptionalSlug(r.Slug); err != nil {
+		return err
+	}
+	return validateOptionalCoverImageURL(r.CoverImageURL)
 }
 
 // UpdatePostRequest represents the request body for updating a post.
@@ -129,17 +206,79 @@ type UpdatePostRequest struct {
 }
 
 // Validate validates the UpdatePostRequest.
-// Only fields that are provided are validated; partial updates are supported.
+// Only fields that are provided (non-nil) are validated; partial updates are
+// supported. Provided fields are held to the same rune-length and format
+// rules as CreatePostRequest.Validate (issue #491).
 func (r *UpdatePostRequest) Validate() error {
-	if r.Slug != nil {
-		if *r.Slug == "" {
-			return errors.New("slug cannot be empty when provided")
-		}
-		if !slugPattern.MatchString(*r.Slug) {
-			return errors.New("slug must contain only lowercase alphanumeric characters and hyphens")
-		}
+	if err := validateOptionalNonEmpty(r.Title, "title", PostTitleMaxLength); err != nil {
+		return err
+	}
+	if err := validateOptionalNonEmpty(r.ContentMarkdown, "contentMarkdown", PostContentMarkdownMaxLength); err != nil {
+		return err
+	}
+	if r.Category != nil && *r.Category == "" {
+		return errors.New("category cannot be empty when provided")
+	}
+	if err := validateOptionalExcerpt(r.Excerpt); err != nil {
+		return err
+	}
+	if err := validatePostTags(r.Tags); err != nil {
+		return err
+	}
+	if err := validateOptionalSlug(r.Slug); err != nil {
+		return err
+	}
+	return validateOptionalCoverImageURL(r.CoverImageURL)
+}
+
+// validateOptionalNonEmpty validates a partial-update pointer field that,
+// when provided, must be non-empty and within maxRunes. A nil pointer (field
+// omitted) is always valid. Shared by UpdatePostRequest.Validate for the
+// title/contentMarkdown fields, which reject explicit empty strings the same
+// way an empty slug is rejected.
+func validateOptionalNonEmpty(value *string, fieldName string, maxRunes int) error {
+	if value == nil {
+		return nil
+	}
+	if *value == "" {
+		return fmt.Errorf("%s cannot be empty when provided", fieldName)
+	}
+	return validateRuneLength(*value, fieldName, maxRunes)
+}
+
+// validateOptionalExcerpt validates the excerpt field when provided. An
+// empty excerpt is allowed (it simply means "no excerpt").
+func validateOptionalExcerpt(excerpt *string) error {
+	if excerpt == nil {
+		return nil
+	}
+	return validateRuneLength(*excerpt, "excerpt", PostExcerptMaxLength)
+}
+
+// validateOptionalSlug validates the slug field when provided, shared by
+// CreatePostRequest and UpdatePostRequest.
+func validateOptionalSlug(slug *string) error {
+	if slug == nil {
+		return nil
+	}
+	if *slug == "" {
+		return errors.New("slug cannot be empty when provided")
+	}
+	if !slugPattern.MatchString(*slug) {
+		return errors.New("slug must contain only lowercase alphanumeric characters and hyphens")
 	}
 	return nil
+}
+
+// validateOptionalCoverImageURL validates the coverImageUrl field when
+// provided, shared by CreatePostRequest and UpdatePostRequest. An empty
+// value clears the field (see cmd/posts/update's applyUpdates) and is not
+// validated as a URL.
+func validateOptionalCoverImageURL(coverImageURL *string) error {
+	if coverImageURL == nil || *coverImageURL == "" {
+		return nil
+	}
+	return validateCoverImageURL(*coverImageURL)
 }
 
 // ListPostsResponse represents the paginated list response.
@@ -313,9 +452,11 @@ func (r *CreateCategoryRequest) Validate() error {
 		return errors.New("name is required")
 	}
 
-	// Requirement 9.3: name length check (100 characters max)
-	if len(r.Name) > 100 {
-		return errors.New("name must be 100 characters or less")
+	// Requirement 9.3: name length check (100 characters max).
+	// Counted in runes, not bytes, so multi-byte scripts such as Japanese
+	// get the full 100-character allowance (issue #491).
+	if err := validateRuneLength(r.Name, "name", CategoryNameMaxLength); err != nil {
+		return err
 	}
 
 	// Requirement 9.4: slug format check (if provided)
@@ -346,14 +487,17 @@ type UpdateCategoryRequest struct {
 // Requirement 9.3: Return 400 if name exceeds 100 characters
 // Requirement 9.4: Return 400 if slug contains invalid characters
 func (r *UpdateCategoryRequest) Validate() error {
-	// Requirement 9.3: name length check (100 characters max) - only if provided
-	if r.Name != nil && len(*r.Name) > 100 {
-		return errors.New("name must be 100 characters or less")
-	}
-
 	// Check for empty name if provided
 	if r.Name != nil && *r.Name == "" {
 		return errors.New("name cannot be empty")
+	}
+
+	// Requirement 9.3: name length check (100 characters max) - only if provided.
+	// Counted in runes, not bytes (issue #491).
+	if r.Name != nil {
+		if err := validateRuneLength(*r.Name, "name", CategoryNameMaxLength); err != nil {
+			return err
+		}
 	}
 
 	// Requirement 9.4: slug format check (if provided)
