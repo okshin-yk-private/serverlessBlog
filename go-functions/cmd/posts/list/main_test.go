@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"serverless-blog/go-functions/internal/domain"
+	"serverless-blog/go-functions/internal/middleware"
 )
 
 // Test constants
@@ -2591,5 +2593,60 @@ func TestHandler_SearchNoResults(t *testing.T) {
 	// No results expected
 	if len(listResp.Items) != 0 {
 		t.Errorf("expected 0 items for non-matching search, got %d", len(listResp.Items))
+	}
+}
+
+// TestHandler_CacheControl covers the split introduced in #492: this endpoint
+// is mounted both publicly and under /admin, and an authenticated response can
+// contain drafts, so only the anonymous one may be cached.
+func TestHandler_CacheControl(t *testing.T) {
+	tests := []struct {
+		name       string
+		authorizer map[string]interface{}
+		want       string
+	}{
+		{
+			name:       "anonymous read is cacheable",
+			authorizer: nil,
+			want:       fmt.Sprintf("public, max-age=%d", middleware.PublicCacheMaxAgeSeconds),
+		},
+		{
+			name: "authenticated read is not cacheable",
+			authorizer: map[string]interface{}{
+				"claims": map[string]interface{}{"sub": "user-123"},
+			},
+			want: "no-store",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cleanup := setupTest(t)
+			defer cleanup()
+
+			dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+				return &MockDynamoDBClient{
+					QueryFunc: func(_ context.Context, _ *dynamodb.QueryInput, _ ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+						return &dynamodb.QueryOutput{Items: nil, Count: 0}, nil
+					},
+				}, nil
+			}
+
+			resp, err := Handler(context.Background(), events.APIGatewayProxyRequest{
+				QueryStringParameters: map[string]string{},
+				RequestContext: events.APIGatewayProxyRequestContext{
+					Authorizer: tt.authorizer,
+				},
+			})
+			if err != nil {
+				t.Fatalf("Handler returned unexpected error: %v", err)
+			}
+			if resp.StatusCode != 200 {
+				t.Fatalf("StatusCode = %d, want 200", resp.StatusCode)
+			}
+			if got := resp.Headers["Cache-Control"]; got != tt.want {
+				t.Errorf("Cache-Control = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

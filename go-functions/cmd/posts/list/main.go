@@ -168,9 +168,14 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 			return errorResponse(500, "failed to retrieve posts")
 		}
 		response.Count = &count
+
+		// This endpoint is mounted both publicly and under /admin. An
+		// authenticated response can contain drafts, so it must not be
+		// cacheable even though the public one is.
+		return middleware.JSONResponse(200, response)
 	}
 
-	return middleware.JSONResponse(200, response)
+	return middleware.PublicJSONResponse(200, response)
 }
 
 // parseLimit parses and validates the limit parameter
