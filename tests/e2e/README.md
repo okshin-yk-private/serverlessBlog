@@ -9,7 +9,11 @@ Playwrightを使用したE2Eテスト環境のドキュメント
 ### 3層テスト戦略
 
 ```
-Layer 1: ローカルMSW E2Eテスト（MSW Mock）
+Layer 1: ローカルE2Eテスト
+  → 管理画面: MSW モック（ブラウザ内）
+  → 公開サイト: モックAPIに対してビルドした Astro SSG の成果物を
+    `astro preview` で配信（記事データはビルド時に焼き込まれるため、
+    ブラウザ内モックは使えない）
   → UIレンダリング・ナビゲーションの高速検証
   → CI/PR時に毎回実行（~1-2分）
 
@@ -107,7 +111,7 @@ E2E Test Environment
 │   ├── utils/              # テストヘルパー
 │   ├── global-setup.ts     # グローバルセットアップ（MSW/AWS環境対応）
 │   └── global-teardown.ts  # グローバルティアダウン（記事 / カテゴリの [E2E-TEST] データを清掃）
-├── playwright.config.ts       # 公開サイトMSWテスト設定
+├── playwright.config.ts       # 公開サイトテスト設定（astro preview で dist を配信）
 ├── playwright.admin.config.ts # 管理画面MSWテスト設定
 └── playwright.aws.config.ts   # 実環境テスト設定（Basic認証対応）
 ```
@@ -188,6 +192,7 @@ MSW環境では `resetMockPosts()` でインメモリデータをリセット。
 
 ```
 Job 6: e2e-public-tests → 公開サイト全 spec (3 / 7 tests)
+        ※ モックAPIに対して Astro をビルドしてから実行する
 Job 7: e2e-admin-tests  → 管理画面のうち認証 / CRUD / カテゴリ / セキュリティ系 4 spec
 APIコントラクトテスト（Layer 2）→ GoテストCIジョブに自動組み込み
 ```
