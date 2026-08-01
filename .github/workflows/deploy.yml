@@ -1226,9 +1226,12 @@ jobs:
           echo ""
           echo "--- a real article page renders ---"
           RSS=$(curl -sS --max-time 30 "${SITE_URL}/rss.xml" || echo "")
+          # An empty feed is valid. Keep grep's expected no-match status from
+          # tripping GitHub Actions' implicit `bash -e` together with pipefail.
           ARTICLE_URL=$(echo "$RSS" \
             | grep -o '<link>[^<]*/posts/[^<]*</link>' \
-            | head -1 | sed -e 's|<link>||' -e 's|</link>||')
+            | head -1 | sed -e 's|<link>||' -e 's|</link>||' \
+            || true)
 
           if [ -z "$ARTICLE_URL" ]; then
             echo "⚠️ No article found in the RSS feed - skipping article check"
