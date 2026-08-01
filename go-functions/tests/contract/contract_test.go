@@ -17,7 +17,6 @@ import (
 	"testing"
 
 	"serverless-blog/go-functions/internal/domain"
-	"serverless-blog/go-functions/tests/parity"
 )
 
 // MSW mock response structures (from tests/e2e/mocks/handlers.ts)
@@ -82,11 +81,11 @@ func TestPostsListContract(t *testing.T) {
 			t.Fatalf("Failed to marshal Go response: %v", err)
 		}
 
-		diffs := parity.CompareJSONStructure(mswResponse, string(goBody))
+		diffs := CompareJSONStructure(mswResponse, string(goBody))
 		if len(diffs) > 0 {
 			t.Errorf("Posts list response structure mismatch with MSW mock:\n")
 			for _, d := range diffs {
-				t.Errorf("  %s", parity.FormatDiff(d))
+				t.Errorf("  %s", FormatDiff(d))
 			}
 		}
 	})
@@ -108,11 +107,11 @@ func TestPostsListContract(t *testing.T) {
 			t.Fatalf("Failed to marshal Go response: %v", err)
 		}
 
-		diffs := parity.CompareJSONStructure(mswResponse, string(goBody))
+		diffs := CompareJSONStructure(mswResponse, string(goBody))
 		if len(diffs) > 0 {
 			t.Errorf("Empty posts list structure mismatch with MSW mock:\n")
 			for _, d := range diffs {
-				t.Errorf("  %s", parity.FormatDiff(d))
+				t.Errorf("  %s", FormatDiff(d))
 			}
 		}
 	})
@@ -159,11 +158,11 @@ func TestPostCreateContract(t *testing.T) {
 			t.Fatalf("Failed to marshal Go response: %v", err)
 		}
 
-		diffs := parity.CompareJSONStructure(mswResponse, string(goBody))
+		diffs := CompareJSONStructure(mswResponse, string(goBody))
 		if len(diffs) > 0 {
 			t.Errorf("Post create response structure mismatch with MSW mock:\n")
 			for _, d := range diffs {
-				t.Errorf("  %s", parity.FormatDiff(d))
+				t.Errorf("  %s", FormatDiff(d))
 			}
 		}
 	})
@@ -210,11 +209,11 @@ func TestPostUpdateContract(t *testing.T) {
 			t.Fatalf("Failed to marshal Go response: %v", err)
 		}
 
-		diffs := parity.CompareJSONStructure(mswResponse, string(goBody))
+		diffs := CompareJSONStructure(mswResponse, string(goBody))
 		if len(diffs) > 0 {
 			t.Errorf("Post update response structure mismatch with MSW mock:\n")
 			for _, d := range diffs {
-				t.Errorf("  %s", parity.FormatDiff(d))
+				t.Errorf("  %s", FormatDiff(d))
 			}
 		}
 	})
@@ -269,11 +268,11 @@ func TestAuthLoginContract(t *testing.T) {
 			t.Fatalf("Failed to marshal Go response: %v", err)
 		}
 
-		diffs := parity.CompareJSONStructure(mswResponse, string(goBody))
+		diffs := CompareJSONStructure(mswResponse, string(goBody))
 		if len(diffs) > 0 {
 			t.Errorf("Auth login response structure mismatch with MSW mock:\n")
 			for _, d := range diffs {
-				t.Errorf("  %s", parity.FormatDiff(d))
+				t.Errorf("  %s", FormatDiff(d))
 			}
 		}
 	})
@@ -291,11 +290,11 @@ func TestAuthLoginContract(t *testing.T) {
 			t.Fatalf("Failed to marshal Go response: %v", err)
 		}
 
-		diffs := parity.CompareJSONStructure(mswResponse, string(goBody))
+		diffs := CompareJSONStructure(mswResponse, string(goBody))
 		if len(diffs) > 0 {
 			t.Errorf("Auth login error response structure mismatch with MSW mock:\n")
 			for _, d := range diffs {
-				t.Errorf("  %s", parity.FormatDiff(d))
+				t.Errorf("  %s", FormatDiff(d))
 			}
 		}
 	})
@@ -321,11 +320,11 @@ func TestCategoriesListContract(t *testing.T) {
 			t.Fatalf("Failed to marshal Go response: %v", err)
 		}
 
-		diffs := parity.CompareJSONStructure(mswResponse, string(goBody))
+		diffs := CompareJSONStructure(mswResponse, string(goBody))
 		if len(diffs) > 0 {
 			t.Errorf("Categories list response structure mismatch with MSW mock:\n")
 			for _, d := range diffs {
-				t.Errorf("  %s", parity.FormatDiff(d))
+				t.Errorf("  %s", FormatDiff(d))
 			}
 		}
 	})
@@ -360,11 +359,11 @@ func TestImageUploadURLContract(t *testing.T) {
 			t.Fatalf("Failed to marshal Go response: %v", err)
 		}
 
-		diffs := parity.CompareJSONStructure(mswResponse, string(goBody))
+		diffs := CompareJSONStructure(mswResponse, string(goBody))
 		if len(diffs) > 0 {
 			t.Errorf("Image upload URL response structure mismatch with MSW mock:\n")
 			for _, d := range diffs {
-				t.Errorf("  %s", parity.FormatDiff(d))
+				t.Errorf("  %s", FormatDiff(d))
 			}
 		}
 	})
@@ -386,11 +385,11 @@ func TestErrorResponseContract(t *testing.T) {
 			t.Fatalf("Failed to marshal Go response: %v", err)
 		}
 
-		diffs := parity.CompareJSONStructure(mswResponse, string(goBody))
+		diffs := CompareJSONStructure(mswResponse, string(goBody))
 		if len(diffs) > 0 {
 			t.Errorf("Error response structure mismatch with MSW mock:\n")
 			for _, d := range diffs {
-				t.Errorf("  %s", parity.FormatDiff(d))
+				t.Errorf("  %s", FormatDiff(d))
 			}
 		}
 	})
@@ -408,11 +407,11 @@ func TestErrorResponseContract(t *testing.T) {
 			t.Fatalf("Failed to marshal Go response: %v", err)
 		}
 
-		diffs := parity.CompareJSONStructure(mswResponse, string(goBody))
+		diffs := CompareJSONStructure(mswResponse, string(goBody))
 		if len(diffs) > 0 {
 			t.Errorf("Not found error response structure mismatch with MSW mock:\n")
 			for _, d := range diffs {
-				t.Errorf("  %s", parity.FormatDiff(d))
+				t.Errorf("  %s", FormatDiff(d))
 			}
 		}
 	})
