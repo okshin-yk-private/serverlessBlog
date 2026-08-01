@@ -124,7 +124,7 @@ show_usage() {
     echo "  --skip-prereq-check       Skip prerequisite validation"
     echo "  --no-invalidation         Skip CloudFront cache invalidation"
     echo "  --lambda <function-name>  Deploy only specific Lambda function"
-    echo "  --frontend <public|admin> Deploy only specific frontend site"
+    echo "  --frontend <admin>        Deploy only the admin site (public site is Astro: use --astro)"
     echo "  --astro                   Deploy Astro SSG site (frontend/public-astro)"
     echo "  --parallel                Enable parallel builds (default: enabled)"
     echo "  --no-parallel             Disable parallel builds"
@@ -144,7 +144,7 @@ show_usage() {
     echo "  # Infrastructure only (Lambda + Terraform)"
     echo "  ./scripts/local-deploy.sh --component infrastructure"
     echo ""
-    echo "  # Frontend only (Public + Admin sites)"
+    echo "  # Frontend only (Admin site)"
     echo "  ./scripts/local-deploy.sh --component frontend"
     echo ""
     echo "  # Dry-run to see planned changes"
@@ -153,8 +153,8 @@ show_usage() {
     echo "  # Deploy single Lambda function"
     echo "  ./scripts/local-deploy.sh --lambda posts-create"
     echo ""
-    echo "  # Deploy only public site"
-    echo "  ./scripts/local-deploy.sh --frontend public"
+    echo "  # Deploy only public site (Astro SSG)"
+    echo "  ./scripts/local-deploy.sh --astro"
     echo ""
     echo "  # Production deploy with auto-approve (use with caution!)"
     echo "  ./scripts/local-deploy.sh --env prd --auto-approve"
@@ -234,12 +234,17 @@ parse_args() {
                 ;;
             --frontend)
                 if [[ -z "${2:-}" ]]; then
-                    echo -e "${RED}Error: --frontend requires a value (public|admin)${NC}"
+                    echo -e "${RED}Error: --frontend requires a value (admin)${NC}"
                     exit 1
                 fi
                 TARGET_FRONTEND="$2"
-                if [[ "$TARGET_FRONTEND" != "public" && "$TARGET_FRONTEND" != "admin" ]]; then
-                    echo -e "${RED}Error: Invalid frontend '$TARGET_FRONTEND'. Valid options: public, admin${NC}"
+                if [[ "$TARGET_FRONTEND" == "public" ]]; then
+                    echo -e "${RED}Error: The legacy React public site was replaced by Astro SSG.${NC}"
+                    echo -e "${RED}Use './scripts/local-deploy.sh --astro' to deploy the public site.${NC}"
+                    exit 1
+                fi
+                if [[ "$TARGET_FRONTEND" != "admin" ]]; then
+                    echo -e "${RED}Error: Invalid frontend '$TARGET_FRONTEND'. Valid options: admin${NC}"
                     exit 1
                 fi
                 shift 2
@@ -838,37 +843,9 @@ build_frontend() {
     local start_time
     start_time=$(date +%s)
 
-    # Build Public Site
-    if [[ -z "$target" || "$target" == "public" ]]; then
-        log_info "Building Public Site..."
-        cd "$PROJECT_ROOT/frontend/public"
-
-        log_verbose "Running: bun install --frozen-lockfile"
-        if ! bun install --frozen-lockfile > /dev/null 2>&1; then
-            log_error "Public Site: Failed to install dependencies"
-            log_error "Run 'cd frontend/public && bun install' to see detailed error"
-            FAILED_STEPS+=("Frontend Public Install")
-            return 1
-        fi
-        log_verbose "Dependencies installed"
-
-        log_verbose "Running: NODE_ENV=production bun run build"
-        local build_output
-        if ! build_output=$(NODE_ENV=production bun run build 2>&1); then
-            log_error "Public Site: Build failed"
-            echo "$build_output" | tail -20
-            FAILED_STEPS+=("Frontend Public Build")
-            return 1
-        fi
-
-        if [[ "$VERBOSE" == true ]]; then
-            echo "$build_output"
-        fi
-
-        local public_size
-        public_size=$(du -sh dist 2>/dev/null | cut -f1)
-        log_success "Public Site built ($public_size)"
-    fi
+    # Public site is Astro SSG (frontend/public-astro), deployed via --astro.
+    # The legacy frontend/public build path was removed: syncing its output into
+    # the public bucket with --delete would wipe the deployed Astro site.
 
     # Build Admin Site
     if [[ -z "$target" || "$target" == "admin" ]]; then
@@ -963,7 +940,7 @@ build_frontend() {
     if [[ -n "$target" ]]; then
         details="$target site only"
     else
-        details="Public + Admin sites"
+        details="Admin site"
     fi
     record_step_timing "Frontend Build" "$duration" "$details"
 
@@ -1154,41 +1131,16 @@ deploy_s3() {
     s3_start_time=$(date +%s)
 
     # Fetch bucket names from SSM
-    local ssm_public_path="${SSM_PUBLIC_BUCKET_TEMPLATE//\{env\}/$env}"
     local ssm_admin_path="${SSM_ADMIN_BUCKET_TEMPLATE//\{env\}/$env}"
 
-    local public_bucket
     local admin_bucket
-
-    if ! public_bucket=$(fetch_ssm "$ssm_public_path" false); then
-        log_error "Could not fetch public bucket name"
-        return 1
-    fi
 
     if ! admin_bucket=$(fetch_ssm "$ssm_admin_path" false); then
         log_error "Could not fetch admin bucket name"
         return 1
     fi
 
-    # Deploy Public Site
-    if [[ -z "$target" || "$target" == "public" ]]; then
-        log_info "Deploying Public Site to S3..."
-        local public_output
-        public_output=$(aws s3 sync "$PROJECT_ROOT/frontend/public/dist/" "s3://$public_bucket/" --delete 2>&1)
-
-        if [[ $? -eq 0 ]]; then
-            local upload_count
-            upload_count=$(echo "$public_output" | grep -c "upload:" || echo "0")
-            local delete_count
-            delete_count=$(echo "$public_output" | grep -c "delete:" || echo "0")
-            log_success "Public Site deployed (uploaded: $upload_count, deleted: $delete_count)"
-        else
-            log_error "Public Site deployment failed"
-            echo "$public_output"
-            FAILED_STEPS+=("S3 Public Deploy")
-            return 1
-        fi
-    fi
+    # Public site (Astro SSG) is deployed via --astro, never from here.
 
     # Deploy Admin Site
     # Admin files are stored under /admin/ prefix to avoid CloudFront cache key collision with public site
@@ -1221,7 +1173,7 @@ deploy_s3() {
     if [[ -n "$target" ]]; then
         details="$target site only"
     else
-        details="Public + Admin sites"
+        details="Admin site"
     fi
     record_step_timing "S3 Deployment" "$s3_duration" "$details"
 
