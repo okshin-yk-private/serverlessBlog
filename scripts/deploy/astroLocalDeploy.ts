@@ -6,7 +6,7 @@
  * Requirements:
  * - 9.1: scripts/local-deploy.sh shall include Astro build step (bun run build)
  * - 9.2: scripts/local-deploy.sh shall include atomic S3 deployment step
- * - 9.9: CloudFront cache invalidation limited to changed paths
+ * - Atomic cutover is performed by CloudFront KeyValueStore pointer update
  * - 9.10: Build process receives API_URL as environment variable
  * - 9.11: Total build and deploy time shall not exceed 5 minutes
  */
@@ -63,8 +63,12 @@ export interface AstroLocalDeployConfig {
   projectRoot: string;
   /** S3 bucket name for deployment */
   bucketName: string;
-  /** CloudFront distribution ID */
-  distributionId: string;
+  /** CloudFront KeyValueStore ARN used for the active release pointer */
+  keyValueStoreArn: string;
+  /** Optional monotonic release revision */
+  revision?: string;
+  /** @deprecated Only used by the standalone legacy invalidation helper. */
+  distributionId?: string;
   /** AWS region */
   region: string;
   /** API URL for build-time data fetching */
@@ -75,10 +79,6 @@ export interface AstroLocalDeployConfig {
   dryRun?: boolean;
   /** If true, show detailed output */
   verbose?: boolean;
-  /** Number of versions to retain */
-  retainVersions?: number;
-  /** Changed paths for targeted invalidation (optional) */
-  changedPaths?: string[];
 }
 
 export interface AstroLocalDeployResult {
@@ -343,12 +343,12 @@ export function checkTimeLimit(startTime: number): {
  * 2. Install dependencies (bun install --frozen-lockfile)
  * 3. Build Astro project (bun run build)
  * 4. Deploy to S3 using atomic deployment
- * 5. Invalidate CloudFront cache (targeted paths when possible)
+ * 5. Promote the release by updating the KVS pointer (inside atomicDeploy)
  *
  * Requirements:
  * - 9.1: Astro build step
  * - 9.2: Atomic S3 deployment
- * - 9.9: Targeted CloudFront invalidation
+ * - No cache invalidation is required because the rewritten origin URI changes
  * - 9.10: API_URL environment variable
  * - 9.11: 5-minute time limit
  */
@@ -435,11 +435,11 @@ export async function astroLocalDeploy(
   if (verbose) console.log('Deploying to S3...');
   const deployConfig: AtomicDeployConfig = {
     bucketName: config.bucketName,
-    distributionId: config.distributionId,
+    keyValueStoreArn: config.keyValueStoreArn,
     distPath,
     region: config.region,
+    revision: config.revision,
     dryRun,
-    retainVersions: config.retainVersions,
   };
 
   const deployResult = await atomicDeploy(deployConfig);
@@ -474,30 +474,12 @@ export async function astroLocalDeploy(
     };
   }
 
-  // Step 5: CloudFront invalidation
-  // Note: The atomicDeploy function already does a full invalidation.
-  // Here we support targeted invalidation if changedPaths is provided.
-  if (verbose) console.log('Creating CloudFront invalidation...');
-  const invalidationPaths = getInvalidationPaths(config.changedPaths);
-  const invalidationResult = await invalidateCloudFrontCache(
-    config.distributionId,
-    config.region,
-    invalidationPaths,
-    dryRun
-  );
-
-  // Invalidation failure is non-fatal but logged
-  if (!invalidationResult.success) {
-    console.warn(`Warning: ${invalidationResult.error}`);
-  }
-
   const totalDurationMs = Date.now() - startTime;
 
   return {
     success: true,
     build: buildResult,
     deploy: deployResult,
-    invalidation: invalidationResult,
     totalDurationMs,
   };
 }

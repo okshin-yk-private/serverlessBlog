@@ -5,6 +5,43 @@
 # Mock provider for testing without AWS credentials
 mock_provider "aws" {}
 
+run "public_release_kvs_routing" {
+  command = plan
+
+  variables {
+    environment                             = "dev"
+    image_bucket_name                       = "test-images-bucket"
+    image_bucket_regional_domain_name       = "test-images-bucket.s3.ap-northeast-1.amazonaws.com"
+    public_site_bucket_name                 = "test-public-site-bucket"
+    public_site_bucket_regional_domain_name = "test-public-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    admin_site_bucket_name                  = "test-admin-site-bucket"
+    admin_site_bucket_regional_domain_name  = "test-admin-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    rest_api_id                             = "abc123xyz"
+    api_stage_name                          = "dev"
+    aws_region                              = "ap-northeast-1"
+  }
+
+  assert {
+    condition     = aws_cloudfront_key_value_store.public_release.name == "public-release-dev"
+    error_message = "A dedicated release KVS must be created"
+  }
+
+  assert {
+    condition     = length(aws_cloudfront_function.public_ssg.key_value_store_associations) == 1
+    error_message = "The public routing function must be associated with the release KVS"
+  }
+
+  assert {
+    condition     = strcontains(aws_cloudfront_function.public_ssg.code, "await kvs.get('activeRevision')")
+    error_message = "The routing function must read activeRevision"
+  }
+
+  assert {
+    condition     = strcontains(aws_cloudfront_function.public_ssg.code, "'/releases/' + revision")
+    error_message = "The routing function must rewrite requests to the active release prefix"
+  }
+}
+
 # Test 1: Verify CloudFront distribution is created with OAC for S3 origins
 # Requirement 7.1: Create distribution with OAC for S3 origin
 run "distribution_created" {

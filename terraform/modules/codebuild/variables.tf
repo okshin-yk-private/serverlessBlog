@@ -26,9 +26,19 @@ variable "public_site_bucket_arn" {
   description = "S3 bucket ARN for public site deployment (used in IAM policy)"
 }
 
-variable "cloudfront_distribution_id" {
+variable "release_kvs_arn" {
   type        = string
-  description = "CloudFront distribution ID for cache invalidation"
+  description = "CloudFront KeyValueStore ARN for atomic release promotion"
+  validation {
+    condition     = can(regex("^arn:aws[a-z-]*:cloudfront::[0-9]{12}:key-value-store/", var.release_kvs_arn))
+    error_message = "release_kvs_arn must be a CloudFront KeyValueStore ARN"
+  }
+}
+
+variable "aws_region" {
+  type        = string
+  description = "AWS region used by the S3 deployment client"
+  default     = "ap-northeast-1"
 }
 
 variable "api_url" {

@@ -1031,9 +1031,9 @@ build_and_deploy_astro() {
         return 0
     fi
 
-    # Fetch bucket and distribution from SSM/Terraform
+    # Fetch bucket and release KVS from SSM/Terraform
     local bucket_name=""
-    local distribution_id=""
+    local release_kvs_arn=""
 
     # Get public bucket from SSM
     local ssm_public_path="${SSM_PUBLIC_BUCKET_TEMPLATE//\{env\}/$env}"
@@ -1042,22 +1042,22 @@ build_and_deploy_astro() {
         return 1
     fi
 
-    # Get CloudFront distribution ID from Terraform
+    # Get CloudFront release KeyValueStore ARN from Terraform
     if [[ -d "$env_dir" ]]; then
         cd "$env_dir"
-        distribution_id=$(terraform output -raw cloudfront_distribution_id 2>/dev/null || echo "")
+        release_kvs_arn=$(terraform output -raw release_kvs_arn 2>/dev/null || echo "")
         cd "$astro_path"
     fi
 
-    if [[ -z "$distribution_id" ]]; then
-        log_warning "Could not fetch CloudFront distribution ID, invalidation may fail"
-        distribution_id="UNKNOWN"
+    if [[ -z "$release_kvs_arn" ]]; then
+        log_error "Could not fetch CloudFront release KeyValueStore ARN"
+        return 1
     fi
 
     # Deploy using atomic deployment script (Requirement 9.2)
     log_info "Deploying to S3 using atomic deployment..."
     log_verbose "Bucket: $bucket_name"
-    log_verbose "Distribution: $distribution_id"
+    log_verbose "Release KVS: $release_kvs_arn"
 
     local region
     region=$(aws configure get region 2>/dev/null || echo "ap-northeast-1")
@@ -1073,7 +1073,8 @@ build_and_deploy_astro() {
     local deploy_args=(
         "--project-root" "$PROJECT_ROOT"
         "--bucket" "$bucket_name"
-        "--distribution" "$distribution_id"
+        "--kvs-arn" "$release_kvs_arn"
+        "--revision" "r$(date +%s)-local"
         "--api-url" "$api_url"
         "--region" "$region"
         "--astro-path" "$ASTRO_PROJECT_PATH"

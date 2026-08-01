@@ -305,6 +305,22 @@ resource "aws_s3_bucket_lifecycle_configuration" "public_site" {
       noncurrent_days = 7
     }
   }
+
+  # Release documents are immutable and can be rolled back by changing the KVS
+  # pointer during this window. Shared /_astro assets are intentionally excluded
+  # because an old or still-propagating release may reference them.
+  rule {
+    id     = "expire-public-releases"
+    status = "Enabled"
+
+    filter {
+      prefix = "releases/"
+    }
+
+    expiration {
+      days = 30
+    }
+  }
 }
 
 # Configure access logging for public site bucket (when enabled)

@@ -97,6 +97,11 @@ output "cloudfront_distribution_id" {
   description = "CloudFront distribution ID"
 }
 
+output "release_kvs_arn" {
+  value       = module.cdn.release_kvs_arn
+  description = "CloudFront KeyValueStore ARN for public release promotion"
+}
+
 output "cloudfront_domain_name" {
   value       = module.cdn.distribution_domain_name
   description = "CloudFront domain name"
