@@ -19,6 +19,7 @@ import {
   migrateFromLocalStorage,
 } from '../utils/auth';
 import { loginAPI } from '../api/auth';
+import { AUTH_SESSION_EXPIRED_EVENT } from '../api/client';
 
 /**
  * ユーザー情報の型定義
@@ -79,6 +80,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // 初期化時に既存のセッションをチェック
   useEffect(() => {
     checkAuthStatus();
+  }, []);
+
+  // APIクライアントがトークン再取得に失敗した場合（セッション失効）は
+  // 認証状態をクリアし、AuthGuard 経由でログインページへ誘導する
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setUser(null);
+    };
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => {
+      window.removeEventListener(
+        AUTH_SESSION_EXPIRED_EVENT,
+        handleSessionExpired
+      );
+    };
   }, []);
 
   const checkAuthStatus = async () => {

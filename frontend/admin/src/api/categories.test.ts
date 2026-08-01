@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import axios from 'axios';
-import * as authUtils from '../utils/auth';
+import { apiClient } from './client';
 import {
   fetchCategories,
   createCategory,
@@ -13,16 +12,24 @@ import {
   UpdateSortOrderRequest,
 } from './categories';
 
-vi.mock('axios');
-vi.mock('../utils/auth');
+// 認証ヘッダーの付与・401リフレッシュは client.ts のインターセプタに集約されている
+// （client.test.ts で検証）。ここではエンドポイント呼び出しとエラー変換を検証する。
+vi.mock('./client', () => ({
+  apiClient: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+  },
+  AUTH_SESSION_EXPIRED_EVENT: 'auth:session-expired',
+}));
 
-const mockedAxios = vi.mocked(axios, true);
-const mockedGetAuthToken = vi.mocked(authUtils.getAuthToken);
+const mockedClient = vi.mocked(apiClient, true);
 
 describe('categories API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedGetAuthToken.mockReturnValue('test-auth-token');
   });
 
   afterEach(() => {
@@ -50,16 +57,16 @@ describe('categories API', () => {
           sortOrder: 2,
         },
       ];
-      mockedAxios.get.mockResolvedValue({ data: mockCategories });
+      mockedClient.get.mockResolvedValue({ data: mockCategories });
 
       const result = await fetchCategories();
 
-      expect(mockedAxios.get).toHaveBeenCalledWith('/categories');
+      expect(mockedClient.get).toHaveBeenCalledWith('/categories');
       expect(result).toEqual(mockCategories);
     });
 
     it('カテゴリが存在しない場合は空配列を返す', async () => {
-      mockedAxios.get.mockResolvedValue({ data: [] });
+      mockedClient.get.mockResolvedValue({ data: [] });
 
       const result = await fetchCategories();
 
@@ -73,7 +80,7 @@ describe('categories API', () => {
           data: { message: 'Internal Server Error' },
         },
       };
-      mockedAxios.get.mockRejectedValue(error);
+      mockedClient.get.mockRejectedValue(error);
 
       await expect(fetchCategories()).rejects.toMatchObject({
         message: 'Internal Server Error',
@@ -82,7 +89,7 @@ describe('categories API', () => {
     });
 
     it('ネットワークエラー時はエラーをスローする', async () => {
-      mockedAxios.get.mockRejectedValue(new Error('Network Error'));
+      mockedClient.get.mockRejectedValue(new Error('Network Error'));
 
       await expect(fetchCategories()).rejects.toMatchObject({
         message: 'ネットワークエラーが発生しました。接続を確認してください。',
@@ -103,38 +110,15 @@ describe('categories API', () => {
         ...createRequest,
         id: 'new-id',
       };
-      mockedAxios.post.mockResolvedValue({ data: createdCategory });
+      mockedClient.post.mockResolvedValue({ data: createdCategory });
 
       const result = await createCategory(createRequest);
 
-      expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect(mockedClient.post).toHaveBeenCalledWith(
         '/admin/categories',
-        createRequest,
-        {
-          headers: {
-            Authorization: 'Bearer test-auth-token',
-            'Content-Type': 'application/json',
-          },
-        }
+        createRequest
       );
       expect(result).toEqual(createdCategory);
-    });
-
-    it('認証トークンを含めてリクエストする', async () => {
-      mockedGetAuthToken.mockReturnValue('another-token');
-      mockedAxios.post.mockResolvedValue({ data: mockCategory });
-
-      await createCategory(createRequest);
-
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(Object),
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: 'Bearer another-token',
-          }),
-        })
-      );
     });
 
     it('400エラー（バリデーションエラー）時はエラーをスローする', async () => {
@@ -144,7 +128,7 @@ describe('categories API', () => {
           data: { message: 'nameは必須です' },
         },
       };
-      mockedAxios.post.mockRejectedValue(error);
+      mockedClient.post.mockRejectedValue(error);
 
       await expect(createCategory(createRequest)).rejects.toMatchObject({
         message: 'nameは必須です',
@@ -159,7 +143,7 @@ describe('categories API', () => {
           data: { message: 'このslugは既に使用されています' },
         },
       };
-      mockedAxios.post.mockRejectedValue(error);
+      mockedClient.post.mockRejectedValue(error);
 
       await expect(createCategory(createRequest)).rejects.toMatchObject({
         message: 'このslugは既に使用されています',
@@ -175,19 +159,13 @@ describe('categories API', () => {
 
     it('PUT /admin/categories/{id} を呼び出してカテゴリを更新する', async () => {
       const updatedCategory = { ...mockCategory, ...updateRequest };
-      mockedAxios.put.mockResolvedValue({ data: updatedCategory });
+      mockedClient.put.mockResolvedValue({ data: updatedCategory });
 
       const result = await updateCategory('cat-1', updateRequest);
 
-      expect(mockedAxios.put).toHaveBeenCalledWith(
+      expect(mockedClient.put).toHaveBeenCalledWith(
         '/admin/categories/cat-1',
-        updateRequest,
-        {
-          headers: {
-            Authorization: 'Bearer test-auth-token',
-            'Content-Type': 'application/json',
-          },
-        }
+        updateRequest
       );
       expect(result).toEqual(updatedCategory);
     });
@@ -195,14 +173,13 @@ describe('categories API', () => {
     it('部分更新（slugのみ）ができる', async () => {
       const partialUpdate: UpdateCategoryRequest = { slug: 'new-slug' };
       const updatedCategory = { ...mockCategory, slug: 'new-slug' };
-      mockedAxios.put.mockResolvedValue({ data: updatedCategory });
+      mockedClient.put.mockResolvedValue({ data: updatedCategory });
 
       const result = await updateCategory('cat-1', partialUpdate);
 
-      expect(mockedAxios.put).toHaveBeenCalledWith(
+      expect(mockedClient.put).toHaveBeenCalledWith(
         '/admin/categories/cat-1',
-        partialUpdate,
-        expect.any(Object)
+        partialUpdate
       );
       expect(result.slug).toBe('new-slug');
     });
@@ -214,7 +191,7 @@ describe('categories API', () => {
           data: { message: 'カテゴリが見つかりません' },
         },
       };
-      mockedAxios.put.mockRejectedValue(error);
+      mockedClient.put.mockRejectedValue(error);
 
       await expect(
         updateCategory('non-existent', updateRequest)
@@ -231,7 +208,7 @@ describe('categories API', () => {
           data: { message: 'このslugは既に使用されています' },
         },
       };
-      mockedAxios.put.mockRejectedValue(error);
+      mockedClient.put.mockRejectedValue(error);
 
       await expect(
         updateCategory('cat-1', { slug: 'existing-slug' })
@@ -261,19 +238,13 @@ describe('categories API', () => {
           sortOrder: 1,
         },
       ];
-      mockedAxios.patch.mockResolvedValue({ data: updatedCategories });
+      mockedClient.patch.mockResolvedValue({ data: updatedCategories });
 
       const result = await updateCategorySortOrders(sortOrderRequest);
 
-      expect(mockedAxios.patch).toHaveBeenCalledWith(
+      expect(mockedClient.patch).toHaveBeenCalledWith(
         '/admin/categories/sort',
-        sortOrderRequest,
-        {
-          headers: {
-            Authorization: 'Bearer test-auth-token',
-            'Content-Type': 'application/json',
-          },
-        }
+        sortOrderRequest
       );
       expect(result).toEqual(updatedCategories);
     });
@@ -285,7 +256,7 @@ describe('categories API', () => {
           data: { message: '無効なカテゴリID: invalid-id' },
         },
       };
-      mockedAxios.patch.mockRejectedValue(error);
+      mockedClient.patch.mockRejectedValue(error);
 
       await expect(
         updateCategorySortOrders(sortOrderRequest)
@@ -298,17 +269,12 @@ describe('categories API', () => {
 
   describe('deleteCategory', () => {
     it('DELETE /admin/categories/{id} を呼び出してカテゴリを削除する', async () => {
-      mockedAxios.delete.mockResolvedValue({ status: 204 });
+      mockedClient.delete.mockResolvedValue({ status: 204 });
 
       await deleteCategory('cat-1');
 
-      expect(mockedAxios.delete).toHaveBeenCalledWith(
-        '/admin/categories/cat-1',
-        {
-          headers: {
-            Authorization: 'Bearer test-auth-token',
-          },
-        }
+      expect(mockedClient.delete).toHaveBeenCalledWith(
+        '/admin/categories/cat-1'
       );
     });
 
@@ -319,7 +285,7 @@ describe('categories API', () => {
           data: { message: 'カテゴリが見つかりません' },
         },
       };
-      mockedAxios.delete.mockRejectedValue(error);
+      mockedClient.delete.mockRejectedValue(error);
 
       await expect(deleteCategory('non-existent')).rejects.toMatchObject({
         message: 'カテゴリが見つかりません',
@@ -336,7 +302,7 @@ describe('categories API', () => {
           },
         },
       };
-      mockedAxios.delete.mockRejectedValue(error);
+      mockedClient.delete.mockRejectedValue(error);
 
       await expect(deleteCategory('cat-1')).rejects.toMatchObject({
         message: 'このカテゴリは記事で使用されているため削除できません',
@@ -353,7 +319,7 @@ describe('categories API', () => {
           data: {},
         },
       };
-      mockedAxios.get.mockRejectedValue(error);
+      mockedClient.get.mockRejectedValue(error);
 
       await expect(fetchCategories()).rejects.toMatchObject({
         message: 'エラーが発生しました',
@@ -362,7 +328,7 @@ describe('categories API', () => {
     });
 
     it('response自体がない場合（ネットワークエラー）を処理する', async () => {
-      mockedAxios.get.mockRejectedValue(new Error('Network Error'));
+      mockedClient.get.mockRejectedValue(new Error('Network Error'));
 
       await expect(fetchCategories()).rejects.toMatchObject({
         message: 'ネットワークエラーが発生しました。接続を確認してください。',
