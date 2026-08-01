@@ -1,11 +1,27 @@
 # Lambda IAM Roles and Policies
 # Requirements: 4.2, 6.5, 12.6
 #
-# This file implements function group-specific IAM roles following
-# the principle of least privilege:
-# - Posts domain: DynamoDB access + S3 read for delete cascade
-# - Auth domain: Cognito access only
-# - Images domain: S3 access only
+# Issue #493: split the former domain-wide roles into least-privilege
+# read/write roles so a public, read-only Lambda never holds write or
+# delete permissions. Every action below was verified directly against
+# the Go handler source under go-functions/cmd/** (not assumed) — see the
+# API audit table in the PR description for the per-handler evidence.
+#
+# - Posts domain:
+#   - lambda_posts_read         - GetItem/Query only (public + admin reads)
+#   - lambda_posts_write        - GetItem/PutItem/DeleteItem/Query + S3 delete
+#                                 cascade + CodeBuild trigger (create/update/delete)
+#   - lambda_posts_build_status - CodeBuild List/BatchGet only (polls build
+#                                 status; never starts a build, never touches
+#                                 DynamoDB or S3)
+# - Auth domain: Cognito access only (unchanged - already least privilege)
+# - Images domain: S3 access only (unchanged - out of scope for #493)
+# - Categories domain:
+#   - lambda_categories_read  - Scan only (list_categories, public)
+#   - lambda_categories_write - full Categories table access (including
+#                               TransactWriteItems-backed slug reservation)
+#                               plus BlogPosts Query/UpdateItem for the
+#                               category-rename cascade
 
 # ======================
 # IAM Assume Role Policy (shared)
@@ -24,46 +40,42 @@ data "aws_iam_policy_document" "lambda_assume_role" {
 }
 
 # ======================
-# Posts Domain IAM Role
+# Posts Domain - Read-Only Role
+# Used by: get_post, get_public_post, list_posts, get_post_by_slug
+# All four handlers only ever call dynamodb GetItem/Query (verified: none
+# of them import the S3 or CodeBuild SDK clients).
 # ======================
 
-resource "aws_iam_role" "lambda_posts" {
-  name               = "blog-lambda-posts-role"
+resource "aws_iam_role" "lambda_posts_read" {
+  name               = "blog-lambda-posts-read-role"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
   tags               = local.common_tags
 }
 
-# Basic execution policy for CloudWatch Logs
-resource "aws_iam_role_policy_attachment" "lambda_posts_basic_execution" {
-  role       = aws_iam_role.lambda_posts.name
+resource "aws_iam_role_policy_attachment" "lambda_posts_read_basic_execution" {
+  role       = aws_iam_role.lambda_posts_read.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# X-Ray policy (prd only)
-resource "aws_iam_role_policy_attachment" "lambda_posts_xray" {
+resource "aws_iam_role_policy_attachment" "lambda_posts_read_xray" {
   count      = var.enable_xray ? 1 : 0
-  role       = aws_iam_role.lambda_posts.name
+  role       = aws_iam_role.lambda_posts_read.name
   policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
 }
 
-# DynamoDB access policy for Posts domain
-resource "aws_iam_role_policy" "lambda_posts_dynamodb" {
-  name = "blog-lambda-posts-dynamodb-policy"
-  role = aws_iam_role.lambda_posts.id
+resource "aws_iam_role_policy" "lambda_posts_read_dynamodb" {
+  name = "blog-lambda-posts-read-dynamodb-policy"
+  role = aws_iam_role.lambda_posts_read.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "DynamoDBTableAccess"
+        Sid    = "DynamoDBTableReadOnly"
         Effect = "Allow"
         Action = [
           "dynamodb:GetItem",
-          "dynamodb:PutItem",
-          "dynamodb:UpdateItem",
-          "dynamodb:DeleteItem",
-          "dynamodb:Query",
-          "dynamodb:Scan"
+          "dynamodb:Query"
         ]
         Resource = [
           var.table_arn,
@@ -74,10 +86,67 @@ resource "aws_iam_role_policy" "lambda_posts_dynamodb" {
   })
 }
 
-# S3 read/delete access for delete cascade (deletePost needs to delete images)
-resource "aws_iam_role_policy" "lambda_posts_s3_cascade" {
-  name = "blog-lambda-posts-s3-cascade-policy"
-  role = aws_iam_role.lambda_posts.id
+# ======================
+# Posts Domain - Write Role
+# Used by: create_post, update_post, delete_post
+#
+# API usage confirmed per handler:
+#   create_post -> dynamodb PutItem, Query (slug uniqueness check)
+#   update_post -> dynamodb GetItem, PutItem, Query (slug change check)
+#   delete_post -> dynamodb GetItem, DeleteItem; s3 DeleteObjects (image
+#                  cascade, only when the post has ImageURLs)
+# None of the three call dynamodb UpdateItem or Scan directly, so those
+# actions are intentionally omitted.
+# All three conditionally trigger a site rebuild via CodeBuild.
+# ======================
+
+resource "aws_iam_role" "lambda_posts_write" {
+  name               = "blog-lambda-posts-write-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+  tags               = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_posts_write_basic_execution" {
+  role       = aws_iam_role.lambda_posts_write.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_posts_write_xray" {
+  count      = var.enable_xray ? 1 : 0
+  role       = aws_iam_role.lambda_posts_write.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
+# DynamoDB access policy for Posts write role
+resource "aws_iam_role_policy" "lambda_posts_write_dynamodb" {
+  name = "blog-lambda-posts-write-dynamodb-policy"
+  role = aws_iam_role.lambda_posts_write.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DynamoDBTableReadWrite"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query"
+        ]
+        Resource = [
+          var.table_arn,
+          "${var.table_arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
+
+# S3 delete access for delete cascade (deletePost needs to delete images)
+resource "aws_iam_role_policy" "lambda_posts_write_s3_cascade" {
+  name = "blog-lambda-posts-write-s3-cascade-policy"
+  role = aws_iam_role.lambda_posts_write.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -98,10 +167,10 @@ resource "aws_iam_role_policy" "lambda_posts_s3_cascade" {
 # CodeBuild access for triggering site rebuilds
 # Requirement 10.4: Lambda execution role with codebuild:StartBuild permission
 # Requirement 10.3: ListBuildsForProject and BatchGetBuilds for idempotency handling
-resource "aws_iam_role_policy" "lambda_posts_codebuild" {
+resource "aws_iam_role_policy" "lambda_posts_write_codebuild" {
   count = var.codebuild_project_arn != "" ? 1 : 0
-  name  = "blog-lambda-posts-codebuild-policy"
-  role  = aws_iam_role.lambda_posts.id
+  name  = "blog-lambda-posts-write-codebuild-policy"
+  role  = aws_iam_role.lambda_posts_write.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -121,7 +190,59 @@ resource "aws_iam_role_policy" "lambda_posts_codebuild" {
 }
 
 # ======================
+# Posts Domain - Build Status Role
+# Used by: build_status_post only.
+#
+# Confirmed this handler never calls dynamodb or s3 (it only polls
+# CodeBuild), and never calls codebuild:StartBuild - it only reads the
+# status of builds someone else started. Giving it the full write role
+# would hand a read-only "poll build status" endpoint the ability to
+# start arbitrary builds and mutate posts/images, which is exactly the
+# over-provisioning issue #493 exists to fix.
+# ======================
+
+resource "aws_iam_role" "lambda_posts_build_status" {
+  name               = "blog-lambda-posts-build-status-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+  tags               = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_posts_build_status_basic_execution" {
+  role       = aws_iam_role.lambda_posts_build_status.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_posts_build_status_xray" {
+  count      = var.enable_xray ? 1 : 0
+  role       = aws_iam_role.lambda_posts_build_status.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
+resource "aws_iam_role_policy" "lambda_posts_build_status_codebuild" {
+  count = var.codebuild_project_arn != "" ? 1 : 0
+  name  = "blog-lambda-posts-build-status-codebuild-policy"
+  role  = aws_iam_role.lambda_posts_build_status.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "CodeBuildStatusPoll"
+        Effect = "Allow"
+        Action = [
+          "codebuild:ListBuildsForProject",
+          "codebuild:BatchGetBuilds"
+        ]
+        Resource = var.codebuild_project_arn
+      }
+    ]
+  })
+}
+
+# ======================
 # Auth Domain IAM Role
+# Out of scope for #493 - already scoped to InitiateAuth /
+# RespondToAuthChallenge / GlobalSignOut only (no DynamoDB/S3 access).
 # ======================
 
 resource "aws_iam_role" "lambda_auth" {
@@ -167,6 +288,10 @@ resource "aws_iam_role_policy" "lambda_auth_cognito" {
 
 # ======================
 # Images Domain IAM Role
+# Out of scope for #493 - both functions genuinely need S3 read/write/delete
+# on the shared bucket (get_upload_url presigns a PUT, which requires
+# s3:PutObject on the signing credentials even though the Lambda itself
+# never calls S3; delete_image calls s3:DeleteObject directly).
 # ======================
 
 resource "aws_iam_role" "lambda_images" {
@@ -211,35 +336,100 @@ resource "aws_iam_role_policy" "lambda_images_s3" {
 }
 
 # ======================
-# Categories Domain IAM Role
-# Requirement 2.2: Lambda function IAM role with Categories table Scan permission
+# Categories Domain - Read-Only Role
+# Used by: list_categories only (public, no auth).
+# Confirmed this handler only ever calls dynamodb Scan on the base table
+# (no Query/GetItem, no index usage) to load and sort all categories.
 # ======================
 
-resource "aws_iam_role" "lambda_categories" {
-  name               = "blog-lambda-categories-role"
+resource "aws_iam_role" "lambda_categories_read" {
+  name               = "blog-lambda-categories-read-role"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
   tags               = local.common_tags
 }
 
-# Basic execution policy for CloudWatch Logs
-resource "aws_iam_role_policy_attachment" "lambda_categories_basic_execution" {
-  role       = aws_iam_role.lambda_categories.name
+resource "aws_iam_role_policy_attachment" "lambda_categories_read_basic_execution" {
+  role       = aws_iam_role.lambda_categories_read.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# X-Ray policy (prd only)
-resource "aws_iam_role_policy_attachment" "lambda_categories_xray" {
+resource "aws_iam_role_policy_attachment" "lambda_categories_read_xray" {
   count      = var.enable_xray ? 1 : 0
-  role       = aws_iam_role.lambda_categories.name
+  role       = aws_iam_role.lambda_categories_read.name
   policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
 }
 
-# DynamoDB access policy for Categories domain
-# Requirement 2.2, 3.2, 4.2, 5.2: Scan, PutItem, GetItem, UpdateItem, DeleteItem, Query permissions for Categories table
-# Requirement 4.2, 5.2: Query, UpdateItem permissions for BlogPosts table (for category slug update cascade and delete validation)
-resource "aws_iam_role_policy" "lambda_categories_dynamodb" {
-  name = "blog-lambda-categories-dynamodb-policy"
-  role = aws_iam_role.lambda_categories.id
+resource "aws_iam_role_policy" "lambda_categories_read_dynamodb" {
+  name = "blog-lambda-categories-read-dynamodb-policy"
+  role = aws_iam_role.lambda_categories_read.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "DynamoDBCategoriesScan"
+        Effect   = "Allow"
+        Action   = ["dynamodb:Scan"]
+        Resource = var.categories_table_arn
+      }
+    ]
+  })
+}
+
+# ======================
+# Categories Domain - Write Role
+# Used by: create_category, update_category, delete_category,
+#          update_categories_sort_order
+#
+# API usage confirmed per handler (all use TransactWriteItems for atomic
+# slug-reservation / bulk updates; per AWS docs, TransactWriteItems is
+# authorized via the underlying PutItem/UpdateItem/DeleteItem permissions
+# for each table touched, not a separate "TransactWriteItems" action):
+#   create_category -> Scan (conditional, computes max sortOrder when the
+#                       caller omits one), TransactWriteItems: Put category
+#                       + Put SLUG# reservation (both on Categories table)
+#   update_category -> GetItem, Query (SlugIndex), PutItem (non-slug-change
+#                       path); on slug change: TransactWriteItems spanning
+#                       BOTH tables in the same call - Put/Delete/Put on
+#                       Categories (category + slug reservation swap) AND
+#                       Update on BlogPosts (rewrites `category` on every
+#                       post in the renamed category, paginated at 100
+#                       items/call after a Query on BlogPosts CategoryIndex)
+#   delete_category -> GetItem (Categories); Query on BlogPosts
+#                       CategoryIndex (read-only in-use check - never
+#                       writes to BlogPosts); TransactWriteItems: Delete
+#                       category + Delete slug reservation (Categories only)
+#   update_categories_sort_order (bulk_sort) -> BatchGetItem (verifies all
+#                       category IDs exist), TransactWriteItems: N Updates
+#                       for sortOrder/updatedAt (Categories only)
+#
+# NOTE: dynamodb:BatchGetItem was NOT present in the pre-#493 combined
+# lambda_categories policy even though update_categories_sort_order calls
+# it on every invocation (go-functions/cmd/categories/bulk_sort/main.go)
+# - this was a latent gap in the original role. It is included here.
+# ======================
+
+resource "aws_iam_role" "lambda_categories_write" {
+  name               = "blog-lambda-categories-write-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+  tags               = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_categories_write_basic_execution" {
+  role       = aws_iam_role.lambda_categories_write.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_categories_write_xray" {
+  count      = var.enable_xray ? 1 : 0
+  role       = aws_iam_role.lambda_categories_write.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
+# DynamoDB access policy for Categories write role
+resource "aws_iam_role_policy" "lambda_categories_write_dynamodb" {
+  name = "blog-lambda-categories-write-dynamodb-policy"
+  role = aws_iam_role.lambda_categories_write.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -253,7 +443,8 @@ resource "aws_iam_role_policy" "lambda_categories_dynamodb" {
           "dynamodb:GetItem",
           "dynamodb:UpdateItem",
           "dynamodb:DeleteItem",
-          "dynamodb:Query"
+          "dynamodb:Query",
+          "dynamodb:BatchGetItem"
         ]
         Resource = [
           var.categories_table_arn,

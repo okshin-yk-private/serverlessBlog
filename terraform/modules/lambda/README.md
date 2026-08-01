@@ -55,9 +55,13 @@ module "lambda" {
 | Name | Type |
 |------|------|
 | aws_lambda_function.* | resource |
-| aws_iam_role.lambda_posts | resource |
+| aws_iam_role.lambda_posts_read | resource |
+| aws_iam_role.lambda_posts_write | resource |
+| aws_iam_role.lambda_posts_build_status | resource |
 | aws_iam_role.lambda_auth | resource |
 | aws_iam_role.lambda_images | resource |
+| aws_iam_role.lambda_categories_read | resource |
+| aws_iam_role.lambda_categories_write | resource |
 | aws_iam_policy.* | resource |
 | aws_cloudwatch_log_group.* | resource |
 | data.archive_file.* | data source |
@@ -86,9 +90,13 @@ module "lambda" {
 | function_arns | Map of Lambda function ARNs |
 | function_invoke_arns | Map of Lambda function Invoke ARNs for API Gateway |
 | function_names | List of all Lambda function names |
-| posts_role_arn | Posts domain Lambda execution role ARN |
+| posts_read_role_arn | Posts domain read-only Lambda execution role ARN |
+| posts_write_role_arn | Posts domain write Lambda execution role ARN |
+| posts_build_status_role_arn | Posts domain build-status Lambda execution role ARN |
 | auth_role_arn | Auth domain Lambda execution role ARN |
 | images_role_arn | Images domain Lambda execution role ARN |
+| categories_read_role_arn | Categories domain read-only Lambda execution role ARN |
+| categories_write_role_arn | Categories domain write Lambda execution role ARN |
 | *_function_arn | 個別の関数ARN |
 | *_function_name | 個別の関数名 |
 
@@ -131,16 +139,71 @@ module "lambda" {
 
 ## IAMロール構成
 
-最小権限原則に基づき、関数グループ別にIAMロールを分離:
+最小権限原則に基づき、関数グループ別・読み取り/書き込み別にIAMロールを分離しています
+（issue #493）。各アクションは go-functions/cmd/** の実装から直接確認したものです。
 
-### posts ロール
+### posts_read ロール
+
+対象: get_post, get_public_post, list_posts, get_post_by_slug
+
+```
+- dynamodb:GetItem
+- dynamodb:Query
+- logs:CreateLogGroup
+- logs:CreateLogStream
+- logs:PutLogEvents
+```
+
+### posts_write ロール
+
+対象: create_post, update_post, delete_post
 
 ```
 - dynamodb:GetItem
 - dynamodb:PutItem
-- dynamodb:UpdateItem
 - dynamodb:DeleteItem
 - dynamodb:Query
+- s3:DeleteObject / s3:DeleteObjects   (delete_post の画像カスケード削除)
+- codebuild:StartBuild / ListBuildsForProject / BatchGetBuilds
+- logs:CreateLogGroup
+- logs:CreateLogStream
+- logs:PutLogEvents
+```
+
+### posts_build_status ロール
+
+対象: build_status_post のみ。ビルド状態のポーリングのみを行い、DynamoDB/S3には
+アクセスせず、ビルドの開始（StartBuild）もしない。
+
+```
+- codebuild:ListBuildsForProject / BatchGetBuilds
+- logs:CreateLogGroup
+- logs:CreateLogStream
+- logs:PutLogEvents
+```
+
+### categories_read ロール
+
+対象: list_categories のみ（認証不要・公開）
+
+```
+- dynamodb:Scan
+- logs:CreateLogGroup
+- logs:CreateLogStream
+- logs:PutLogEvents
+```
+
+### categories_write ロール
+
+対象: create_category, update_category, delete_category, update_categories_sort_order
+
+Categories テーブル、BlogPosts テーブルの双方にアクセスする（update_category は
+カテゴリのスラッグ変更時に該当カテゴリの全記事の category フィールドを
+TransactWriteItems で書き換えるため）。
+
+```
+- dynamodb:Scan / PutItem / GetItem / UpdateItem / DeleteItem / Query / BatchGetItem  (Categoriesテーブル)
+- dynamodb:Query / UpdateItem  (BlogPostsテーブル - update_category のカスケード更新用)
 - logs:CreateLogGroup
 - logs:CreateLogStream
 - logs:PutLogEvents
@@ -193,8 +256,8 @@ import {
 }
 
 import {
-  to = aws_iam_role.lambda_posts
-  id = "lambda-posts-role"
+  to = aws_iam_role.lambda_posts_write
+  id = "blog-lambda-posts-write-role"
 }
 ```
 

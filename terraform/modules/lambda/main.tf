@@ -332,7 +332,7 @@ data "archive_file" "delete_image" {
 resource "aws_lambda_function" "create_post" {
   function_name = local.lambda_functions.create_post.name
   description   = local.lambda_functions.create_post.description
-  role          = aws_iam_role.lambda_posts.arn
+  role          = aws_iam_role.lambda_posts_write.arn
 
   filename         = data.archive_file.create_post.output_path
   source_code_hash = data.archive_file.create_post.output_base64sha256
@@ -362,7 +362,7 @@ resource "aws_lambda_function" "create_post" {
 resource "aws_lambda_function" "get_post" {
   function_name = local.lambda_functions.get_post.name
   description   = local.lambda_functions.get_post.description
-  role          = aws_iam_role.lambda_posts.arn
+  role          = aws_iam_role.lambda_posts_read.arn
 
   filename         = data.archive_file.get_post.output_path
   source_code_hash = data.archive_file.get_post.output_base64sha256
@@ -390,7 +390,7 @@ resource "aws_lambda_function" "get_post" {
 resource "aws_lambda_function" "get_public_post" {
   function_name = local.lambda_functions.get_public_post.name
   description   = local.lambda_functions.get_public_post.description
-  role          = aws_iam_role.lambda_posts.arn
+  role          = aws_iam_role.lambda_posts_read.arn
 
   filename         = data.archive_file.get_public_post.output_path
   source_code_hash = data.archive_file.get_public_post.output_base64sha256
@@ -418,7 +418,7 @@ resource "aws_lambda_function" "get_public_post" {
 resource "aws_lambda_function" "list_posts" {
   function_name = local.lambda_functions.list_posts.name
   description   = local.lambda_functions.list_posts.description
-  role          = aws_iam_role.lambda_posts.arn
+  role          = aws_iam_role.lambda_posts_read.arn
 
   filename         = data.archive_file.list_posts.output_path
   source_code_hash = data.archive_file.list_posts.output_base64sha256
@@ -447,7 +447,7 @@ resource "aws_lambda_function" "list_posts" {
 resource "aws_lambda_function" "update_post" {
   function_name = local.lambda_functions.update_post.name
   description   = local.lambda_functions.update_post.description
-  role          = aws_iam_role.lambda_posts.arn
+  role          = aws_iam_role.lambda_posts_write.arn
 
   filename         = data.archive_file.update_post.output_path
   source_code_hash = data.archive_file.update_post.output_base64sha256
@@ -478,7 +478,7 @@ resource "aws_lambda_function" "update_post" {
 resource "aws_lambda_function" "delete_post" {
   function_name = local.lambda_functions.delete_post.name
   description   = local.lambda_functions.delete_post.description
-  role          = aws_iam_role.lambda_posts.arn
+  role          = aws_iam_role.lambda_posts_write.arn
 
   filename         = data.archive_file.delete_post.output_path
   source_code_hash = data.archive_file.delete_post.output_base64sha256
@@ -510,7 +510,7 @@ resource "aws_lambda_function" "delete_post" {
 resource "aws_lambda_function" "build_status_post" {
   function_name = local.lambda_functions.build_status_post.name
   description   = local.lambda_functions.build_status_post.description
-  role          = aws_iam_role.lambda_posts.arn
+  role          = aws_iam_role.lambda_posts_build_status.arn
 
   filename         = data.archive_file.build_status_post.output_path
   source_code_hash = data.archive_file.build_status_post.output_base64sha256
@@ -538,12 +538,12 @@ resource "aws_lambda_function" "build_status_post" {
 
 # GET /posts/by-slug/{slug} - Public post fetch by friendly slug (PR7).
 # No-auth public endpoint that powers Astro's slug-based static routing.
-# Reuses the lambda_posts role: dynamodb:Query on SlugIndex is already
+# Uses the lambda_posts_read role: dynamodb:Query on SlugIndex is already
 # permitted via the existing index/* grant.
 resource "aws_lambda_function" "get_post_by_slug" {
   function_name = local.lambda_functions.get_post_by_slug.name
   description   = local.lambda_functions.get_post_by_slug.description
-  role          = aws_iam_role.lambda_posts.arn
+  role          = aws_iam_role.lambda_posts_read.arn
 
   filename         = data.archive_file.get_post_by_slug.output_path
   source_code_hash = data.archive_file.get_post_by_slug.output_base64sha256
@@ -737,7 +737,7 @@ data "archive_file" "list_categories" {
 resource "aws_lambda_function" "list_categories" {
   function_name = local.lambda_functions.list_categories.name
   description   = local.lambda_functions.list_categories.description
-  role          = aws_iam_role.lambda_categories.arn
+  role          = aws_iam_role.lambda_categories_read.arn
 
   filename         = data.archive_file.list_categories.output_path
   source_code_hash = data.archive_file.list_categories.output_base64sha256
@@ -785,7 +785,7 @@ data "archive_file" "create_category" {
 resource "aws_lambda_function" "create_category" {
   function_name = local.lambda_functions.create_category.name
   description   = local.lambda_functions.create_category.description
-  role          = aws_iam_role.lambda_categories.arn
+  role          = aws_iam_role.lambda_categories_write.arn
 
   filename         = data.archive_file.create_category.output_path
   source_code_hash = data.archive_file.create_category.output_base64sha256
@@ -832,7 +832,7 @@ data "archive_file" "update_category" {
 resource "aws_lambda_function" "update_category" {
   function_name = local.lambda_functions.update_category.name
   description   = local.lambda_functions.update_category.description
-  role          = aws_iam_role.lambda_categories.arn
+  role          = aws_iam_role.lambda_categories_write.arn
 
   filename         = data.archive_file.update_category.output_path
   source_code_hash = data.archive_file.update_category.output_base64sha256
@@ -881,7 +881,7 @@ data "archive_file" "update_categories_sort_order" {
 resource "aws_lambda_function" "update_categories_sort_order" {
   function_name = local.lambda_functions.update_categories_sort_order.name
   description   = local.lambda_functions.update_categories_sort_order.description
-  role          = aws_iam_role.lambda_categories.arn
+  role          = aws_iam_role.lambda_categories_write.arn
 
   filename         = data.archive_file.update_categories_sort_order.output_path
   source_code_hash = data.archive_file.update_categories_sort_order.output_base64sha256
@@ -928,7 +928,7 @@ data "archive_file" "delete_category" {
 resource "aws_lambda_function" "delete_category" {
   function_name = local.lambda_functions.delete_category.name
   description   = local.lambda_functions.delete_category.description
-  role          = aws_iam_role.lambda_categories.arn
+  role          = aws_iam_role.lambda_categories_write.arn
 
   filename         = data.archive_file.delete_category.output_path
   source_code_hash = data.archive_file.delete_category.output_base64sha256

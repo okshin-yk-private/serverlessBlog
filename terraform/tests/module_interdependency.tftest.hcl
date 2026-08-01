@@ -212,10 +212,13 @@ run "lambda_outputs_for_monitoring" {
     error_message = "Lambda module must export all 18 function names"
   }
 
-  # Verify role name outputs match expected values
+  # Verify role name outputs match expected values.
+  # Issue #493 split the combined posts role into least-privilege
+  # read/write/build-status roles; posts_write_role_name is the closest
+  # successor to the old posts_role_name output.
   assert {
-    condition     = output.posts_role_name == "blog-lambda-posts-role"
-    error_message = "Lambda module must export posts_role_name correctly"
+    condition     = output.posts_write_role_name == "blog-lambda-posts-write-role"
+    error_message = "Lambda module must export posts_write_role_name correctly"
   }
 
   assert {
@@ -228,9 +231,9 @@ run "lambda_outputs_for_monitoring" {
     error_message = "Lambda module must export images_role_name correctly"
   }
 
-  # Verify execution_role_name legacy alias
+  # Verify execution_role_name legacy alias (now points at the write role)
   assert {
-    condition     = output.execution_role_name == "blog-lambda-posts-role"
+    condition     = output.execution_role_name == "blog-lambda-posts-write-role"
     error_message = "Lambda module must export execution_role_name (legacy alias)"
   }
 }
