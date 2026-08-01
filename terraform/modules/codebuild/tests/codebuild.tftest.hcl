@@ -20,12 +20,12 @@ run "codebuild_project_created" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   assert {
@@ -40,12 +40,12 @@ run "codebuild_arm64_architecture" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   assert {
@@ -59,12 +59,12 @@ run "codebuild_nodejs_20_runtime" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   assert {
@@ -78,12 +78,12 @@ run "codebuild_timeout" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   assert {
@@ -102,12 +102,12 @@ run "codebuild_env_api_url" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   assert {
@@ -124,12 +124,12 @@ run "codebuild_env_deployment_bucket" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   assert {
@@ -141,25 +141,25 @@ run "codebuild_env_deployment_bucket" {
   }
 }
 
-# Test 7: Verify CLOUDFRONT_DISTRIBUTION_ID environment variable is set
-run "codebuild_env_cloudfront_dist_id" {
+# Test 7: Verify RELEASE_KVS_ARN environment variable is set
+run "codebuild_env_release_kvs_arn" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   assert {
     condition = anytrue([
       for env_var in aws_codebuild_project.astro_build.environment[0].environment_variable :
-      env_var.name == "CLOUDFRONT_DISTRIBUTION_ID" && env_var.value == "E1234567890ABC"
+      env_var.name == "RELEASE_KVS_ARN" && env_var.value == "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
     ])
-    error_message = "CodeBuild must have CLOUDFRONT_DISTRIBUTION_ID environment variable set"
+    error_message = "CodeBuild must have RELEASE_KVS_ARN environment variable set"
   }
 }
 
@@ -173,12 +173,12 @@ run "codebuild_iam_role_created" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   assert {
@@ -192,12 +192,12 @@ run "codebuild_iam_s3_permissions" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   assert {
@@ -206,22 +206,22 @@ run "codebuild_iam_s3_permissions" {
   }
 }
 
-# Test 10: Verify CodeBuild IAM role has CloudFront invalidation permissions
-run "codebuild_iam_cloudfront_permissions" {
+# Test 10: Verify CodeBuild can update only the release KVS
+run "codebuild_iam_release_kvs_permissions" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   assert {
-    condition     = aws_iam_role_policy.codebuild_cloudfront.name == "cloudfront-invalidation-policy"
-    error_message = "CodeBuild must have CloudFront invalidation policy attached"
+    condition     = aws_iam_role_policy.codebuild_release_kvs.name == "release-kvs-policy"
+    error_message = "CodeBuild must have the release KVS policy attached"
   }
 }
 
@@ -235,12 +235,12 @@ run "codebuild_encryption_enabled" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   # CodeBuild encryption_key is optional - default uses AWS managed key
@@ -256,12 +256,12 @@ run "codebuild_cloudwatch_logs" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   assert {
@@ -279,12 +279,12 @@ run "codebuild_source_type" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   # For Lambda-triggered builds, source is NO_SOURCE (fetches from S3 or inline buildspec)
@@ -303,12 +303,12 @@ run "codebuild_tags" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
     tags = {
       Project = "serverless-blog"
     }
@@ -325,12 +325,12 @@ run "environment_validation" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "staging" # Invalid environment
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "staging" # Invalid environment
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   expect_failures = [
@@ -347,12 +347,12 @@ run "outputs" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   assert {
@@ -377,12 +377,12 @@ run "production_config" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "prd"
-    public_site_bucket_name    = "serverless-blog-public-site-prd-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-prd-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://blog.example.com/api"
+    project_name            = "serverless-blog"
+    environment             = "prd"
+    public_site_bucket_name = "serverless-blog-public-site-prd-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-prd-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://blog.example.com/api"
   }
 
   assert {
@@ -400,12 +400,12 @@ run "cloudwatch_log_group" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   assert {
@@ -419,12 +419,12 @@ run "log_retention_dev" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   assert {
@@ -438,12 +438,12 @@ run "log_retention_prd" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "prd"
-    public_site_bucket_name    = "serverless-blog-public-site-prd-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-prd-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://blog.example.com/api"
+    project_name            = "serverless-blog"
+    environment             = "prd"
+    public_site_bucket_name = "serverless-blog-public-site-prd-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-prd-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://blog.example.com/api"
   }
 
   assert {
@@ -461,12 +461,12 @@ run "buildspec_configured" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
   }
 
   # BuildSpec is specified as either a file reference or inline YAML
@@ -483,17 +483,45 @@ run "buildspec_contains_site_url" {
   command = plan
 
   variables {
-    project_name               = "serverless-blog"
-    environment                = "dev"
-    public_site_bucket_name    = "serverless-blog-public-site-dev-123456789012"
-    public_site_bucket_arn     = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
-    cloudfront_distribution_id = "E1234567890ABC"
-    api_url                    = "https://example.cloudfront.net/api"
-    site_url                   = "https://blog.example.test"
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
+    site_url                = "https://blog.example.test"
   }
 
   assert {
     condition     = strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "SITE_URL: \"https://blog.example.test\"")
     error_message = "BuildSpec must export SITE_URL to the Astro build"
+  }
+}
+
+run "buildspec_uses_atomic_kvs_promotion" {
+  command = plan
+
+  variables {
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
+  }
+
+  assert {
+    condition     = strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "--kvs-arn")
+    error_message = "BuildSpec must invoke the KVS atomic deployment script"
+  }
+
+  assert {
+    condition     = !strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "sync --delete")
+    error_message = "BuildSpec must not replace the public root incrementally"
+  }
+
+  assert {
+    condition     = !strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "create-invalidation")
+    error_message = "Release promotion must not require a broad invalidation"
   }
 }

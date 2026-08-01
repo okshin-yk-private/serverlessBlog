@@ -39,8 +39,11 @@ import {
   AstroLocalDeployResult,
 } from './astroLocalDeploy';
 
-// Mock child_process
-const mockExecSync = vi.fn();
+// Mock factories are hoisted by Vitest 4, so their state must be hoisted too.
+const { mockExecSync, mockCloudFrontSend } = vi.hoisted(() => ({
+  mockExecSync: vi.fn(),
+  mockCloudFrontSend: vi.fn(),
+}));
 vi.mock('node:child_process', () => ({
   execSync: mockExecSync,
   spawn: vi.fn(),
@@ -55,7 +58,6 @@ vi.mock('./atomicDeploy', () => ({
 }));
 
 // Mock CloudFront client
-const mockCloudFrontSend = vi.fn();
 vi.mock('@aws-sdk/client-cloudfront', () => ({
   CloudFrontClient: class MockCloudFrontClient {
     send = mockCloudFrontSend;
@@ -477,6 +479,7 @@ describe('astroLocalDeploy', () => {
     const mockConfig: AstroLocalDeployConfig = {
       projectRoot: mockProjectRoot,
       bucketName: 'test-bucket',
+      keyValueStoreArn: 'arn:aws:cloudfront::123:key-value-store/test',
       distributionId: 'E1234567890',
       region: 'ap-northeast-1',
       apiUrl: 'https://api.example.com',
@@ -551,6 +554,7 @@ describe('AstroLocalDeployConfig', () => {
     const config: AstroLocalDeployConfig = {
       projectRoot: '/home/user/project',
       bucketName: 'my-bucket',
+      keyValueStoreArn: 'arn:aws:cloudfront::123:key-value-store/test',
       distributionId: 'E1234567890',
       region: 'ap-northeast-1',
       apiUrl: 'https://api.example.com',
@@ -558,6 +562,7 @@ describe('AstroLocalDeployConfig', () => {
 
     expect(config.projectRoot).toBe('/home/user/project');
     expect(config.bucketName).toBe('my-bucket');
+    expect(config.keyValueStoreArn).toContain('key-value-store');
     expect(config.distributionId).toBe('E1234567890');
     expect(config.region).toBe('ap-northeast-1');
     expect(config.apiUrl).toBe('https://api.example.com');
@@ -567,21 +572,20 @@ describe('AstroLocalDeployConfig', () => {
     const config: AstroLocalDeployConfig = {
       projectRoot: '/home/user/project',
       bucketName: 'my-bucket',
+      keyValueStoreArn: 'arn:aws:cloudfront::123:key-value-store/test',
       distributionId: 'E1234567890',
       region: 'ap-northeast-1',
       apiUrl: 'https://api.example.com',
       astroProjectPath: 'frontend/public-astro',
       dryRun: true,
       verbose: true,
-      retainVersions: 5,
-      changedPaths: ['/index.html'],
+      revision: 'r5-local',
     };
 
     expect(config.astroProjectPath).toBe('frontend/public-astro');
     expect(config.dryRun).toBe(true);
     expect(config.verbose).toBe(true);
-    expect(config.retainVersions).toBe(5);
-    expect(config.changedPaths).toEqual(['/index.html']);
+    expect(config.revision).toBe('r5-local');
   });
 });
 

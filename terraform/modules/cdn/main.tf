@@ -329,16 +329,28 @@ function handler(event) {
 EOF
 }
 
-# CloudFront Function for Public Site SSG routing
-# Requirements: 7.8, 7.9, 5.6
-# Rewrites extensionless URLs to {path}/index.html for Astro static pages
+# One pointer controls which complete public-site release is visible.
+resource "aws_cloudfront_key_value_store" "public_release" {
+  name    = "public-release-${var.environment}"
+  comment = "Active public site release for ${var.environment}"
+}
+
+# CloudFront Function for public SSG routing and release selection.
+# A missing/invalid key deliberately falls back to the legacy bucket root so
+# Terraform can be applied safely before the first KVS-aware deployment.
 resource "aws_cloudfront_function" "public_ssg" {
   name    = "PublicSsgFunction-${var.environment}"
   runtime = "cloudfront-js-2.0"
-  comment = "SSG routing for public site - rewrites extensionless URLs to index.html"
+  comment = "SSG routing and KVS release selection for public site"
   publish = true
-  code    = <<-EOF
-function handler(event) {
+  key_value_store_associations = [
+    aws_cloudfront_key_value_store.public_release.arn
+  ]
+  code = <<-EOF
+import cf from 'cloudfront';
+const kvs = cf.kvs();
+
+async function handler(event) {
   var request = event.request;
   var uri = request.uri;
 
@@ -355,29 +367,41 @@ function handler(event) {
       var ext = lastSegment.substring(lastDotIndex + 1).toLowerCase();
       for (var i = 0; i < knownExtensions.length; i++) {
         if (knownExtensions[i] === ext) {
-          return request;
+          lastSegment = '';
+          break;
         }
       }
     }
   }
 
-  // Check for excluded paths
-  if (uri.indexOf('/_astro/') === 0 ||
+  // These paths use separate origins/cache behaviors and are never versioned.
+  if (uri === '/_astro' || uri.indexOf('/_astro/') === 0 ||
+      uri === '/api' ||
       uri.indexOf('/api/') === 0 ||
       uri === '/admin' ||
       uri.indexOf('/admin/') === 0 ||
+      uri === '/images' ||
       uri.indexOf('/images/') === 0 ||
-      (uri.indexOf('/sitemap') === 0 && uri.indexOf('.xml') > -1) ||
-      uri === '/rss.xml' ||
-      uri === '/robots.txt') {
+      uri.indexOf('/releases/') === 0) {
     return request;
   }
 
-  // Rewrite to index.html
-  if (uri.charAt(uri.length - 1) === '/') {
-    request.uri = uri + 'index.html';
-  } else {
+  // Rewrite extensionless public routes to Astro's generated index.html.
+  if (lastSegment !== '') {
     request.uri = uri + '/index.html';
+  } else if (uri.charAt(uri.length - 1) === '/') {
+    request.uri = uri + 'index.html';
+  }
+
+  // KVS is eventually consistent. Both releases remain complete while this
+  // value propagates, and shared hashed assets are kept outside the release.
+  try {
+    var revision = await kvs.get('activeRevision');
+    if (/^r\d+(?:-[a-z0-9][a-z0-9._-]*)?$/.test(revision)) {
+      request.uri = '/releases/' + revision + request.uri;
+    }
+  } catch (error) {
+    // Migration-safe fallback: serve the pre-KVS root layout.
   }
 
   return request;
@@ -391,10 +415,16 @@ resource "aws_cloudfront_function" "public_combined" {
   count   = var.enable_basic_auth ? 1 : 0
   name    = "PublicCombinedFunction-${var.environment}"
   runtime = "cloudfront-js-2.0"
-  comment = "Combined Basic Auth and SSG routing for public site (${var.environment})"
+  comment = "Basic Auth, SSG routing and KVS release selection (${var.environment})"
   publish = true
-  code    = <<-EOF
-function handler(event) {
+  key_value_store_associations = [
+    aws_cloudfront_key_value_store.public_release.arn
+  ]
+  code = <<-EOF
+import cf from 'cloudfront';
+const kvs = cf.kvs();
+
+async function handler(event) {
   var request = event.request;
   var headers = request.headers;
   var uri = request.uri;
@@ -427,29 +457,38 @@ function handler(event) {
       var ext = lastSegment.substring(lastDotIndex + 1).toLowerCase();
       for (var i = 0; i < knownExtensions.length; i++) {
         if (knownExtensions[i] === ext) {
-          return request;
+          lastSegment = '';
+          break;
         }
       }
     }
   }
 
-  // Check for excluded paths
-  if (uri.indexOf('/_astro/') === 0 ||
+  // These paths use separate origins/cache behaviors and are never versioned.
+  if (uri === '/_astro' || uri.indexOf('/_astro/') === 0 ||
+      uri === '/api' ||
       uri.indexOf('/api/') === 0 ||
       uri === '/admin' ||
       uri.indexOf('/admin/') === 0 ||
+      uri === '/images' ||
       uri.indexOf('/images/') === 0 ||
-      (uri.indexOf('/sitemap') === 0 && uri.indexOf('.xml') > -1) ||
-      uri === '/rss.xml' ||
-      uri === '/robots.txt') {
+      uri.indexOf('/releases/') === 0) {
     return request;
   }
 
-  // Rewrite to index.html
-  if (uri.charAt(uri.length - 1) === '/') {
-    request.uri = uri + 'index.html';
-  } else {
+  if (lastSegment !== '') {
     request.uri = uri + '/index.html';
+  } else if (uri.charAt(uri.length - 1) === '/') {
+    request.uri = uri + 'index.html';
+  }
+
+  try {
+    var revision = await kvs.get('activeRevision');
+    if (/^r\d+(?:-[a-z0-9][a-z0-9._-]*)?$/.test(revision)) {
+      request.uri = '/releases/' + revision + request.uri;
+    }
+  } catch (error) {
+    // Migration-safe fallback: serve the pre-KVS root layout.
   }
 
   return request;

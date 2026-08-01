@@ -325,13 +325,14 @@ module "monitoring" {
 module "codebuild" {
   source = "../../modules/codebuild"
 
-  project_name               = var.project_name
-  environment                = var.environment
-  public_site_bucket_name    = module.storage.public_site_bucket_name
-  public_site_bucket_arn     = module.storage.public_site_bucket_arn
-  cloudfront_distribution_id = module.cdn.distribution_id
-  api_url                    = module.cdn.api_base_url
-  site_url                   = var.enable_custom_domain ? "https://${var.domain_name}" : "https://${module.cdn.distribution_domain_name}"
+  project_name            = var.project_name
+  environment             = var.environment
+  public_site_bucket_name = module.storage.public_site_bucket_name
+  public_site_bucket_arn  = module.storage.public_site_bucket_arn
+  release_kvs_arn         = module.cdn.release_kvs_arn
+  aws_region              = var.aws_region
+  api_url                 = module.cdn.api_base_url
+  site_url                = var.enable_custom_domain ? "https://${var.domain_name}" : "https://${module.cdn.distribution_domain_name}"
 
   # GitHub source configuration for Astro SSG builds
   github_repo   = "https://github.com/okshin-yk-private/serverlessBlog.git"
