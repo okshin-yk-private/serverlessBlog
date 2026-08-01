@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { LoginForm } from '../components/LoginForm';
 import { useAuth } from '../hooks/useAuth';
-import { validatePassword } from '../utils/auth';
+import { validatePassword, consumeRedirectPath } from '../utils/auth';
 
 /**
  * エラーオブジェクトの型ガード
@@ -45,9 +45,10 @@ const LoginPage = () => {
       setError(null);
       const result = await login(credentials.email, credentials.password);
 
-      // 新パスワードが必要な場合はダッシュボードに遷移しない（LoginPageが新パスワード設定画面を表示）
+      // 新パスワードが必要な場合は遷移しない（LoginPageが新パスワード設定画面を表示）
       if (!result.requiresNewPassword) {
-        navigate('/dashboard');
+        // AuthGuard が保存した遷移元（セッション失効時など）があればそこへ戻る
+        navigate(consumeRedirectPath() ?? '/dashboard', { replace: true });
       }
     } catch (err) {
       console.error('ログインエラー:', err);
@@ -94,7 +95,7 @@ const LoginPage = () => {
     setIsSubmitting(true);
     try {
       await confirmNewPassword(newPassword);
-      navigate('/dashboard');
+      navigate(consumeRedirectPath() ?? '/dashboard', { replace: true });
     } catch (err) {
       console.error('パスワード変更エラー:', err);
       if (isErrorWithMessage(err)) {

@@ -1,8 +1,4 @@
-import axios from 'axios';
-import { getAuthToken } from '../utils/auth';
-
-// E2Eテスト時は空文字列を使用して相対パスにする（MSWは同一オリジンのリクエストをインターセプトできる）
-const API_URL = import.meta.env.VITE_API_URL ?? '/api';
+import { apiClient } from './client';
 
 /**
  * カテゴリエンティティ
@@ -98,7 +94,7 @@ const handleError = (error: unknown): never => {
  */
 export const fetchCategories = async (): Promise<Category[]> => {
   try {
-    const response = await axios.get<Category[]>(`${API_URL}/categories`);
+    const response = await apiClient.get<Category[]>('/categories');
     return response.data;
   } catch (error) {
     handleError(error);
@@ -113,17 +109,7 @@ export const createCategory = async (
   data: CreateCategoryRequest
 ): Promise<Category> => {
   try {
-    const token = getAuthToken();
-    const response = await axios.post<Category>(
-      `${API_URL}/admin/categories`,
-      data,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    const response = await apiClient.post<Category>('/admin/categories', data);
     return response.data;
   } catch (error) {
     handleError(error);
@@ -139,16 +125,9 @@ export const updateCategory = async (
   data: UpdateCategoryRequest
 ): Promise<Category> => {
   try {
-    const token = getAuthToken();
-    const response = await axios.put<Category>(
-      `${API_URL}/admin/categories/${id}`,
-      data,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      }
+    const response = await apiClient.put<Category>(
+      `/admin/categories/${id}`,
+      data
     );
     return response.data;
   } catch (error) {
@@ -164,16 +143,9 @@ export const updateCategorySortOrders = async (
   data: UpdateSortOrderRequest
 ): Promise<Category[]> => {
   try {
-    const token = getAuthToken();
-    const response = await axios.patch<Category[]>(
-      `${API_URL}/admin/categories/sort`,
-      data,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      }
+    const response = await apiClient.patch<Category[]>(
+      '/admin/categories/sort',
+      data
     );
     return response.data;
   } catch (error) {
@@ -187,12 +159,7 @@ export const updateCategorySortOrders = async (
  */
 export const deleteCategory = async (id: string): Promise<void> => {
   try {
-    const token = getAuthToken();
-    await axios.delete(`${API_URL}/admin/categories/${id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    await apiClient.delete(`/admin/categories/${id}`);
   } catch (error) {
     handleError(error);
   }
