@@ -11,7 +11,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
@@ -49,25 +48,10 @@ func setupTest(t *testing.T) func() {
 	// Store original getter
 	originalGetter := dynamoClientGetter
 
-	// executeCountQuery caches results per (tableName, publishStatus) - see
-	// countCacheTTL. Tests reuse testTableName across many cases, so start
-	// each test from an empty cache to avoid a result cached by an earlier
-	// test leaking into this one's assertions.
-	clearCountCache()
-
 	// Restore after test
 	return func() {
 		dynamoClientGetter = originalGetter
 	}
-}
-
-// clearCountCache resets the process-wide executeCountQuery cache. It is
-// test-only plumbing to keep tests that share testTableName from observing
-// each other's cached counts.
-func clearCountCache() {
-	countCacheMu.Lock()
-	countCache = map[string]countCacheEntry{}
-	countCacheMu.Unlock()
 }
 
 // createTestPost creates a test post with the given ID and publish status
@@ -1300,7 +1284,6 @@ func TestExecuteCountQuery(t *testing.T) {
 			// publishStatus (e.g. "published" appears in three cases); clear
 			// the cache so an earlier case's cached count can't mask this
 			// one's mock and assertions.
-			clearCountCache()
 
 			mockClient := &MockDynamoDBClient{
 				QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
@@ -1352,8 +1335,6 @@ func TestExecuteCountQuery(t *testing.T) {
 
 // TestExecuteCountQuery_Pagination tests count query with pagination (multiple pages)
 func TestExecuteCountQuery_Pagination(t *testing.T) {
-	clearCountCache()
-
 	callCount := 0
 
 	mockClient := &MockDynamoDBClient{
@@ -2939,82 +2920,5 @@ func TestExecuteSearchQuery_PageCapReached(t *testing.T) {
 	}
 	if cursor == nil {
 		t.Fatal("expected a non-nil cursor when the page cap is reached with more data still available")
-	}
-}
-
-// TestExecuteCountQuery_CachesWithinTTL verifies the count cache added for
-// issue #489's inefficiency 1: a second call for the same
-// (tableName, publishStatus) within countCacheTTL must be served from cache
-// instead of re-running the full PublishStatusIndex scan.
-func TestExecuteCountQuery_CachesWithinTTL(t *testing.T) {
-	clearCountCache()
-	defer clearCountCache()
-
-	callCount := 0
-	mockClient := &MockDynamoDBClient{
-		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-			callCount++
-			return &dynamodb.QueryOutput{Count: 7}, nil
-		},
-	}
-
-	count1, err := executeCountQuery(context.Background(), mockClient, testTableName, "published")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	count2, err := executeCountQuery(context.Background(), mockClient, testTableName, "published")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if count1 != 7 || count2 != 7 {
-		t.Errorf("expected both calls to return 7, got %d and %d", count1, count2)
-	}
-	if callCount != 1 {
-		t.Errorf("expected the second call to be served from cache (1 underlying Query call), got %d", callCount)
-	}
-}
-
-// TestExecuteCountQuery_CacheExpiresAfterTTL verifies that a cached count is
-// only reused for countCacheTTL, not indefinitely - after it expires, the
-// next call must recompute (and re-cache) a fresh value.
-func TestExecuteCountQuery_CacheExpiresAfterTTL(t *testing.T) {
-	clearCountCache()
-	defer clearCountCache()
-
-	originalNow := countCacheNow
-	fakeNow := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	countCacheNow = func() time.Time { return fakeNow }
-	defer func() { countCacheNow = originalNow }()
-
-	callCount := 0
-	mockClient := &MockDynamoDBClient{
-		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-			callCount++
-			return &dynamodb.QueryOutput{Count: int32(callCount)}, nil
-		},
-	}
-
-	first, err := executeCountQuery(context.Background(), mockClient, testTableName, "published")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if first != 1 {
-		t.Fatalf("expected first count 1, got %d", first)
-	}
-
-	// Advance beyond countCacheTTL: the cached entry must now be treated as
-	// stale and recomputed, not returned forever.
-	fakeNow = fakeNow.Add(countCacheTTL + time.Second)
-
-	second, err := executeCountQuery(context.Background(), mockClient, testTableName, "published")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if second != 2 {
-		t.Errorf("expected cache to expire and recompute (count 2), got %d", second)
-	}
-	if callCount != 2 {
-		t.Errorf("expected 2 underlying Query calls after TTL expiry, got %d", callCount)
 	}
 }

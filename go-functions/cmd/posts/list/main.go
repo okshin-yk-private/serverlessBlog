@@ -15,8 +15,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 	"unicode/utf8"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -540,63 +538,10 @@ func isAuthenticated(request events.APIGatewayProxyRequest) bool {
 	return ok && claims != nil
 }
 
-// countCacheTTL bounds how long a computed PublishStatusIndex count is
-// reused before executeCountQuery recomputes it (issue #489, inefficiency
-// 1). Every authenticated list request pages through the *entire*
-// PublishStatusIndex just to render a total in the admin UI; on a warm
-// Lambda execution environment, closely-spaced admin requests for the same
-// (tableName, publishStatus) repeated that full scan for no reason.
-//
-// The cache lives entirely in-process, keyed by (tableName, publishStatus).
-// A cold start, or any container that hasn't served that combination within
-// the last countCacheTTL, still performs the exact same full paginated
-// Query as before - this only removes *redundant* re-scans within a warm
-// container's lifetime, it does not change what gets computed.
-//
-// Compatibility (see frontend/admin/src/api/posts.ts's getPosts(), which
-// reads response.data.count unconditionally on every admin list request,
-// and DashboardPage.tsx, which renders it as the published/draft totals):
-// the response still always includes `count`, with the same meaning, only
-// up to countCacheTTL stale. A query-parameter opt-in was considered (per
-// the issue's suggestions) but rejected here: the current admin frontend
-// never sends such a flag and is out of scope for this fix (read-only per
-// the task), so an opt-in would not reduce cost for the one real caller
-// without an accompanying frontend change.
-const countCacheTTL = 60 * time.Second
-
-type countCacheEntry struct {
-	count     int64
-	expiresAt time.Time
-}
-
-var (
-	countCacheMu sync.Mutex
-	countCache   = map[string]countCacheEntry{}
-)
-
-// countCacheNow is overridable in tests to exercise TTL expiry without
-// sleeping.
-var countCacheNow = time.Now
-
-func countCacheKey(tableName, publishStatus string) string {
-	return tableName + "#" + publishStatus
-}
-
 // executeCountQuery executes a count query on PublishStatusIndex for the given publishStatus
 // This is used to get the total count of articles for admin dashboard statistics
 // Uses pagination to ensure accurate count even when data exceeds 1MB per query.
-// See countCacheTTL for the in-process cache that avoids repeating this full
-// scan on every request within a warm Lambda execution environment.
 func executeCountQuery(ctx context.Context, client DynamoDBClientInterface, tableName, publishStatus string) (int64, error) {
-	key := countCacheKey(tableName, publishStatus)
-
-	countCacheMu.Lock()
-	if entry, ok := countCache[key]; ok && countCacheNow().Before(entry.expiresAt) {
-		countCacheMu.Unlock()
-		return entry.count, nil
-	}
-	countCacheMu.Unlock()
-
 	var totalCount int64
 	var lastEvaluatedKey map[string]types.AttributeValue
 
@@ -625,10 +570,6 @@ func executeCountQuery(ctx context.Context, client DynamoDBClientInterface, tabl
 		}
 		lastEvaluatedKey = result.LastEvaluatedKey
 	}
-
-	countCacheMu.Lock()
-	countCache[key] = countCacheEntry{count: totalCount, expiresAt: countCacheNow().Add(countCacheTTL)}
-	countCacheMu.Unlock()
 
 	return totalCount, nil
 }
