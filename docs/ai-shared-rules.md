@@ -30,10 +30,6 @@ Run `bun run verify` before reporting a code change as done.
 - CI runs `typecheck` on every PR (no label gate). The vitest suites for `frontend/admin`,
   `frontend/public` and `frontend/public-astro` run only on PRs carrying the `frontend`
   label, so a PR outside those paths still needs `bun run verify` locally.
-- `frontend/admin` has a flaky unhandled rejection: `CategoryEditPage` calls `setSaving`
-  in a `finally` after teardown, so a full-suite run occasionally fails with
-  `ReferenceError: window is not defined` while all 468 tests still pass. Re-run before
-  treating it as your regression.
 
 ## Repository etiquette
 
