@@ -167,6 +167,49 @@ jobs:
         run: bun run lint
 
   # =======================================
+  # Job 1.5: Type Check (always runs, no label gate)
+  # Without this, TypeScript / Astro type errors only surface in deploy.yml's
+  # build-astro job — i.e. after terraform apply has already run.
+  # =======================================
+  typecheck:
+    needs: [setup-labels]
+    name: Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun + Install Dependencies (root)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: .
+
+      - name: Setup Bun + Install Dependencies (admin)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: frontend/admin
+
+      - name: Setup Bun + Install Dependencies (public)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: frontend/public
+
+      - name: Setup Bun + Install Dependencies (public-astro)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: frontend/public-astro
+
+      # tsc --noEmit for admin/public, astro check for public-astro
+      - name: Run type check
+        run: bun run typecheck
+
+  # =======================================
   # Job 2: Backend Unit Tests - REMOVED (Task 21.3)
   # Node.js implementation (functions/) has been deleted.
   # All Lambda functions are now implemented in Go.
@@ -1067,6 +1110,51 @@ jobs:
           retention-days: 3
 
   # =======================================
+  # Job 4: Frontend Tests - Public Astro SSG (conditional)
+  # This is the site actually served in production. Its unit tests and the
+  # build-output integration suite previously ran nowhere in CI.
+  # =======================================
+  frontend-astro-tests:
+    needs: [setup-labels]
+    name: Frontend Tests (Public Site - Astro)
+    runs-on: ubuntu-latest
+    if: needs.setup-labels.outputs.has-frontend == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun + Install Dependencies (public-astro)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: frontend/public-astro
+
+      - name: Run frontend (public-astro) unit tests
+        working-directory: frontend/public-astro
+        run: bun run test -- --run
+        env:
+          CI: true
+
+      # vitest.config.ts excludes tests/**, so the build-output, sitemap, rss
+      # and seo-integration suites need a real build against a mock API first.
+      - name: Build against mock API
+        working-directory: frontend/public-astro
+        run: bash tests/build-with-mock.sh
+        env:
+          CI: true
+
+      - name: Run frontend (public-astro) integration tests
+        working-directory: frontend/public-astro
+        run: bun run test:integration -- --run
+        env:
+          CI: true
+
+  # =======================================
   # Job 5: Frontend Tests - Admin (conditional)
   # =======================================
   frontend-admin-tests:
@@ -1373,6 +1461,7 @@ jobs:
     needs:
       - setup-labels
       - lint
+      - typecheck
       # Go Backend
       - go-lint
       - go-tests
@@ -1388,6 +1477,7 @@ jobs:
       - terraform-plan-prd
       # Frontend
       - frontend-public-tests
+      - frontend-astro-tests
       - frontend-admin-tests
       - e2e-public-tests
       - e2e-admin-tests
@@ -1409,6 +1499,7 @@ jobs:
           echo ""
           echo "--- Lint ---"
           echo "  ESLint & Prettier: ${{ needs.lint.result }}"
+          echo "  Type Check: ${{ needs.typecheck.result }}"
           echo ""
           echo "--- Go Backend ---"
           echo "  Go Lint: ${{ needs.go-lint.result }}"
@@ -1427,6 +1518,7 @@ jobs:
           echo ""
           echo "--- Frontend ---"
           echo "  Public Tests: ${{ needs.frontend-public-tests.result }}"
+          echo "  Public Astro Tests: ${{ needs.frontend-astro-tests.result }}"
           echo "  Admin Tests: ${{ needs.frontend-admin-tests.result }}"
           echo "  E2E Public: ${{ needs.e2e-public-tests.result }}"
           echo "  E2E Admin: ${{ needs.e2e-admin-tests.result }}"
@@ -1439,6 +1531,12 @@ jobs:
           # Lint is always required
           if [ "${{ needs.lint.result }}" != "success" ]; then
             echo "❌ Lint check failed or was cancelled"
+            exit 1
+          fi
+
+          # Type check runs on every PR (no label gate), so it is always required
+          if [ "${{ needs.typecheck.result }}" != "success" ]; then
+            echo "❌ Type check failed or was cancelled"
             exit 1
           fi
 
@@ -1466,6 +1564,7 @@ jobs:
 
           # Frontend failures
           if [ "${{ needs.frontend-public-tests.result }}" == "failure" ] || \
+             [ "${{ needs.frontend-astro-tests.result }}" == "failure" ] || \
              [ "${{ needs.frontend-admin-tests.result }}" == "failure" ] || \
              [ "${{ needs.e2e-public-tests.result }}" == "failure" ] || \
              [ "${{ needs.e2e-admin-tests.result }}" == "failure" ] || \
