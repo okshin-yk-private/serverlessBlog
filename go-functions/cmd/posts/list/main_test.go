@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -1940,6 +1941,84 @@ func TestHandler_PostWithNilTags(t *testing.T) {
 	}
 	if listResp.Items[0].ImageURLs == nil {
 		t.Errorf("expected imageUrls to be empty array, not nil")
+	}
+}
+
+// TestSanitizeSearchQuery tests that the "q" search parameter is bounded by
+// SearchQueryMaxLength (issue #491): oversized input is rejected rather than
+// having the filter silently dropped, which would answer a request to narrow
+// the list by returning every post.
+func TestSanitizeSearchQuery(t *testing.T) {
+	tests := []struct {
+		name    string
+		query   string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:  "empty query returned as-is",
+			query: "",
+			want:  "",
+		},
+		{
+			name:  "normal query returned as-is",
+			query: "React",
+			want:  "React",
+		},
+		{
+			name:  "query exactly at max length returned as-is",
+			query: strings.Repeat("a", SearchQueryMaxLength),
+			want:  strings.Repeat("a", SearchQueryMaxLength),
+		},
+		{
+			name:    "query exceeding max length is rejected",
+			query:   strings.Repeat("a", SearchQueryMaxLength+1),
+			wantErr: true,
+		},
+		{
+			name:    "multi-byte query exceeding max rune length is rejected",
+			query:   strings.Repeat("\u3042", SearchQueryMaxLength+1),
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := sanitizeSearchQuery(tt.query)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("sanitizeSearchQuery(len=%d) error = nil, want error", len([]rune(tt.query)))
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("sanitizeSearchQuery() unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("sanitizeSearchQuery(len=%d) = %q, want %q", len([]rune(tt.query)), got, tt.want)
+			}
+		})
+	}
+}
+
+// TestHandler_SearchQueryTooLong checks the handler surfaces the rejection as
+// a 400 instead of quietly returning an unfiltered list.
+func TestHandler_SearchQueryTooLong(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	request := events.APIGatewayProxyRequest{
+		QueryStringParameters: map[string]string{
+			"q": strings.Repeat("a", SearchQueryMaxLength+1),
+		},
+	}
+
+	resp, err := Handler(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+	if resp.StatusCode != 400 {
+		t.Errorf("StatusCode = %d, want 400", resp.StatusCode)
 	}
 }
 
