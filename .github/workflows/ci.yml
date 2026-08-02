@@ -510,6 +510,8 @@ jobs:
             path: posts/delete
           - function: posts-build_status
             path: posts/build_status
+          - function: posts-reconcile_build
+            path: posts/reconcile_build
           - function: posts-get_by_slug
             path: posts/get_by_slug
           - function: auth-login
@@ -621,7 +623,7 @@ jobs:
           echo "========================================="
           echo "Verifying Lambda Binaries"
           echo "========================================="
-          FUNCS="posts-create posts-get posts-get_public posts-get_by_slug posts-list posts-update posts-delete posts-build_status auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete"
+          FUNCS="posts-create posts-get posts-get_public posts-get_by_slug posts-list posts-update posts-delete posts-build_status posts-reconcile_build auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete"
           MISSING=0
           for f in $FUNCS; do
             if [ -f "go-functions/bin/$f/bootstrap" ]; then
@@ -635,7 +637,7 @@ jobs:
             echo "ERROR: $MISSING binaries missing!"
             exit 1
           fi
-          echo "✓ All 18 binaries verified"
+          echo "✓ All 19 binaries verified"
 
       - name: Save combined Lambda cache
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
