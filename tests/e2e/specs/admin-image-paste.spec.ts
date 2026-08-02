@@ -35,7 +35,7 @@ test.describe('Admin Tiptap Editor - image paste', () => {
   test('画像を貼り付けると UploadImage が S3 PUT を経て最終 URL を markdown に挿入する', async ({
     page,
   }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     await pasteImage(page, fixturePng({ name: 'paste-test.png' }));

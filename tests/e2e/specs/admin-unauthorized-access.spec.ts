@@ -18,7 +18,7 @@ test.describe('Admin Unauthorized Access - Minimal E2E', () => {
   }) => {
     // Arrange: ストレージをクリアして未認証状態にする
     // admin SPAのコンテキストでストレージをクリア（Cognito認証情報を確実に削除）
-    await page.goto('/login');
+    await page.goto('login');
     await page.context().clearCookies();
     await page.evaluate(() => {
       localStorage.clear();
@@ -26,7 +26,7 @@ test.describe('Admin Unauthorized Access - Minimal E2E', () => {
     });
 
     // Act: 認証が必要なページにアクセス
-    await page.goto('/dashboard');
+    await page.goto('dashboard');
 
     // Assert: ログインページにリダイレクトされることを確認
     await page.waitForURL('**/login', { timeout: 15000 });

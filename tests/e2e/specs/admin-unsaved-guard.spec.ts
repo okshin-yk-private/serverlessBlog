@@ -33,7 +33,7 @@ test.describe('Admin Unsaved-Guard', () => {
   test('未保存のままキャンセル → confirm が出る (dismiss で留まる)', async ({
     page,
   }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     // タイトルだけ入力 (本文空 → autosave は走らない → isDirty のまま)
@@ -55,7 +55,7 @@ test.describe('Admin Unsaved-Guard', () => {
   test('未保存のままキャンセル → confirm を accept で離脱する', async ({
     page,
   }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     await page.getByTestId('post-title-input').fill('Dirty Title');
@@ -71,7 +71,7 @@ test.describe('Admin Unsaved-Guard', () => {
   });
 
   test('autosave 完了後にキャンセル → confirm 無しで遷移', async ({ page }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     // タイトル + 本文を入れて autosave 完走を待つ
