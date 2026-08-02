@@ -1267,7 +1267,7 @@ jobs:
   # Job 7: E2E Tests - Admin Site (always runs if frontend tests passed)
   # =======================================
   e2e-admin-tests:
-    name: E2E Tests (Admin - Auth, CRUD, Categories & Security)
+    name: E2E Tests (Admin - Full Suite)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [frontend-admin-tests]
@@ -1321,18 +1321,23 @@ jobs:
           sudo rm -f /etc/apt/sources.list.d/azure-cli.list || true
           bunx playwright install-deps chromium
 
-      - name: Run E2E tests (Admin - Auth, CRUD, Categories & Security) - Chromium only
-        # PR 時にゲートする admin spec は 6 件（auth / crud / categories /
-        # unauthorized-access / slug-conflict / metadata-sidebar）。
-        # 残りの admin-*.spec.ts (tiptap / image-* / autosave / unsaved-guard /
-        # publish-flow / preview-parity) は MSW 環境（Tiptap エディタ初期化の
-        # レース）で flakiness があり、コミット deee4d8 の対応どおり PR CI
-        # からは除外している。全 16 spec は post-deploy AWS E2E ジョブ
-        # (deploy.yml) の nightly 実行でカバーする。安定化したら順次 PR CI に
-        # 追加する。
+      - name: Run E2E tests (Admin) - Chromium only
+        # admin-*.spec.ts 全件 (33 テスト) を実行する。
+        #
+        # コミット deee4d8 は Tiptap エディタ初期化のレースによる flakiness を
+        # 理由に 9 spec を PR CI から除外し、「post-deploy の AWS E2E で全件
+        # 実行する」としたが、その代替経路は実在しなかった (Issue #520)。
+        # 現在は当該レースが解消しており、CI と同じ workers=4 / retry 無しで
+        # 5 回連続 33 passed (各 26 秒) を確認したため、全件をここでゲートする。
+        #
+        # admin spec が検証するのはエディタ・画像・autosave といった UI の
+        # 振る舞いであり、データが決定的で速い MSW がその適切な層。実 AWS 環境
+        # に対する post-deploy E2E は「デプロイされたものが動くか」を見る
+        # smoke (admin-auth) に限定している。
+        #
         # --workers=1 は playwright.admin.config.ts の workers 設定
-        # (CI 時は 4) を上書きしてしまうため削除した。
-        run: bun run test:e2e:admin -- tests/e2e/specs/admin-auth.spec.ts tests/e2e/specs/admin-crud.spec.ts tests/e2e/specs/admin-categories.spec.ts tests/e2e/specs/admin-unauthorized-access.spec.ts tests/e2e/specs/admin-slug-conflict.spec.ts tests/e2e/specs/admin-metadata-sidebar.spec.ts --project=chromium
+        # (CI 時は 4) を上書きしてしまうため渡さない。
+        run: bun run test:e2e:admin -- --project=chromium
         env:
           CI: true
 

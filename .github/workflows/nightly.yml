@@ -5,10 +5,11 @@
 #   - terraform-test-matrix-prep filters to `--changed` dirs, so a typical PR
 #     only re-runs a handful of the 232 total `run` blocks across the 12
 #     terraform test dirs.
-#   - e2e-admin-tests only gates 6 of the 16 admin-*.spec.ts files; the other
-#     10 were excluded from PR CI for MSW-environment flakiness (deee4d8).
 #   - go-functions/tests/benchmark is excluded from both CI Go test jobs
 #     (`grep -v '/tests/benchmark$'`) and runs nowhere else.
+#
+# Admin E2E はここには無い。全 spec でも 26 秒で終わるため PR ごとに
+# ci.yml でゲートしており、毎晩同じものを再実行する意味がない (Issue #520)。
 #
 # This workflow runs the unsampled versions on a schedule so gaps are still
 # observed, without slowing down every PR.
@@ -91,70 +92,6 @@ jobs:
           echo "✓ Module tests passed for ${{ matrix.dir }}"
 
   # =======================================
-  # Job: Admin E2E Full Suite (MSW)
-  # ci.yml の e2e-admin-tests は 16 spec 中 6 spec のみを PR CI でゲートしている
-  # (残り 10 spec は MSW 環境での flakiness を理由に deee4d8 で除外)。ここでは
-  # 全 16 spec を毎晩実行し、傾向を観測する。gating が目的ではないため
-  # continue-on-error で non-blocking にする。
-  # =======================================
-  e2e-admin-full:
-    name: E2E Tests (Admin - Full Suite, MSW)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: '22'
-
-      - name: Setup Bun + Install Dependencies (root)
-        uses: ./.github/actions/setup-bun-deps
-        with:
-          working-directory: .
-
-      - name: Setup Bun + Install Dependencies (admin)
-        uses: ./.github/actions/setup-bun-deps
-        with:
-          working-directory: frontend/admin
-
-      - name: Install Playwright browsers
-        run: bunx playwright install --with-deps chromium
-
-      # continue-on-error: 全 16 spec がこの環境で走るのは初めてで flakiness が
-      # 未知数のため、暫定的に job を落とさない。目的は観測であり gating では
-      # ない。
-      - name: Run full Admin E2E suite (16 specs)
-        id: e2e_admin_full
-        continue-on-error: true
-        run: bun run test:e2e:admin -- --project=chromium
-        env:
-          CI: true
-
-      - name: Record Admin E2E Full Suite outcome
-        if: always()
-        run: |
-          {
-            echo "## Admin E2E Full Suite (nightly, MSW)"
-            if [ "${{ steps.e2e_admin_full.outcome }}" == "success" ]; then
-              echo "✅ All 16 admin specs passed."
-            else
-              echo "❌ Full admin suite failed or was flaky (outcome: ${{ steps.e2e_admin_full.outcome }})."
-              echo "continue-on-error is set, so this does not fail the job. See the playwright-report-admin-full artifact for details."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload Playwright Report (Admin Full)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: playwright-report-admin-full
-          path: playwright-report-admin/
-          retention-days: 3
-
-  # =======================================
   # Job: Go Lambda Benchmark
   # go-functions/tests/benchmark は CI の go-test / go-test-race どちらからも
   # `go list ./... | grep -v '/tests/benchmark$'` で除外されており、他のどこにも
@@ -194,7 +131,7 @@ jobs:
     name: Nightly Summary
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [terraform-test-full, e2e-admin-full, go-benchmark]
+    needs: [terraform-test-full, go-benchmark]
     if: always()
     steps:
       - name: Render summary
@@ -205,8 +142,7 @@ jobs:
             echo "| Suite | Result |"
             echo "|-------|--------|"
             echo "| Terraform Test (full, all 12 dirs) | ${{ needs.terraform-test-full.result }} |"
-            echo "| Admin E2E (full 16-spec, MSW) | ${{ needs.e2e-admin-full.result }} |"
             echo "| Go Lambda Benchmark | ${{ needs.go-benchmark.result }} |"
             echo ""
-            echo "Admin E2E full suite runs with continue-on-error and does not gate this workflow; see its own job summary / report artifact for pass/fail detail per spec."
+            echo "Admin E2E はここでは実行しない。ci.yml の e2e-admin-tests が PR ごとに全 spec をゲートしているため (Issue #520)。"
           } >> "$GITHUB_STEP_SUMMARY"

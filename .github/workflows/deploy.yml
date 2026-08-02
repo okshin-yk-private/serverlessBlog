@@ -1233,47 +1233,24 @@ jobs:
           path: playwright-report-aws/
           retention-days: 3
 
-      # commit deee4d8 は「16 admin spec のうち 12 件は post-deploy で AWS に対して
-      # 実行する」という前提で PR CI から除外したが、実際には deploy.yml は
-      # test:e2e:aws (project=chromium = home/article の public spec のみ) しか
-      # 呼んでおらず、admin-chromium を実行する test:e2e:aws:admin はどこからも
-      # 呼ばれていなかった。ここでその欠落を埋める。
+      # デプロイされた admin が実際に動くかの smoke (admin-auth のみ)。
+      # /admin 配下での配信・実 Cognito 認証・API 到達をここで確かめる。
+      # エディタや画像アップロードなど UI の振る舞いは ci.yml が MSW 環境で
+      # PR ごとに全 spec ゲートしており、ここで二重に持たない (Issue #520)。
       #
-      # 現在の実行対象は admin-auth.spec.ts のみ。残りの spec は MSW のシード
-      # データ前提のままで実環境では通らないため、その対応は Issue #520。
-      #
-      # continue-on-error: このジョブでは実行実績が浅く flakiness が未知数の
-      # ため、暫定的に job を落とさない。傾向が分かって安定したら外す。
+      # public 側と同じく continue-on-error は付けない。post-deploy 検証が
+      # 落ちたなら、そのデプロイは検証できていないという意味なのでジョブを落とす。
       - name: Run Post-Deploy E2E Tests (Admin)
-        id: e2e_admin
-        continue-on-error: true
         run: bun run test:e2e:aws:admin -- --workers=1
         env:
           CI: true
           BASE_URL: ${{ steps.config.outputs.base_url }}
           DEV_BASIC_AUTH_USERNAME: ${{ steps.config.outputs.basic_user }}
           DEV_BASIC_AUTH_PASSWORD: ${{ steps.config.outputs.basic_pass }}
-          # 未設定なら spec 側でログインを要するテストが skip される (Issue #520)
+          # 未設定ならログインを要するテストは失敗ではなく skip される
           TEST_ADMIN_EMAIL: ${{ steps.config.outputs.e2e_admin_email }}
           TEST_ADMIN_PASSWORD: ${{ steps.config.outputs.e2e_admin_password }}
           VITE_ENABLE_MSW_MOCK: 'false'
-
-      # continue-on-error: true だとジョブ/ワークフローが緑のままになり、失敗が
-      # 埋もれてしまう。Step Summary に明示的に結果を書き出して見えるようにする。
-      - name: Record Admin E2E outcome
-        if: always()
-        run: |
-          {
-            echo "## Post-Deploy E2E Tests (Admin, DEV)"
-            if [ "${{ steps.e2e_admin.outcome }}" == "success" ]; then
-              echo "✅ Admin E2E (against DEV) passed."
-            else
-              echo "❌ Admin E2E (against DEV) failed (outcome: ${{ steps.e2e_admin.outcome }})."
-              echo "continue-on-error is set, so this job is still reported as passing overall. See the playwright-report-aws-admin artifact for details."
-            fi
-            echo ""
-            echo "実行対象は admin-auth.spec.ts のみ。残りの admin spec の実環境対応は Issue #520。"
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Admin E2E Test Report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -216,30 +216,31 @@ export TEST_ADMIN_PASSWORD=$(aws ssm get-parameter --name /serverless-blog/dev/e
 ```
 Job 6: e2e-public-tests → 公開サイト全 spec (3 / 7 tests)
         ※ モックAPIに対して Astro をビルドしてから実行する
-Job 7: e2e-admin-tests  → 管理画面のうち認証 / CRUD / カテゴリ / セキュリティ系 4 spec
+Job 7: e2e-admin-tests  → 管理画面の admin-*.spec.ts 全件 (15 spec / 33 tests)
 APIコントラクトテスト（Layer 2）→ GoテストCIジョブに自動組み込み
 ```
 
-> Job 7 が PR で実行するのは下記 4 spec:
-> - `admin-auth.spec.ts`
-> - `admin-crud.spec.ts`
-> - `admin-categories.spec.ts`
-> - `admin-unauthorized-access.spec.ts`
->
-> **PR では実行されない admin spec** (tiptap-basic / image-* / metadata-sidebar / autosave /
-> unsaved-guard / publish-flow / preview-parity / slug-conflict) は、現時点で MSW 環境
-> での flakiness（特に Tiptap エディタ起動）があり、安定化前に PR を一律 fail させる
-> リスクがあるため除外している。これらは下記の post-deploy AWS E2E ジョブで全件回す。
-> flakiness を解消したら順次 Job 7 に追加する。
+> コミット deee4d8 は Tiptap エディタ起動のレースによる flakiness を理由に
+> 9 spec を PR CI から除外し、「post-deploy の AWS E2E で全件回す」としていたが、
+> その代替経路は実在しなかった（Issue #520）。現在はレースが解消しており、
+> CI と同じ並列度・retry 無しで 5 回連続 33 passed（各 26 秒）を確認したうえで
+> 全件を PR でゲートしている。
 
 ### デプロイ後（deploy.yml）
 
 ```
-post-deploy-e2e-dev → 実環境E2Eテスト（Layer 3, 全 18 spec）
+post-deploy-e2e-dev
+  ├─ Public  → home / article spec（実環境）
+  └─ Admin   → admin-auth spec のみ（実環境の smoke）
 ```
 
-実環境では `[E2E-TEST]` プレフィックスの記事 / カテゴリを `global-teardown.ts` が
-自動削除する。手動掃除は `bun run cleanup:test-data`。
+実環境に対して流すのは「デプロイされたものが動くか」の確認に絞っている
+（admin SPA が `/admin` 配下で配信され、実 Cognito で認証でき、API に到達できる）。
+エディタ・画像・autosave といった UI の振る舞いは、データが決定的で速い MSW 環境の
+方が適した層であり、PR CI 側で全 spec がゲートされているため実環境では二重に持たない。
+
+`[E2E-TEST]` プレフィックスの記事 / カテゴリは `global-teardown.ts` が自動削除する。
+手動掃除は `bun run cleanup:test-data`。
 
 ## トラブルシューティング
 

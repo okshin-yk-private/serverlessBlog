@@ -93,12 +93,17 @@ export default defineConfig({
       // Admin サイト用プロジェクト（admin-*.spec.ts）
       // AWS環境ではCloudFrontの /admin/ パス配下で配信される
       name: 'admin-chromium',
-      // 実 AWS 環境で通せるのは現状 admin-auth のみ:
-      // - 他の admin spec は MSW のシードデータ/リセット API を前提としており、
-      //   実環境ではデータ前提が成立しない
-      // - 有効な Cognito 認証情報 (TEST_ADMIN_EMAIL/PASSWORD) も CI に未整備
-      // 全 spec の実環境対応は Issue #520 で扱う。ローカル MSW での全 spec 実行は
-      // playwright.admin.config.ts が担当しており、この絞り込みの影響を受けない。
+      // 実環境に対して流すのは admin-auth のみ (意図的な設計。Issue #520)。
+      //
+      // ここで確かめたいのは「デプロイされたものが動くか」— admin SPA が
+      // /admin 配下で配信され、実 Cognito で認証でき、API に到達できること。
+      // admin-auth がそのすべてを通る。
+      //
+      // エディタ・画像・autosave といった UI の振る舞いは、データが決定的で
+      // 速い MSW 環境の方が適した層であり、playwright.admin.config.ts 側で
+      // 全 spec が PR ごとにゲートされている。同じ検証を実環境で二重に持つと
+      // 実データの作成/後始末と結果整合性の待ちが必要になり、得られるものに
+      // 対して遅く不安定になる。
       testMatch: ['**/admin-auth.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
