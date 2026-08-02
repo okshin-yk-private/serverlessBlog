@@ -23,6 +23,14 @@ import (
 	"serverless-blog/go-functions/internal/domain"
 )
 
+const (
+	seedCategorySlugTech     = "tech"
+	seedCategorySlugLife     = "life"
+	seedCategorySlugBusiness = "business"
+	seedCategorySlugOther    = "other"
+	seedAttributeSlug        = "slug"
+)
+
 // DynamoDBClient defines the interface for DynamoDB operations needed by this handler.
 type DynamoDBClient interface {
 	PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
@@ -70,10 +78,10 @@ func (h *SeedHandler) HandleRequest(ctx context.Context, event events.APIGateway
 
 	// Requirement 8.2: Define the initial categories with exact values
 	seedCategories := []SeedCategory{
-		{Name: "テクノロジー", Slug: "tech", SortOrder: 1},
-		{Name: "ライフスタイル", Slug: "life", SortOrder: 2},
-		{Name: "ビジネス", Slug: "business", SortOrder: 3},
-		{Name: "その他", Slug: "other", SortOrder: 4},
+		{Name: "テクノロジー", Slug: seedCategorySlugTech, SortOrder: 1},
+		{Name: "ライフスタイル", Slug: seedCategorySlugLife, SortOrder: 2},
+		{Name: "ビジネス", Slug: seedCategorySlugBusiness, SortOrder: 3},
+		{Name: "その他", Slug: seedCategorySlugOther, SortOrder: 4},
 	}
 
 	result := SeedResult{
@@ -86,12 +94,12 @@ func (h *SeedHandler) HandleRequest(ctx context.Context, event events.APIGateway
 		// Requirement 8.3: Check slug existence before insertion
 		exists, err := h.checkSlugExists(ctx, seedCat.Slug)
 		if err != nil {
-			h.logger.Error("Failed to check slug existence", "slug", seedCat.Slug, "error", err)
+			h.logger.Error("Failed to check slug existence", seedAttributeSlug, seedCat.Slug, "error", err)
 			return h.errorResponse(500, fmt.Sprintf("Failed to check slug existence: %v", err))
 		}
 
 		if exists {
-			h.logger.Info("Category already exists, skipping", "slug", seedCat.Slug)
+			h.logger.Info("Category already exists, skipping", seedAttributeSlug, seedCat.Slug)
 			result.Skipped++
 			result.Details = append(result.Details, fmt.Sprintf("Skipped: %s (%s)", seedCat.Name, seedCat.Slug))
 			continue
@@ -100,11 +108,11 @@ func (h *SeedHandler) HandleRequest(ctx context.Context, event events.APIGateway
 		// Create new category
 		err = h.createCategory(ctx, seedCat)
 		if err != nil {
-			h.logger.Error("Failed to create category", "slug", seedCat.Slug, "error", err)
+			h.logger.Error("Failed to create category", seedAttributeSlug, seedCat.Slug, "error", err)
 			return h.errorResponse(500, fmt.Sprintf("Failed to create category: %v", err))
 		}
 
-		h.logger.Info("Category seeded successfully", "slug", seedCat.Slug, "name", seedCat.Name)
+		h.logger.Info("Category seeded successfully", seedAttributeSlug, seedCat.Slug, "name", seedCat.Name)
 		result.Seeded++
 		result.Details = append(result.Details, fmt.Sprintf("Seeded: %s (%s)", seedCat.Name, seedCat.Slug))
 	}
@@ -175,10 +183,10 @@ func (h *SeedHandler) createCategory(ctx context.Context, seedCat SeedCategory) 
 				Put: &types.Put{
 					TableName: aws.String(h.tableName),
 					Item: map[string]types.AttributeValue{
-						"id":         &types.AttributeValueMemberS{Value: slugReservationID},
-						"slug":       &types.AttributeValueMemberS{Value: seedCat.Slug},
-						"categoryId": &types.AttributeValueMemberS{Value: id},
-						"itemType":   &types.AttributeValueMemberS{Value: "SLUG_RESERVATION"},
+						"id":              &types.AttributeValueMemberS{Value: slugReservationID},
+						seedAttributeSlug: &types.AttributeValueMemberS{Value: seedCat.Slug},
+						"categoryId":      &types.AttributeValueMemberS{Value: id},
+						"itemType":        &types.AttributeValueMemberS{Value: "SLUG_RESERVATION"},
 					},
 					ConditionExpression: aws.String("attribute_not_exists(id)"),
 				},

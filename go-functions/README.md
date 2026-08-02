@@ -9,7 +9,20 @@ Goで実装されたLambda関数のコードとテストをまとめています
 - `bin/` : ビルド済みバイナリ（生成物）
 
 ## 前提
-- Go 1.25.x
+- Go 1.26.5（完全なパッチバージョンは`go.mod`が唯一の参照元）
+- golangci-lint v2.12.2（Go 1.26以上でビルドしたもの）
+
+### golangci-lintのインストール
+
+Go 1.26.5を有効にしてから、固定版をインストールします。
+
+```bash
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+golangci-lint version
+```
+
+出力に`has version 2.12.2`および`built with go1.26`が含まれることを確認してください。
+`make lint`はGoまたはgolangci-lintが不一致の場合、解析panicの代わりに修正方法を示して停止します。
 
 ## ビルド
 ```bash
@@ -20,11 +33,11 @@ make build
 ## テスト
 ```bash
 cd go-functions
-go test -race -coverprofile=coverage.out ./...
+make test
 ```
 
 ## Lint
 ```bash
 cd go-functions
-golangci-lint run
+make lint
 ```

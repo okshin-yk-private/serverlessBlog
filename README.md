@@ -6,7 +6,7 @@ AWS サーバーレスアーキテクチャを学習するための個人ブロ�
 
 | カテゴリ | 技術 |
 |---------|------|
-| Backend | Go 1.25 (Lambda ARM64) |
+| Backend | Go 1.26.5 (Lambda ARM64) |
 | Public site | Astro SSG + slug ベース URL (`/posts/<slug>/`) |
 | Admin | React 19 + Vite + Tailwind + Tiptap エディタ + メタデータサイドバー |
 | Infrastructure | Terraform ~> 1.14 |
