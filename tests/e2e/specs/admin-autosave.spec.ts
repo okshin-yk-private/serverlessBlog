@@ -29,7 +29,7 @@ test.describe('Admin Autosave', () => {
   test('新規記事: タイトル+本文入力後、autosave で URL が /posts/edit/{id} に置換される', async ({
     page,
   }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     // 初期状態: 未保存
@@ -50,7 +50,7 @@ test.describe('Admin Autosave', () => {
     page,
   }) => {
     // 既存記事を編集 (mockData の post-1 を利用)
-    await page.goto('/posts/edit/post-1');
+    await page.goto('posts/edit/post-1');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     const status = page.getByTestId('autosave-status');
@@ -68,7 +68,7 @@ test.describe('Admin Autosave', () => {
   test('タイトルのみで本文が空の場合 autosave は走らない (isReady ガード)', async ({
     page,
   }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     await page.getByTestId('post-title-input').fill('Title Only');

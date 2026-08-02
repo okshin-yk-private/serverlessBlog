@@ -31,7 +31,7 @@ test.describe('Admin Tiptap Editor - image failure', () => {
     page,
   }) => {
     // MSW handler は __force_500__ prefix のファイル名で 500 を返す
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     await pasteImage(page, fixturePng({ name: '__force_500__paste.png' }));
@@ -59,7 +59,7 @@ test.describe('Admin Tiptap Editor - image failure', () => {
       }
     });
 
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     // 6MB のファイル (5MB cap を超える)

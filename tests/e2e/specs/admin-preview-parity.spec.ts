@@ -27,7 +27,7 @@ test.describe('Admin Tiptap Editor - preview parity', () => {
   test('見出し / コードブロック / 引用 / リストが Preview に表示される', async ({
     page,
   }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     const sample = [

@@ -35,7 +35,7 @@ test.describe('Admin Tiptap Editor - image drop', () => {
   test('画像をドロップすると UploadImage が S3 PUT を経て最終 URL を markdown に挿入する', async ({
     page,
   }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     await dropImage(page, fixtureJpeg({ name: 'drop-test.jpg' }));

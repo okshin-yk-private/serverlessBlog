@@ -23,7 +23,7 @@ test.describe('Admin Slug Conflict', () => {
   });
 
   test('重複 slug で保存すると 409 エラーバナーが出る', async ({ page }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
     // Seed an existing post in browser-side MSW state with the slug we'll
     // collide against. The bridge is exposed by main.tsx when MSW is on.

@@ -32,14 +32,14 @@ test.describe('Admin Tiptap Editor - basic', () => {
   test('エディタが起動して contenteditable とツールバーが表示される', async ({
     page,
   }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(page.getByTestId('tiptap-editor')).toBeVisible();
     await expect(page.getByTestId('tiptap-toolbar')).toBeVisible();
     await expect(getTiptapEditor(page)).toBeVisible();
   });
 
   test('入力した markdown が round-trip で取得できる', async ({ page }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     await setEditorContent(page, '## 見出し2\n\n本文段落\n\n- 項目A\n- 項目B');
@@ -49,7 +49,7 @@ test.describe('Admin Tiptap Editor - basic', () => {
   });
 
   test('toolbar の太字ボタンで bold が適用される', async ({ page }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     await setEditorContent(page, 'hello');
@@ -65,7 +65,7 @@ test.describe('Admin Tiptap Editor - basic', () => {
   });
 
   test('Edit / Preview タブが切り替わる', async ({ page }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(page.getByTestId('tiptap-editor')).toBeVisible();
     await setEditorContent(page, '## プレビュー見出し');
 
