@@ -30,6 +30,7 @@ FUNCTIONS := \
 	posts/update \
 	posts/delete \
 	posts/build_status \
+	posts/reconcile_build \
 	auth/login \
 	auth/logout \
 	auth/refresh \

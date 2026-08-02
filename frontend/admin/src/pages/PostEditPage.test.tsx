@@ -223,6 +223,7 @@ describe('PostEditPage', () => {
           category: 'tech',
           tags: ['test-tag'],
           publishStatus: 'published',
+          saveMode: 'manual',
         });
       });
     });

@@ -62,15 +62,12 @@ test.describe('Admin CRUD - Article Management', () => {
     await adminPostCreatePage.setPublishStatus('published');
     await adminPostCreatePage.clickSaveButton();
 
-    // PR5b: when publishing, the editor page now stays put and surfaces the
-    // build status badge instead of redirecting. Wait for the badge to confirm
-    // the post was created, then SPA-navigate to /posts via the header link
-    // (page.goto would reset the MSW in-memory mockPosts state).
+    // 明示保存後は公開状態にかかわらず記事一覧へ遷移し、保存操作に対応する
+    // build status badgeを一覧上で表示する。
+    await page.waitForURL(/\/posts(\?.*)?$/, { timeout: 10000 });
     await expect(page.getByTestId('build-status-badge')).toBeVisible({
       timeout: 10000,
     });
-    await page.getByRole('link', { name: 'Articles' }).click();
-    await page.waitForURL(/\/posts(\?.*)?$/, { timeout: 10000 });
     await adminDashboardPage.waitForArticleListLoaded();
 
     // Verify the article appears in the list
@@ -104,15 +101,11 @@ test.describe('Admin CRUD - Article Management', () => {
     await adminPostEditPage.fillTitle(updatedTitle);
     await adminPostEditPage.clickSaveButton();
 
-    // PR5b: seed articles are published — saving keeps that status, so the
-    // edit page now stays put and shows the build status badge instead of
-    // redirecting. Confirm the badge, then SPA-navigate to /posts via the
-    // header link (page.goto would reset MSW mockPosts state).
+    // 公開記事の明示保存も記事一覧へ遷移し、対応revisionの状態を表示する。
+    await page.waitForURL(/\/posts(\?.*)?$/, { timeout: 10000 });
     await expect(page.getByTestId('build-status-badge')).toBeVisible({
       timeout: 10000,
     });
-    await page.getByRole('link', { name: 'Articles' }).click();
-    await page.waitForURL(/\/posts(\?.*)?$/, { timeout: 10000 });
     await adminDashboardPage.waitForArticleListLoaded();
 
     const isUpdatedVisible =

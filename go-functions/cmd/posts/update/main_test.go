@@ -39,6 +39,20 @@ type MockDynamoDBClient struct {
 	QueryFunc   func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
 }
 
+func (m *MockDynamoDBClient) UpdateItem(_ context.Context, _ *dynamodb.UpdateItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error) {
+	return &dynamodb.UpdateItemOutput{}, nil
+}
+
+func (m *MockDynamoDBClient) TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, _ ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+	if len(params.TransactItems) > 0 && params.TransactItems[0].Put != nil && m.PutItemFunc != nil {
+		_, err := m.PutItemFunc(ctx, &dynamodb.PutItemInput{TableName: params.TransactItems[0].Put.TableName, Item: params.TransactItems[0].Put.Item})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &dynamodb.TransactWriteItemsOutput{}, nil
+}
+
 func (m *MockDynamoDBClient) GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 	if m.GetItemFunc != nil {
 		return m.GetItemFunc(ctx, params, optFns...)
@@ -123,6 +137,49 @@ func createTestPost() domain.BlogPost {
 		UpdatedAt:       testUpdatedAt,
 		PublishedAt:     nil,
 		ImageURLs:       []string{},
+	}
+}
+
+func TestHandler_AutosavePreservesPublishedStatusAndCategory(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	existingPost := createTestPost()
+	existingPost.PublishStatus = domain.PublishStatusPublished
+	existingPost.Category = "technology"
+	item, err := attributevalue.MarshalMap(existingPost)
+	if err != nil {
+		t.Fatalf("marshal existing post: %v", err)
+	}
+	var saved domain.BlogPost
+	mockClient := &MockDynamoDBClient{
+		GetItemFunc: func(context.Context, *dynamodb.GetItemInput, ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			return &dynamodb.GetItemOutput{Item: item}, nil
+		},
+		PutItemFunc: func(_ context.Context, params *dynamodb.PutItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			if err := attributevalue.UnmarshalMap(params.Item, &saved); err != nil {
+				t.Fatalf("unmarshal saved post: %v", err)
+			}
+			return &dynamodb.PutItemOutput{}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+	buildClientCalled := false
+	codebuildClientGetter = func() (*codebuild.Client, error) {
+		buildClientCalled = true
+		return nil, errors.New("must not be called")
+	}
+
+	request := createAuthenticatedRequest(testPostID, `{"title":"Autosaved","category":"","publishStatus":"draft","saveMode":"autosave"}`)
+	response, handlerErr := Handler(context.Background(), request)
+	if handlerErr != nil || response.StatusCode != 200 {
+		t.Fatalf("expected 200 response, got status=%d err=%v body=%s", response.StatusCode, handlerErr, response.Body)
+	}
+	if saved.Category != "technology" || saved.PublishStatus != domain.PublishStatusPublished {
+		t.Fatalf("autosave changed protected fields: category=%q status=%q", saved.Category, saved.PublishStatus)
+	}
+	if buildClientCalled {
+		t.Fatal("autosave must not trigger CodeBuild")
 	}
 }
 
@@ -1361,7 +1418,7 @@ func TestShouldTriggerBuild_NoPublishStatusChange(t *testing.T) {
 	}
 }
 
-// TestShouldTriggerBuild_PublishStatusToDraft tests that build is NOT triggered when status changes to draft
+// TestShouldTriggerBuild_PublishStatusToDraft tests that unpublishing removes the article from the static site.
 func TestShouldTriggerBuild_PublishStatusToDraft(t *testing.T) {
 	existingPost := createTestPost()
 	existingPost.PublishStatus = domain.PublishStatusPublished
@@ -1372,8 +1429,8 @@ func TestShouldTriggerBuild_PublishStatusToDraft(t *testing.T) {
 	}
 
 	result := shouldTriggerBuild(&existingPost, req)
-	if result {
-		t.Error("expected shouldTriggerBuild to return false when status changes to draft")
+	if !result {
+		t.Error("expected shouldTriggerBuild to return true when status changes to draft")
 	}
 }
 
@@ -1416,7 +1473,7 @@ func TestTriggerSiteBuild_MissingProjectName(t *testing.T) {
 	t.Setenv("CODEBUILD_PROJECT_NAME", "")
 
 	// triggerSiteBuild should not panic and should return silently
-	triggerSiteBuild(context.Background())
+	triggerSiteBuild(context.Background(), &MockDynamoDBClient{}, testTableName)
 	// No error expected - just a warning log
 }
 
@@ -1434,7 +1491,7 @@ func TestTriggerSiteBuild_CodeBuildClientInitError(t *testing.T) {
 	}
 
 	// triggerSiteBuild should not panic and should handle error gracefully
-	triggerSiteBuild(context.Background())
+	triggerSiteBuild(context.Background(), &MockDynamoDBClient{}, testTableName)
 	// No error expected - just an error log
 }
 
@@ -1668,7 +1725,7 @@ func TestShouldTriggerBuild_AllScenarios(t *testing.T) {
 			name:            "published to draft",
 			existingStatus:  domain.PublishStatusPublished,
 			requestStatus:   strPtr(domain.PublishStatusDraft),
-			expectedTrigger: false,
+			expectedTrigger: true,
 		},
 		{
 			name:            "draft to draft",
@@ -1686,7 +1743,7 @@ func TestShouldTriggerBuild_AllScenarios(t *testing.T) {
 			name:            "update other fields only (published post)",
 			existingStatus:  domain.PublishStatusPublished,
 			requestStatus:   nil,
-			expectedTrigger: false,
+			expectedTrigger: true,
 		},
 	}
 
@@ -1705,6 +1762,15 @@ func TestShouldTriggerBuild_AllScenarios(t *testing.T) {
 					tt.expectedTrigger, tt.name, result)
 			}
 		})
+	}
+}
+
+func TestShouldTriggerBuild_AutosavePublishedPost(t *testing.T) {
+	existingPost := createTestPost()
+	existingPost.PublishStatus = domain.PublishStatusPublished
+	req := &domain.UpdatePostRequest{Title: strPtr("Autosaved"), SaveMode: domain.SaveModeAutosave}
+	if shouldTriggerBuild(&existingPost, req) {
+		t.Fatal("autosave must not trigger a public site build")
 	}
 }
 

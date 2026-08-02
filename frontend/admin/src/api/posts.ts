@@ -6,7 +6,7 @@ export interface Post {
   title: string;
   contentMarkdown: string;
   contentHtml: string;
-  category: string;
+  category?: string;
   tags: string[];
   publishStatus: 'draft' | 'published';
   createdAt: string;
@@ -14,17 +14,25 @@ export interface Post {
   slug?: string;
   excerpt?: string;
   coverImageUrl?: string;
+  siteBuild?: SiteBuildRequest;
+}
+
+export interface SiteBuildRequest {
+  targetRevision: number;
+  buildId?: string;
+  status: BuildStatusValue;
 }
 
 export interface CreatePostRequest {
   title: string;
   contentMarkdown: string;
-  category: string;
+  category?: string;
   tags?: string[];
   publishStatus: 'draft' | 'published';
   slug?: string;
   excerpt?: string;
   coverImageUrl?: string;
+  saveMode?: 'manual' | 'autosave';
 }
 
 export interface UpdatePostRequest {
@@ -36,6 +44,7 @@ export interface UpdatePostRequest {
   slug?: string;
   excerpt?: string;
   coverImageUrl?: string;
+  saveMode?: 'manual' | 'autosave';
 }
 
 /**
@@ -149,9 +158,14 @@ export const deletePost = async (id: string): Promise<void> => {
 };
 
 /**
- * CodeBuild ビルドステータスのレスポンス型 (PR5b)
+ * 公開サイトビルドのステータスレスポンス型
  */
-export type BuildStatusValue = 'idle' | 'in-progress' | 'succeeded' | 'failed';
+export type BuildStatusValue =
+  | 'idle'
+  | 'queued'
+  | 'in-progress'
+  | 'succeeded'
+  | 'failed';
 
 export interface BuildStatusResponse {
   buildId?: string;
@@ -159,17 +173,22 @@ export interface BuildStatusResponse {
   phase?: string;
   startTime?: string;
   endTime?: string;
+  targetRevision?: number;
+  desiredRevision?: number;
+  deployedRevision?: number;
 }
 
 /**
- * 公開後のビルドステータスを取得
- * 直近の CodeBuild 結果を返却し、admin UI のバッジ表示に利用される。
+ * 保存に対応する公開サイトビルドのステータスを取得する。
+ * targetRevision 指定時は、その保存が公開サイトへ反映済みかを返す。
  */
 export const fetchBuildStatus = async (
-  postId: string
+  postId: string,
+  targetRevision?: number
 ): Promise<BuildStatusResponse> => {
   const response = await apiClient.get<BuildStatusResponse>(
-    `/admin/posts/${postId}/build-status`
+    `/admin/posts/${postId}/build-status`,
+    { params: targetRevision ? { targetRevision } : undefined }
   );
   return response.data;
 };

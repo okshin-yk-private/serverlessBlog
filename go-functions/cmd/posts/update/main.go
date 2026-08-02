@@ -33,15 +33,21 @@ import (
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/markdown"
 	"serverless-blog/go-functions/internal/middleware"
+	"serverless-blog/go-functions/internal/sitebuild"
 )
 
 // DynamoDBClientInterface defines the interface for DynamoDB operations (for testing)
-//
-//nolint:dupl // mirror of test mock; categories/update follows the same pattern.
 type DynamoDBClientInterface interface {
 	GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
 	PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
+	UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error)
+	TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error)
 	Query(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
+}
+
+type postMutationResponse struct {
+	domain.BlogPost
+	SiteBuild *sitebuild.Request `json:"siteBuild,omitempty"`
 }
 
 // slugIndexName returns the SlugIndex GSI name (overridable via env for tests).
@@ -66,7 +72,7 @@ var codebuildClientGetter = clients.GetCodeBuild
 // This can be overridden in tests
 var markdownConverter = markdown.ConvertToHTML
 
-// Handler handles PUT /posts/:id requests
+// Handler handles PUT /posts/:id requests.
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Validate and parse request
 	postID, req, userID, errResp := validateAndParseRequest(request)
@@ -90,6 +96,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	if existingPost.AuthorID != userID {
 		return errorResponse(403, "forbidden: you can only update your own posts")
 	}
+	normalizeAutosaveRequest(req)
 
 	// Validate update fields
 	if validateErr := validateUpdateRequest(req); validateErr != nil {
@@ -118,20 +125,29 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return *errResp, nil
 	}
 
-	// Save to DynamoDB
-	if errResp := savePost(ctx, dynamoClient, tableName, updatedPost); errResp != nil {
+	requiresBuild := shouldTriggerBuild(existingPost, req)
+	if errResp := savePost(ctx, dynamoClient, tableName, updatedPost, requiresBuild); errResp != nil {
 		return *errResp, nil
 	}
 
-	// Trigger CodeBuild if publishStatus changed to "published"
-	// Requirement 10.1: Trigger CodeBuild for site rebuild when post is published
-	// Requirement 10.10: Handle CodeBuild API errors gracefully without affecting post update response
-	if shouldTriggerBuild(existingPost, req) {
-		triggerSiteBuild(ctx)
+	var siteBuildRequest *sitebuild.Request
+	if requiresBuild {
+		request := triggerSiteBuild(ctx, dynamoClient, tableName)
+		siteBuildRequest = &request
 	}
 
 	// Return updated post with 200 status
-	return middleware.JSONResponse(200, updatedPost)
+	return middleware.JSONResponse(200, postMutationResponse{BlogPost: *updatedPost, SiteBuild: siteBuildRequest})
+}
+
+func normalizeAutosaveRequest(req *domain.UpdatePostRequest) {
+	if req.SaveMode != domain.SaveModeAutosave {
+		return
+	}
+	req.PublishStatus = nil
+	if req.Category != nil && strings.TrimSpace(*req.Category) == "" {
+		req.Category = nil
+	}
 }
 
 // validateAndParseRequest validates authentication and parses the request body
@@ -254,56 +270,66 @@ func shouldSetPublishedAt(existingPost *domain.BlogPost, req *domain.UpdatePostR
 // shouldTriggerBuild checks if a site rebuild should be triggered
 // Requirement 10.1: Trigger CodeBuild when post is published
 // Note: existingPost parameter kept for future use (e.g., checking transition from draft)
-func shouldTriggerBuild(_ *domain.BlogPost, req *domain.UpdatePostRequest) bool {
-	// Only trigger if publishStatus is being set to "published"
+func shouldTriggerBuild(existingPost *domain.BlogPost, req *domain.UpdatePostRequest) bool {
+	if req.SaveMode == domain.SaveModeAutosave {
+		return false
+	}
+	if existingPost.PublishStatus == domain.PublishStatusPublished {
+		return true
+	}
 	return req.PublishStatus != nil && *req.PublishStatus == domain.PublishStatusPublished
 }
 
 // triggerSiteBuild triggers the Astro SSG build via CodeBuild
 // Requirement 10.1, 10.2, 10.10: Trigger CodeBuild, handle errors gracefully
-func triggerSiteBuild(ctx context.Context) {
+func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface, tableName string) sitebuild.Request {
 	// Get CodeBuild project name from environment, sanitized at the trust boundary
 	projectName := buildtrigger.SanitizeProjectName(os.Getenv("CODEBUILD_PROJECT_NAME"))
 	if projectName == "" {
 		slog.Warn("CODEBUILD_PROJECT_NAME not set or invalid, skipping build trigger")
-		return
+		return sitebuild.CurrentRequest(ctx, dynamoClient, tableName)
 	}
 
 	// Get CodeBuild client
 	client, err := codebuildClientGetter()
 	if err != nil {
 		slog.Error("failed to get CodeBuild client", "error", err)
-		return
+		return sitebuild.CurrentRequest(ctx, dynamoClient, tableName)
 	}
 
 	// Create and use build trigger
-	trigger := buildtrigger.NewBuildTrigger(client, projectName)
-
-	if err := trigger.TriggerBuild(ctx); err != nil {
+	coordinator := sitebuild.NewCoordinator(dynamoClient, client, tableName, projectName)
+	request, err := coordinator.StartPending(ctx)
+	if err != nil {
 		// Requirement 10.10: Handle CodeBuild API errors gracefully
-		//nolint:gosec // G706: projectName already passed buildtrigger.SanitizeProjectName regex validation, so no log-injection vector
 		slog.Error("failed to trigger site build", "error", err, "project", projectName)
-		return
+		state, stateErr := coordinator.GetState(ctx)
+		if stateErr == nil {
+			return sitebuild.RequestForState(state, state.DesiredRevision)
+		}
+		return sitebuild.Request{Status: sitebuild.StatusFailed}
 	}
 
-	//nolint:gosec // G706: see above — projectName is regex-validated.
 	slog.Info("site build triggered successfully", "project", projectName)
+	return request
 }
 
 // savePost saves the updated post to DynamoDB
-func savePost(ctx context.Context, client DynamoDBClientInterface, tableName string, post *domain.BlogPost) *events.APIGatewayProxyResponse {
+func savePost(ctx context.Context, client DynamoDBClientInterface, tableName string, post *domain.BlogPost, requestBuild bool) *events.APIGatewayProxyResponse {
 	av, err := attributevalue.MarshalMap(post)
 	if err != nil {
 		resp, _ := errorResponse(500, "failed to marshal post")
 		return &resp
 	}
 
-	putInput := &dynamodb.PutItemInput{
-		TableName: &tableName,
-		Item:      av,
+	if requestBuild {
+		_, err = client.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: []types.TransactWriteItem{
+			{Put: &types.Put{TableName: &tableName, Item: av}},
+			sitebuild.RequestUpdate(tableName, time.Now()),
+		}})
+	} else {
+		_, err = client.PutItem(ctx, &dynamodb.PutItemInput{TableName: &tableName, Item: av})
 	}
-
-	_, err = client.PutItem(ctx, putInput)
 	if err != nil {
 		resp, _ := errorResponse(500, "failed to update post")
 		return &resp

@@ -11,9 +11,8 @@
 #   - lambda_posts_read         - GetItem/Query only (public + admin reads)
 #   - lambda_posts_write        - GetItem/PutItem/DeleteItem/Query + S3 delete
 #                                 cascade + CodeBuild trigger (create/update/delete)
-#   - lambda_posts_build_status - CodeBuild List/BatchGet only (polls build
-#                                 status; never starts a build, never touches
-#                                 DynamoDB or S3)
+#   - lambda_posts_build_status - GetItem only (reads durable build state;
+#                                 never starts a build or writes state)
 # - Auth domain: Cognito access only (unchanged - already least privilege)
 # - Images domain: S3 access only (unchanged - out of scope for #493)
 # - Categories domain:
@@ -95,9 +94,9 @@ resource "aws_iam_role_policy" "lambda_posts_read_dynamodb" {
 #   update_post -> dynamodb GetItem, PutItem, Query (slug change check)
 #   delete_post -> dynamodb GetItem, DeleteItem; s3 DeleteObjects (image
 #                  cascade, only when the post has ImageURLs)
-# None of the three call dynamodb UpdateItem or Scan directly, so those
-# actions are intentionally omitted.
-# All three conditionally trigger a site rebuild via CodeBuild.
+# Public-site-impacting mutations use TransactWriteItems with an Update on the
+# singleton build-state item. IAM authorizes the transaction through the
+# underlying Put/Delete/Update actions.
 # ======================
 
 resource "aws_iam_role" "lambda_posts_write" {
@@ -131,6 +130,7 @@ resource "aws_iam_role_policy" "lambda_posts_write_dynamodb" {
         Action = [
           "dynamodb:GetItem",
           "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
           "dynamodb:DeleteItem",
           "dynamodb:Query"
         ]
@@ -166,7 +166,6 @@ resource "aws_iam_role_policy" "lambda_posts_write_s3_cascade" {
 
 # CodeBuild access for triggering site rebuilds
 # Requirement 10.4: Lambda execution role with codebuild:StartBuild permission
-# Requirement 10.3: ListBuildsForProject and BatchGetBuilds for idempotency handling
 resource "aws_iam_role_policy" "lambda_posts_write_codebuild" {
   count = var.codebuild_project_arn != "" ? 1 : 0
   name  = "blog-lambda-posts-write-codebuild-policy"
@@ -179,9 +178,7 @@ resource "aws_iam_role_policy" "lambda_posts_write_codebuild" {
         Sid    = "CodeBuildTrigger"
         Effect = "Allow"
         Action = [
-          "codebuild:StartBuild",
-          "codebuild:ListBuildsForProject",
-          "codebuild:BatchGetBuilds"
+          "codebuild:StartBuild"
         ]
         Resource = var.codebuild_project_arn
       }
@@ -193,12 +190,7 @@ resource "aws_iam_role_policy" "lambda_posts_write_codebuild" {
 # Posts Domain - Build Status Role
 # Used by: build_status_post only.
 #
-# Confirmed this handler never calls dynamodb or s3 (it only polls
-# CodeBuild), and never calls codebuild:StartBuild - it only reads the
-# status of builds someone else started. Giving it the full write role
-# would hand a read-only "poll build status" endpoint the ability to
-# start arbitrary builds and mutate posts/images, which is exactly the
-# over-provisioning issue #493 exists to fix.
+# This handler reads only the singleton build-state item from DynamoDB.
 # ======================
 
 resource "aws_iam_role" "lambda_posts_build_status" {
@@ -218,22 +210,78 @@ resource "aws_iam_role_policy_attachment" "lambda_posts_build_status_xray" {
   policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
 }
 
-resource "aws_iam_role_policy" "lambda_posts_build_status_codebuild" {
-  count = var.codebuild_project_arn != "" ? 1 : 0
-  name  = "blog-lambda-posts-build-status-codebuild-policy"
-  role  = aws_iam_role.lambda_posts_build_status.id
+resource "aws_iam_role_policy" "lambda_posts_build_status_dynamodb" {
+  name = "blog-lambda-posts-build-status-dynamodb-policy"
+  role = aws_iam_role.lambda_posts_build_status.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "CodeBuildStatusPoll"
-        Effect = "Allow"
-        Action = [
-          "codebuild:ListBuildsForProject",
-          "codebuild:BatchGetBuilds"
-        ]
+        Sid      = "DynamoDBBuildStateRead"
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem"]
+        Resource = var.table_arn
+      }
+    ]
+  })
+}
+
+# ======================
+# Posts Domain - Build Reconciler Role
+# EventBridge/Scheduler invokes this Lambda. It may update only the singleton
+# coordinator item and start/poll only the configured CodeBuild project.
+# ======================
+
+resource "aws_iam_role" "lambda_posts_build_reconciler" {
+  name               = "blog-lambda-posts-build-reconciler-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+  tags               = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_posts_build_reconciler_basic_execution" {
+  role       = aws_iam_role.lambda_posts_build_reconciler.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_posts_build_reconciler_xray" {
+  count      = var.enable_xray ? 1 : 0
+  role       = aws_iam_role.lambda_posts_build_reconciler.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
+resource "aws_iam_role_policy" "lambda_posts_build_reconciler_dynamodb" {
+  name = "blog-lambda-posts-build-reconciler-dynamodb-policy"
+  role = aws_iam_role.lambda_posts_build_reconciler.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid      = "DynamoDBBuildStateReconcile"
+      Effect   = "Allow"
+      Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+      Resource = var.table_arn
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_posts_build_reconciler_codebuild" {
+  count = var.codebuild_project_arn != "" ? 1 : 0
+  name  = "blog-lambda-posts-build-reconciler-codebuild-policy"
+  role  = aws_iam_role.lambda_posts_build_reconciler.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "CodeBuildStart"
+        Effect   = "Allow"
+        Action   = ["codebuild:StartBuild"]
         Resource = var.codebuild_project_arn
+      },
+      {
+        Sid      = "CodeBuildReadBuild"
+        Effect   = "Allow"
+        Action   = ["codebuild:BatchGetBuilds"]
+        Resource = "${replace(var.codebuild_project_arn, ":project/", ":build/")}:*"
       }
     ]
   })

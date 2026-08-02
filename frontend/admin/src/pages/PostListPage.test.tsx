@@ -758,6 +758,7 @@ describe('PostListPage', () => {
           contentMarkdown: 'Content',
           category: 'tech',
           publishStatus: 'published',
+          saveMode: 'manual',
         });
         expect(screen.getByText(/記事を公開しました/i)).toBeInTheDocument();
       });
@@ -795,6 +796,7 @@ describe('PostListPage', () => {
           contentMarkdown: 'Content',
           category: 'tech',
           publishStatus: 'draft',
+          saveMode: 'manual',
         });
         expect(
           screen.getByText(/記事を下書きに変更しました/i)
@@ -874,7 +876,7 @@ describe('PostListPage', () => {
       await waitFor(() => {
         expect(screen.getByTestId('build-status-badge')).toBeInTheDocument();
       });
-      expect(mockFetchBuildStatus).toHaveBeenCalledWith('1');
+      expect(mockFetchBuildStatus).toHaveBeenCalledWith('1', undefined);
     });
 
     it('下書き記事を削除した場合はビルドステータスバッジを表示しない', async () => {
@@ -927,10 +929,10 @@ describe('PostListPage', () => {
       expect(
         screen.queryByTestId('build-status-badge')
       ).not.toBeInTheDocument();
-      expect(mockFetchBuildStatus).not.toHaveBeenCalled();
+      expect(mockFetchBuildStatus).not.toHaveBeenCalledWith('2', undefined);
     });
 
-    it('タブを切り替えるとビルドステータスバッジが消える', async () => {
+    it('タブを切り替えてもビルドステータスバッジを維持する', async () => {
       const publishedPost = {
         id: '1',
         title: 'Published Post',
@@ -970,9 +972,7 @@ describe('PostListPage', () => {
       fireEvent.click(screen.getByRole('button', { name: /下書き/i }));
 
       await waitFor(() => {
-        expect(
-          screen.queryByTestId('build-status-badge')
-        ).not.toBeInTheDocument();
+        expect(screen.getByTestId('build-status-badge')).toBeInTheDocument();
       });
     });
   });
