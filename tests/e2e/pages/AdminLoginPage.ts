@@ -60,9 +60,14 @@ export class AdminLoginPage extends BasePage {
    * (admin-crud.spec.ts のローカル失敗の真因)。
    */
   async clickLogin(): Promise<void> {
+    // 認証エンドポイントは環境で異なる:
+    // - MSW モック環境: /api/auth/login への POST
+    // - 実 AWS 環境: Amplify 経由で cognito-idp.<region>.amazonaws.com への POST
+    //   (AuthContext.login は VITE_ENABLE_MSW_MOCK でない限り Cognito SDK を使う)
     const responsePromise = this.page.waitForResponse(
       (resp) =>
-        resp.url().includes('/auth/login') &&
+        (resp.url().includes('/auth/login') ||
+          resp.url().includes('cognito-idp')) &&
         resp.request().method() === 'POST',
       { timeout: 10000 }
     );
