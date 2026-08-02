@@ -9,7 +9,7 @@
 #
 # Prerequisites:
 #   - AWS CLI configured with appropriate credentials
-#   - Go 1.25+ installed
+#   - Go version pinned in go-functions/go.mod installed
 #   - Terraform 1.14+ installed
 #   - Bun installed
 #   - Node.js 22+ installed
@@ -32,8 +32,9 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Expected versions (matching GitHub Actions)
-EXPECTED_GO_VERSION="1.25"
+# Expected versions (Go is the single source of truth for CI and local deploy)
+GO_MODULE_FILE="$PROJECT_ROOT/go-functions/go.mod"
+EXPECTED_GO_VERSION="$(awk '$1 == "go" { print $2; exit }' "$GO_MODULE_FILE")"
 EXPECTED_TERRAFORM_VERSION="1.14"
 EXPECTED_NODE_VERSION="22"
 
@@ -367,6 +368,20 @@ compare_versions() {
     fi
 }
 
+compare_exact_version() {
+    local current="$1"
+    local expected="$2"
+    local name="$3"
+
+    if [[ "$current" == "$expected" ]]; then
+        log_success "$name version: $current (matches pinned $expected)"
+        return 0
+    fi
+
+    log_error "$name version mismatch: found $current, required exactly $expected"
+    return 1
+}
+
 # ===========================================
 # AWS Credential Validation (Requirement 2)
 # ===========================================
@@ -427,7 +442,7 @@ validate_prereq() {
     if command -v go &> /dev/null; then
         local go_version
         go_version=$(go version | grep -oE 'go[0-9]+\.[0-9]+(\.[0-9]+)?' | sed 's/go//')
-        if ! compare_versions "$go_version" "$EXPECTED_GO_VERSION" "Go"; then
+        if ! compare_exact_version "$go_version" "$EXPECTED_GO_VERSION" "Go"; then
             has_error=true
         fi
     else

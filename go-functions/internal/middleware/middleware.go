@@ -13,7 +13,17 @@ import (
 // reused. It is deliberately short: publishing a post triggers a site rebuild
 // and a CloudFront invalidation, and a minute of staleness on the API is well
 // inside the time that pipeline takes.
-const PublicCacheMaxAgeSeconds = 60
+const (
+	PublicCacheMaxAgeSeconds = 60
+	headerContentType        = "Content-Type"
+	headerContentTypeOptions = "X-Content-Type-Options"
+	headerFrameOptions       = "X-Frame-Options"
+	headerCacheControl       = "Cache-Control"
+	headerJSONContentType    = "application/json"
+	headerNoSniff            = "nosniff"
+	headerNoStore            = "no-store"
+	frameOptionsDeny         = "DENY"
+)
 
 // CORSHeaders returns standard CORS headers.
 // The Access-Control-Allow-Origin value is read from the ALLOWED_ORIGIN
@@ -27,10 +37,10 @@ func CORSHeaders() map[string]string {
 		"Access-Control-Allow-Origin":  origin,
 		"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
 		"Access-Control-Allow-Headers": "Content-Type, Authorization",
-		"Content-Type":                 "application/json",
-		"X-Content-Type-Options":       "nosniff",
-		"X-Frame-Options":              "DENY",
-		"Cache-Control":                "no-store",
+		headerContentType:              headerJSONContentType,
+		headerContentTypeOptions:       headerNoSniff,
+		headerFrameOptions:             frameOptionsDeny,
+		headerCacheControl:             headerNoStore,
 	}
 }
 
@@ -43,7 +53,7 @@ func CORSHeaders() map[string]string {
 // cannot be cached by omission.
 func PublicCacheHeaders() map[string]string {
 	headers := CORSHeaders()
-	headers["Cache-Control"] = fmt.Sprintf("public, max-age=%d", PublicCacheMaxAgeSeconds)
+	headers[headerCacheControl] = fmt.Sprintf("public, max-age=%d", PublicCacheMaxAgeSeconds)
 	return headers
 }
 

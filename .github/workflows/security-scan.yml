@@ -32,12 +32,6 @@ concurrency:
   group: security-scan-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  # ci.yml / deploy.yml も同じ '1.25.12' を env.GO_VERSION として持っているが、
-  # ワークフロー間で共有する仕組み (reusable workflow 化など) は未整備のため、
-  # 3ファイルとも個別に値を持っている。本当の単一情報源にするのはスコープ外。
-  GO_VERSION: '1.25.12'
-
 jobs:
   # =======================================
   # Job: gitleaks - secret scanning across full git history
@@ -135,8 +129,8 @@ jobs:
         if: matrix.language == 'go'
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: ${{ env.GO_VERSION }}
-          check-latest: true
+          go-version-file: go-functions/go.mod
+          check-latest: false
           cache-dependency-path: go-functions/go.sum
 
       - name: Initialize CodeQL

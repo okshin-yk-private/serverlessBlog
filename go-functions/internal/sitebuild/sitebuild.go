@@ -33,6 +33,12 @@ const (
 	StatusIdle = "idle"
 
 	defaultStartingTimeout = 5 * time.Minute
+
+	attributeNameStatus    = "#status"
+	attributeStatusValue   = "status"
+	attributeValueRevision = ":revision"
+	attributeValueNow      = ":now"
+	attributeValueBuildID  = ":buildId"
 )
 
 // State is persisted in the BlogPosts table. It intentionally omits all GSI
@@ -108,7 +114,7 @@ func RequestUpdate(tableName string, requestedAt time.Time) dynamodbtypes.Transa
 			"id": &dynamodbtypes.AttributeValueMemberS{Value: StateItemID},
 		},
 		UpdateExpression:         aws.String("ADD desiredRevision :one SET #status = if_not_exists(#status, :queued), requestedAt = :requestedAt, deployedRevision = if_not_exists(deployedRevision, :zero)"),
-		ExpressionAttributeNames: map[string]string{"#status": "status"},
+		ExpressionAttributeNames: map[string]string{attributeNameStatus: attributeStatusValue},
 		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
 			":one":         &dynamodbtypes.AttributeValueMemberN{Value: "1"},
 			":zero":        &dynamodbtypes.AttributeValueMemberN{Value: "0"},
@@ -174,13 +180,13 @@ func (c *Coordinator) StartPending(ctx context.Context) (Request, error) {
 		Key:                      map[string]dynamodbtypes.AttributeValue{"id": &dynamodbtypes.AttributeValueMemberS{Value: StateItemID}},
 		UpdateExpression:         aws.String("SET #status = :starting, activeRevision = :revision, startToken = :token, startedAt = :now REMOVE activeBuildId, lastError"),
 		ConditionExpression:      aws.String(condition),
-		ExpressionAttributeNames: map[string]string{"#status": "status"},
+		ExpressionAttributeNames: map[string]string{attributeNameStatus: attributeStatusValue},
 		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
-			":starting":    &dynamodbtypes.AttributeValueMemberS{Value: StatusStarting},
-			":revision":    &dynamodbtypes.AttributeValueMemberN{Value: strconv.FormatInt(revision, 10)},
-			":token":       &dynamodbtypes.AttributeValueMemberS{Value: token},
-			":now":         &dynamodbtypes.AttributeValueMemberS{Value: now.Format(time.RFC3339Nano)},
-			":staleBefore": &dynamodbtypes.AttributeValueMemberS{Value: staleBefore},
+			":starting":            &dynamodbtypes.AttributeValueMemberS{Value: StatusStarting},
+			attributeValueRevision: &dynamodbtypes.AttributeValueMemberN{Value: strconv.FormatInt(revision, 10)},
+			":token":               &dynamodbtypes.AttributeValueMemberS{Value: token},
+			attributeValueNow:      &dynamodbtypes.AttributeValueMemberS{Value: now.Format(time.RFC3339Nano)},
+			":staleBefore":         &dynamodbtypes.AttributeValueMemberS{Value: staleBefore},
 		},
 		ReturnValues: dynamodbtypes.ReturnValueAllNew,
 	})
@@ -224,12 +230,12 @@ func (c *Coordinator) StartPending(ctx context.Context) (Request, error) {
 		Key:                      map[string]dynamodbtypes.AttributeValue{"id": &dynamodbtypes.AttributeValueMemberS{Value: StateItemID}},
 		UpdateExpression:         aws.String("SET #status = :inProgress, activeBuildId = :buildId"),
 		ConditionExpression:      aws.String("activeRevision = :revision AND startToken = :token"),
-		ExpressionAttributeNames: map[string]string{"#status": "status"},
+		ExpressionAttributeNames: map[string]string{attributeNameStatus: attributeStatusValue},
 		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
-			":inProgress": &dynamodbtypes.AttributeValueMemberS{Value: StatusInProgress},
-			":buildId":    &dynamodbtypes.AttributeValueMemberS{Value: buildID},
-			":revision":   &dynamodbtypes.AttributeValueMemberN{Value: strconv.FormatInt(revision, 10)},
-			":token":      &dynamodbtypes.AttributeValueMemberS{Value: token},
+			":inProgress":          &dynamodbtypes.AttributeValueMemberS{Value: StatusInProgress},
+			attributeValueBuildID:  &dynamodbtypes.AttributeValueMemberS{Value: buildID},
+			attributeValueRevision: &dynamodbtypes.AttributeValueMemberN{Value: strconv.FormatInt(revision, 10)},
+			":token":               &dynamodbtypes.AttributeValueMemberS{Value: token},
 		},
 	})
 	if err != nil {
@@ -247,11 +253,11 @@ func (c *Coordinator) markStartFailed(ctx context.Context, revision int64, start
 		Key:                      map[string]dynamodbtypes.AttributeValue{"id": &dynamodbtypes.AttributeValueMemberS{Value: StateItemID}},
 		UpdateExpression:         aws.String("SET #status = :failed, lastError = :error REMOVE activeBuildId, startToken, startedAt"),
 		ConditionExpression:      aws.String("activeRevision = :revision"),
-		ExpressionAttributeNames: map[string]string{"#status": "status"},
+		ExpressionAttributeNames: map[string]string{attributeNameStatus: attributeStatusValue},
 		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
-			":failed":   &dynamodbtypes.AttributeValueMemberS{Value: StatusFailed},
-			":error":    &dynamodbtypes.AttributeValueMemberS{Value: startErr.Error()},
-			":revision": &dynamodbtypes.AttributeValueMemberN{Value: strconv.FormatInt(revision, 10)},
+			":failed":              &dynamodbtypes.AttributeValueMemberS{Value: StatusFailed},
+			":error":               &dynamodbtypes.AttributeValueMemberS{Value: startErr.Error()},
+			attributeValueRevision: &dynamodbtypes.AttributeValueMemberN{Value: strconv.FormatInt(revision, 10)},
 		},
 	})
 	return err
@@ -293,12 +299,12 @@ func (c *Coordinator) Reconcile(ctx context.Context) (State, error) {
 			Key:                      map[string]dynamodbtypes.AttributeValue{"id": &dynamodbtypes.AttributeValueMemberS{Value: StateItemID}},
 			UpdateExpression:         aws.String("SET deployedRevision = :revision, #status = :status, completedAt = :now REMOVE activeBuildId, startToken, startedAt, lastError"),
 			ConditionExpression:      aws.String("activeBuildId = :buildId AND activeRevision = :revision"),
-			ExpressionAttributeNames: map[string]string{"#status": "status"},
+			ExpressionAttributeNames: map[string]string{attributeNameStatus: attributeStatusValue},
 			ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
-				":revision": &dynamodbtypes.AttributeValueMemberN{Value: strconv.FormatInt(state.ActiveRevision, 10)},
-				":status":   &dynamodbtypes.AttributeValueMemberS{Value: StatusSucceeded},
-				":now":      &dynamodbtypes.AttributeValueMemberS{Value: now},
-				":buildId":  &dynamodbtypes.AttributeValueMemberS{Value: state.ActiveBuildID},
+				attributeValueRevision: &dynamodbtypes.AttributeValueMemberN{Value: strconv.FormatInt(state.ActiveRevision, 10)},
+				":status":              &dynamodbtypes.AttributeValueMemberS{Value: StatusSucceeded},
+				attributeValueNow:      &dynamodbtypes.AttributeValueMemberS{Value: now},
+				attributeValueBuildID:  &dynamodbtypes.AttributeValueMemberS{Value: state.ActiveBuildID},
 			},
 		})
 		if err != nil {
@@ -318,12 +324,12 @@ func (c *Coordinator) Reconcile(ctx context.Context) (State, error) {
 		Key:                      map[string]dynamodbtypes.AttributeValue{"id": &dynamodbtypes.AttributeValueMemberS{Value: StateItemID}},
 		UpdateExpression:         aws.String("SET #status = :failed, completedAt = :now, lastError = :error REMOVE activeBuildId, startToken, startedAt"),
 		ConditionExpression:      aws.String("activeBuildId = :buildId"),
-		ExpressionAttributeNames: map[string]string{"#status": "status"},
+		ExpressionAttributeNames: map[string]string{attributeNameStatus: attributeStatusValue},
 		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
-			":failed":  &dynamodbtypes.AttributeValueMemberS{Value: StatusFailed},
-			":now":     &dynamodbtypes.AttributeValueMemberS{Value: now},
-			":error":   &dynamodbtypes.AttributeValueMemberS{Value: string(build.BuildStatus)},
-			":buildId": &dynamodbtypes.AttributeValueMemberS{Value: state.ActiveBuildID},
+			":failed":             &dynamodbtypes.AttributeValueMemberS{Value: StatusFailed},
+			attributeValueNow:     &dynamodbtypes.AttributeValueMemberS{Value: now},
+			":error":              &dynamodbtypes.AttributeValueMemberS{Value: string(build.BuildStatus)},
+			attributeValueBuildID: &dynamodbtypes.AttributeValueMemberS{Value: state.ActiveBuildID},
 		},
 	})
 	if err != nil {

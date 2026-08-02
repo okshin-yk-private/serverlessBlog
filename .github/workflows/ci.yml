@@ -43,11 +43,20 @@ permissions:
   id-token: write # Required for AWS OIDC authentication
 
 env:
-  GO_VERSION: '1.25.12'
   TERRAFORM_VERSION: '1.14.0'
   AWS_REGION: 'ap-northeast-1'
 
 jobs:
+  verify-go-toolchain:
+    name: Verify Go Toolchain Configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Verify version sources
+        run: scripts/ci/verify-go-toolchain.sh
+
   # =======================================
   # Job 0: Setup Labels (Auto-label + Check)
   # =======================================
@@ -247,14 +256,14 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: ${{ env.GO_VERSION }}
-          check-latest: true
+          go-version-file: go-functions/go.mod
+          check-latest: false
           cache-dependency-path: go-functions/go.sum
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: v2.11
+          version: v2.12.2
           working-directory: go-functions
           args: --timeout=5m
 
@@ -285,8 +294,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: ${{ env.GO_VERSION }}
-          check-latest: true
+          go-version-file: go-functions/go.mod
+          check-latest: false
           cache-dependency-path: go-functions/go.sum
 
       - name: Run Go tests with coverage
@@ -375,8 +384,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: ${{ env.GO_VERSION }}
-          check-latest: true
+          go-version-file: go-functions/go.mod
+          check-latest: false
           cache-dependency-path: go-functions/go.sum
 
       - name: Run Go tests with race detector
@@ -501,6 +510,8 @@ jobs:
             path: posts/delete
           - function: posts-build_status
             path: posts/build_status
+          - function: posts-reconcile_build
+            path: posts/reconcile_build
           - function: posts-get_by_slug
             path: posts/get_by_slug
           - function: auth-login
@@ -530,8 +541,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: ${{ env.GO_VERSION }}
-          check-latest: true
+          go-version-file: go-functions/go.mod
+          check-latest: false
           cache-dependency-path: go-functions/go.sum
 
       - name: Cache Lambda binary
@@ -612,7 +623,7 @@ jobs:
           echo "========================================="
           echo "Verifying Lambda Binaries"
           echo "========================================="
-          FUNCS="posts-create posts-get posts-get_public posts-get_by_slug posts-list posts-update posts-delete posts-build_status auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete"
+          FUNCS="posts-create posts-get posts-get_public posts-get_by_slug posts-list posts-update posts-delete posts-build_status posts-reconcile_build auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete"
           MISSING=0
           for f in $FUNCS; do
             if [ -f "go-functions/bin/$f/bootstrap" ]; then
@@ -626,7 +637,7 @@ jobs:
             echo "ERROR: $MISSING binaries missing!"
             exit 1
           fi
-          echo "✓ All 18 binaries verified"
+          echo "✓ All 19 binaries verified"
 
       - name: Save combined Lambda cache
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0

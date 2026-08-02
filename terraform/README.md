@@ -95,7 +95,7 @@ terraform/
 
 - **Terraform**: >= 1.14.0
 - **AWS CLI**: 設定済み（適切なIAM権限）
-- **Go**: 1.25.x（Lambda関数ビルド用）
+- **Go**: 1.26.5（Lambda関数ビルド用。固定値は`go-functions/go.mod`を参照）
 - **jq**: JSON処理用
 
 ## クイックスタート
@@ -256,7 +256,7 @@ terraform init
 |--------------|-----------|
 | Terraform | ~> 1.14 |
 | AWS Provider | ~> 6.0 |
-| Go | 1.25.x |
+| Go | 1.26.5 |
 
 ## ライセンス
 

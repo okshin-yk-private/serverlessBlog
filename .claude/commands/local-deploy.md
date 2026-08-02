@@ -72,7 +72,7 @@ auth-refresh, images-get_upload_url, images-delete
 ## Prerequisites
 
 - AWS CLI (認証済み)
-- Go 1.25+
+- Go 1.26.5（`go-functions/go.mod`と一致）
 - Terraform 1.14+
 - Bun
 - Node.js 22+
