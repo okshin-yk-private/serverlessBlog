@@ -101,11 +101,13 @@ var allowedExtensions = map[string]bool{
 }
 
 // Allowed content types for image upload
+const imageJPEGContentType = "image/jpeg"
+
 var allowedContentTypes = map[string]bool{
-	"image/jpeg": true,
-	"image/png":  true,
-	"image/gif":  true,
-	"image/webp": true,
+	imageJPEGContentType: true,
+	"image/png":          true,
+	"image/gif":          true,
+	"image/webp":         true,
 }
 
 // japaneseTokenizer is a morphological analyzer for Japanese text.

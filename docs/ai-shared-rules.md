@@ -30,14 +30,11 @@ Run `bun run verify` before reporting a code change as done.
 - CI runs `typecheck` on every PR (no label gate). The vitest suites for `frontend/admin`,
   `frontend/public` and `frontend/public-astro` run only on PRs carrying the `frontend`
   label, so a PR outside those paths still needs `bun run verify` locally.
-- CI's `go-lint` job pins Go to 1.25.12 (`GO_VERSION` in `.github/workflows/ci.yml`).
-  With `GOTOOLCHAIN=auto`, if the local system `go` is newer than go.mod's requirement
-  (e.g. 1.26.x), Go reuses it instead of downloading 1.25.12. `golangci-lint` shells out
-  to whatever `go` is on `PATH` while loading packages, so this skew can produce findings
-  locally that never show up in CI (seen in practice with `goconst`). If `make lint` or
-  the pre-commit hook fails only locally, suspect the Go version before touching code —
-  pin `PATH` to Go 1.25.12 and re-run; if CI is green, don't rewrite the code to satisfy
-  a local-only finding.
+- `go-functions/go.mod` is the single source of truth for the complete Go patch version.
+  CI, deploy, CodeQL, and local deploy read it directly; `scripts/ci/verify-go-toolchain.sh`
+  rejects independent workflow version declarations. Run `make -C go-functions lint` rather
+  than `golangci-lint run` directly: it checks the active Go patch version and the pinned
+  golangci-lint release first, preventing the opaque parser panic caused by an older linter.
 
 ## Repository etiquette
 

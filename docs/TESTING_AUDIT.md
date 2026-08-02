@@ -201,8 +201,8 @@ pre-commit が重すぎた(`golangci-lint run ./...` + `go test -race -coverprof
 - `.github/workflows/README.md` が全面的に陳腐化している
   (CDK 時代の記述、存在しない `ci-test.yml`、削除済み `frontend/public`、
   `npm ci` / `package-lock.json` 前提など)
-- Go バージョン `1.25.12` が 3 ファイルに重複。真の単一情報源化には
-  reusable workflow 化が必要
+- Goバージョンは`go-functions/go.mod`を単一情報源とし、ワークフロー・ローカルデプロイとの不一致を
+  `scripts/ci/verify-go-toolchain.sh`で検出する。過去の`1.25.12`重複に関する指摘はこの構成で解消済み。
 - `.pre-commit-config.yaml` の非 terraform フック(go-fmt/go-vet/go-mod-tidy、
   eslint、whitespace 系)は、husky が `core.hooksPath` を専有しているため
   `pre-commit install` を別途実行しない限り動かない

@@ -50,6 +50,11 @@ type postMutationResponse struct {
 	SiteBuild *sitebuild.Request `json:"siteBuild,omitempty"`
 }
 
+const (
+	errTitleCannotBeEmpty           = "title cannot be empty"
+	errContentMarkdownCannotBeEmpty = "contentMarkdown cannot be empty"
+)
+
 // slugIndexName returns the SlugIndex GSI name (overridable via env for tests).
 func slugIndexName() string {
 	if v := os.Getenv("SLUG_INDEX_NAME"); v != "" {
@@ -302,7 +307,6 @@ func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface,
 	request, err := coordinator.StartPending(ctx)
 	if err != nil {
 		// Requirement 10.10: Handle CodeBuild API errors gracefully
-		//nolint:gosec // G706: projectName is allow-list validated by SanitizeProjectName; CR/LF and control characters are rejected.
 		slog.Error("failed to trigger site build", "error", err, "project", projectName)
 		state, stateErr := coordinator.GetState(ctx)
 		if stateErr == nil {
@@ -311,7 +315,6 @@ func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface,
 		return sitebuild.Request{Status: sitebuild.StatusFailed}
 	}
 
-	//nolint:gosec // G706: projectName is allow-list validated by SanitizeProjectName; CR/LF and control characters are rejected.
 	slog.Info("site build triggered successfully", "project", projectName)
 	return request
 }
@@ -344,12 +347,12 @@ func savePost(ctx context.Context, client DynamoDBClientInterface, tableName str
 func validateUpdateRequest(req *domain.UpdatePostRequest) error {
 	// If title is provided, it must not be empty
 	if req.Title != nil && strings.TrimSpace(*req.Title) == "" {
-		return &validationError{message: "title cannot be empty"}
+		return &validationError{message: errTitleCannotBeEmpty}
 	}
 
 	// If contentMarkdown is provided, it must not be empty
 	if req.ContentMarkdown != nil && strings.TrimSpace(*req.ContentMarkdown) == "" {
-		return &validationError{message: "contentMarkdown cannot be empty"}
+		return &validationError{message: errContentMarkdownCannotBeEmpty}
 	}
 
 	// If category is provided, it must not be empty
