@@ -46,7 +46,9 @@ describe('playwright.aws.config.ts', () => {
       (p: { name: string }) => p.name === 'admin-chromium'
     );
     expect(adminProject).toBeDefined();
-    expect(adminProject?.use?.baseURL).toBe(`${BASE_URL}/admin`);
+    // 末尾スラッシュは必須。これがないと相対パス解決で /admin が脱落する
+    // (playwright.aws.config.ts の baseURL 正規化と BasePage.goto が対になる仕様)。
+    expect(adminProject?.use?.baseURL).toBe(`${BASE_URL}/admin/`);
   });
 
   test('admin-chromium project should use ADMIN_BASE_URL when set', async () => {
