@@ -19,9 +19,14 @@ export class BasePage {
    * Playwrightのtest baseURL設定が自動的に適用されます
    */
   async goto(path: string = '/'): Promise<void> {
-    // page.goto()は相対パスの場合、自動的にbaseURLを使用します
-    // 絶対URLの場合はそのまま使用されます
-    await this.page.goto(path);
+    // ルート絶対パス ('/login' 等) は URL 解決時に baseURL のパス部分を丸ごと
+    // 置き換えるため、AWS 環境の admin (baseURL が /admin/ 配下) では /admin が
+    // 脱落してしまう。相対パスに変換してから解決することでプレフィックスを保つ。
+    // 完全な URL (http...) はそのまま渡す。baseURL がオリジン直下の場合
+    // (ローカル各設定) は相対化しても同じ URL に解決される。
+    await this.page.goto(
+      path.startsWith('http') ? path : path.replace(/^\//, '')
+    );
   }
 
   /**
