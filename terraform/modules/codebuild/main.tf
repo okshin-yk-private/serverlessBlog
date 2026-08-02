@@ -76,7 +76,9 @@ phases:
         if [ -z "$RELEASE_SUFFIX" ]; then
           RELEASE_SUFFIX="manual"
         fi
-        RELEASE_REVISION="r$${CODEBUILD_BUILD_NUMBER}-$${RELEASE_SUFFIX}"
+        # Epoch-seconds sequence keeps promotion monotonic across every
+        # deployer sharing the KVS (GitHub Actions deploys, local-deploy.sh).
+        RELEASE_REVISION="r$(date +%s)-$${RELEASE_SUFFIX}"
         echo "Uploading and promoting $RELEASE_REVISION"
         cd "$CODEBUILD_SRC_DIR/scripts/deploy"
         bun run deploy -- --bucket "$DEPLOYMENT_BUCKET" --kvs-arn "$RELEASE_KVS_ARN" --dist "$CODEBUILD_SRC_DIR/frontend/public-astro/dist" --region "${var.aws_region}" --revision "$RELEASE_REVISION"

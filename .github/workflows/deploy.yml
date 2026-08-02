@@ -917,6 +917,9 @@ jobs:
           DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/dev/cdn/distribution-id" --query "Parameter.Value" --output text)
           echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
 
+          KVS_ARN=$(aws ssm get-parameter --name "/serverless-blog/dev/cdn/release-kvs-arn" --query "Parameter.Value" --output text)
+          echo "kvs_arn=$KVS_ARN" >> $GITHUB_OUTPUT
+
           echo "✓ Retrieved deployment config from SSM"
 
       - name: Download Astro build artifact
@@ -950,12 +953,16 @@ jobs:
           # Timer start for Requirement 9.11 (5 min limit)
           START_TIME=$(date +%s)
 
+          # Epoch-seconds revision keeps promotion monotonic across every
+          # deployer sharing the KVS (CodeBuild rebuilds, local-deploy.sh).
+          REVISION="r${START_TIME}-${GITHUB_SHA::12}"
+
           bun run cli.ts \
             --bucket "${{ steps.config.outputs.bucket }}" \
-            --distribution "${{ steps.config.outputs.distribution_id }}" \
+            --kvs-arn "${{ steps.config.outputs.kvs_arn }}" \
             --dist "../../dist" \
             --region "${{ env.AWS_REGION }}" \
-            --retain 3
+            --revision "$REVISION"
 
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - START_TIME))
@@ -1035,6 +1042,9 @@ jobs:
           DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/prd/cdn/distribution-id" --query "Parameter.Value" --output text)
           echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
 
+          KVS_ARN=$(aws ssm get-parameter --name "/serverless-blog/prd/cdn/release-kvs-arn" --query "Parameter.Value" --output text)
+          echo "kvs_arn=$KVS_ARN" >> $GITHUB_OUTPUT
+
           echo "✓ Retrieved deployment config from SSM"
 
       - name: Download Astro build artifact
@@ -1068,12 +1078,16 @@ jobs:
           # Timer start for Requirement 9.11 (5 min limit)
           START_TIME=$(date +%s)
 
+          # Epoch-seconds revision keeps promotion monotonic across every
+          # deployer sharing the KVS (CodeBuild rebuilds, local-deploy.sh).
+          REVISION="r${START_TIME}-${GITHUB_SHA::12}"
+
           bun run cli.ts \
             --bucket "${{ steps.config.outputs.bucket }}" \
-            --distribution "${{ steps.config.outputs.distribution_id }}" \
+            --kvs-arn "${{ steps.config.outputs.kvs_arn }}" \
             --dist "../../dist" \
             --region "${{ env.AWS_REGION }}" \
-            --retain 3
+            --revision "$REVISION"
 
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - START_TIME))

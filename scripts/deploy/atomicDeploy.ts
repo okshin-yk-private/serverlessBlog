@@ -106,7 +106,10 @@ interface FileEntry {
 }
 
 export function generateBuildId(): string {
-  const timestamp = Date.now();
+  // Epoch seconds, not milliseconds: every deployer sharing the release KVS
+  // (CodeBuild, GitHub Actions, local-deploy.sh) sequences revisions in
+  // seconds, and a millisecond value would permanently outrank them.
+  const timestamp = Math.floor(Date.now() / 1000);
   const random = Math.random().toString(36).substring(2, 8);
   return `r${timestamp}-${random}`;
 }

@@ -748,6 +748,23 @@ resource "aws_ssm_parameter" "distribution_id" {
   )
 }
 
+resource "aws_ssm_parameter" "release_kvs_arn" {
+  #checkov:skip=CKV2_AWS_34:Stores a non-sensitive CloudFront KeyValueStore ARN used by CI/CD; revisit if this parameter becomes sensitive.
+  name        = "/serverless-blog/${var.environment}/cdn/release-kvs-arn"
+  description = "CloudFront release KeyValueStore ARN for ${var.environment} environment"
+  type        = "String"
+  value       = aws_cloudfront_key_value_store.public_release.arn
+
+  tags = merge(
+    {
+      Name        = "cdn-release-kvs-arn-${var.environment}"
+      Environment = var.environment
+      Module      = "cdn"
+    },
+    var.tags
+  )
+}
+
 resource "aws_ssm_parameter" "public_url" {
   #checkov:skip=CKV2_AWS_34:Stores a public site URL used by CI/CD; revisit if this parameter becomes sensitive.
   name        = "/serverless-blog/${var.environment}/cdn/public-url"
