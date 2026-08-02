@@ -298,8 +298,8 @@ run "verify_build_reconciler_permissions" {
   }
 
   assert {
-    condition     = jsondecode(aws_iam_role_policy.lambda_posts_build_reconciler_codebuild[0].policy).Statement[1].Resource == "arn:aws:codebuild:ap-northeast-1:123456789012:build/test-codebuild-project:*"
-    error_message = "BatchGetBuilds must be scoped to builds of the configured project"
+    condition     = jsondecode(aws_iam_role_policy.lambda_posts_build_reconciler_codebuild[0].policy).Statement[1].Resource == "arn:aws:codebuild:ap-northeast-1:123456789012:project/test-codebuild-project"
+    error_message = "BatchGetBuilds must be scoped to the configured project ARN (IAM authorizes this action on the project, not on build ARNs)"
   }
 }
 
