@@ -5,6 +5,12 @@
 # Mock providers for testing (no actual AWS calls)
 mock_provider "aws" {}
 
+mock_provider "aws" {
+  alias = "us_east_1"
+}
+
+mock_provider "cloudflare" {}
+
 # Test 1: Verify environment variable validation
 run "test_prd_environment_validation" {
   command = plan

@@ -32,6 +32,12 @@ concurrency:
   group: security-scan-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  # ci.yml / deploy.yml も同じ '1.25.12' を env.GO_VERSION として持っているが、
+  # ワークフロー間で共有する仕組み (reusable workflow 化など) は未整備のため、
+  # 3ファイルとも個別に値を持っている。本当の単一情報源にするのはスコープ外。
+  GO_VERSION: '1.25.12'
+
 jobs:
   # =======================================
   # Job: gitleaks - secret scanning across full git history
@@ -42,6 +48,7 @@ jobs:
   gitleaks:
     name: Gitleaks (secrets)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       GITLEAKS_VERSION: '8.24.3'
     steps:
@@ -100,6 +107,7 @@ jobs:
   codeql:
     name: CodeQL (${{ matrix.language }})
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     # Phase 1: visibility-only. Don't fail the workflow on CodeQL hiccups while
     # we shake out language-specific build modes. Findings still upload to
     # Security → Code scanning. Drop continue-on-error in Phase 3.
@@ -127,7 +135,7 @@ jobs:
         if: matrix.language == 'go'
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: '1.25.12'
+          go-version: ${{ env.GO_VERSION }}
           check-latest: true
           cache-dependency-path: go-functions/go.sum
 
@@ -156,6 +164,7 @@ jobs:
   trivy-fs:
     name: Trivy (filesystem)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -212,6 +221,7 @@ jobs:
   security-scan-summary:
     name: Security Scan Summary
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [gitleaks, codeql, trivy-fs]
     if: always()
     steps:
