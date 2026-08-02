@@ -40,3 +40,19 @@ variable "tags" {
   default     = {}
   description = "Additional tags for resources"
 }
+
+variable "create_e2e_test_user" {
+  type        = bool
+  default     = false
+  description = "Create a Cognito user for post-deploy E2E tests (non-production only)"
+}
+
+variable "e2e_test_user_email" {
+  type        = string
+  default     = "e2e-admin@example.com"
+  description = "Email (= username) of the E2E test user. example.com is reserved and cannot receive mail, which is intended: no message is ever delivered to it."
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.e2e_test_user_email))
+    error_message = "e2e_test_user_email must be a valid email address."
+  }
+}

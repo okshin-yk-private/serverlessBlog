@@ -434,3 +434,151 @@ run "deletion_protection_dev" {
     error_message = "Deletion protection should be INACTIVE for dev environment"
   }
 }
+
+# =============================================================================
+# E2E Test User (Issue #520)
+# =============================================================================
+
+# Test 26: E2E テストユーザーは既定では作られない
+run "e2e_user_disabled_by_default" {
+  command = plan
+
+  variables {
+    user_pool_name = "test-blog-user-pool"
+    environment    = "dev"
+  }
+
+  assert {
+    condition     = length(aws_cognito_user.e2e_admin) == 0
+    error_message = "E2E test user must not be created unless explicitly enabled"
+  }
+
+  assert {
+    condition     = length(aws_ssm_parameter.e2e_admin_password) == 0
+    error_message = "E2E credentials must not be published unless the user is created"
+  }
+}
+
+# Test 27: 有効化すると恒久パスワードの検証済みユーザーが作られる
+# temporary_password だと初回ログインでパスワード変更チャレンジが入り、
+# email_verified でないと SRP 認証自体が通らない
+run "e2e_user_created_when_enabled" {
+  command = plan
+
+  variables {
+    user_pool_name       = "test-blog-user-pool"
+    environment          = "dev"
+    create_e2e_test_user = true
+    e2e_test_user_email  = "e2e-admin@example.com"
+  }
+
+  assert {
+    condition     = aws_cognito_user.e2e_admin[0].username == "e2e-admin@example.com"
+    error_message = "E2E test user must sign in with the configured email"
+  }
+
+  assert {
+    condition     = aws_cognito_user.e2e_admin[0].attributes["email_verified"] == "true"
+    error_message = "E2E test user must be email-verified to authenticate via SRP"
+  }
+
+  assert {
+    condition     = aws_cognito_user.e2e_admin[0].temporary_password == null
+    error_message = "E2E test user must have a permanent password, not a temporary one"
+  }
+
+  assert {
+    condition     = aws_cognito_user.e2e_admin[0].message_action == "SUPPRESS"
+    error_message = "Cognito must not send an invitation mail to the unreachable test address"
+  }
+}
+
+# Test 28: admin グループに所属する (カテゴリ管理などの検証に必要)
+run "e2e_user_in_admin_group" {
+  command = plan
+
+  variables {
+    user_pool_name       = "test-blog-user-pool"
+    environment          = "dev"
+    create_e2e_test_user = true
+  }
+
+  assert {
+    condition     = aws_cognito_user_in_group.e2e_admin[0].group_name == aws_cognito_user_group.admin.name
+    error_message = "E2E test user must belong to the admin group"
+  }
+}
+
+# Test 29: 認証情報は SecureString でのみ公開される
+# 平文 (String) で置くと SSM の履歴と CLI 出力に残る
+run "e2e_credentials_are_encrypted" {
+  command = plan
+
+  variables {
+    user_pool_name       = "test-blog-user-pool"
+    environment          = "dev"
+    create_e2e_test_user = true
+  }
+
+  assert {
+    condition     = aws_ssm_parameter.e2e_admin_password[0].type == "SecureString"
+    error_message = "E2E password parameter must be a SecureString"
+  }
+
+  assert {
+    condition     = aws_ssm_parameter.e2e_admin_email[0].type == "SecureString"
+    error_message = "E2E email parameter must be a SecureString"
+  }
+
+  assert {
+    condition     = aws_ssm_parameter.e2e_admin_password[0].name == "/serverless-blog/dev/e2e/admin-password"
+    error_message = "E2E password parameter path must match what deploy.yml reads"
+  }
+
+  assert {
+    condition     = aws_ssm_parameter.e2e_admin_email[0].name == "/serverless-blog/dev/e2e/admin-email"
+    error_message = "E2E email parameter path must match what deploy.yml reads"
+  }
+}
+
+# Test 30: 生成パスワードは user pool の password_policy を必ず満たす
+run "e2e_password_satisfies_policy" {
+  command = plan
+
+  variables {
+    user_pool_name          = "test-blog-user-pool"
+    environment             = "dev"
+    create_e2e_test_user    = true
+    password_minimum_length = 12
+  }
+
+  assert {
+    condition     = random_password.e2e_admin[0].length >= aws_cognito_user_pool.main.password_policy[0].minimum_length
+    error_message = "Generated password must be at least as long as the pool's minimum length"
+  }
+
+  assert {
+    condition = alltrue([
+      random_password.e2e_admin[0].min_lower >= 1,
+      random_password.e2e_admin[0].min_upper >= 1,
+      random_password.e2e_admin[0].min_numeric >= 1,
+      random_password.e2e_admin[0].min_special >= 1,
+    ])
+    error_message = "Generated password must cover every character class the pool requires"
+  }
+}
+
+# Test 31: 本番では作成できない (precondition で apply 前に止まる)
+run "e2e_user_forbidden_in_prd" {
+  command = plan
+
+  variables {
+    user_pool_name       = "test-blog-user-pool"
+    environment          = "prd"
+    create_e2e_test_user = true
+  }
+
+  expect_failures = [
+    aws_cognito_user.e2e_admin,
+  ]
+}

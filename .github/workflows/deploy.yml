@@ -1185,9 +1185,20 @@ jobs:
           echo "::add-mask::$BASIC_USER"
           echo "::add-mask::$BASIC_PASS"
 
+          # admin E2E がログインに使う Cognito テストユーザー (Issue #520)。
+          # auth モジュールが create_e2e_test_user = true のときだけ作成するため、
+          # 未整備の環境では空になり、該当テストは spec 側で skip される。
+          E2E_ADMIN_EMAIL=$(aws ssm get-parameter --name "/serverless-blog/dev/e2e/admin-email" --with-decryption --query "Parameter.Value" --output text 2>/dev/null || echo "")
+          E2E_ADMIN_PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/e2e/admin-password" --with-decryption --query "Parameter.Value" --output text 2>/dev/null || echo "")
+
+          echo "::add-mask::$E2E_ADMIN_EMAIL"
+          echo "::add-mask::$E2E_ADMIN_PASSWORD"
+
           echo "base_url=$BASE_URL" >> $GITHUB_OUTPUT
           echo "basic_user=$BASIC_USER" >> $GITHUB_OUTPUT
           echo "basic_pass=$BASIC_PASS" >> $GITHUB_OUTPUT
+          echo "e2e_admin_email=$E2E_ADMIN_EMAIL" >> $GITHUB_OUTPUT
+          echo "e2e_admin_password=$E2E_ADMIN_PASSWORD" >> $GITHUB_OUTPUT
 
       # The SSM read above swallows errors, so an unreadable parameter used to
       # skip the E2E run silently and still report the job green. The cdn module
@@ -1226,10 +1237,13 @@ jobs:
       # commit deee4d8 は「16 admin spec のうち 12 件は post-deploy で AWS に対して
       # 実行する」という前提で PR CI から除外したが、実際には deploy.yml は
       # test:e2e:aws (project=chromium = home/article の public spec のみ) しか
-      # 呼んでおらず、admin-chromium (16 spec すべて) を実行する
-      # test:e2e:aws:admin はどこからも呼ばれていなかった。ここでその欠落を埋める。
+      # 呼んでおらず、admin-chromium を実行する test:e2e:aws:admin はどこからも
+      # 呼ばれていなかった。ここでその欠落を埋める。
       #
-      # continue-on-error: このジョブでは初めての実行であり flakiness が未知数の
+      # 現在の実行対象は admin-auth.spec.ts のみ。残りの spec は MSW のシード
+      # データ前提のままで実環境では通らないため、その対応は Issue #520。
+      #
+      # continue-on-error: このジョブでは実行実績が浅く flakiness が未知数の
       # ため、暫定的に job を落とさない。傾向が分かって安定したら外す。
       - name: Run Post-Deploy E2E Tests (Admin)
         id: e2e_admin
@@ -1240,6 +1254,9 @@ jobs:
           BASE_URL: ${{ steps.config.outputs.base_url }}
           DEV_BASIC_AUTH_USERNAME: ${{ steps.config.outputs.basic_user }}
           DEV_BASIC_AUTH_PASSWORD: ${{ steps.config.outputs.basic_pass }}
+          # 未設定なら spec 側でログインを要するテストが skip される (Issue #520)
+          TEST_ADMIN_EMAIL: ${{ steps.config.outputs.e2e_admin_email }}
+          TEST_ADMIN_PASSWORD: ${{ steps.config.outputs.e2e_admin_password }}
           VITE_ENABLE_MSW_MOCK: 'false'
 
       # continue-on-error: true だとジョブ/ワークフローが緑のままになり、失敗が
@@ -1250,11 +1267,13 @@ jobs:
           {
             echo "## Post-Deploy E2E Tests (Admin, DEV)"
             if [ "${{ steps.e2e_admin.outcome }}" == "success" ]; then
-              echo "✅ Admin E2E (16 specs, against DEV) passed."
+              echo "✅ Admin E2E (against DEV) passed."
             else
-              echo "❌ Admin E2E (16 specs, against DEV) failed (outcome: ${{ steps.e2e_admin.outcome }})."
+              echo "❌ Admin E2E (against DEV) failed (outcome: ${{ steps.e2e_admin.outcome }})."
               echo "continue-on-error is set, so this job is still reported as passing overall. See the playwright-report-aws-admin artifact for details."
             fi
+            echo ""
+            echo "実行対象は admin-auth.spec.ts のみ。残りの admin spec の実環境対応は Issue #520。"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Admin E2E Test Report

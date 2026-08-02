@@ -186,6 +186,29 @@ MSW環境では `resetMockPosts()` でインメモリデータをリセット。
 | `TEST_ADMIN_PASSWORD` | テスト用管理者パスワード | `testpassword` |
 | `HEADLESS` | ヘッドレスモード制御 | `true` |
 
+### 実 AWS 環境の管理者認証情報
+
+MSW 環境のデフォルト値 (`admin@example.com` / `testpassword`) は実 Cognito には
+存在しない。DEV 環境用のテストユーザーは `terraform/modules/auth`
+(`create_e2e_test_user`) が作成し、パスワードは `random_password` で生成されて
+SSM SecureString に格納される。CI (`deploy.yml` の post-deploy E2E) はそこから
+読み出して `TEST_ADMIN_EMAIL` / `TEST_ADMIN_PASSWORD` に渡す。
+
+| パラメータ | 内容 |
+|-----|------|
+| `/serverless-blog/dev/e2e/admin-email` | テストユーザーのメール (= ユーザー名) |
+| `/serverless-blog/dev/e2e/admin-password` | 同パスワード |
+
+平文はリポジトリにもワークフローログにも現れない。手元で実環境に対して実行する
+場合は同じパラメータを読んで環境変数に設定する:
+
+```bash
+export TEST_ADMIN_EMAIL=$(aws ssm get-parameter --name /serverless-blog/dev/e2e/admin-email --with-decryption --query Parameter.Value --output text)
+export TEST_ADMIN_PASSWORD=$(aws ssm get-parameter --name /serverless-blog/dev/e2e/admin-password --with-decryption --query Parameter.Value --output text)
+```
+
+未設定の場合、ログインを要するテストは失敗ではなく skip される。
+
 ## CI/CD統合
 
 ### PR時（ci.yml）
