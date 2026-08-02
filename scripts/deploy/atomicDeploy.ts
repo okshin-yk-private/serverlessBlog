@@ -16,9 +16,7 @@ import {
   GetKeyCommand,
   UpdateKeysCommand,
 } from '@aws-sdk/client-cloudfront-keyvaluestore';
-// The CloudFront KVS data-plane endpoint requires SigV4A. Register the
-// portable JavaScript signer explicitly (the client does not bundle one).
-import '@aws-sdk/signature-v4a';
+import { SignatureV4a } from '@aws-sdk/signature-v4a';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { lookup as mimeLookup } from 'mime-types';
@@ -51,6 +49,18 @@ export class DeployError extends Error {
 
 interface CommandClient {
   send(command: object): Promise<unknown>;
+}
+
+/**
+ * CloudFront KVS requires SigV4A. Pass the JavaScript signer directly instead
+ * of relying on the SDK's process-global registration container: package
+ * managers may install multiple @smithy/signature-v4 module instances.
+ */
+export function createKeyValueStoreClient(): CloudFrontKeyValueStoreClient {
+  return new CloudFrontKeyValueStoreClient({
+    region: 'us-east-1',
+    signerConstructor: SignatureV4a,
+  });
 }
 
 export interface AtomicDeployConfig {
@@ -372,9 +382,7 @@ export async function atomicDeploy(
     ({
       s3: new S3Client({ region: config.region }) as unknown as CommandClient,
       // CloudFront KVS is a global data-plane API exposed through us-east-1.
-      kvs: new CloudFrontKeyValueStoreClient({
-        region: 'us-east-1',
-      }) as unknown as CommandClient,
+      kvs: createKeyValueStoreClient() as unknown as CommandClient,
     } satisfies AtomicDeployConfig['clients']);
 
   try {
