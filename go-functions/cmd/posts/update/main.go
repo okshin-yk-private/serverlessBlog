@@ -302,6 +302,7 @@ func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface,
 	request, err := coordinator.StartPending(ctx)
 	if err != nil {
 		// Requirement 10.10: Handle CodeBuild API errors gracefully
+		//nolint:gosec // G706: projectName is allow-list validated by SanitizeProjectName; CR/LF and control characters are rejected.
 		slog.Error("failed to trigger site build", "error", err, "project", projectName)
 		state, stateErr := coordinator.GetState(ctx)
 		if stateErr == nil {
@@ -310,6 +311,7 @@ func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface,
 		return sitebuild.Request{Status: sitebuild.StatusFailed}
 	}
 
+	//nolint:gosec // G706: projectName is allow-list validated by SanitizeProjectName; CR/LF and control characters are rejected.
 	slog.Info("site build triggered successfully", "project", projectName)
 	return request
 }

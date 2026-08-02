@@ -100,6 +100,7 @@ resource "aws_iam_role_policy" "sitebuild_reconcile_scheduler" {
 }
 
 resource "aws_scheduler_schedule" "sitebuild_reconcile" {
+  #checkov:skip=CKV_AWS_297:No TargetInput payload is configured; a CMK only double-encrypts target payloads, while AWS-owned keys already protect all schedule metadata.
   count               = var.codebuild_project_arn != "" ? 1 : 0
   name                = "${var.codebuild_project_name}-reconcile"
   schedule_expression = "rate(5 minutes)"

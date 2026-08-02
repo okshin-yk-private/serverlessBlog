@@ -16,12 +16,21 @@ import (
 )
 
 type mockDynamoDB struct {
-	states  []State
-	getCall int
-	updates []*dynamodb.UpdateItemInput
+	states       []State
+	getCall      int
+	getErr       error
+	emptyGet     bool
+	updates      []*dynamodb.UpdateItemInput
+	updateErrors []error
 }
 
 func (m *mockDynamoDB) GetItem(_ context.Context, _ *dynamodb.GetItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+	if m.getErr != nil {
+		return nil, m.getErr
+	}
+	if m.emptyGet {
+		return &dynamodb.GetItemOutput{}, nil
+	}
 	if m.getCall >= len(m.states) {
 		return nil, errors.New("unexpected GetItem call")
 	}
@@ -34,7 +43,11 @@ func (m *mockDynamoDB) GetItem(_ context.Context, _ *dynamodb.GetItemInput, _ ..
 }
 
 func (m *mockDynamoDB) UpdateItem(_ context.Context, input *dynamodb.UpdateItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error) {
+	call := len(m.updates)
 	m.updates = append(m.updates, input)
+	if call < len(m.updateErrors) && m.updateErrors[call] != nil {
+		return nil, m.updateErrors[call]
+	}
 	return &dynamodb.UpdateItemOutput{}, nil
 }
 
@@ -43,6 +56,7 @@ type mockCodeBuild struct {
 	startOutput *codebuild.StartBuildOutput
 	startErr    error
 	batchOutput *codebuild.BatchGetBuildsOutput
+	batchErr    error
 }
 
 func (m *mockCodeBuild) StartBuild(_ context.Context, input *codebuild.StartBuildInput, _ ...func(*codebuild.Options)) (*codebuild.StartBuildOutput, error) {
@@ -54,6 +68,9 @@ func (m *mockCodeBuild) StartBuild(_ context.Context, input *codebuild.StartBuil
 }
 
 func (m *mockCodeBuild) BatchGetBuilds(_ context.Context, _ *codebuild.BatchGetBuildsInput, _ ...func(*codebuild.Options)) (*codebuild.BatchGetBuildsOutput, error) {
+	if m.batchErr != nil {
+		return nil, m.batchErr
+	}
 	return m.batchOutput, nil
 }
 
@@ -116,6 +133,23 @@ func TestCurrentRequestPreservesTargetWhenSynchronousStartIsUnavailable(t *testi
 	}
 }
 
+func TestCurrentRequestReturnsFailedWhenStateCannotBeRead(t *testing.T) {
+	request := CurrentRequest(context.Background(), &mockDynamoDB{getErr: errors.New("read failed")}, "posts")
+	if request.Status != StatusFailed {
+		t.Fatalf("state read failure must be visible to the caller: %+v", request)
+	}
+}
+
+func TestGetStateReturnsIdleWhenCoordinatorDoesNotExist(t *testing.T) {
+	state, err := NewCoordinator(&mockDynamoDB{emptyGet: true}, nil, "posts", "").GetState(context.Background())
+	if err != nil {
+		t.Fatalf("GetState returned error: %v", err)
+	}
+	if state.ID != StateItemID || state.Status != StatusIdle {
+		t.Fatalf("unexpected empty state: %+v", state)
+	}
+}
+
 func TestStartPendingQueuesNewestRevisionWhileBuildIsActive(t *testing.T) {
 	dynamoClient := &mockDynamoDB{states: []State{{
 		ID: StateItemID, DesiredRevision: 3, DeployedRevision: 1,
@@ -167,6 +201,44 @@ func TestStartPendingRecoversStaleStartBeforeNewerDesiredRevision(t *testing.T) 
 	}
 }
 
+func TestStartPendingReturnsConditionalLockWinner(t *testing.T) {
+	conditional := &dynamodbtypes.ConditionalCheckFailedException{Message: aws.String("lost lock")}
+	dynamoClient := &mockDynamoDB{
+		states: []State{
+			{ID: StateItemID, DesiredRevision: 2, DeployedRevision: 1, Status: StatusQueued},
+			{ID: StateItemID, DesiredRevision: 2, DeployedRevision: 1, ActiveRevision: 2, ActiveBuildID: "project:build-2", Status: StatusInProgress},
+		},
+		updateErrors: []error{conditional},
+	}
+
+	request, err := NewCoordinator(dynamoClient, &mockCodeBuild{}, "posts", "site-project").StartPending(context.Background())
+	if err != nil {
+		t.Fatalf("conditional lock loss should return the winning request: %v", err)
+	}
+	if request.Status != StatusInProgress || request.BuildID != "project:build-2" {
+		t.Fatalf("unexpected winning request: %+v", request)
+	}
+}
+
+func TestStartPendingMarksCodeBuildStartFailure(t *testing.T) {
+	dynamoClient := &mockDynamoDB{states: []State{{
+		ID: StateItemID, DesiredRevision: 2, DeployedRevision: 1, Status: StatusQueued,
+	}}}
+	codebuildClient := &mockCodeBuild{startErr: errors.New("CodeBuild unavailable")}
+
+	request, err := NewCoordinator(dynamoClient, codebuildClient, "posts", "site-project").StartPending(context.Background())
+	if err == nil || request.Status != StatusFailed || request.TargetRevision != 2 {
+		t.Fatalf("expected correlated start failure, request=%+v err=%v", request, err)
+	}
+	if len(dynamoClient.updates) != 2 {
+		t.Fatalf("expected lock and failure updates, got %d", len(dynamoClient.updates))
+	}
+	failureUpdate := dynamoClient.updates[1]
+	if got := failureUpdate.ExpressionAttributeValues[":error"].(*dynamodbtypes.AttributeValueMemberS).Value; got != "CodeBuild unavailable" {
+		t.Fatalf("unexpected persisted failure: %q", got)
+	}
+}
+
 func TestReconcileSuccessfulBuildStartsTrailingRevision(t *testing.T) {
 	initial := State{
 		ID: StateItemID, DesiredRevision: 3, DeployedRevision: 1,
@@ -198,6 +270,73 @@ func TestReconcileSuccessfulBuildStartsTrailingRevision(t *testing.T) {
 	}
 }
 
+func TestReconcileFailedBuildStartsTrailingRevision(t *testing.T) {
+	initial := State{
+		ID: StateItemID, DesiredRevision: 3, DeployedRevision: 1,
+		ActiveRevision: 2, ActiveBuildID: "project:build-2", Status: StatusInProgress,
+	}
+	afterFailure := State{
+		ID: StateItemID, DesiredRevision: 3, DeployedRevision: 1,
+		ActiveRevision: 2, Status: StatusFailed, LastError: string(codebuildtypes.StatusTypeFailed),
+	}
+	final := State{
+		ID: StateItemID, DesiredRevision: 3, DeployedRevision: 1,
+		ActiveRevision: 3, ActiveBuildID: "project:build-3", Status: StatusInProgress,
+	}
+	dynamoClient := &mockDynamoDB{states: []State{initial, afterFailure, afterFailure, final}}
+	codebuildClient := &mockCodeBuild{
+		batchOutput: &codebuild.BatchGetBuildsOutput{Builds: []codebuildtypes.Build{{BuildStatus: codebuildtypes.StatusTypeFailed}}},
+		startOutput: &codebuild.StartBuildOutput{Build: &codebuildtypes.Build{Id: aws.String("project:build-3")}},
+	}
+
+	state, err := NewCoordinator(dynamoClient, codebuildClient, "posts", "site-project").Reconcile(context.Background())
+	if err != nil {
+		t.Fatalf("Reconcile returned error: %v", err)
+	}
+	if state.ActiveRevision != 3 || state.ActiveBuildID != "project:build-3" || state.Status != StatusInProgress {
+		t.Fatalf("failed build did not start trailing revision: %+v", state)
+	}
+	if len(dynamoClient.updates) != 3 {
+		t.Fatalf("expected failure, lock, and build-id updates, got %d", len(dynamoClient.updates))
+	}
+}
+
+func TestReconcileLeavesInProgressBuildUnchanged(t *testing.T) {
+	initial := State{
+		ID: StateItemID, DesiredRevision: 2, DeployedRevision: 1,
+		ActiveRevision: 2, ActiveBuildID: "project:build-2", Status: StatusInProgress,
+	}
+	dynamoClient := &mockDynamoDB{states: []State{initial}}
+	codebuildClient := &mockCodeBuild{batchOutput: &codebuild.BatchGetBuildsOutput{
+		Builds: []codebuildtypes.Build{{BuildStatus: codebuildtypes.StatusTypeInProgress}},
+	}}
+
+	state, err := NewCoordinator(dynamoClient, codebuildClient, "posts", "site-project").Reconcile(context.Background())
+	if err != nil {
+		t.Fatalf("Reconcile returned error: %v", err)
+	}
+	if state.ActiveBuildID != initial.ActiveBuildID || len(dynamoClient.updates) != 0 {
+		t.Fatalf("in-progress build must remain unchanged: %+v", state)
+	}
+}
+
+func TestReconcileReturnsCodeBuildStatusError(t *testing.T) {
+	initial := State{
+		ID: StateItemID, DesiredRevision: 2, DeployedRevision: 1,
+		ActiveRevision: 2, ActiveBuildID: "project:build-2", Status: StatusInProgress,
+	}
+	dynamoClient := &mockDynamoDB{states: []State{initial}}
+	codebuildClient := &mockCodeBuild{batchErr: errors.New("CodeBuild status unavailable")}
+
+	_, err := NewCoordinator(dynamoClient, codebuildClient, "posts", "site-project").Reconcile(context.Background())
+	if err == nil || err.Error() != "CodeBuild status unavailable" {
+		t.Fatalf("expected CodeBuild status error, got %v", err)
+	}
+	if len(dynamoClient.updates) != 0 {
+		t.Fatal("status lookup failure must not mutate durable state")
+	}
+}
+
 func TestRequestForStateCorrelatesTargetRevision(t *testing.T) {
 	state := State{
 		DesiredRevision: 5, DeployedRevision: 3, ActiveRevision: 4,
@@ -212,12 +351,33 @@ func TestRequestForStateCorrelatesTargetRevision(t *testing.T) {
 		{name: "deployed", target: 3, status: StatusSucceeded},
 		{name: "active", target: 4, status: StatusInProgress, build: "project:build-4"},
 		{name: "newer queued", target: 5, status: StatusQueued},
+		{name: "default target", target: 0, status: StatusQueued},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			request := RequestForState(state, tt.target)
 			if request.Status != tt.status || request.BuildID != tt.build {
 				t.Fatalf("unexpected correlated request: %+v", request)
+			}
+		})
+	}
+}
+
+func TestRequestForStateCoversIdleFailedAndStartingStates(t *testing.T) {
+	tests := []struct {
+		name   string
+		state  State
+		target int64
+		status string
+	}{
+		{name: "idle", state: State{Status: StatusIdle}, status: StatusIdle},
+		{name: "failed", state: State{DesiredRevision: 2, ActiveRevision: 2, Status: StatusFailed}, target: 2, status: StatusFailed},
+		{name: "starting", state: State{DesiredRevision: 2, ActiveRevision: 2, Status: StatusStarting}, target: 2, status: StatusQueued},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := RequestForState(tt.state, tt.target); got.Status != tt.status {
+				t.Fatalf("unexpected request: %+v", got)
 			}
 		})
 	}

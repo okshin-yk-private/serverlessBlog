@@ -227,10 +227,12 @@ func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface,
 
 	coordinator := sitebuild.NewCoordinator(dynamoClient, client, tableName, projectName)
 	if _, err := coordinator.StartPending(ctx); err != nil {
+		//nolint:gosec // G706: projectName is allow-list validated by SanitizeProjectName; CR/LF and control characters are rejected.
 		slog.Error("failed to trigger site build", "error", err, "project", projectName)
 		return
 	}
 
+	//nolint:gosec // G706: projectName is allow-list validated by SanitizeProjectName; CR/LF and control characters are rejected.
 	slog.Info("site build triggered successfully", "project", projectName)
 }
 
