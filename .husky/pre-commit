@@ -2,6 +2,12 @@
 # Pre-commit hook: Lint first (fast), then run tests for changed components
 # Skip all checks with: git commit --no-verify
 
+# Make uv-installed tools (pre-commit) reachable when git runs with a minimal
+# PATH. Uses $HOME so this works on macOS and Linux alike; a hardcoded
+# /home/<user> path silently skipped these checks on other machines. Needed
+# by both the terraform block and the gitleaks step below.
+export PATH="$HOME/.local/bin:$PATH"
+
 # Step 1: Run lint-staged for quick formatting/linting (existing behavior)
 echo "=== Running lint-staged (format + lint) ==="
 npx lint-staged || exit 1
@@ -10,10 +16,6 @@ npx lint-staged || exit 1
 if git diff --cached --name-only | grep -q '^terraform/'; then
   echo ""
   echo "=== Running Terraform checks (fmt, validate, trivy) ==="
-  # Make uv-installed tools (pre-commit) reachable when git runs with a minimal
-  # PATH. Uses $HOME so this works on macOS and Linux alike; a hardcoded
-  # /home/<user> path silently skipped these checks on other machines.
-  export PATH="$HOME/.local/bin:$PATH"
 
   if ! command -v terraform >/dev/null 2>&1; then
     echo "✗ terraform not found on PATH. Install it (see .terraform-version) or commit with --no-verify."
@@ -29,10 +31,20 @@ if git diff --cached --name-only | grep -q '^terraform/'; then
     exit 1
   fi
 
-  # 2b: Run pre-commit hooks (trivy, validate) excluding terraform_fmt (handled above)
+  # 2b: Run pre-commit hooks (trivy, validate) excluding terraform_fmt (handled above).
+  # Must run from the REPO ROOT with full repo-relative paths: .pre-commit-config.yaml's
+  # file filters (e.g. `files: ^terraform/`) are anchored to repo-root-relative paths, so
+  # running from `terraform/` with the `terraform/` prefix stripped meant those regexes
+  # never matched and terraform_validate/terraform_docs/trivy-config were silently
+  # skipped. Paths are passed NUL-separated through xargs to avoid word-splitting on
+  # filenames containing spaces.
   if command -v pre-commit >/dev/null 2>&1; then
     echo "--- Terraform validate + trivy ---"
-    (cd terraform && SKIP=terraform_fmt pre-commit run --files $(git diff --cached --name-only | grep '^terraform/' | sed 's|^terraform/||')) || exit 1
+    if git diff --cached --name-only -z -- terraform/ | SKIP=terraform_fmt xargs -0 pre-commit run --files; then
+      echo "✓ Terraform validate + trivy OK"
+    else
+      exit 1
+    fi
   else
     echo "⚠ pre-commit not installed. Run: uv tool install pre-commit"
   fi
@@ -58,6 +70,22 @@ if git diff --cached --name-only | grep -q '^terraform/'; then
       fi
     done
   fi
+fi
+
+# Step 2.5: Run gitleaks secret scanning on ALL staged files, every commit.
+# Previously gitleaks only ever ran as a side effect of the terraform-gated
+# pre-commit invocation in Step 2b above, so secrets in Go/TS/config files
+# were never scanned locally (only in CI).
+echo ""
+echo "=== Running gitleaks (secret scan) ==="
+if command -v pre-commit >/dev/null 2>&1; then
+  if git diff --cached --name-only -z | xargs -0 pre-commit run gitleaks --files; then
+    echo "✓ gitleaks OK"
+  else
+    exit 1
+  fi
+else
+  echo "⚠ pre-commit not installed. Run: uv tool install pre-commit"
 fi
 
 # Step 3: Run component-specific tests based on staged files

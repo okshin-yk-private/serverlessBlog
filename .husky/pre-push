@@ -1,0 +1,138 @@
+#!/bin/sh
+# Pre-push hook: runs the heavy verification that was removed from
+# pre-commit (Go lint + race + coverage, deploy script tests) so that
+# `git commit` stays fast while `git push` still catches regressions
+# before they reach CI.
+#
+# Skip all checks with: git push --no-verify
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Make uv-installed tools reachable when git runs with a minimal PATH.
+export PATH="$HOME/.local/bin:$PATH"
+
+# Determine what changed on this push. Prefer the branch's upstream; fall
+# back to origin/develop; if neither resolves (e.g. a brand-new branch with
+# no remote configured yet), run everything rather than crash or skip.
+RUN_ALL=false
+if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+  CHANGED_FILES=$(git diff --name-only '@{u}...HEAD' 2>/dev/null)
+elif git rev-parse --verify origin/develop >/dev/null 2>&1; then
+  CHANGED_FILES=$(git diff --name-only origin/develop...HEAD 2>/dev/null)
+else
+  CHANGED_FILES=""
+  RUN_ALL=true
+fi
+
+# Detection flags
+HAS_GO=false
+HAS_DEPLOY_SCRIPTS=false
+
+if [ "$RUN_ALL" = true ]; then
+  HAS_GO=true
+  HAS_DEPLOY_SCRIPTS=true
+else
+  for file in $CHANGED_FILES; do
+    case "$file" in
+      go-functions/*)
+        HAS_GO=true
+        ;;
+      scripts/deploy/*)
+        HAS_DEPLOY_SCRIPTS=true
+        ;;
+    esac
+  done
+fi
+
+echo "${BLUE}Pre-push checks:${NC}"
+[ "$RUN_ALL" = true ] && echo "  - No upstream/origin/develop resolvable, running everything"
+[ "$HAS_GO" = true ] && echo "  - go-functions/ (Go Lambda: lint, test -race, coverage)"
+[ "$HAS_DEPLOY_SCRIPTS" = true ] && echo "  - scripts/deploy/ (Deploy Scripts)"
+
+if [ "$HAS_GO" = false ] && [ "$HAS_DEPLOY_SCRIPTS" = false ]; then
+  echo "${GREEN}No components requiring pre-push checks changed. Skipping.${NC}"
+  exit 0
+fi
+
+echo ""
+FAILED=false
+
+# =========================================
+# Go Lambda: lint, race tests, coverage gate
+# =========================================
+if [ "$HAS_GO" = true ]; then
+  echo "${BLUE}[1/2] Running Go lint...${NC}"
+  if (cd go-functions && make lint); then
+    echo "${GREEN}  ✓ Go lint passed${NC}"
+  else
+    echo "${RED}  ✗ Go lint failed${NC}"
+    FAILED=true
+  fi
+
+  echo "${BLUE}[1/2] Running Go tests (-race, coverage)...${NC}"
+  if (cd go-functions && make test); then
+    echo "${GREEN}  ✓ Go tests passed${NC}"
+  else
+    echo "${RED}  ✗ Go tests failed${NC}"
+    FAILED=true
+  fi
+
+  # Check Go coverage threshold (90% minimum, matching CI). Use awk instead
+  # of bc: bc is frequently absent, and the old `bc`-based check silently
+  # passed (never triggered the failure branch) when bc was missing.
+  if [ -f go-functions/coverage.out ]; then
+    COVERAGE=$(cd go-functions && go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+    if [ -z "$COVERAGE" ]; then
+      echo "${RED}  ✗ Could not parse Go coverage from coverage.out${NC}"
+      FAILED=true
+    elif ! awk -v c="$COVERAGE" 'BEGIN { exit (c < 90) ? 1 : 0 }'; then
+      echo "${RED}  ✗ Go coverage ${COVERAGE}% is below 90% threshold${NC}"
+      FAILED=true
+    else
+      echo "${GREEN}  ✓ Go coverage ${COVERAGE}% meets 90% threshold${NC}"
+    fi
+  else
+    echo "${RED}  ✗ go-functions/coverage.out not found (make test may have failed)${NC}"
+    FAILED=true
+  fi
+else
+  echo "${YELLOW}[1/2] Go Lambda: No changes, skipping${NC}"
+fi
+
+# =========================================
+# Deploy Scripts Tests
+# =========================================
+if [ "$HAS_DEPLOY_SCRIPTS" = true ]; then
+  echo "${BLUE}[2/2] Running Deploy Scripts tests...${NC}"
+  if (cd scripts/deploy && bun run test -- --run); then
+    echo "${GREEN}  ✓ Deploy Scripts tests passed${NC}"
+  else
+    echo "${RED}  ✗ Deploy Scripts tests failed${NC}"
+    FAILED=true
+  fi
+else
+  echo "${YELLOW}[2/2] Deploy Scripts: No changes, skipping${NC}"
+fi
+
+# =========================================
+# Final Result
+# =========================================
+echo ""
+if [ "$FAILED" = true ]; then
+  echo "${RED}============================================${NC}"
+  echo "${RED}  Pre-push checks FAILED${NC}"
+  echo "${RED}  Fix the issues above before pushing${NC}"
+  echo "${RED}  Use 'git push --no-verify' to skip${NC}"
+  echo "${RED}============================================${NC}"
+  exit 1
+else
+  echo "${GREEN}============================================${NC}"
+  echo "${GREEN}  All pre-push checks passed!${NC}"
+  echo "${GREEN}============================================${NC}"
+  exit 0
+fi

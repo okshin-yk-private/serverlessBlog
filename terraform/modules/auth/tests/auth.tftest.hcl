@@ -261,7 +261,7 @@ run "outputs_resources_exist" {
   }
 
   assert {
-    condition     = aws_cognito_user_pool_client.main.name == "test-blog-user-pool-client"
+    condition     = aws_cognito_user_pool_client.main.name == "serverless-blog-admin-client"
     error_message = "User Pool Client resource must exist for output"
   }
 }
@@ -282,6 +282,10 @@ run "user_pool_name" {
 }
 
 # Test 18: Verify App Client name
+# Note: the App Client name is a fixed literal ("serverless-blog-admin-client"),
+# not derived from var.user_pool_name - it must match the name CDK originally
+# created so that the resource can be imported without replacement. See the
+# comment on aws_cognito_user_pool_client.main in main.tf.
 run "app_client_name" {
   command = plan
 
@@ -291,8 +295,8 @@ run "app_client_name" {
   }
 
   assert {
-    condition     = aws_cognito_user_pool_client.main.name == "test-blog-user-pool-client"
-    error_message = "App Client name must follow naming convention: {user_pool_name}-client"
+    condition     = aws_cognito_user_pool_client.main.name == "serverless-blog-admin-client"
+    error_message = "App Client name must match the CDK-imported client name"
   }
 }
 
@@ -374,14 +378,19 @@ run "token_validity" {
     error_message = "ID token validity must be 60 minutes (1 hour)"
   }
 
-  # Refresh token validity: 30 days
+  # Refresh token validity: 30 days, expressed in minutes because
+  # token_validity_units.refresh_token = "minutes" (30 * 24 * 60 = 43200)
   assert {
-    condition     = aws_cognito_user_pool_client.main.refresh_token_validity == 30
-    error_message = "Refresh token validity must be 30 days"
+    condition     = aws_cognito_user_pool_client.main.refresh_token_validity == 43200
+    error_message = "Refresh token validity must be 30 days (43200 minutes)"
   }
 }
 
 # Test 23: Verify App Client does not generate secret (for frontend apps)
+# Note: generate_secret is intentionally left unset in main.tf (see comment
+# there) to avoid forced replacement of the CDK-imported client, whose API
+# response has no secret. With the attribute unset, plan shows it as null
+# rather than a computed false - assert it is not explicitly true instead.
 run "app_client_no_secret" {
   command = plan
 
@@ -391,7 +400,7 @@ run "app_client_no_secret" {
   }
 
   assert {
-    condition     = aws_cognito_user_pool_client.main.generate_secret == false
+    condition     = aws_cognito_user_pool_client.main.generate_secret != true
     error_message = "App Client must not generate secret (frontend app requirement)"
   }
 }
