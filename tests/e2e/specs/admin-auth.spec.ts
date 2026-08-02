@@ -32,7 +32,8 @@ test.describe('Admin Authentication - Minimal E2E', () => {
     page,
   }) => {
     // 実 AWS 環境 (MSW 無効) では実在する Cognito ユーザーが必要。
-    // CI に TEST_ADMIN_EMAIL/PASSWORD が整備されるまでスキップ (Issue #520)。
+    // CI では auth モジュールが作るテストユーザーの認証情報が SSM 経由で
+    // 渡る (deploy.yml)。手元での実環境実行など未設定の場合のみスキップする。
     test.skip(
       process.env.VITE_ENABLE_MSW_MOCK === 'false' &&
         !(process.env.TEST_ADMIN_EMAIL && process.env.TEST_ADMIN_PASSWORD),

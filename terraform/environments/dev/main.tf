@@ -43,6 +43,10 @@ module "auth" {
   mfa_configuration       = "OPTIONAL"
   password_minimum_length = 12
 
+  # post-deploy の admin E2E がログインに使うテストユーザー (Issue #520)。
+  # 認証情報は SSM SecureString 経由で CI に渡る。
+  create_e2e_test_user = true
+
   tags = local.common_tags
 }
 
