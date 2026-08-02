@@ -50,7 +50,7 @@ export class AdminLoginPage extends BasePage {
   /**
    * ログインボタンをクリック
    *
-   * 認証 API のレスポンスを明示的に待ち、成功時はダッシュボードへの遷移完了まで
+   * ログインの結果 (成功時はダッシュボードへの遷移完了、失敗時はエラー表示) まで
    * ブロックする。失敗時は /login に留まったまま return する。
    *
    * 背景: 旧実装は networkidle のみを待っていたため、`saveAuthToken` (sessionStorage 書込)
@@ -60,26 +60,29 @@ export class AdminLoginPage extends BasePage {
    * (admin-crud.spec.ts のローカル失敗の真因)。
    */
   async clickLogin(): Promise<void> {
-    // 認証エンドポイントは環境で異なる:
-    // - MSW モック環境: /api/auth/login への POST
-    // - 実 AWS 環境: Amplify 経由で cognito-idp.<region>.amazonaws.com への POST
-    //   (AuthContext.login は VITE_ENABLE_MSW_MOCK でない限り Cognito SDK を使う)
-    const responsePromise = this.page.waitForResponse(
-      (resp) =>
-        (resp.url().includes('/auth/login') ||
-          resp.url().includes('cognito-idp')) &&
-        resp.request().method() === 'POST',
-      { timeout: 10000 }
-    );
     await this.click(this.selectors.loginButton);
-    const response = await responsePromise;
 
-    if (response.ok()) {
-      // 成功: onSuccess で saveAuthToken → navigate('/dashboard') が走るので、
-      // URL 遷移確定まで待つ
-      await this.page.waitForURL('**/dashboard', { timeout: 10000 });
-    }
-    // 失敗時は /login に留まる。エラーメッセージ表示の確認は呼び出し側に任せる。
+    // ネットワークレスポンスではなく UI の結果 (成功 = /dashboard への遷移完了、
+    // 失敗 = エラーメッセージ表示) を待つ。レスポンス判定は環境非依存にできない:
+    // - MSW モック環境は /api/auth/login への単一 POST の status で成否が分かるが、
+    // - 実 AWS 環境は Amplify (SRP) 経由のため、認証失敗でも初回 InitiateAuth が
+    //   200 を返し、失敗が確定するのは後続の RespondToAuthChallenge。
+    // waitForURL の完了まで待つことで、成功時は saveAuthToken →
+    // navigate('/dashboard') の完了後に return する従来の保証は維持される。
+    const dashboardPromise = this.page
+      .waitForURL('**/dashboard', { timeout: 15000 })
+      .then(() => 'dashboard' as const);
+    const errorPromise = this.page
+      .locator(this.selectors.errorMessage)
+      .waitFor({ state: 'visible', timeout: 15000 })
+      .then(() => 'error' as const);
+    // 勝敗決定後に敗者側が timeout で reject しても unhandled rejection に
+    // ならないよう、あらかじめ握りつぶしておく
+    dashboardPromise.catch(() => {});
+    errorPromise.catch(() => {});
+
+    // 失敗時は /login に留まる。エラーメッセージ内容の確認は呼び出し側に任せる。
+    await Promise.race([dashboardPromise, errorPromise]);
   }
 
   /**
