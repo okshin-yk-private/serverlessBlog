@@ -93,14 +93,23 @@ export default defineConfig({
       // Admin サイト用プロジェクト（admin-*.spec.ts）
       // AWS環境ではCloudFrontの /admin/ パス配下で配信される
       name: 'admin-chromium',
-      testMatch: ['**/admin-*.spec.ts'],
+      // 実 AWS 環境で通せるのは現状 admin-auth のみ:
+      // - 他の admin spec は MSW のシードデータ/リセット API を前提としており、
+      //   実環境ではデータ前提が成立しない
+      // - 有効な Cognito 認証情報 (TEST_ADMIN_EMAIL/PASSWORD) も CI に未整備
+      // 全 spec の実環境対応は Issue #520 で扱う。ローカル MSW での全 spec 実行は
+      // playwright.admin.config.ts が担当しており、この絞り込みの影響を受けない。
+      testMatch: ['**/admin-auth.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         // ADMIN_BASE_URL が設定されている場合はそれを使用、
-        // 未設定の場合は BASE_URL/admin にフォールバック
-        baseURL:
+        // 未設定の場合は BASE_URL/admin にフォールバック。
+        // 相対パス解決で /admin プレフィックスが保持されるよう、
+        // 末尾スラッシュを必ず付ける (BasePage.goto と対になる仕様)。
+        baseURL: (
           process.env.ADMIN_BASE_URL ||
-          `${process.env.BASE_URL || 'http://localhost:5173'}/admin`,
+          `${process.env.BASE_URL || 'http://localhost:5173'}/admin`
+        ).replace(/\/*$/, '/'),
         contextOptions: {
           storageState: process.env.STORAGE_STATE,
         },
