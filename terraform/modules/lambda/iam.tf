@@ -278,10 +278,14 @@ resource "aws_iam_role_policy" "lambda_posts_build_reconciler_codebuild" {
         Resource = var.codebuild_project_arn
       },
       {
+        # BatchGetBuilds is authorized against the *project* ARN, not a build
+        # ARN: IAM has no `build/` resource type for this action, so scoping to
+        # `build/<project>:*` denied every reconcile call and left the durable
+        # state stuck on a finished build.
         Sid      = "CodeBuildReadBuild"
         Effect   = "Allow"
         Action   = ["codebuild:BatchGetBuilds"]
-        Resource = "${replace(var.codebuild_project_arn, ":project/", ":build/")}:*"
+        Resource = var.codebuild_project_arn
       }
     ]
   })
