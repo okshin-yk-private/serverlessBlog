@@ -33,6 +33,14 @@ const API_BASE_URL =
     ? import.meta.env.VITE_API_BASE_URL
     : '/api';
 
+let nextSiteBuildRevision = 1;
+const siteBuildStartedAt: Record<string, number> = {};
+
+const createSiteBuildRequest = () => ({
+  targetRevision: nextSiteBuildRevision++,
+  status: 'queued' as const,
+});
+
 /**
  * モックJWTトークンを生成（有効期限付き）
  */
@@ -349,6 +357,7 @@ export const handlers = [
       contentMarkdown: string;
       category: string;
       publishStatus: 'draft' | 'published';
+      saveMode?: 'manual' | 'autosave';
       slug?: string;
       excerpt?: string;
       coverImageUrl?: string;
@@ -365,7 +374,15 @@ export const handlers = [
     const newPost = createMockPost(body);
     mockPosts.unshift(newPost);
 
-    return HttpResponse.json(newPost, { status: 201 });
+    return HttpResponse.json(
+      {
+        ...newPost,
+        ...(body.saveMode !== 'autosave' && body.publishStatus === 'published'
+          ? { siteBuild: createSiteBuildRequest() }
+          : {}),
+      },
+      { status: 201 }
+    );
   }),
 
   // 管理画面: 記事取得
@@ -398,6 +415,7 @@ export const handlers = [
       contentMarkdown?: string;
       category?: string;
       publishStatus?: 'draft' | 'published';
+      saveMode?: 'manual' | 'autosave';
       slug?: string;
       excerpt?: string;
       coverImageUrl?: string;
@@ -421,6 +439,7 @@ export const handlers = [
       );
     }
 
+    const wasPublished = mockPosts[postIndex].publishStatus === 'published';
     const updatedPost = {
       ...mockPosts[postIndex],
       ...body,
@@ -437,46 +456,59 @@ export const handlers = [
 
     mockPosts[postIndex] = updatedPost;
 
-    return HttpResponse.json(updatedPost);
+    return HttpResponse.json({
+      ...updatedPost,
+      ...(body.saveMode !== 'autosave' &&
+      (wasPublished || body.publishStatus === 'published')
+        ? { siteBuild: createSiteBuildRequest() }
+        : {}),
+    });
   }),
 
   // 管理画面: ビルドステータス取得 (PR5b)
   // 公開直後のサイトリビルド進捗をバッジに表示するためのモック。
-  // 各記事 ID の最初の呼び出しで `in-progress`、以降は `succeeded` を返し、
-  // ポーリングの遷移を E2E から検証できるようにする。
-  http.get(
-    `${API_BASE_URL}/admin/posts/:id/build-status`,
-    (() => {
-      const callCounts: Record<string, number> = {};
-      return ({ request, params }) => {
-        if (!checkAuth(request)) {
-          return HttpResponse.json(
-            { message: 'Unauthorized' },
-            { status: 401 }
-          );
-        }
-        const id = String(params.id);
-        callCounts[id] = (callCounts[id] ?? 0) + 1;
-        const buildId = `mock-build-${id}`;
-        const startTime = new Date().toISOString();
-        if (callCounts[id] === 1) {
-          return HttpResponse.json({
-            buildId,
-            status: 'in-progress',
-            phase: 'BUILD',
-            startTime,
-          });
-        }
-        return HttpResponse.json({
-          buildId,
-          status: 'succeeded',
-          phase: 'COMPLETED',
-          startTime,
-          endTime: new Date(Date.now() + 1000).toISOString(),
-        });
-      };
-    })()
-  ),
+  // targetRevision ごとに開始から5秒未満は `in-progress`、以降は
+  // `succeeded` を返す。Strict Modeの同時初回取得も同じ状態になる。
+  http.get(`${API_BASE_URL}/admin/posts/:id/build-status`, ({ request }) => {
+    if (!checkAuth(request)) {
+      return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+    const targetRevision = new URL(request.url).searchParams.get(
+      'targetRevision'
+    );
+    if (!targetRevision) {
+      return HttpResponse.json({
+        status: 'idle',
+        desiredRevision: nextSiteBuildRevision - 1,
+        deployedRevision: nextSiteBuildRevision - 1,
+      });
+    }
+    siteBuildStartedAt[targetRevision] ??= Date.now();
+    const revision = Number(targetRevision);
+    const buildId = `mock-build-${targetRevision}`;
+    const startTime = new Date().toISOString();
+    if (Date.now() - siteBuildStartedAt[targetRevision] < 5_000) {
+      return HttpResponse.json({
+        buildId,
+        status: 'in-progress',
+        phase: 'BUILD',
+        startTime,
+        targetRevision: revision,
+        desiredRevision: revision,
+        deployedRevision: revision - 1,
+      });
+    }
+    return HttpResponse.json({
+      buildId,
+      status: 'succeeded',
+      phase: 'COMPLETED',
+      startTime,
+      endTime: new Date(Date.now() + 1000).toISOString(),
+      targetRevision: revision,
+      desiredRevision: revision,
+      deployedRevision: revision,
+    });
+  }),
 
   // 管理画面: 記事削除
   http.delete(`${API_BASE_URL}/admin/posts/:id`, ({ request, params }) => {

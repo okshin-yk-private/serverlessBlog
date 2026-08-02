@@ -20,6 +20,8 @@ import (
 const (
 	PublishStatusDraft     = "draft"
 	PublishStatusPublished = "published"
+	SaveModeManual         = "manual"
+	SaveModeAutosave       = "autosave"
 )
 
 // Validation limits for post and category fields.
@@ -137,7 +139,7 @@ type BlogPost struct {
 	Title           string   `json:"title" dynamodbav:"title"`
 	ContentMarkdown string   `json:"contentMarkdown" dynamodbav:"contentMarkdown"`
 	ContentHTML     string   `json:"contentHtml" dynamodbav:"contentHtml"`
-	Category        string   `json:"category" dynamodbav:"category"`
+	Category        string   `json:"category" dynamodbav:"category,omitempty"`
 	Tags            []string `json:"tags" dynamodbav:"tags"`
 	PublishStatus   string   `json:"publishStatus" dynamodbav:"publishStatus"`
 	AuthorID        string   `json:"authorId" dynamodbav:"authorId"`
@@ -161,6 +163,7 @@ type CreatePostRequest struct {
 	Slug            *string  `json:"slug,omitempty"`
 	Excerpt         *string  `json:"excerpt,omitempty"`
 	CoverImageURL   *string  `json:"coverImageUrl,omitempty"`
+	SaveMode        string   `json:"saveMode,omitempty"`
 }
 
 // Validate validates the CreatePostRequest.
@@ -177,8 +180,14 @@ func (r *CreatePostRequest) Validate() error {
 	if err := validateRuneLength(r.ContentMarkdown, "contentMarkdown", PostContentMarkdownMaxLength); err != nil {
 		return err
 	}
-	if r.Category == "" {
+	if r.Category == "" && r.SaveMode != SaveModeAutosave {
 		return errors.New("category is required")
+	}
+	if err := validateSaveMode(r.SaveMode); err != nil {
+		return err
+	}
+	if r.SaveMode == SaveModeAutosave && r.PublishStatus != nil && *r.PublishStatus == PublishStatusPublished {
+		return errors.New("autosave cannot publish a post")
 	}
 	if err := validateOptionalExcerpt(r.Excerpt); err != nil {
 		return err
@@ -203,6 +212,7 @@ type UpdatePostRequest struct {
 	Slug            *string  `json:"slug,omitempty"`
 	Excerpt         *string  `json:"excerpt,omitempty"`
 	CoverImageURL   *string  `json:"coverImageUrl,omitempty"`
+	SaveMode        string   `json:"saveMode,omitempty"`
 }
 
 // Validate validates the UpdatePostRequest.
@@ -216,8 +226,11 @@ func (r *UpdatePostRequest) Validate() error {
 	if err := validateOptionalNonEmpty(r.ContentMarkdown, "contentMarkdown", PostContentMarkdownMaxLength); err != nil {
 		return err
 	}
-	if r.Category != nil && *r.Category == "" {
+	if r.Category != nil && *r.Category == "" && r.SaveMode != SaveModeAutosave {
 		return errors.New("category cannot be empty when provided")
+	}
+	if err := validateSaveMode(r.SaveMode); err != nil {
+		return err
 	}
 	if err := validateOptionalExcerpt(r.Excerpt); err != nil {
 		return err
@@ -229,6 +242,13 @@ func (r *UpdatePostRequest) Validate() error {
 		return err
 	}
 	return validateOptionalCoverImageURL(r.CoverImageURL)
+}
+
+func validateSaveMode(mode string) error {
+	if mode != "" && mode != SaveModeManual && mode != SaveModeAutosave {
+		return errors.New("saveMode must be 'manual' or 'autosave'")
+	}
+	return nil
 }
 
 // validateOptionalNonEmpty validates a partial-update pointer field that,

@@ -1,13 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { getPosts, deletePost, updatePost } from '../api/posts';
-import type { Post } from '../api/posts';
+import {
+  getPosts,
+  deletePost,
+  updatePost,
+  fetchBuildStatus,
+} from '../api/posts';
+import type { Post, SiteBuildRequest } from '../api/posts';
 import ConfirmDialog from '../components/ConfirmDialog';
 import AdminLayout from '../components/AdminLayout';
 import { BuildStatusBadge } from '../components/BuildStatusBadge';
 import { PostListSkeleton } from '../components/skeleton';
 
 type TabType = 'published' | 'draft';
+type BuildTracking = { postId: string; siteBuild?: SiteBuildRequest };
 
 const PostListPage = () => {
   const location = useLocation();
@@ -23,9 +29,20 @@ const PostListPage = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState<boolean>(false);
   const [postToDelete, setPostToDelete] = useState<string | null>(null);
 
-  // 公開済み記事を削除した直後にビルドステータスを表示するための postId。
-  // 下書き削除時はサーバー側でビルドが起きないため null のまま。
-  const [deletedPostId, setDeletedPostId] = useState<string | null>(null);
+  const navigationState = location.state as {
+    postId?: string;
+    siteBuild?: SiteBuildRequest;
+    message?: string;
+  } | null;
+  const [buildTracking, setBuildTracking] = useState<BuildTracking | null>(
+    () =>
+      navigationState?.postId && navigationState.siteBuild
+        ? {
+            postId: navigationState.postId,
+            siteBuild: navigationState.siteBuild,
+          }
+        : null
+  );
 
   const loadPosts = async (publishStatus: TabType, token?: string) => {
     try {
@@ -50,11 +67,53 @@ const PostListPage = () => {
     loadPosts(activeTab);
   }, [activeTab, location.key]); // location.keyを追加してナビゲーション時に再読み込み
 
+  useEffect(() => {
+    let cancelled = false;
+    if (navigationState?.message) {
+      setSuccessMessage(navigationState.message);
+    }
+    if (navigationState?.postId && navigationState.siteBuild) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    void fetchBuildStatus('site')
+      .then((status) => {
+        if (
+          !cancelled &&
+          (status.status === 'queued' ||
+            status.status === 'in-progress' ||
+            status.status === 'failed')
+        ) {
+          setBuildTracking({
+            postId: 'site',
+            siteBuild: status.targetRevision
+              ? {
+                  targetRevision: status.targetRevision,
+                  buildId: status.buildId,
+                  status: status.status,
+                }
+              : undefined,
+          });
+        }
+      })
+      .catch(() => {
+        // Badge 側のポーリングで取得を再試行し、API エラーを表示する。
+        if (!cancelled) setBuildTracking({ postId: 'site' });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    navigationState?.message,
+    navigationState?.postId,
+    navigationState?.siteBuild,
+  ]);
+
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
     setNextToken(undefined);
     setSearchQuery(''); // タブ切り替え時に検索クエリをリセット
-    setDeletedPostId(null); // タブ切り替え時に直前のビルドステータスバッジを消す
   };
 
   const handleNextPage = () => {
@@ -82,7 +141,7 @@ const PostListPage = () => {
       await deletePost(postToDelete);
       setSuccessMessage('記事を削除しました');
       if (wasPublished) {
-        setDeletedPostId(postToDelete);
+        setBuildTracking({ postId: postToDelete });
       }
       setShowConfirmDialog(false);
       setPostToDelete(null);
@@ -107,12 +166,17 @@ const PostListPage = () => {
       const newStatus: 'draft' | 'published' =
         post.publishStatus === 'published' ? 'draft' : 'published';
 
-      await updatePost(post.id, {
+      const updated = await updatePost(post.id, {
         title: post.title,
         contentMarkdown: post.contentMarkdown,
         category: post.category,
         publishStatus: newStatus,
+        saveMode: 'manual',
       });
+
+      if (updated?.siteBuild) {
+        setBuildTracking({ postId: post.id, siteBuild: updated.siteBuild });
+      }
 
       setSuccessMessage(
         `記事を${newStatus === 'published' ? '公開' : '下書きに変更'}しました`
@@ -179,8 +243,9 @@ const PostListPage = () => {
       )}
 
       <BuildStatusBadge
-        postId={deletedPostId ?? undefined}
-        enabled={deletedPostId !== null}
+        postId={buildTracking?.postId}
+        enabled={buildTracking !== null}
+        targetRevision={buildTracking?.siteBuild?.targetRevision}
       />
 
       {/* 検索バー */}

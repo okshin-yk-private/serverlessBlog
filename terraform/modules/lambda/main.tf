@@ -1,7 +1,7 @@
 # Lambda Module - Go Lambda Functions
 # Requirements: 4.1 - Go Lambda functions module implementation
 #
-# This module defines 11 Go Lambda functions:
+# This module defines the Go Lambda functions used by the API and background jobs.
 # - Posts domain: createPost, getPost, getPublicPost, listPosts, updatePost, deletePost
 # - Auth domain: login, logout, refresh
 # - Images domain: getUploadUrl, deleteImage
@@ -69,8 +69,13 @@ locals {
     }
     build_status_post = {
       name        = "blog-build-status-post-go"
-      description = "Get latest CodeBuild status for the Astro SSG site rebuild (Go)"
+      description = "Get revision-correlated status for the Astro SSG site rebuild (Go)"
       binary_name = "posts-build_status"
+    }
+    reconcile_build_post = {
+      name        = "blog-reconcile-build-post-go"
+      description = "Reconcile durable site build requests with CodeBuild (Go)"
+      binary_name = "posts-reconcile_build"
     }
     get_post_by_slug = {
       name        = "blog-get-post-by-slug-go"
@@ -190,6 +195,12 @@ resource "aws_cloudwatch_log_group" "build_status_post" {
   tags              = local.common_tags
 }
 
+resource "aws_cloudwatch_log_group" "reconcile_build_post" {
+  name              = "/aws/lambda/${local.lambda_functions.reconcile_build_post.name}"
+  retention_in_days = local.log_retention_days
+  tags              = local.common_tags
+}
+
 resource "aws_cloudwatch_log_group" "get_post_by_slug" {
   name              = "/aws/lambda/${local.lambda_functions.get_post_by_slug.name}"
   retention_in_days = local.log_retention_days
@@ -279,6 +290,13 @@ data "archive_file" "build_status_post" {
   type             = "zip"
   source_file      = "${var.go_binary_path}/${local.lambda_functions.build_status_post.binary_name}/bootstrap"
   output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.build_status_post.binary_name}.zip"
+  output_file_mode = "0644"
+}
+
+data "archive_file" "reconcile_build_post" {
+  type             = "zip"
+  source_file      = "${var.go_binary_path}/${local.lambda_functions.reconcile_build_post.binary_name}/bootstrap"
+  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.reconcile_build_post.binary_name}.zip"
   output_file_mode = "0644"
 }
 
@@ -522,9 +540,7 @@ resource "aws_lambda_function" "build_status_post" {
   timeout       = 30
 
   environment {
-    variables = merge(local.common_environment, {
-      CODEBUILD_PROJECT_NAME = var.codebuild_project_name
-    })
+    variables = local.common_environment
   }
 
   tracing_config {
@@ -534,6 +550,36 @@ resource "aws_lambda_function" "build_status_post" {
   depends_on = [aws_cloudwatch_log_group.build_status_post]
 
   tags = local.common_tags
+}
+
+# EventBridge/Scheduler target that closes completed builds and starts a
+# trailing build when desiredRevision advanced during the active build.
+resource "aws_lambda_function" "reconcile_build_post" {
+  function_name = local.lambda_functions.reconcile_build_post.name
+  description   = local.lambda_functions.reconcile_build_post.description
+  role          = aws_iam_role.lambda_posts_build_reconciler.arn
+
+  filename         = data.archive_file.reconcile_build_post.output_path
+  source_code_hash = data.archive_file.reconcile_build_post.output_base64sha256
+
+  runtime       = "provided.al2023"
+  architectures = ["arm64"]
+  handler       = "bootstrap"
+  memory_size   = 128
+  timeout       = 30
+
+  environment {
+    variables = merge(local.common_environment, {
+      CODEBUILD_PROJECT_NAME = var.codebuild_project_name
+    })
+  }
+
+  tracing_config {
+    mode = local.tracing_mode
+  }
+
+  depends_on = [aws_cloudwatch_log_group.reconcile_build_post]
+  tags       = local.common_tags
 }
 
 # GET /posts/by-slug/{slug} - Public post fetch by friendly slug (PR7).
@@ -953,4 +999,3 @@ resource "aws_lambda_function" "delete_category" {
 
   tags = local.common_tags
 }
-

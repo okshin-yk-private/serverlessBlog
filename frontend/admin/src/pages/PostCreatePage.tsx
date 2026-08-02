@@ -3,20 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   PostEditor,
+  type AutosavePostData,
   type PostData,
   type PostEditorHandle,
 } from '../components/PostEditor';
 import { createPost, updatePost } from '../api/posts';
 import AdminLayout from '../components/AdminLayout';
-import { BuildStatusBadge } from '../components/BuildStatusBadge';
 import { useCategories } from '../hooks/useCategories';
 
 const PostCreatePage = () => {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
-  // PR5b: When the new post is created with publishStatus='published', stay
-  // on the page and surface CodeBuild progress via BuildStatusBadge.
-  const [publishedPostId, setPublishedPostId] = useState<string | null>(null);
   const editorRef = useRef<PostEditorHandle>(null);
   // autosave で記事が初回作成された後の id。これ以降の保存は updatePost を使う。
   const [postId, setPostId] = useState<string | null>(null);
@@ -36,20 +33,32 @@ const PostCreatePage = () => {
       // それ以外の (autosave がまだ走っていない) 初回保存では createPost。
       let savedId: string;
       if (postId) {
-        await updatePost(postId, data);
+        const updated = await updatePost(postId, {
+          ...data,
+          saveMode: 'manual',
+        });
         savedId = postId;
+        navigate('/posts', {
+          state: {
+            postId: savedId,
+            siteBuild: updated?.siteBuild,
+            message: '記事を保存しました',
+          },
+        });
+        return;
       } else {
-        const created = await createPost(data);
+        const created = await createPost({ ...data, saveMode: 'manual' });
         savedId = created.id;
         setPostId(created.id);
-      }
-      // PR5b: publish ならページに留まり BuildStatusBadge を表示する。
-      // draft なら従来通り一覧へ遷移。
-      if (data.publishStatus === 'published') {
-        setPublishedPostId(savedId);
+        navigate('/posts', {
+          state: {
+            postId: savedId,
+            siteBuild: created?.siteBuild,
+            message: '記事を保存しました',
+          },
+        });
         return;
       }
-      navigate('/posts');
     } catch (err) {
       console.error('記事作成エラー:', err);
       // PR6: surface server-side slug conflict so the writer knows to change it.
@@ -71,7 +80,7 @@ const PostCreatePage = () => {
   // - 2 回目以降: updatePost(id, data)。
   // 失敗時は throw → useAutosave が status='error' に遷移させる。
   const handleAutosave = useCallback(
-    async (data: PostData) => {
+    async (data: AutosavePostData) => {
       if (postId) {
         await updatePost(postId, data);
         return;
@@ -99,11 +108,6 @@ const PostCreatePage = () => {
           {error}
         </div>
       )}
-
-      <BuildStatusBadge
-        postId={publishedPostId ?? undefined}
-        enabled={publishedPostId !== null}
-      />
 
       <div className="admin-card">
         <PostEditor

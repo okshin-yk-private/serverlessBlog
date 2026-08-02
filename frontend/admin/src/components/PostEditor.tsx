@@ -33,6 +33,11 @@ export interface PostData {
   coverImageUrl?: string;
 }
 
+export type AutosavePostData = Omit<PostData, 'category' | 'publishStatus'> & {
+  category?: string;
+  saveMode: 'autosave';
+};
+
 export interface PostEditorHandle {
   insertAtCursor: (text: string) => void;
   removeImageUrl: (imageUrl: string) => void;
@@ -66,7 +71,7 @@ interface PostEditorProps {
    * 1.5s デバウンス / window blur / visibility hidden で発火し、
    * 失敗時は throw する。新規作成時は親側で createPost + URL 置換を行う。
    */
-  onAutosave?: (data: PostData) => Promise<void>;
+  onAutosave?: (data: AutosavePostData) => Promise<void>;
 }
 
 export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
@@ -143,18 +148,18 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
 
     // 自動保存 (onAutosave が渡された時のみ有効)。
     // タイトル非空かつ本文非空の場合だけ保存対象にする (空 POST を防ぐ)。
-    const autosaveData: PostData = {
+    const autosaveData: AutosavePostData = {
       title,
       contentMarkdown,
-      category: meta.category,
       tags: meta.tags,
-      publishStatus: meta.publishStatus,
+      saveMode: 'autosave',
+      ...(meta.category ? { category: meta.category } : {}),
       slug: meta.slug || undefined,
       excerpt: meta.excerpt || undefined,
       coverImageUrl: meta.coverImageUrl || undefined,
     };
     const noopAutosave = useRef(async () => {}).current;
-    const autosave = useAutosave<PostData>({
+    const autosave = useAutosave<AutosavePostData>({
       data: autosaveData,
       save: onAutosave ?? noopAutosave,
       enabled: !!onAutosave,

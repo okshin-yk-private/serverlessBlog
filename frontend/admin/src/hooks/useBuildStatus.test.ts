@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import type { BuildStatusResponse } from '../api/posts';
 
 vi.mock('../api/posts');
 const postsApi = await import('../api/posts');
@@ -62,6 +63,25 @@ describe('useBuildStatus', () => {
     expect(result.current.buildId).toBe('b-1');
     expect(result.current.phase).toBe('BUILD');
     expect(mockedFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes targetRevision so status is correlated with the save', async () => {
+    mockedFetch.mockResolvedValueOnce({
+      status: 'queued',
+      targetRevision: 7,
+    });
+
+    const { result } = renderHook(() =>
+      useBuildStatus('post-1', {
+        enabled: true,
+        intervalMs: 1000,
+        targetRevision: 7,
+      })
+    );
+
+    await flush();
+    expect(result.current.status).toBe('queued');
+    expect(mockedFetch).toHaveBeenCalledWith('post-1', 7);
   });
 
   it('keeps polling on the configured interval until succeeded', async () => {
@@ -182,5 +202,38 @@ describe('useBuildStatus', () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
     expect(mockedFetch).toHaveBeenCalledTimes(callsBefore);
+  });
+
+  it('ignores a stale response after the correlation target changes', async () => {
+    let resolveOldRequest: (value: BuildStatusResponse) => void = () =>
+      undefined;
+    mockedFetch
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOldRequest = resolve;
+          })
+      )
+      .mockResolvedValueOnce({ status: 'succeeded', targetRevision: 2 });
+
+    const { result, rerender } = renderHook(
+      ({ targetRevision }: { targetRevision: number }) =>
+        useBuildStatus('post-1', {
+          enabled: true,
+          intervalMs: 200,
+          targetRevision,
+        }),
+      { initialProps: { targetRevision: 1 } }
+    );
+
+    rerender({ targetRevision: 2 });
+    await flush();
+    expect(result.current.status).toBe('succeeded');
+
+    await act(async () => {
+      resolveOldRequest({ status: 'in-progress', targetRevision: 1 });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.status).toBe('succeeded');
   });
 });

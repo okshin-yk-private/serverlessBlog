@@ -13,10 +13,13 @@ export interface BuildStatusBadgeProps {
   publicUrl?: string;
   /** テスト用ポーリング間隔上書き。 */
   intervalMs?: number;
+  /** 保存操作に対応するサイトcontent revision。 */
+  targetRevision?: number;
 }
 
 const STATUS_LABEL: Record<string, string> = {
   idle: '待機中',
+  queued: '反映待ち…',
   'in-progress': 'ビルド中…',
   succeeded: 'ビルド完了',
   failed: 'ビルド失敗',
@@ -24,6 +27,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 const STATUS_CLASS: Record<string, string> = {
   idle: 'admin-badge-light',
+  queued: 'admin-badge-warning',
   'in-progress': 'admin-badge-dark',
   succeeded: 'admin-badge-success',
   failed: 'admin-badge-danger',
@@ -42,10 +46,12 @@ export const BuildStatusBadge: React.FC<BuildStatusBadgeProps> = ({
   enabled,
   publicUrl,
   intervalMs,
+  targetRevision,
 }) => {
   const { status, error } = useBuildStatus(postId, {
     enabled: enabled && Boolean(postId),
     intervalMs,
+    targetRevision,
   });
 
   if (!enabled || !postId) {

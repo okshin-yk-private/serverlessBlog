@@ -177,6 +177,25 @@ func TestCreatePostRequestValidation(t *testing.T) {
 			errMsg:  "category",
 		},
 		{
+			name: "autosave accepts missing category",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				SaveMode:        SaveModeAutosave,
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid save mode",
+			request: CreatePostRequest{
+				Title:           "Test Title",
+				ContentMarkdown: "# Hello",
+				Category:        "technology",
+				SaveMode:        "background",
+			},
+			wantErr: true,
+		},
+		{
 			name: "valid request with slug",
 			request: CreatePostRequest{
 				Title:           "Test Title",
@@ -479,6 +498,16 @@ func TestUpdatePostRequestValidation(t *testing.T) {
 		{
 			name:    "empty category rejected",
 			request: UpdatePostRequest{Category: strPtr("")},
+			wantErr: true,
+		},
+		{
+			name:    "autosave accepts empty category",
+			request: UpdatePostRequest{Category: strPtr(""), SaveMode: SaveModeAutosave},
+			wantErr: false,
+		},
+		{
+			name:    "invalid save mode rejected",
+			request: UpdatePostRequest{SaveMode: "background"},
 			wantErr: true,
 		},
 		{

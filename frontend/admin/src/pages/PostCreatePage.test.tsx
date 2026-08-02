@@ -203,7 +203,13 @@ describe('PostCreatePage', () => {
     await user.click(screen.getByRole('button', { name: /保存/i }));
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/posts');
+      expect(mockNavigate).toHaveBeenCalledWith('/posts', {
+        state: {
+          postId: 'test-id',
+          siteBuild: undefined,
+          message: '記事を保存しました',
+        },
+      });
     });
   });
 
@@ -500,7 +506,13 @@ describe('PostCreatePage', () => {
     await user.click(screen.getByRole('button', { name: /保存/i }));
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/posts');
+      expect(mockNavigate).toHaveBeenCalledWith('/posts', {
+        state: {
+          postId: 'test-id',
+          siteBuild: undefined,
+          message: '記事を保存しました',
+        },
+      });
     });
   });
 });

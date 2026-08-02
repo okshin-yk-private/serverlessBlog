@@ -30,12 +30,21 @@ import (
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/markdown"
 	"serverless-blog/go-functions/internal/middleware"
+	"serverless-blog/go-functions/internal/sitebuild"
 )
 
 // DynamoDBClientInterface defines the interface for DynamoDB operations (for testing)
 type DynamoDBClientInterface interface {
 	PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
+	GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
+	UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error)
+	TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error)
 	Query(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
+}
+
+type postMutationResponse struct {
+	domain.BlogPost
+	SiteBuild *sitebuild.Request `json:"siteBuild,omitempty"`
 }
 
 // slugIndexName returns the SlugIndex GSI name (overridable via env for tests).
@@ -80,6 +89,9 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	var req domain.CreatePostRequest
 	if err := json.Unmarshal([]byte(request.Body), &req); err != nil {
 		return errorResponse(400, "invalid request body")
+	}
+	if req.SaveMode == domain.SaveModeAutosave {
+		req.PublishStatus = nil
 	}
 
 	// Validate required fields
@@ -164,25 +176,26 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return errorResponse(500, "failed to marshal post")
 	}
 
-	// Save to DynamoDB
-	putInput := &dynamodb.PutItemInput{
-		TableName: &tableName,
-		Item:      av,
-	}
-
-	_, err = dynamoClient.PutItem(ctx, putInput)
-	if err != nil {
-		return errorResponse(500, "failed to create post")
-	}
-
-	// Trigger CodeBuild if post is created as published
-	// Requirement 10.1: Trigger site rebuild when post is published
+	var siteBuildRequest *sitebuild.Request
 	if publishStatus == domain.PublishStatusPublished {
-		triggerSiteBuild(ctx)
+		_, err = dynamoClient.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: []types.TransactWriteItem{
+			{Put: &types.Put{TableName: &tableName, Item: av}},
+			sitebuild.RequestUpdate(tableName, time.Now()),
+		}})
+		if err != nil {
+			return errorResponse(500, "failed to create post")
+		}
+		request := triggerSiteBuild(ctx, dynamoClient, tableName)
+		siteBuildRequest = &request
+	} else {
+		_, err = dynamoClient.PutItem(ctx, &dynamodb.PutItemInput{TableName: &tableName, Item: av})
+		if err != nil {
+			return errorResponse(500, "failed to create post")
+		}
 	}
 
 	// Return created post with 201 status
-	return middleware.JSONResponse(201, post)
+	return middleware.JSONResponse(201, postMutationResponse{BlogPost: post, SiteBuild: siteBuildRequest})
 }
 
 // errorResponse creates an error response with CORS headers
@@ -192,28 +205,34 @@ func errorResponse(statusCode int, message string) (events.APIGatewayProxyRespon
 
 // triggerSiteBuild triggers the Astro SSG build via CodeBuild
 // Requirement 10.1: Trigger CodeBuild when post is published
-func triggerSiteBuild(ctx context.Context) {
+func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface, tableName string) sitebuild.Request {
 	projectName := buildtrigger.SanitizeProjectName(os.Getenv("CODEBUILD_PROJECT_NAME"))
 	if projectName == "" {
 		slog.Warn("CODEBUILD_PROJECT_NAME not set or invalid, skipping build trigger")
-		return
+		return sitebuild.CurrentRequest(ctx, dynamoClient, tableName)
 	}
 
 	client, err := codebuildClientGetter()
 	if err != nil {
 		slog.Error("failed to get CodeBuild client", "error", err)
-		return
+		return sitebuild.CurrentRequest(ctx, dynamoClient, tableName)
 	}
 
-	trigger := buildtrigger.NewBuildTrigger(client, projectName)
-	if err := trigger.TriggerBuild(ctx); err != nil {
-		//nolint:gosec // G706: projectName already passed buildtrigger.SanitizeProjectName regex validation, so no log-injection vector
+	coordinator := sitebuild.NewCoordinator(dynamoClient, client, tableName, projectName)
+	request, err := coordinator.StartPending(ctx)
+	if err != nil {
+		//nolint:gosec // G706: projectName is allow-list validated by SanitizeProjectName; CR/LF and control characters are rejected.
 		slog.Error("failed to trigger site build", "error", err, "project", projectName)
-		return
+		state, stateErr := coordinator.GetState(ctx)
+		if stateErr == nil {
+			return sitebuild.RequestForState(state, state.DesiredRevision)
+		}
+		return sitebuild.Request{Status: sitebuild.StatusFailed}
 	}
 
-	//nolint:gosec // G706: see above — projectName is regex-validated.
+	//nolint:gosec // G706: projectName is allow-list validated by SanitizeProjectName; CR/LF and control characters are rejected.
 	slog.Info("site build triggered successfully", "project", projectName)
+	return request
 }
 
 // checkSlugExists returns true if any BlogPost item already owns the given slug.

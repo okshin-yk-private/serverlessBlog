@@ -3,12 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   PostEditor,
+  type AutosavePostData,
   type PostData,
   type PostEditorHandle,
 } from '../components/PostEditor';
 import { getPost, updatePost } from '../api/posts';
 import AdminLayout from '../components/AdminLayout';
-import { BuildStatusBadge } from '../components/BuildStatusBadge';
 import { PostEditSkeleton } from '../components/skeleton';
 import { useCategories } from '../hooks/useCategories';
 
@@ -18,9 +18,6 @@ const PostEditPage = () => {
   const [initialData, setInitialData] = useState<PostData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // PR5b: After publish, stay on the page and show build progress instead of
-  // navigating away. Drafts continue to navigate to the list.
-  const [publishedPostId, setPublishedPostId] = useState<string | null>(null);
   const editorRef = useRef<PostEditorHandle>(null);
 
   // カテゴリを動的に取得
@@ -44,7 +41,7 @@ const PostEditPage = () => {
         setInitialData({
           title: post.title,
           contentMarkdown: post.contentMarkdown,
-          category: post.category,
+          category: post.category ?? '',
           tags: post.tags || [],
           publishStatus: post.publishStatus,
           slug: post.slug ?? '',
@@ -67,12 +64,14 @@ const PostEditPage = () => {
     // このhandleSaveは呼ばれない。したがって、冗長なIDチェックは不要。
     try {
       setError(null);
-      await updatePost(id!, data);
-      if (data.publishStatus === 'published') {
-        setPublishedPostId(id!);
-        return;
-      }
-      navigate('/posts');
+      const updated = await updatePost(id!, { ...data, saveMode: 'manual' });
+      navigate('/posts', {
+        state: {
+          postId: id!,
+          siteBuild: updated?.siteBuild,
+          message: '記事を保存しました',
+        },
+      });
     } catch (err) {
       console.error('記事更新エラー:', err);
       if (axios.isAxiosError(err) && err.response?.status === 409) {
@@ -88,7 +87,7 @@ const PostEditPage = () => {
 
   // 自動保存: 既存記事なので常に updatePost
   const handleAutosave = useCallback(
-    async (data: PostData) => {
+    async (data: AutosavePostData) => {
       if (!id) return;
       await updatePost(id, data);
     },
@@ -118,11 +117,6 @@ const PostEditPage = () => {
   return (
     <AdminLayout title="Edit Article" subtitle="記事を編集">
       {error && <div className="admin-alert admin-alert-error">{error}</div>}
-
-      <BuildStatusBadge
-        postId={publishedPostId ?? undefined}
-        enabled={publishedPostId !== null}
-      />
 
       <div className="admin-card">
         {initialData && (

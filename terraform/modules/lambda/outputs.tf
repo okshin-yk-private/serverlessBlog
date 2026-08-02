@@ -14,6 +14,7 @@ output "function_arns" {
     update_post                  = aws_lambda_function.update_post.arn
     delete_post                  = aws_lambda_function.delete_post.arn
     build_status_post            = aws_lambda_function.build_status_post.arn
+    reconcile_build_post         = aws_lambda_function.reconcile_build_post.arn
     get_post_by_slug             = aws_lambda_function.get_post_by_slug.arn
     login                        = aws_lambda_function.login.arn
     logout                       = aws_lambda_function.logout.arn
@@ -42,6 +43,7 @@ output "function_invoke_arns" {
     update_post                  = aws_lambda_function.update_post.invoke_arn
     delete_post                  = aws_lambda_function.delete_post.invoke_arn
     build_status_post            = aws_lambda_function.build_status_post.invoke_arn
+    reconcile_build_post         = aws_lambda_function.reconcile_build_post.invoke_arn
     get_post_by_slug             = aws_lambda_function.get_post_by_slug.invoke_arn
     login                        = aws_lambda_function.login.invoke_arn
     logout                       = aws_lambda_function.logout.invoke_arn
@@ -70,6 +72,7 @@ output "function_names" {
     aws_lambda_function.update_post.function_name,
     aws_lambda_function.delete_post.function_name,
     aws_lambda_function.build_status_post.function_name,
+    aws_lambda_function.reconcile_build_post.function_name,
     aws_lambda_function.get_post_by_slug.function_name,
     aws_lambda_function.login.function_name,
     aws_lambda_function.logout.function_name,
@@ -118,6 +121,16 @@ output "posts_build_status_role_arn" {
 output "posts_build_status_role_name" {
   value       = aws_iam_role.lambda_posts_build_status.name
   description = "Posts domain build-status Lambda execution role name"
+}
+
+output "posts_build_reconciler_role_arn" {
+  value       = aws_iam_role.lambda_posts_build_reconciler.arn
+  description = "Posts domain build-reconciler Lambda execution role ARN"
+}
+
+output "posts_build_reconciler_role_name" {
+  value       = aws_iam_role.lambda_posts_build_reconciler.name
+  description = "Posts domain build-reconciler Lambda execution role name"
 }
 
 # Auth Domain Role
@@ -399,4 +412,3 @@ output "delete_category_invoke_arn" {
   value       = aws_lambda_function.delete_category.invoke_arn
   description = "Delete Category Lambda function invoke ARN for API Gateway integration"
 }
-

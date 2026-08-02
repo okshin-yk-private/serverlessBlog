@@ -16,6 +16,8 @@ export interface UseBuildStatusOptions {
    * ポーリング間隔(ms)。テスト用に上書き可能。デフォルト 5000ms。
    */
   intervalMs?: number;
+  /** 保存レスポンスが返した相関対象revision。 */
+  targetRevision?: number;
 }
 
 export interface UseBuildStatusResult {
@@ -42,24 +44,19 @@ const DEFAULT_INTERVAL = 5_000;
  */
 export function useBuildStatus(
   postId: string | undefined,
-  { enabled, intervalMs = DEFAULT_INTERVAL }: UseBuildStatusOptions
+  {
+    enabled,
+    intervalMs = DEFAULT_INTERVAL,
+    targetRevision,
+  }: UseBuildStatusOptions
 ): UseBuildStatusResult {
   const [snapshot, setSnapshot] = useState<BuildStatusResponse>({
     status: 'idle',
   });
   const [error, setError] = useState<string | null>(null);
 
-  // mount 状態は state 更新の取りこぼし防止に使う。
-  const mountedRef = useRef(true);
   // ポーリングを止める判定に使う最新値。state ではタイマー内で stale になる。
   const stoppedRef = useRef(false);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
 
   useEffect(() => {
     if (!enabled || !postId) {
@@ -72,14 +69,15 @@ export function useBuildStatus(
 
     let timer: ReturnType<typeof setTimeout> | null = null;
     let inFlight = false;
+    let cancelled = false;
     stoppedRef.current = false;
 
     const tick = async (): Promise<void> => {
       if (inFlight || stoppedRef.current) return;
       inFlight = true;
       try {
-        const result = await fetchBuildStatus(postId);
-        if (!mountedRef.current) return;
+        const result = await fetchBuildStatus(postId, targetRevision);
+        if (cancelled) return;
         setSnapshot(result);
         setError(null);
         if (result.status === 'succeeded' || result.status === 'failed') {
@@ -87,7 +85,7 @@ export function useBuildStatus(
           return;
         }
       } catch (err) {
-        if (!mountedRef.current) return;
+        if (cancelled) return;
         setError(
           err instanceof Error ? err.message : 'failed to fetch build status'
         );
@@ -95,7 +93,7 @@ export function useBuildStatus(
         inFlight = false;
       }
 
-      if (!stoppedRef.current && mountedRef.current) {
+      if (!stoppedRef.current && !cancelled) {
         timer = setTimeout(() => {
           void tick();
         }, intervalMs);
@@ -105,12 +103,13 @@ export function useBuildStatus(
     void tick();
 
     return () => {
+      cancelled = true;
       stoppedRef.current = true;
       if (timer !== null) {
         clearTimeout(timer);
       }
     };
-  }, [enabled, postId, intervalMs]);
+  }, [enabled, postId, intervalMs, targetRevision]);
 
   return {
     status: snapshot.status,
