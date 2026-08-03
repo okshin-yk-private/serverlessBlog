@@ -208,8 +208,8 @@ run "lambda_outputs_for_monitoring" {
 
   # Verify function_names has expected count (known during plan)
   assert {
-    condition     = length(output.function_names) == 18
-    error_message = "Lambda module must export all 18 function names"
+    condition     = length(output.function_names) == 19
+    error_message = "Lambda module must export all 19 function names"
   }
 
   # Verify role name outputs match expected values.

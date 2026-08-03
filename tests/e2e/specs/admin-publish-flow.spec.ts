@@ -49,6 +49,7 @@ test.describe('Admin Publish Flow - Build Status Badge', () => {
     await adminPostCreatePage.setPublishStatus('published');
     await adminPostCreatePage.clickSaveButton();
 
+    await page.waitForURL(/\/posts(\?.*)?$/, { timeout: 10000 });
     const badge = page.getByTestId('build-status-badge');
 
     // First poll returns 'in-progress' — badge appears with that data attr.
@@ -88,8 +89,7 @@ test.describe('Admin Publish Flow - Build Status Badge', () => {
     await adminPostCreatePage.setPublishStatus('draft');
     await adminPostCreatePage.clickSaveButton();
 
-    // Drafts retain the existing redirect-to-list behaviour, so the badge
-    // should never mount.
+    // 下書きも一覧へ遷移するが、サイトビルド要求は作らない。
     await page.waitForURL(/\/posts(\?.*)?$/, { timeout: 10000 });
     await expect(page.getByTestId('build-status-badge')).toHaveCount(0);
   });

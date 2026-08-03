@@ -46,14 +46,23 @@ on:
           - frontend
           - astro
 
+# develop/main への連続 push で terraform apply が同じ S3/DynamoDB state に対して
+# 同時に走ると、後発の apply は -lock-timeout を渡していないため state lock 待ちで
+# 即座に失敗する。plan と違い apply の取り消しはデータ不整合のリスクの方が大きい
+# ため、実行中の apply を cancel-in-progress で打ち切らず、キューイングして順番に
+# 適用させる。
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   id-token: write
   contents: read
 
 env:
   TERRAFORM_VERSION: '1.14.0'
-  GO_VERSION: '1.25.12'
-  BUN_VERSION: '1.2.0'
+  # BUN_VERSION は削除済み: どのジョブからも参照されておらず、
+  # ./.github/actions/setup-bun-deps 側のデフォルト値 (1.2.0) がそのまま使われる。
   AWS_REGION: 'ap-northeast-1'
 
 jobs:
@@ -63,6 +72,7 @@ jobs:
   detect-changes:
     name: Detect Changes
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       deploy-infrastructure: ${{ steps.changes.outputs.infrastructure }}
       deploy-frontend: ${{ steps.changes.outputs.frontend }}
@@ -146,6 +156,7 @@ jobs:
   restore-lambda-binaries:
     name: Restore Lambda Binaries
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [detect-changes]
     if: needs.detect-changes.outputs.deploy-infrastructure == 'true'
     outputs:
@@ -177,7 +188,7 @@ jobs:
             echo "cache-hit=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          FUNCS="posts-create posts-get posts-get_public posts-get_by_slug posts-list posts-update posts-delete posts-build_status auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete"
+          FUNCS="posts-create posts-get posts-get_public posts-get_by_slug posts-list posts-update posts-delete posts-build_status posts-reconcile_build auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete"
           TOTAL=0
           for f in $FUNCS; do TOTAL=$((TOTAL + 1)); done
           COUNT=0
@@ -211,6 +222,7 @@ jobs:
   build-lambdas:
     name: Build Lambda (${{ matrix.function }})
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [detect-changes, restore-lambda-binaries]
     if: |
       needs.detect-changes.outputs.deploy-infrastructure == 'true' &&
@@ -233,6 +245,8 @@ jobs:
             path: posts/delete
           - function: posts-build_status
             path: posts/build_status
+          - function: posts-reconcile_build
+            path: posts/reconcile_build
           - function: posts-get_by_slug
             path: posts/get_by_slug
           - function: auth-login
@@ -262,8 +276,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: ${{ env.GO_VERSION }}
-          check-latest: true
+          go-version-file: go-functions/go.mod
+          check-latest: false
           cache-dependency-path: go-functions/go.sum
 
       - name: Build Lambda binary
@@ -290,12 +304,23 @@ jobs:
   merge-lambda-artifacts:
     name: Merge Lambda Artifacts
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [restore-lambda-binaries, build-lambdas]
     if: |
       always() &&
       needs.restore-lambda-binaries.outputs.cache-hit != 'true' &&
       needs.build-lambdas.result == 'success'
     steps:
+      - name: Checkout code
+        # hashFiles('go-functions/**/*.go', 'go-functions/go.sum') を使う
+        # cache save (下記) の key を計算するには対象ファイルが実在している
+        # 必要がある。checkout が無いと hashFiles は空文字を返し、key が
+        # 定数に潰れてキャッシュが機能しなくなる。
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          sparse-checkout: go-functions
+          sparse-checkout-cone-mode: false
+
       - name: Download all Lambda artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -323,12 +348,34 @@ jobs:
           path: go-functions/bin/
           retention-days: 1
 
+      - name: Save Lambda binaries to cache
+        # restore-lambda-binaries が読む key (lambda-all-${{ runner.os }}-<hash>) の
+        # 唯一の書き手は ci.yml の terraform-merge-artifacts だが、そちらは
+        # pull_request でのみ実行される。GitHub Actions のキャッシュは PR の ref に
+        # スコープされるため、develop/main への push ではそのキャッシュを読めず、
+        # base ブランチ側で書く側も存在しない。結果として deploy 実行のたびに 18個
+        # 全バイナリが再ビルドされていた。ここで deploy.yml 自身が同じ key で保存
+        # することで、次回以降の push (同一 go source hash の間) がキャッシュを
+        # ヒットできるようにする。
+        #
+        # continue-on-error: ほぼ同時刻に同一 source hash で push が複数走った場合、
+        # 先着の実行がこの key で保存済みだと後着の save は「Cache already exists」で
+        # 失敗する。実害はない (次回以降はそのキャッシュを読めばよい) ため job は
+        # 失敗させない。
+        id: cache-save
+        continue-on-error: true
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: go-functions/bin
+          key: lambda-all-${{ runner.os }}-${{ hashFiles('go-functions/**/*.go', 'go-functions/go.sum') }}
+
   # =======================================
   # Deploy Infrastructure (DEV)
   # =======================================
   deploy-infrastructure-dev:
     name: Deploy Infrastructure (DEV)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [detect-changes, restore-lambda-binaries, merge-lambda-artifacts]
     environment: dev
     if: |
@@ -431,6 +478,7 @@ jobs:
   deploy-infrastructure-prd:
     name: Deploy Infrastructure (PRD)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [detect-changes, restore-lambda-binaries, merge-lambda-artifacts]
     environment:
       name: prod
@@ -528,6 +576,7 @@ jobs:
   build-frontend-admin:
     name: Build Frontend (Admin)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [detect-changes, deploy-infrastructure-dev, deploy-infrastructure-prd]
     environment: ${{ needs.detect-changes.outputs.github-env }}
     if: |
@@ -606,6 +655,7 @@ jobs:
   deploy-admin-dev:
     name: Deploy Admin (DEV)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [detect-changes, build-frontend-admin, deploy-infrastructure-dev]
     environment: dev
     if: |
@@ -660,6 +710,7 @@ jobs:
   deploy-admin-prd:
     name: Deploy Admin (PRD)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [detect-changes, build-frontend-admin, deploy-infrastructure-prd]
     environment:
       name: prod
@@ -715,6 +766,7 @@ jobs:
   build-astro:
     name: Build Astro SSG
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # SSG build must run AFTER infrastructure is deployed because it fetches posts from the API
     needs: [detect-changes, deploy-infrastructure-dev, deploy-infrastructure-prd]
     environment: ${{ needs.detect-changes.outputs.github-env }}
@@ -830,6 +882,7 @@ jobs:
   deploy-astro-dev:
     name: Deploy Astro SSG (DEV)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [detect-changes, build-astro, deploy-infrastructure-dev]
     environment: dev
     if: |
@@ -862,6 +915,9 @@ jobs:
 
           DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/dev/cdn/distribution-id" --query "Parameter.Value" --output text)
           echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
+
+          KVS_ARN=$(aws ssm get-parameter --name "/serverless-blog/dev/cdn/release-kvs-arn" --query "Parameter.Value" --output text)
+          echo "kvs_arn=$KVS_ARN" >> $GITHUB_OUTPUT
 
           echo "✓ Retrieved deployment config from SSM"
 
@@ -896,12 +952,16 @@ jobs:
           # Timer start for Requirement 9.11 (5 min limit)
           START_TIME=$(date +%s)
 
+          # Epoch-seconds revision keeps promotion monotonic across every
+          # deployer sharing the KVS (CodeBuild rebuilds, local-deploy.sh).
+          REVISION="r${START_TIME}-${GITHUB_SHA::12}"
+
           bun run cli.ts \
             --bucket "${{ steps.config.outputs.bucket }}" \
-            --distribution "${{ steps.config.outputs.distribution_id }}" \
+            --kvs-arn "${{ steps.config.outputs.kvs_arn }}" \
             --dist "../../dist" \
             --region "${{ env.AWS_REGION }}" \
-            --retain 3
+            --revision "$REVISION"
 
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - START_TIME))
@@ -946,6 +1006,7 @@ jobs:
   deploy-astro-prd:
     name: Deploy Astro SSG (PRD)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [detect-changes, build-astro, deploy-infrastructure-prd]
     environment:
       name: prod
@@ -980,6 +1041,9 @@ jobs:
           DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/prd/cdn/distribution-id" --query "Parameter.Value" --output text)
           echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
 
+          KVS_ARN=$(aws ssm get-parameter --name "/serverless-blog/prd/cdn/release-kvs-arn" --query "Parameter.Value" --output text)
+          echo "kvs_arn=$KVS_ARN" >> $GITHUB_OUTPUT
+
           echo "✓ Retrieved deployment config from SSM"
 
       - name: Download Astro build artifact
@@ -1013,12 +1077,16 @@ jobs:
           # Timer start for Requirement 9.11 (5 min limit)
           START_TIME=$(date +%s)
 
+          # Epoch-seconds revision keeps promotion monotonic across every
+          # deployer sharing the KVS (CodeBuild rebuilds, local-deploy.sh).
+          REVISION="r${START_TIME}-${GITHUB_SHA::12}"
+
           bun run cli.ts \
             --bucket "${{ steps.config.outputs.bucket }}" \
-            --distribution "${{ steps.config.outputs.distribution_id }}" \
+            --kvs-arn "${{ steps.config.outputs.kvs_arn }}" \
             --dist "../../dist" \
             --region "${{ env.AWS_REGION }}" \
-            --retain 3
+            --revision "$REVISION"
 
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - START_TIME))
@@ -1063,11 +1131,22 @@ jobs:
   post-deploy-e2e-dev:
     name: Post-Deploy E2E Tests (DEV)
     runs-on: ubuntu-latest
-    needs: [detect-changes, deploy-admin-dev, deploy-astro-dev]
+    timeout-minutes: 20
+    needs: [detect-changes, deploy-infrastructure-dev, deploy-admin-dev, deploy-astro-dev]
     environment: dev
+    # deploy-admin-dev / deploy-astro-dev はどちらも deploy-infrastructure-dev が
+    # 'failure' でも 'skipped' 扱いになりうる (それぞれの if: が
+    # `result == 'success' || result == 'skipped'` を許容するため)。そのため
+    # 以前はインフラ deploy が失敗していても、admin/astro が skipped になるだけで
+    # この E2E ジョブは実行され、更新されていない stale な環境に対してテストして
+    # いた。deploy-infrastructure-dev を needs に加えて直接その result を参照し、
+    # 'failure' のときだけ実行しないようにする。「何もインフラ変更が無く
+    # deploy-infrastructure-dev 自体が skipped」という正当なケースは
+    # `!= 'failure'` なので引き続き許容される。
     if: |
       always() &&
       needs.detect-changes.outputs.target-env == 'dev' &&
+      needs.deploy-infrastructure-dev.result != 'failure' &&
       (needs.deploy-admin-dev.result == 'success' || needs.deploy-admin-dev.result == 'skipped') &&
       (needs.deploy-astro-dev.result == 'success' || needs.deploy-astro-dev.result == 'skipped')
 
@@ -1105,9 +1184,20 @@ jobs:
           echo "::add-mask::$BASIC_USER"
           echo "::add-mask::$BASIC_PASS"
 
+          # admin E2E がログインに使う Cognito テストユーザー (Issue #520)。
+          # auth モジュールが create_e2e_test_user = true のときだけ作成するため、
+          # 未整備の環境では空になり、該当テストは spec 側で skip される。
+          E2E_ADMIN_EMAIL=$(aws ssm get-parameter --name "/serverless-blog/dev/e2e/admin-email" --with-decryption --query "Parameter.Value" --output text 2>/dev/null || echo "")
+          E2E_ADMIN_PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/e2e/admin-password" --with-decryption --query "Parameter.Value" --output text 2>/dev/null || echo "")
+
+          echo "::add-mask::$E2E_ADMIN_EMAIL"
+          echo "::add-mask::$E2E_ADMIN_PASSWORD"
+
           echo "base_url=$BASE_URL" >> $GITHUB_OUTPUT
           echo "basic_user=$BASIC_USER" >> $GITHUB_OUTPUT
           echo "basic_pass=$BASIC_PASS" >> $GITHUB_OUTPUT
+          echo "e2e_admin_email=$E2E_ADMIN_EMAIL" >> $GITHUB_OUTPUT
+          echo "e2e_admin_password=$E2E_ADMIN_PASSWORD" >> $GITHUB_OUTPUT
 
       # The SSM read above swallows errors, so an unreadable parameter used to
       # skip the E2E run silently and still report the job green. The cdn module
@@ -1122,7 +1212,7 @@ jobs:
           fi
           echo "✓ BASE_URL resolved"
 
-      - name: Run Post-Deploy E2E Tests
+      - name: Run Post-Deploy E2E Tests (Public)
         run: bun run test:e2e:aws -- --project=chromium --workers=1
         env:
           CI: true
@@ -1131,11 +1221,42 @@ jobs:
           DEV_BASIC_AUTH_PASSWORD: ${{ steps.config.outputs.basic_pass }}
           VITE_ENABLE_MSW_MOCK: 'false'
 
-      - name: Upload E2E Test Report
+      # playwright.aws.config.ts の html レポート出力先 (playwright-report-aws/) は
+      # chromium / admin-chromium 両プロジェクトで共有されている。次のステップで
+      # admin スイートを実行すると同じディレクトリが上書きされるため、この
+      # Public 実行分は admin を走らせる前に必ずアップロードしておく。
+      - name: Upload Public E2E Test Report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: playwright-report-aws
+          name: playwright-report-aws-public
+          path: playwright-report-aws/
+          retention-days: 3
+
+      # デプロイされた admin が実際に動くかの smoke (admin-auth のみ)。
+      # /admin 配下での配信・実 Cognito 認証・API 到達をここで確かめる。
+      # エディタや画像アップロードなど UI の振る舞いは ci.yml が MSW 環境で
+      # PR ごとに全 spec ゲートしており、ここで二重に持たない (Issue #520)。
+      #
+      # public 側と同じく continue-on-error は付けない。post-deploy 検証が
+      # 落ちたなら、そのデプロイは検証できていないという意味なのでジョブを落とす。
+      - name: Run Post-Deploy E2E Tests (Admin)
+        run: bun run test:e2e:aws:admin -- --workers=1
+        env:
+          CI: true
+          BASE_URL: ${{ steps.config.outputs.base_url }}
+          DEV_BASIC_AUTH_USERNAME: ${{ steps.config.outputs.basic_user }}
+          DEV_BASIC_AUTH_PASSWORD: ${{ steps.config.outputs.basic_pass }}
+          # 未設定ならログインを要するテストは失敗ではなく skip される
+          TEST_ADMIN_EMAIL: ${{ steps.config.outputs.e2e_admin_email }}
+          TEST_ADMIN_PASSWORD: ${{ steps.config.outputs.e2e_admin_password }}
+          VITE_ENABLE_MSW_MOCK: 'false'
+
+      - name: Upload Admin E2E Test Report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: playwright-report-aws-admin
           path: playwright-report-aws/
           retention-days: 3
 
@@ -1149,6 +1270,7 @@ jobs:
   post-deploy-smoke-prd:
     name: Post-Deploy Smoke Test (PRD)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [detect-changes, deploy-admin-prd, deploy-astro-prd]
     if: |
       always() &&
@@ -1262,6 +1384,7 @@ jobs:
   deploy-summary:
     name: Deployment Summary
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs:
       - detect-changes
       - deploy-infrastructure-dev

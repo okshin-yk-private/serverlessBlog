@@ -404,6 +404,17 @@ run "public_site_bucket_lifecycle" {
     ])
     error_message = "Public site bucket must abort incomplete multipart uploads after 7 days"
   }
+
+  assert {
+    condition = anytrue([
+      for rule in aws_s3_bucket_lifecycle_configuration.public_site.rule :
+      rule.id == "expire-public-releases" &&
+      rule.status == "Enabled" &&
+      rule.filter[0].prefix == "releases/" &&
+      rule.expiration[0].days == 30
+    ])
+    error_message = "Versioned public releases must be retained for 30 days"
+  }
 }
 
 # Test 21: Verify all three buckets are created with correct naming

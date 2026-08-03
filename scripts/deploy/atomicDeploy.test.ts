@@ -1,710 +1,370 @@
-/**
- * Atomic Deployment Script Tests
- *
- * Task 5.1: S3原子的デプロイ (Atomic S3 Deployment)
- *
- * Requirements:
- * - 6.1: Built static files shall be deployable to existing S3 bucket
- * - 6.2: S3 bucket shall have versioning enabled for rollback
- * - 6.3: New files uploaded to staging prefix (staging/{build-id}/)
- * - 6.4: After staging upload, atomic switch via CloudFront origin path update or S3 copy
- * - 6.5: NO direct aws s3 sync --delete to production prefix during deployment
- * - 6.6: If deployment fails after staging, previous version remains unchanged
- * - 6.7: Old staging prefixes cleaned up (retain last 3 versions for rollback)
- * - 6.8: Total static file size shall not exceed 50 MB
- */
-
-import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
-  generateBuildId,
-  calculateDirectorySize,
-  validateDirectorySize,
-  getStagingPrefix,
-  getVersionPrefix,
-  listVersions,
-  getVersionsToCleanup,
-  getCacheControl,
-  getContentType,
-  atomicDeploy,
-  AtomicDeployConfig,
-  AtomicDeployResult,
-  DeployError,
-  DeployErrorCode,
-} from './atomicDeploy';
+  DescribeKeyValueStoreCommand,
+  GetKeyCommand,
+  UpdateKeysCommand,
+} from '@aws-sdk/client-cloudfront-keyvaluestore';
+import { HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {
+  atomicDeploy,
+  calculateDirectorySize,
+  createKeyValueStoreClient,
+  DeployErrorCode,
+  generateBuildId,
+  getCacheControl,
+  getContentType,
+  getDeploymentKey,
+  getRevisionSequence,
+  getVersionPrefix,
+  isStaleRevision,
+  promoteRelease,
+  validateDirectorySize,
+  validateRevision,
+} from './atomicDeploy';
 
-// Mock AWS SDK
-const mockS3Send = vi.fn();
-const mockCloudFrontSend = vi.fn();
+function namedError(name: string): Error {
+  const error = new Error(name);
+  error.name = name;
+  return error;
+}
 
-vi.mock('@aws-sdk/client-s3', () => ({
-  S3Client: class MockS3Client {
-    send = mockS3Send;
-  },
-  PutObjectCommand: class {},
-  CopyObjectCommand: class {},
-  DeleteObjectsCommand: class {},
-  ListObjectsV2Command: class {},
-  HeadObjectCommand: class {},
-}));
-
-vi.mock('@aws-sdk/client-cloudfront', () => ({
-  CloudFrontClient: class MockCloudFrontClient {
-    send = mockCloudFrontSend;
-  },
-  CreateInvalidationCommand: class {},
-  GetDistributionConfigCommand: class {},
-  UpdateDistributionCommand: class {},
-}));
-
-describe('atomicDeploy', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockS3Send.mockReset();
-    mockCloudFrontSend.mockReset();
+describe('release naming', () => {
+  test('generates a valid, sortable release ID', () => {
+    const buildId = generateBuildId();
+    expect(buildId).toMatch(/^r\d+-[a-z0-9]+$/);
+    expect(validateRevision(buildId)).toBe(true);
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  test.each(['r1', 'r42-a1b2c3d', 'r1710000000000-local.build'])(
+    'accepts safe revision %s',
+    (revision) => {
+      expect(validateRevision(revision)).toBe(true);
+    }
+  );
+
+  test.each(['v1', 'r', 'r1/../../root', 'r1-UPPER', 'r1 space'])(
+    'rejects unsafe revision %s',
+    (revision) => {
+      expect(validateRevision(revision)).toBe(false);
+    }
+  );
+
+  test('maps release content and shared assets to separate prefixes', () => {
+    expect(getVersionPrefix('r12-abc')).toBe('releases/r12-abc/');
+    expect(getDeploymentKey('index.html', 'r12-abc')).toBe(
+      'releases/r12-abc/index.html'
+    );
+    expect(getDeploymentKey('_astro/app.123.js', 'r12-abc')).toBe(
+      '_astro/app.123.js'
+    );
   });
 
-  describe('generateBuildId', () => {
-    test('generates unique build ID with timestamp prefix', () => {
-      const buildId = generateBuildId();
-
-      // Should match pattern: v{timestamp}-{random}
-      expect(buildId).toMatch(/^v\d+-[a-z0-9]+$/);
-    });
-
-    test('generates different IDs on consecutive calls', () => {
-      const buildId1 = generateBuildId();
-      const buildId2 = generateBuildId();
-
-      expect(buildId1).not.toBe(buildId2);
-    });
-
-    test('build ID starts with v and timestamp', () => {
-      const before = Math.floor(Date.now() / 1000);
-      const buildId = generateBuildId();
-      const after = Math.floor(Date.now() / 1000);
-
-      // Extract timestamp from build ID
-      const timestampMatch = buildId.match(/^v(\d+)-/);
-      expect(timestampMatch).not.toBeNull();
-
-      const timestamp = parseInt(timestampMatch![1], 10);
-      expect(timestamp).toBeGreaterThanOrEqual(before);
-      expect(timestamp).toBeLessThanOrEqual(after);
-    });
-  });
-
-  describe('getStagingPrefix', () => {
-    test('returns staging prefix with build ID', () => {
-      const buildId = 'v1234567890-abc123';
-      const prefix = getStagingPrefix(buildId);
-
-      expect(prefix).toBe('staging/v1234567890-abc123/');
-    });
-
-    test('handles build ID without v prefix', () => {
-      const buildId = '1234567890-abc123';
-      const prefix = getStagingPrefix(buildId);
-
-      expect(prefix).toBe('staging/1234567890-abc123/');
-    });
-  });
-
-  describe('getVersionPrefix', () => {
-    test('returns version prefix with build ID', () => {
-      const buildId = 'v1234567890-abc123';
-      const prefix = getVersionPrefix(buildId);
-
-      expect(prefix).toBe('v1234567890-abc123/');
-    });
-
-    test('version prefix matches expected format', () => {
-      const buildId = 'v1705123456-xyz789';
-      const prefix = getVersionPrefix(buildId);
-
-      expect(prefix).toBe('v1705123456-xyz789/');
-    });
-  });
-
-  describe('calculateDirectorySize', () => {
-    test('returns 0 for empty directory', async () => {
-      const size = await calculateDirectorySize('/nonexistent/path');
-
-      // Should return 0 or throw error for nonexistent path
-      expect(typeof size).toBe('number');
-    });
-
-    test('calculates size in bytes', async () => {
-      // This will be mocked in implementation tests
-      const size = await calculateDirectorySize('/some/path');
-
-      expect(typeof size).toBe('number');
-      expect(size).toBeGreaterThanOrEqual(0);
-    });
-  });
-
-  describe('validateDirectorySize', () => {
-    const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
-
-    test('returns valid for size under 50MB', () => {
-      const result = validateDirectorySize(10 * 1024 * 1024); // 10MB
-
-      expect(result.valid).toBe(true);
-      expect(result.sizeBytes).toBe(10 * 1024 * 1024);
-    });
-
-    test('returns invalid for size over 50MB', () => {
-      const result = validateDirectorySize(60 * 1024 * 1024); // 60MB
-
-      expect(result.valid).toBe(false);
-      expect(result.sizeBytes).toBe(60 * 1024 * 1024);
-      expect(result.error).toContain('50 MB');
-    });
-
-    test('returns valid for exactly 50MB', () => {
-      const result = validateDirectorySize(MAX_SIZE_BYTES);
-
-      expect(result.valid).toBe(true);
-    });
-
-    test('formats size in error message', () => {
-      const result = validateDirectorySize(52428800 + 1024 * 1024); // 51MB
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toMatch(/51.*MB/);
-    });
-  });
-
-  describe('listVersions', () => {
-    test('returns empty array when no versions exist', async () => {
-      const versions = await listVersions('test-bucket', {
-        send: vi.fn().mockResolvedValue({ CommonPrefixes: [] }),
-      } as never);
-
-      expect(versions).toEqual([]);
-    });
-
-    test('filters versions starting with v and timestamp pattern', async () => {
-      const mockVersions = [
-        { Prefix: 'v1705123456-abc123/' },
-        { Prefix: 'v1705234567-def456/' },
-        { Prefix: 'staging/' }, // Should be excluded
-        { Prefix: 'admin/' }, // Should be excluded
-      ];
-
-      const versions = await listVersions('test-bucket', {
-        send: vi.fn().mockResolvedValue({ CommonPrefixes: mockVersions }),
-      } as never);
-
-      expect(versions).toHaveLength(2);
-      expect(versions).toContain('v1705123456-abc123/');
-      expect(versions).toContain('v1705234567-def456/');
-      expect(versions).not.toContain('staging/');
-    });
-
-    test('sorts versions by timestamp descending (newest first)', async () => {
-      const mockVersions = [
-        { Prefix: 'v1705111111-older/' },
-        { Prefix: 'v1705333333-newest/' },
-        { Prefix: 'v1705222222-middle/' },
-      ];
-
-      const versions = await listVersions('test-bucket', {
-        send: vi.fn().mockResolvedValue({ CommonPrefixes: mockVersions }),
-      } as never);
-
-      expect(versions[0]).toBe('v1705333333-newest/');
-      expect(versions[1]).toBe('v1705222222-middle/');
-      expect(versions[2]).toBe('v1705111111-older/');
-    });
-  });
-
-  describe('getVersionsToCleanup', () => {
-    test('returns empty array when 3 or fewer versions', () => {
-      const versions = [
-        'v1705333333-newest/',
-        'v1705222222-middle/',
-        'v1705111111-older/',
-      ];
-
-      const toCleanup = getVersionsToCleanup(versions, 3);
-
-      expect(toCleanup).toEqual([]);
-    });
-
-    test('returns versions beyond retain count', () => {
-      const versions = [
-        'v1705555555-new1/', // Keep
-        'v1705444444-new2/', // Keep
-        'v1705333333-new3/', // Keep
-        'v1705222222-old1/', // Cleanup
-        'v1705111111-old2/', // Cleanup
-      ];
-
-      const toCleanup = getVersionsToCleanup(versions, 3);
-
-      expect(toCleanup).toHaveLength(2);
-      expect(toCleanup).toContain('v1705222222-old1/');
-      expect(toCleanup).toContain('v1705111111-old2/');
-    });
-
-    test('handles empty version list', () => {
-      const toCleanup = getVersionsToCleanup([], 3);
-
-      expect(toCleanup).toEqual([]);
-    });
-
-    test('uses default retain count of 3', () => {
-      const versions = [
-        'v1705555555-a/',
-        'v1705444444-b/',
-        'v1705333333-c/',
-        'v1705222222-d/',
-      ];
-
-      const toCleanup = getVersionsToCleanup(versions);
-
-      expect(toCleanup).toHaveLength(1);
-      expect(toCleanup).toContain('v1705222222-d/');
-    });
-  });
-
-  describe('AtomicDeployConfig', () => {
-    test('validates required fields', () => {
-      const config: AtomicDeployConfig = {
-        bucketName: 'my-bucket',
-        distributionId: 'E1234567890',
-        distPath: './dist',
-        region: 'ap-northeast-1',
-      };
-
-      expect(config.bucketName).toBe('my-bucket');
-      expect(config.distributionId).toBe('E1234567890');
-      expect(config.distPath).toBe('./dist');
-      expect(config.region).toBe('ap-northeast-1');
-    });
-
-    test('allows optional dryRun flag', () => {
-      const config: AtomicDeployConfig = {
-        bucketName: 'my-bucket',
-        distributionId: 'E1234567890',
-        distPath: './dist',
-        region: 'ap-northeast-1',
-        dryRun: true,
-      };
-
-      expect(config.dryRun).toBe(true);
-    });
-
-    test('allows optional retainVersions count', () => {
-      const config: AtomicDeployConfig = {
-        bucketName: 'my-bucket',
-        distributionId: 'E1234567890',
-        distPath: './dist',
-        region: 'ap-northeast-1',
-        retainVersions: 5,
-      };
-
-      expect(config.retainVersions).toBe(5);
-    });
-  });
-
-  describe('DeployError', () => {
-    test('creates error with code and message', () => {
-      const error = new DeployError(
-        DeployErrorCode.SIZE_EXCEEDED,
-        'Directory size exceeds 50MB limit'
-      );
-
-      expect(error.code).toBe(DeployErrorCode.SIZE_EXCEEDED);
-      expect(error.message).toBe('Directory size exceeds 50MB limit');
-      expect(error instanceof Error).toBe(true);
-    });
-
-    test('supports all error codes', () => {
-      expect(DeployErrorCode.SIZE_EXCEEDED).toBe('SIZE_EXCEEDED');
-      expect(DeployErrorCode.STAGING_UPLOAD_FAILED).toBe(
-        'STAGING_UPLOAD_FAILED'
-      );
-      expect(DeployErrorCode.VERSION_COPY_FAILED).toBe('VERSION_COPY_FAILED');
-      expect(DeployErrorCode.CLEANUP_FAILED).toBe('CLEANUP_FAILED');
-      expect(DeployErrorCode.INVALIDATION_FAILED).toBe('INVALIDATION_FAILED');
-      expect(DeployErrorCode.DIST_PATH_NOT_FOUND).toBe('DIST_PATH_NOT_FOUND');
-    });
-  });
-
-  describe('AtomicDeployResult', () => {
-    test('successful result contains version and timing', () => {
-      const result: AtomicDeployResult = {
-        success: true,
-        buildId: 'v1705123456-abc123',
-        versionPrefix: 'v1705123456-abc123/',
-        stagingPrefix: 'staging/v1705123456-abc123/',
-        filesUploaded: 42,
-        totalSizeBytes: 10 * 1024 * 1024,
-        durationMs: 5000,
-        cleanedUpVersions: ['v1705000000-old/'],
-      };
-
-      expect(result.success).toBe(true);
-      expect(result.buildId).toMatch(/^v\d+-[a-z0-9]+$/);
-      expect(result.filesUploaded).toBeGreaterThan(0);
-    });
-
-    test('failed result contains error information', () => {
-      const result: AtomicDeployResult = {
-        success: false,
-        buildId: 'v1705123456-abc123',
-        error: {
-          code: DeployErrorCode.SIZE_EXCEEDED,
-          message: 'Size exceeded 50MB',
-        },
-        durationMs: 100,
-      };
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBeDefined();
-      expect(result.error?.code).toBe(DeployErrorCode.SIZE_EXCEEDED);
-    });
+  test('compares the monotonic numeric portion', () => {
+    expect(getRevisionSequence('r123-abc')).toBe(123);
+    expect(isStaleRevision('r122-old', 'r123-new')).toBe(true);
+    expect(isStaleRevision('r124-new', 'r123-old')).toBe(false);
+    expect(isStaleRevision('r123-same', 'r123-other')).toBe(false);
   });
 });
 
-describe('getCacheControl', () => {
-  test('static assets should have long cache (1 year immutable)', () => {
-    expect(getCacheControl('_astro/index.abc123.js')).toBe(
-      'public,max-age=31536000,immutable'
-    );
-    expect(getCacheControl('_astro/styles.def456.css')).toBe(
-      'public,max-age=31536000,immutable'
-    );
-    expect(getCacheControl('assets/image.png')).toBe(
-      'public,max-age=31536000,immutable'
-    );
-  });
-
-  test('HTML files should have must-revalidate cache', () => {
+describe('file metadata', () => {
+  test('uses revalidation for documents and immutable caching for assets', () => {
     expect(getCacheControl('index.html')).toBe(
       'public,max-age=0,must-revalidate'
     );
-    expect(getCacheControl('posts/123/index.html')).toBe(
-      'public,max-age=0,must-revalidate'
-    );
-    expect(getCacheControl('404.html')).toBe(
-      'public,max-age=0,must-revalidate'
-    );
-    expect(getCacheControl('about/index.html')).toBe(
-      'public,max-age=0,must-revalidate'
-    );
-  });
-
-  test('XML files should have must-revalidate cache', () => {
-    expect(getCacheControl('sitemap-index.xml')).toBe(
-      'public,max-age=0,must-revalidate'
-    );
-    expect(getCacheControl('sitemap-0.xml')).toBe(
-      'public,max-age=0,must-revalidate'
-    );
     expect(getCacheControl('rss.xml')).toBe('public,max-age=0,must-revalidate');
-  });
-
-  test('robots.txt should have must-revalidate cache', () => {
     expect(getCacheControl('robots.txt')).toBe(
       'public,max-age=0,must-revalidate'
     );
-  });
-
-  test('non-HTML assets should have long cache', () => {
-    expect(getCacheControl('favicon.ico')).toBe(
-      'public,max-age=31536000,immutable'
-    );
-    expect(getCacheControl('fonts/inter.woff2')).toBe(
+    expect(getCacheControl('_astro/app.hash.js')).toBe(
       'public,max-age=31536000,immutable'
     );
   });
-});
 
-describe('getContentType', () => {
-  test('returns correct MIME type for HTML files', () => {
+  test('returns MIME types with a safe fallback', () => {
     expect(getContentType('index.html')).toBe('text/html');
-  });
-
-  test('returns correct MIME type for CSS files', () => {
-    expect(getContentType('styles.css')).toBe('text/css');
-  });
-
-  test('returns correct MIME type for JavaScript files', () => {
-    // mime-types returns 'application/javascript' for .js files
     expect(getContentType('app.js')).toBe('application/javascript');
+    expect(getContentType('unknown')).toBe('application/octet-stream');
   });
 
-  test('returns correct MIME type for JSON files', () => {
-    expect(getContentType('data.json')).toBe('application/json');
-  });
-
-  test('returns correct MIME type for XML files', () => {
-    expect(getContentType('sitemap.xml')).toBe('application/xml');
-  });
-
-  test('returns correct MIME type for image files', () => {
-    expect(getContentType('image.png')).toBe('image/png');
-    expect(getContentType('photo.jpg')).toBe('image/jpeg');
-    expect(getContentType('icon.svg')).toBe('image/svg+xml');
-    expect(getContentType('animation.gif')).toBe('image/gif');
-    expect(getContentType('photo.webp')).toBe('image/webp');
-  });
-
-  test('returns correct MIME type for font files', () => {
-    expect(getContentType('font.woff')).toBe('font/woff');
-    expect(getContentType('font.woff2')).toBe('font/woff2');
-    expect(getContentType('font.ttf')).toBe('font/ttf');
-  });
-
-  test('returns application/octet-stream for unknown types', () => {
-    expect(getContentType('file.unknown')).toBe('application/octet-stream');
-    expect(getContentType('file')).toBe('application/octet-stream');
+  test('enforces the 50 MiB release limit', () => {
+    expect(validateDirectorySize(50 * 1024 * 1024).valid).toBe(true);
+    expect(validateDirectorySize(50 * 1024 * 1024 + 1).valid).toBe(false);
   });
 });
 
-describe('calculateDirectorySize with real files', () => {
-  const testDir = path.join(__dirname, '__test_temp__');
+describe('promoteRelease', () => {
+  test('updates activeRevision with the current ETag', async () => {
+    const send = vi.fn(async (command: unknown) => {
+      if (command instanceof GetKeyCommand) return { Value: 'r10-old' };
+      if (command instanceof DescribeKeyValueStoreCommand) {
+        return { ETag: 'etag-1' };
+      }
+      if (command instanceof UpdateKeysCommand) return { ETag: 'etag-2' };
+      throw new Error('unexpected command');
+    });
 
-  beforeEach(async () => {
-    // Create test directory
-    await fs.promises.mkdir(testDir, { recursive: true });
-  });
-
-  afterEach(async () => {
-    // Clean up test directory
-    await fs.promises.rm(testDir, { recursive: true, force: true });
-  });
-
-  test('calculates size of directory with files', async () => {
-    // Create test files
-    const content1 = 'Hello World';
-    const content2 = 'Test content with more data';
-    await fs.promises.writeFile(path.join(testDir, 'file1.txt'), content1);
-    await fs.promises.writeFile(path.join(testDir, 'file2.txt'), content2);
-
-    const size = await calculateDirectorySize(testDir);
-
-    expect(size).toBe(content1.length + content2.length);
-  });
-
-  test('calculates size recursively', async () => {
-    const subDir = path.join(testDir, 'subdir');
-    await fs.promises.mkdir(subDir, { recursive: true });
-
-    const content1 = '12345'; // 5 bytes
-    const content2 = '1234567890'; // 10 bytes
-    await fs.promises.writeFile(path.join(testDir, 'root.txt'), content1);
-    await fs.promises.writeFile(path.join(subDir, 'nested.txt'), content2);
-
-    const size = await calculateDirectorySize(testDir);
-
-    expect(size).toBe(15);
-  });
-
-  test('returns 0 for empty directory', async () => {
-    const emptyDir = path.join(testDir, 'empty');
-    await fs.promises.mkdir(emptyDir, { recursive: true });
-
-    const size = await calculateDirectorySize(emptyDir);
-
-    expect(size).toBe(0);
-  });
-});
-
-describe('Atomic deployment flow', () => {
-  test('deployment should follow staging -> version -> cleanup order', () => {
-    // This test documents the expected deployment flow
-    const deploymentSteps = [
-      'validate-size', // Check dist size <= 50MB
-      'generate-build-id', // Generate unique build ID
-      'upload-staging', // Upload to staging/{build-id}/
-      'copy-to-version', // Copy staging to v{timestamp}/
-      'invalidate-cache', // CloudFront invalidation
-      'cleanup-old', // Remove old versions (keep 3)
-    ];
-
-    expect(deploymentSteps[0]).toBe('validate-size');
-    expect(deploymentSteps[1]).toBe('generate-build-id');
-    expect(deploymentSteps[2]).toBe('upload-staging');
-    expect(deploymentSteps[3]).toBe('copy-to-version');
-    expect(deploymentSteps[4]).toBe('invalidate-cache');
-    expect(deploymentSteps[5]).toBe('cleanup-old');
-  });
-
-  test('if staging upload fails, version copy should not proceed', () => {
-    // Documents rollback behavior
-    const stagingUploadFailed = true;
-    const shouldCopyVersion = !stagingUploadFailed;
-
-    expect(shouldCopyVersion).toBe(false);
-  });
-
-  test('if version copy fails, old version should remain active', () => {
-    // Documents atomic switch behavior
-    const versionCopyFailed = true;
-    const previousVersionActive = versionCopyFailed;
-
-    expect(previousVersionActive).toBe(true);
-  });
-});
-
-describe('atomicDeploy function', () => {
-  const testDir = path.join(__dirname, '__test_deploy_temp__');
-
-  beforeEach(async () => {
-    // Create test dist directory with sample files
-    await fs.promises.mkdir(testDir, { recursive: true });
-    await fs.promises.writeFile(
-      path.join(testDir, 'index.html'),
-      '<!DOCTYPE html><html><body>Test</body></html>'
+    const result = await promoteRelease(
+      { send },
+      'arn:aws:cloudfront::123:key-value-store/test',
+      'r11-new'
     );
-    await fs.promises.mkdir(path.join(testDir, '_astro'), { recursive: true });
-    await fs.promises.writeFile(
-      path.join(testDir, '_astro', 'app.abc123.js'),
-      'console.log("test");'
-    );
+
+    expect(result).toEqual({ previousRevision: 'r10-old', promoted: true });
+    const update = send.mock.calls
+      .map(([command]) => command)
+      .find((command) => command instanceof UpdateKeysCommand);
+    expect(update?.input).toMatchObject({
+      IfMatch: 'etag-1',
+      Puts: [{ Key: 'activeRevision', Value: 'r11-new' }],
+    });
   });
 
-  afterEach(async () => {
-    await fs.promises.rm(testDir, { recursive: true, force: true });
+  test('rejects an older build before changing the pointer', async () => {
+    const send = vi.fn(async (command: unknown) => {
+      if (command instanceof DescribeKeyValueStoreCommand) {
+        return { ETag: 'etag-newer' };
+      }
+      if (command instanceof GetKeyCommand) return { Value: 'r12-newer' };
+      throw new Error('must not update');
+    });
+
+    await expect(
+      promoteRelease(
+        { send },
+        'arn:aws:cloudfront::123:key-value-store/test',
+        'r11-stale'
+      )
+    ).rejects.toMatchObject({ code: DeployErrorCode.STALE_RELEASE });
+    expect(send).toHaveBeenCalledTimes(2);
   });
 
-  test('returns error for non-existent dist path', async () => {
-    const config: AtomicDeployConfig = {
-      bucketName: 'test-bucket',
-      distributionId: 'E1234567890',
-      distPath: '/nonexistent/path',
-      region: 'ap-northeast-1',
+  test('treats promotion of the active release as idempotent', async () => {
+    const send = vi.fn(async (command: unknown) => {
+      if (command instanceof DescribeKeyValueStoreCommand) {
+        return { ETag: 'etag-current' };
+      }
+      return { Value: 'r12-current' };
+    });
+    await expect(
+      promoteRelease(
+        { send },
+        'arn:aws:cloudfront::123:key-value-store/test',
+        'r12-current'
+      )
+    ).resolves.toEqual({
+      previousRevision: 'r12-current',
+      promoted: false,
+    });
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  test('re-reads state and retries an ETag conflict', async () => {
+    let updateAttempts = 0;
+    const send = vi.fn(async (command: unknown) => {
+      if (command instanceof GetKeyCommand) {
+        throw namedError('ResourceNotFoundException');
+      }
+      if (command instanceof DescribeKeyValueStoreCommand) {
+        return { ETag: `etag-${updateAttempts + 1}` };
+      }
+      if (command instanceof UpdateKeysCommand) {
+        updateAttempts += 1;
+        if (updateAttempts === 1) throw namedError('ConflictException');
+        return { ETag: 'etag-final' };
+      }
+      throw new Error('unexpected command');
+    });
+
+    await expect(
+      promoteRelease(
+        { send },
+        'arn:aws:cloudfront::123:key-value-store/test',
+        'r1-first'
+      )
+    ).resolves.toMatchObject({ promoted: true });
+    expect(updateAttempts).toBe(2);
+  });
+});
+
+describe('CloudFront KVS client', () => {
+  test('signs KVS requests with the explicitly configured JS SigV4A signer', async () => {
+    const client = createKeyValueStoreClient();
+    let authorization: string | undefined;
+    const requestHandler = {
+      handle: vi.fn(async (request: { headers: Record<string, string> }) => {
+        authorization = request.headers.authorization;
+        return {
+          response: {
+            statusCode: 200,
+            headers: { 'content-type': 'application/json' },
+            body: new TextEncoder().encode('{}'),
+          },
+        };
+      }),
     };
 
-    const result = await atomicDeploy(config);
+    client.config.credentials = async () => ({
+      accessKeyId: 'AKIDEXAMPLE',
+      secretAccessKey: 'test-secret',
+    });
+    client.config.requestHandler =
+      requestHandler as unknown as typeof client.config.requestHandler;
 
-    expect(result.success).toBe(false);
+    await client.send(
+      new DescribeKeyValueStoreCommand({
+        KvsARN: 'arn:aws:cloudfront::123456789012:key-value-store/test',
+      })
+    );
+
+    expect(authorization).toMatch(/^AWS4-ECDSA-P256-SHA256 /);
+    expect(requestHandler.handle).toHaveBeenCalledOnce();
+  });
+});
+
+describe('atomicDeploy', () => {
+  const testDir = path.join(import.meta.dirname, '__test_atomic_dist__');
+
+  afterEach(async () => {
+    await fs.promises.rm(testDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  async function createDist(): Promise<void> {
+    await fs.promises.mkdir(path.join(testDir, '_astro'), {
+      recursive: true,
+    });
+    await fs.promises.mkdir(path.join(testDir, 'posts', 'hello'), {
+      recursive: true,
+    });
+    await fs.promises.writeFile(path.join(testDir, 'index.html'), 'home');
+    await fs.promises.writeFile(
+      path.join(testDir, '_astro', 'app.hash.js'),
+      'asset'
+    );
+    await fs.promises.writeFile(
+      path.join(testDir, 'posts', 'hello', 'index.html'),
+      'post'
+    );
+  }
+
+  test('uploads a complete release, verifies it, then promotes once', async () => {
+    await createDist();
+    const objects = new Map<string, number>();
+    const commandNames: string[] = [];
+    const s3Send = vi.fn(async (command: unknown) => {
+      commandNames.push(command?.constructor.name ?? 'unknown');
+      if (command instanceof HeadObjectCommand) {
+        const size = objects.get(command.input.Key!);
+        if (size === undefined) throw namedError('NotFound');
+        return { ContentLength: size };
+      }
+      if (command instanceof PutObjectCommand) {
+        objects.set(
+          command.input.Key!,
+          (command.input.Body as Uint8Array).byteLength
+        );
+        return {};
+      }
+      throw new Error('unexpected S3 command');
+    });
+    const kvsSend = vi.fn(async (command: unknown) => {
+      commandNames.push(command?.constructor.name ?? 'unknown');
+      if (command instanceof GetKeyCommand) {
+        throw namedError('ResourceNotFoundException');
+      }
+      if (command instanceof DescribeKeyValueStoreCommand) {
+        return { ETag: 'etag-1' };
+      }
+      if (command instanceof UpdateKeysCommand) return { ETag: 'etag-2' };
+      throw new Error('unexpected KVS command');
+    });
+
+    const result = await atomicDeploy({
+      bucketName: 'site-bucket',
+      keyValueStoreArn: 'arn:aws:cloudfront::123:key-value-store/test',
+      distPath: testDir,
+      region: 'ap-northeast-1',
+      revision: 'r21-abcdef0',
+      clients: { s3: { send: s3Send }, kvs: { send: kvsSend } },
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      buildId: 'r21-abcdef0',
+      versionPrefix: 'releases/r21-abcdef0/',
+      filesUploaded: 3,
+      promoted: true,
+    });
+    expect([...objects.keys()]).toEqual([
+      '_astro/app.hash.js',
+      'releases/r21-abcdef0/index.html',
+      'releases/r21-abcdef0/posts/hello/index.html',
+    ]);
+    expect(commandNames.at(-1)).toBe('UpdateKeysCommand');
+  });
+
+  test('never promotes when an upload fails', async () => {
+    await createDist();
+    const kvsSend = vi.fn();
+    const result = await atomicDeploy({
+      bucketName: 'site-bucket',
+      keyValueStoreArn: 'arn:aws:cloudfront::123:key-value-store/test',
+      distPath: testDir,
+      region: 'ap-northeast-1',
+      revision: 'r22-broken',
+      clients: {
+        s3: {
+          send: vi.fn(async (command: unknown) => {
+            if (command instanceof HeadObjectCommand) {
+              throw namedError('NotFound');
+            }
+            throw new Error('S3 unavailable');
+          }),
+        },
+        kvs: { send: kvsSend },
+      },
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { code: DeployErrorCode.RELEASE_UPLOAD_FAILED },
+    });
+    expect(kvsSend).not.toHaveBeenCalled();
+  });
+
+  test('fails closed for invalid revisions', async () => {
+    await createDist();
+    const send = vi.fn();
+    const result = await atomicDeploy({
+      bucketName: 'site-bucket',
+      keyValueStoreArn: 'arn:aws:cloudfront::123:key-value-store/test',
+      distPath: testDir,
+      region: 'ap-northeast-1',
+      revision: '../root',
+      clients: { s3: { send }, kvs: { send } },
+    });
+    expect(result.error?.code).toBe(DeployErrorCode.INVALID_REVISION);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  test('reports a missing distribution path', async () => {
+    const send = vi.fn();
+    const result = await atomicDeploy({
+      bucketName: 'site-bucket',
+      keyValueStoreArn: 'arn:aws:cloudfront::123:key-value-store/test',
+      distPath: testDir,
+      region: 'ap-northeast-1',
+      revision: 'r23-missing',
+      clients: { s3: { send }, kvs: { send } },
+    });
     expect(result.error?.code).toBe(DeployErrorCode.DIST_PATH_NOT_FOUND);
   });
 
-  test('returns valid build ID on failure', async () => {
-    const config: AtomicDeployConfig = {
-      bucketName: 'test-bucket',
-      distributionId: 'E1234567890',
-      distPath: '/nonexistent/path',
-      region: 'ap-northeast-1',
-    };
-
-    const result = await atomicDeploy(config);
-
-    expect(result.buildId).toMatch(/^v\d+-[a-z0-9]+$/);
-  });
-
-  test('validates size before deployment', async () => {
-    // Create a file that would exceed the size limit
-    // For this test, we just verify the validation logic works
-    const config: AtomicDeployConfig = {
-      bucketName: 'test-bucket',
-      distributionId: 'E1234567890',
-      distPath: testDir,
-      region: 'ap-northeast-1',
-      dryRun: true,
-    };
-
-    // Mock the console.log to capture output
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    await atomicDeploy(config);
-
-    // In dry-run mode, it should not fail on S3 operations
-    // but should still validate size
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Validating distribution size')
-    );
-
-    consoleSpy.mockRestore();
-  });
-
-  test('dry run logs actions without executing', async () => {
-    const config: AtomicDeployConfig = {
-      bucketName: 'test-bucket',
-      distributionId: 'E1234567890',
-      distPath: testDir,
-      region: 'ap-northeast-1',
-      dryRun: true,
-    };
-
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    await atomicDeploy(config);
-
-    // Should have dry-run prefixed logs
-    const calls = consoleSpy.mock.calls.map((c) => c[0]);
-    const hasDryRunOutput = calls.some(
-      (c) => typeof c === 'string' && c.includes('[DRY-RUN]')
-    );
-
-    expect(hasDryRunOutput).toBe(true);
-
-    consoleSpy.mockRestore();
-  });
-
-  test('includes duration in result', async () => {
-    const config: AtomicDeployConfig = {
-      bucketName: 'test-bucket',
-      distributionId: 'E1234567890',
-      distPath: testDir,
-      region: 'ap-northeast-1',
-      dryRun: true,
-    };
-
-    vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    const result = await atomicDeploy(config);
-
-    expect(result.durationMs).toBeGreaterThanOrEqual(0);
-    expect(typeof result.durationMs).toBe('number');
-
-    vi.restoreAllMocks();
-  });
-});
-
-describe('S3 deployment requirements', () => {
-  test('requirement 6.3: staging prefix format', () => {
-    const buildId = 'v1705123456-abc123';
-    const stagingPrefix = getStagingPrefix(buildId);
-
-    // Requirement: staging/{build-id}/
-    expect(stagingPrefix).toBe('staging/v1705123456-abc123/');
-    expect(stagingPrefix).toMatch(/^staging\/v\d+-[a-z0-9]+\/$/);
-  });
-
-  test('requirement 6.7: retain 3 versions by default', () => {
-    const versions = [
-      'v1705555555-a/',
-      'v1705444444-b/',
-      'v1705333333-c/',
-      'v1705222222-d/',
-      'v1705111111-e/',
-    ];
-
-    const toCleanup = getVersionsToCleanup(versions);
-
-    // Should keep 3, cleanup 2
-    expect(toCleanup).toHaveLength(2);
-    expect(toCleanup).toContain('v1705222222-d/');
-    expect(toCleanup).toContain('v1705111111-e/');
-  });
-
-  test('requirement 6.8: 50MB size limit validation', () => {
-    const validSize = validateDirectorySize(50 * 1024 * 1024); // Exactly 50MB
-    const invalidSize = validateDirectorySize(50 * 1024 * 1024 + 1); // 50MB + 1 byte
-
-    expect(validSize.valid).toBe(true);
-    expect(invalidSize.valid).toBe(false);
+  test('calculates nested directory size', async () => {
+    await createDist();
+    await expect(calculateDirectorySize(testDir)).resolves.toBe(13);
   });
 });

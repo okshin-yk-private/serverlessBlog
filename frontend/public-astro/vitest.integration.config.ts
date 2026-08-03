@@ -13,7 +13,7 @@ export default defineConfig({
   test: {
     // 統合テスト：tests/ ディレクトリとパフォーマンス検証テスト
     // Task 8.2: SEO統合テスト、CodeBuildトリガー連携テストを追加
-    include: ['tests/**/*.test.ts', 'src/lib/performanceValidation.test.ts'],
+    include: ['tests/**/*.test.ts'],
     exclude: [],
     globals: true,
     environment: 'node',

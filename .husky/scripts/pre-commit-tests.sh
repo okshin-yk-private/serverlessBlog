@@ -21,11 +21,12 @@ fi
 HAS_GO=false
 HAS_FRONTEND_ADMIN=false
 HAS_FRONTEND_PUBLIC_ASTRO=false
+HAS_DEPLOY_SCRIPTS=false
 
 # Check which components have changes
 for file in $STAGED_FILES; do
   case "$file" in
-    go-functions/*.go)
+    go-functions/*)
       HAS_GO=true
       ;;
     frontend/admin/*)
@@ -33,6 +34,9 @@ for file in $STAGED_FILES; do
       ;;
     frontend/public-astro/*)
       HAS_FRONTEND_PUBLIC_ASTRO=true
+      ;;
+    scripts/deploy/*)
+      HAS_DEPLOY_SCRIPTS=true
       ;;
   esac
 done
@@ -42,11 +46,13 @@ echo -e "${BLUE}Detected changes in:${NC}"
 [ "$HAS_GO" = true ] && echo "  - go-functions/ (Go Lambda)"
 [ "$HAS_FRONTEND_ADMIN" = true ] && echo "  - frontend/admin/ (Admin App)"
 [ "$HAS_FRONTEND_PUBLIC_ASTRO" = true ] && echo "  - frontend/public-astro/ (Public Site / Astro SSG)"
+[ "$HAS_DEPLOY_SCRIPTS" = true ] && echo "  - scripts/deploy/ (Deploy Scripts)"
 
 # If nothing to check, exit early
 if [ "$HAS_GO" = false ] && \
    [ "$HAS_FRONTEND_ADMIN" = false ] && \
-   [ "$HAS_FRONTEND_PUBLIC_ASTRO" = false ]; then
+   [ "$HAS_FRONTEND_PUBLIC_ASTRO" = false ] && \
+   [ "$HAS_DEPLOY_SCRIPTS" = false ]; then
   echo -e "${GREEN}No testable components changed. Skipping tests.${NC}"
   exit 0
 fi
@@ -55,37 +61,28 @@ echo ""
 FAILED=false
 
 # =========================================
-# Go Lambda Tests
+# Go Lambda Tests (fast path: vet + test, no -race/-coverprofile).
+# The full lint + race + coverage gate runs in .husky/pre-push instead, so
+# pre-commit stays fast.
 # =========================================
 if [ "$HAS_GO" = true ]; then
-  echo -e "${BLUE}[1/3] Running Go tests...${NC}"
+  echo -e "${BLUE}[1/4] Running Go vet + tests...${NC}"
 
-  if (cd go-functions && make lint test); then
-    echo -e "${GREEN}  ✓ Go lint and tests passed${NC}"
+  if (cd go-functions && go vet ./... && go test ./...); then
+    echo -e "${GREEN}  ✓ Go vet and tests passed${NC}"
   else
-    echo -e "${RED}  ✗ Go lint or tests failed${NC}"
+    echo -e "${RED}  ✗ Go vet or tests failed${NC}"
     FAILED=true
   fi
-
-  # Check Go coverage threshold (90% minimum, matching CI)
-  if [ "$FAILED" = false ] && [ -f go-functions/coverage.out ]; then
-    COVERAGE=$(cd go-functions && go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-    if [ -n "$COVERAGE" ] && [ "$(echo "$COVERAGE < 90" | bc -l)" -eq 1 ]; then
-      echo -e "${RED}  ✗ Go coverage ${COVERAGE}% is below 90% threshold${NC}"
-      FAILED=true
-    else
-      echo -e "${GREEN}  ✓ Go coverage ${COVERAGE}% meets 90% threshold${NC}"
-    fi
-  fi
 else
-  echo -e "${YELLOW}[1/3] Go Lambda: No changes, skipping${NC}"
+  echo -e "${YELLOW}[1/4] Go Lambda: No changes, skipping${NC}"
 fi
 
 # =========================================
 # Frontend Admin Tests
 # =========================================
 if [ "$HAS_FRONTEND_ADMIN" = true ]; then
-  echo -e "${BLUE}[2/3] Running Frontend Admin lint + tests...${NC}"
+  echo -e "${BLUE}[2/4] Running Frontend Admin lint + tests...${NC}"
 
   # Run ESLint from frontend/admin using its own config (root config ignores frontend/)
   if (cd frontend/admin && bun run lint); then
@@ -102,14 +99,14 @@ if [ "$HAS_FRONTEND_ADMIN" = true ]; then
     FAILED=true
   fi
 else
-  echo -e "${YELLOW}[2/3] Frontend Admin: No changes, skipping${NC}"
+  echo -e "${YELLOW}[2/4] Frontend Admin: No changes, skipping${NC}"
 fi
 
 # =========================================
 # Frontend Public (Astro SSG) Tests
 # =========================================
 if [ "$HAS_FRONTEND_PUBLIC_ASTRO" = true ]; then
-  echo -e "${BLUE}[3/3] Running Frontend Public (Astro) tests...${NC}"
+  echo -e "${BLUE}[3/4] Running Frontend Public (Astro) tests...${NC}"
 
   # Astro プロジェクトは bun 管理。統合テストはビルド済み dist/ を前提とするため
   # ここではユニットテストのみ実行する。
@@ -120,7 +117,23 @@ if [ "$HAS_FRONTEND_PUBLIC_ASTRO" = true ]; then
     FAILED=true
   fi
 else
-  echo -e "${YELLOW}[3/3] Frontend Public (Astro): No changes, skipping${NC}"
+  echo -e "${YELLOW}[3/4] Frontend Public (Astro): No changes, skipping${NC}"
+fi
+
+# =========================================
+# Deploy Scripts Tests
+# =========================================
+if [ "$HAS_DEPLOY_SCRIPTS" = true ]; then
+  echo -e "${BLUE}[4/4] Running Deploy Scripts tests...${NC}"
+
+  if (cd scripts/deploy && bun run test -- --run); then
+    echo -e "${GREEN}  ✓ Deploy Scripts tests passed${NC}"
+  else
+    echo -e "${RED}  ✗ Deploy Scripts tests failed${NC}"
+    FAILED=true
+  fi
+else
+  echo -e "${YELLOW}[4/4] Deploy Scripts: No changes, skipping${NC}"
 fi
 
 # =========================================

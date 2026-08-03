@@ -16,6 +16,16 @@ output "distribution_arn" {
   description = "CloudFront distribution ARN"
 }
 
+output "release_kvs_arn" {
+  value       = aws_cloudfront_key_value_store.public_release.arn
+  description = "CloudFront KeyValueStore ARN holding the active public release"
+}
+
+output "release_kvs_id" {
+  value       = aws_cloudfront_key_value_store.public_release.id
+  description = "CloudFront KeyValueStore ID holding the active public release"
+}
+
 output "oac_id" {
   value       = aws_cloudfront_origin_access_control.s3_oac.id
   description = "Origin Access Control ID"

@@ -69,7 +69,7 @@
 - **セキュリティスキャン**: Checkov, Trivy
 
 ### ランタイム
-- **Go 1.25.x**: Lambda関数実装（provided.al2023）
+- **Go 1.26.5**: Lambda関数実装（provided.al2023、固定値は`go-functions/go.mod`）
 - **TypeScript**: フロントエンド型安全な開発
 
 ### Lambda実装戦略
@@ -367,7 +367,7 @@
 ### 定期的なメンテナンス
 1. 依存パッケージの更新
 2. Terraformバージョンのアップグレード
-3. Goバージョンの更新（現在: Go 1.25.x）
+3. Goバージョンの更新（現在: Go 1.26.5）
 4. セキュリティパッチの適用
 
 ### Terraform開発ルール

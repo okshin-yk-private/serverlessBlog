@@ -27,6 +27,24 @@ type MockDynamoDBClient struct {
 	QueryFunc   func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
 }
 
+func (m *MockDynamoDBClient) GetItem(_ context.Context, _ *dynamodb.GetItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+	return &dynamodb.GetItemOutput{}, nil
+}
+
+func (m *MockDynamoDBClient) UpdateItem(_ context.Context, _ *dynamodb.UpdateItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error) {
+	return &dynamodb.UpdateItemOutput{}, nil
+}
+
+func (m *MockDynamoDBClient) TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, _ ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+	if len(params.TransactItems) > 0 && params.TransactItems[0].Put != nil && m.PutItemFunc != nil {
+		_, err := m.PutItemFunc(ctx, &dynamodb.PutItemInput{TableName: params.TransactItems[0].Put.TableName, Item: params.TransactItems[0].Put.Item})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &dynamodb.TransactWriteItemsOutput{}, nil
+}
+
 func (m *MockDynamoDBClient) PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
 	if m.PutItemFunc != nil {
 		return m.PutItemFunc(ctx, params, optFns...)
@@ -84,6 +102,38 @@ func setupTest(t *testing.T) func() {
 		markdownConverter = originalMarkdownConverter
 		uuidGenerator = originalUUIDGenerator
 		codebuildClientGetter = originalCodeBuildGetter
+	}
+}
+
+func TestHandler_AutosaveWithoutCategoryCreatesDraftAndOmitsCategory(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	var savedItem map[string]types.AttributeValue
+	mockClient := &MockDynamoDBClient{PutItemFunc: func(_ context.Context, params *dynamodb.PutItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+		savedItem = params.Item
+		return &dynamodb.PutItemOutput{}, nil
+	}}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+	markdownConverter = func(string) (string, error) { return "<p>body</p>", nil }
+	uuidGenerator = func() string { return "autosave-post" }
+
+	request := events.APIGatewayProxyRequest{
+		Body: `{"title":"Autosave","contentMarkdown":"body","publishStatus":"published","saveMode":"autosave"}`,
+		RequestContext: events.APIGatewayProxyRequestContext{Authorizer: map[string]interface{}{
+			"claims": map[string]interface{}{"sub": testAuthorID},
+		}},
+	}
+	response, err := Handler(context.Background(), request)
+	if err != nil || response.StatusCode != 201 {
+		t.Fatalf("expected 201 response, got status=%d err=%v body=%s", response.StatusCode, err, response.Body)
+	}
+	if _, ok := savedItem["category"]; ok {
+		t.Fatal("category must be omitted from a categoryless autosave item")
+	}
+	status, ok := savedItem["publishStatus"].(*types.AttributeValueMemberS)
+	if !ok || status.Value != domain.PublishStatusDraft {
+		t.Fatalf("autosave must create a draft, got %#v", savedItem["publishStatus"])
 	}
 }
 
@@ -1789,7 +1839,7 @@ func TestTriggerSiteBuild_MissingProjectName(t *testing.T) {
 	t.Setenv("CODEBUILD_PROJECT_NAME", "")
 
 	// triggerSiteBuild should not panic and should return silently
-	triggerSiteBuild(context.Background())
+	triggerSiteBuild(context.Background(), &MockDynamoDBClient{}, testTableName)
 	// No error expected - just a warning log
 }
 
@@ -1807,7 +1857,7 @@ func TestTriggerSiteBuild_CodeBuildClientInitError(t *testing.T) {
 	}
 
 	// triggerSiteBuild should not panic and should handle error gracefully
-	triggerSiteBuild(context.Background())
+	triggerSiteBuild(context.Background(), &MockDynamoDBClient{}, testTableName)
 	// No error expected - just an error log
 }
 

@@ -3,14 +3,10 @@
 #
 # This module creates:
 # - CodeBuild project for Astro SSG build and S3 deployment
-# - IAM role with minimal permissions (S3 write, CloudFront invalidation)
+# - IAM role with minimal permissions (S3 release write, KVS pointer update)
 # - CloudWatch Log Group for build logs
 
-# Get current AWS account ID
-data "aws_caller_identity" "current" {}
-
 locals {
-  account_id    = data.aws_caller_identity.current.account_id
   is_production = var.environment == "prd"
 
   # Log retention: 90 days for prd, 14 days for dev
@@ -41,7 +37,7 @@ env:
     API_URL: "${var.api_url}"
     SITE_URL: "${var.site_url}"
     DEPLOYMENT_BUCKET: "${var.public_site_bucket_name}"
-    CLOUDFRONT_DISTRIBUTION_ID: "${var.cloudfront_distribution_id}"
+    RELEASE_KVS_ARN: "${var.release_kvs_arn}"
   shell: bash
 
 phases:
@@ -64,6 +60,8 @@ phases:
       - export PATH="$HOME/.bun/bin:$PATH"
       - echo "Installing dependencies in $CODEBUILD_SRC_DIR/frontend/public-astro"
       - cd "$CODEBUILD_SRC_DIR/frontend/public-astro" && bun install --frozen-lockfile
+      - echo "Installing atomic deployment dependencies"
+      - cd "$CODEBUILD_SRC_DIR/scripts/deploy" && bun install --frozen-lockfile
   build:
     commands:
       - export PATH="$HOME/.bun/bin:$PATH"
@@ -73,17 +71,18 @@ phases:
       - du -sh "$CODEBUILD_SRC_DIR/frontend/public-astro/dist"
   post_build:
     commands:
-      - echo "Deploying to S3..."
-      - cd "$CODEBUILD_SRC_DIR/frontend/public-astro" && aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --delete --size-only --cache-control "public,max-age=31536000,immutable" --exclude "*.html" --exclude "sitemap*.xml" --exclude "rss.xml" --exclude "robots.txt" --exclude "404.html"
-      - cd "$CODEBUILD_SRC_DIR/frontend/public-astro" && aws s3 sync ./dist "s3://$DEPLOYMENT_BUCKET/" --size-only --cache-control "public,max-age=0,must-revalidate" --exclude "*" --include "*.html" --include "sitemap*.xml" --include "rss.xml" --include "robots.txt"
-      - echo "S3 sync completed"
       - |
-        if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
-          echo "Invalidating CloudFront cache..."
-          aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*"
-          echo "CloudFront invalidation initiated"
+        RELEASE_SUFFIX="$${CODEBUILD_RESOLVED_SOURCE_VERSION:0:12}"
+        if [ -z "$RELEASE_SUFFIX" ]; then
+          RELEASE_SUFFIX="manual"
         fi
-      - echo "Deployment completed successfully"
+        # Epoch-seconds sequence keeps promotion monotonic across every
+        # deployer sharing the KVS (GitHub Actions deploys, local-deploy.sh).
+        RELEASE_REVISION="r$(date +%s)-$${RELEASE_SUFFIX}"
+        echo "Uploading and promoting $RELEASE_REVISION"
+        cd "$CODEBUILD_SRC_DIR/scripts/deploy"
+        bun run deploy -- --bucket "$DEPLOYMENT_BUCKET" --kvs-arn "$RELEASE_KVS_ARN" --dist "$CODEBUILD_SRC_DIR/frontend/public-astro/dist" --region "${var.aws_region}" --revision "$RELEASE_REVISION"
+      - echo "Atomic deployment completed successfully"
 
 cache:
   paths:
@@ -164,7 +163,6 @@ resource "aws_iam_role_policy" "codebuild_s3" {
         Action = [
           "s3:PutObject",
           "s3:GetObject",
-          "s3:DeleteObject",
           "s3:ListBucket"
         ]
         Resource = [
@@ -176,10 +174,9 @@ resource "aws_iam_role_policy" "codebuild_s3" {
   })
 }
 
-# CloudFront invalidation permissions (specific distribution only)
-# Requirement 9.5: Minimal permissions limited to specific CloudFront distribution
-resource "aws_iam_role_policy" "codebuild_cloudfront" {
-  name = "cloudfront-invalidation-policy"
+# CloudFront KeyValueStore data-plane permissions (specific store only)
+resource "aws_iam_role_policy" "codebuild_release_kvs" {
+  name = "release-kvs-policy"
   role = aws_iam_role.codebuild.id
 
   policy = jsonencode({
@@ -188,10 +185,11 @@ resource "aws_iam_role_policy" "codebuild_cloudfront" {
       {
         Effect = "Allow"
         Action = [
-          "cloudfront:CreateInvalidation",
-          "cloudfront:GetInvalidation"
+          "cloudfront-keyvaluestore:DescribeKeyValueStore",
+          "cloudfront-keyvaluestore:GetKey",
+          "cloudfront-keyvaluestore:UpdateKeys"
         ]
-        Resource = "arn:aws:cloudfront::${local.account_id}:distribution/${var.cloudfront_distribution_id}"
+        Resource = var.release_kvs_arn
       }
     ]
   })
@@ -227,8 +225,8 @@ resource "aws_codebuild_project" "astro_build" {
     }
 
     environment_variable {
-      name  = "CLOUDFRONT_DISTRIBUTION_ID"
-      value = var.cloudfront_distribution_id
+      name  = "RELEASE_KVS_ARN"
+      value = var.release_kvs_arn
     }
 
     environment_variable {
@@ -282,7 +280,7 @@ resource "aws_codebuild_project" "astro_build" {
   depends_on = [
     aws_iam_role_policy.codebuild_logs,
     aws_iam_role_policy.codebuild_s3,
-    aws_iam_role_policy.codebuild_cloudfront
+    aws_iam_role_policy.codebuild_release_kvs
   ]
 }
 

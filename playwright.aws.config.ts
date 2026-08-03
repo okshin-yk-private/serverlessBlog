@@ -93,14 +93,28 @@ export default defineConfig({
       // Admin サイト用プロジェクト（admin-*.spec.ts）
       // AWS環境ではCloudFrontの /admin/ パス配下で配信される
       name: 'admin-chromium',
-      testMatch: ['**/admin-*.spec.ts'],
+      // 実環境に対して流すのは admin-auth のみ (意図的な設計。Issue #520)。
+      //
+      // ここで確かめたいのは「デプロイされたものが動くか」— admin SPA が
+      // /admin 配下で配信され、実 Cognito で認証でき、API に到達できること。
+      // admin-auth がそのすべてを通る。
+      //
+      // エディタ・画像・autosave といった UI の振る舞いは、データが決定的で
+      // 速い MSW 環境の方が適した層であり、playwright.admin.config.ts 側で
+      // 全 spec が PR ごとにゲートされている。同じ検証を実環境で二重に持つと
+      // 実データの作成/後始末と結果整合性の待ちが必要になり、得られるものに
+      // 対して遅く不安定になる。
+      testMatch: ['**/admin-auth.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         // ADMIN_BASE_URL が設定されている場合はそれを使用、
-        // 未設定の場合は BASE_URL/admin にフォールバック
-        baseURL:
+        // 未設定の場合は BASE_URL/admin にフォールバック。
+        // 相対パス解決で /admin プレフィックスが保持されるよう、
+        // 末尾スラッシュを必ず付ける (BasePage.goto と対になる仕様)。
+        baseURL: (
           process.env.ADMIN_BASE_URL ||
-          `${process.env.BASE_URL || 'http://localhost:5173'}/admin`,
+          `${process.env.BASE_URL || 'http://localhost:5173'}/admin`
+        ).replace(/\/*$/, '/'),
         contextOptions: {
           storageState: process.env.STORAGE_STATE,
         },

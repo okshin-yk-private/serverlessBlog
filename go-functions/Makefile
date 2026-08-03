@@ -11,6 +11,7 @@ LDFLAGS := -s -w -buildid=
 BUILD_TAGS := lambda.norpc
 # Fixed timestamp for reproducible builds (2020-01-01 00:00:00)
 FIXED_TIMESTAMP := 202001010000.00
+GOLANGCI_LINT_VERSION := $(shell tr -d '[:space:]' < .golangci-version)
 
 # Directories
 BIN_DIR := bin
@@ -30,6 +31,7 @@ FUNCTIONS := \
 	posts/update \
 	posts/delete \
 	posts/build_status \
+	posts/reconcile_build \
 	auth/login \
 	auth/logout \
 	auth/refresh \
@@ -41,7 +43,7 @@ FUNCTIONS := \
 	categories/bulk_sort \
 	categories/delete
 
-.PHONY: all build clean test lint fmt help
+.PHONY: all build clean test lint fmt verify-toolchain check-linter help
 
 # Default target
 all: build
@@ -52,6 +54,7 @@ build:
 	@for func in $(FUNCTIONS); do \
 		name=$$(echo $$func | tr '/' '-'); \
 		echo "  Building $$name..."; \
+		mkdir -p $(BIN_DIR)/$$name; \
 		CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
 			go build $(BUILD_FLAGS) -ldflags="$(LDFLAGS)" -tags="$(BUILD_TAGS)" \
 			-o $(BIN_DIR)/$$name/bootstrap ./$(CMD_DIR)/$$func || exit 1; \
@@ -66,6 +69,7 @@ ifndef FUNC
 endif
 	@name=$$(echo $(FUNC) | tr '/' '-'); \
 	echo "Building $$name for $(GOOS)/$(GOARCH)..."; \
+	mkdir -p $(BIN_DIR)/$$name; \
 	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
 		go build $(BUILD_FLAGS) -ldflags="$(LDFLAGS)" -tags="$(BUILD_TAGS)" \
 		-o $(BIN_DIR)/$$name/bootstrap ./$(CMD_DIR)/$(FUNC); \
@@ -74,13 +78,48 @@ endif
 # Run tests with race detector
 test:
 	@echo "Running tests..."
-	go test -race -coverprofile=coverage.out ./...
+	# The benchmark package contains only test code. Go 1.26 removes the
+	# coverage profile when it is included, so keep this aligned with CI.
+	# -count=1 guarantees a fresh coverage.out for the pre-push coverage gate.
+	go list ./... | grep -v '/tests/benchmark$$' | xargs go test -race -count=1 -p 2 -coverprofile=coverage.out -covermode=atomic
 	@echo "Tests complete!"
 
 # Run linter
-lint:
+lint: verify-toolchain check-linter
 	@echo "Running linter..."
 	golangci-lint run ./...
+
+# Verify that CI, local deployment, and the linter use the repository-pinned versions.
+verify-toolchain:
+	@../scripts/ci/verify-go-toolchain.sh
+	@expected_go=$$(awk '$$1 == "go" { print $$2; exit }' go.mod); \
+	actual_go=$$(go env GOVERSION | sed 's/^go//'); \
+	if [ "$$actual_go" != "$$expected_go" ]; then \
+		echo "ERROR: Go $$expected_go is required, but Go $$actual_go is active." >&2; \
+		echo "Install/select Go $$expected_go, then retry." >&2; \
+		exit 1; \
+	fi
+
+# golangci-lint must support the active Go version. Older binaries panic while
+# loading Go 1.26 type information, so fail with a direct remediation message.
+check-linter:
+	@if ! command -v golangci-lint >/dev/null 2>&1; then \
+		echo "ERROR: golangci-lint $(GOLANGCI_LINT_VERSION) is required; see go-functions/README.md." >&2; \
+		exit 1; \
+	fi
+	@version_output="$$(golangci-lint version)"; \
+	if ! printf '%s\\n' "$$version_output" | grep -Fq "has version $(patsubst v%,%,$(GOLANGCI_LINT_VERSION))"; then \
+		echo "ERROR: golangci-lint $(GOLANGCI_LINT_VERSION) is required to lint this repository." >&2; \
+		printf '%s\\n' "$$version_output" >&2; \
+		echo "Install the pinned version using the command in go-functions/README.md." >&2; \
+		exit 1; \
+	fi
+	@if ! golangci-lint version | grep -Eq 'built with go1\.26(\.| )'; then \
+		echo "ERROR: golangci-lint $(GOLANGCI_LINT_VERSION) must be built with Go 1.26 or later." >&2; \
+		golangci-lint version >&2; \
+		echo "Reinstall it using Go $$(awk '$$1 == "go" { print $$2; exit }' go.mod)." >&2; \
+		exit 1; \
+	fi
 
 # Format code
 fmt:
@@ -107,7 +146,8 @@ help:
 	@echo "  build      - Build all Lambda functions"
 	@echo "  build-one  - Build single function (FUNC=posts/create)"
 	@echo "  test       - Run tests with race detector"
-	@echo "  lint       - Run golangci-lint"
+	@echo "  lint       - Verify the pinned toolchain and run golangci-lint"
+	@echo "  verify-toolchain - Check version declarations and the active Go version"
 	@echo "  fmt        - Format code"
 	@echo "  clean          - Remove build artifacts"
 	@echo "  backfill-slugs - Backfill slugs for legacy BlogPosts (use ARGS='--dry-run' for preview)"

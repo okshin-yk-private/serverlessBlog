@@ -25,7 +25,7 @@ test.describe('Admin Metadata Sidebar', () => {
   });
 
   test('タイトル入力で slug が自動生成される', async ({ page }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     await page.getByTestId('post-title-input').fill('Hello PR6 World');
@@ -34,7 +34,7 @@ test.describe('Admin Metadata Sidebar', () => {
   });
 
   test('ロック解除→ロック後の slug は手動編集できる', async ({ page }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     await page.getByTestId('post-title-input').fill('First Title');
@@ -55,7 +55,7 @@ test.describe('Admin Metadata Sidebar', () => {
   });
 
   test('excerpt が161字でカウンターが赤くなる', async ({ page }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     const excerpt = page.getByTestId('metadata-excerpt-input');
@@ -66,7 +66,7 @@ test.describe('Admin Metadata Sidebar', () => {
   });
 
   test('本文先頭画像から cover image を自動入力できる', async ({ page }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     await page.getByTestId('post-title-input').fill('Cover Test');

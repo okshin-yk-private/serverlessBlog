@@ -2,7 +2,7 @@
 # Requirements: 4.1 - Go Lambda functions module implementation
 #
 # Test coverage:
-# - 11 Lambda functions with correct configurations
+# - API and background Lambda functions with correct configurations
 # - ARM64 architecture and provided.al2023 runtime
 # - Memory and timeout settings
 # - Environment variables
@@ -40,6 +40,13 @@ mock_provider "aws" {
     target = aws_iam_role.lambda_posts_build_status
     values = {
       arn = "arn:aws:iam::123456789012:role/blog-lambda-posts-build-status-role"
+    }
+  }
+
+  override_resource {
+    target = aws_iam_role.lambda_posts_build_reconciler
+    values = {
+      arn = "arn:aws:iam::123456789012:role/blog-lambda-posts-build-reconciler-role"
     }
   }
 
@@ -477,6 +484,15 @@ run "lambda_posts_build_status_role_created" {
   }
 }
 
+run "lambda_posts_build_reconciler_role_created" {
+  command = plan
+
+  assert {
+    condition     = aws_iam_role.lambda_posts_build_reconciler.name == "blog-lambda-posts-build-reconciler-role"
+    error_message = "Lambda posts build-reconciler role should be created with correct name"
+  }
+}
+
 run "lambda_auth_role_created" {
   command = plan
 
@@ -586,6 +602,15 @@ run "build_status_function_uses_build_status_role" {
   assert {
     condition     = aws_lambda_function.build_status_post.role == aws_iam_role.lambda_posts_build_status.arn
     error_message = "build_status_post must use the dedicated build-status role, not the write role"
+  }
+}
+
+run "build_reconciler_function_uses_reconciler_role" {
+  command = apply
+
+  assert {
+    condition     = aws_lambda_function.reconcile_build_post.role == aws_iam_role.lambda_posts_build_reconciler.arn
+    error_message = "reconcile_build_post must use the dedicated build-reconciler role"
   }
 }
 
@@ -717,10 +742,10 @@ run "cloudwatch_log_groups_retention_dev" {
 }
 
 # ======================
-# All 11 Functions Exist Tests
+# Core Function Existence Tests
 # ======================
 
-run "all_11_lambda_functions_exist" {
+run "core_lambda_functions_exist" {
   command = plan
 
   # Posts domain (6 functions)
@@ -752,6 +777,16 @@ run "all_11_lambda_functions_exist" {
   assert {
     condition     = aws_lambda_function.delete_post.function_name != ""
     error_message = "delete_post Lambda function should exist"
+  }
+
+  assert {
+    condition     = aws_lambda_function.build_status_post.function_name != ""
+    error_message = "build_status_post Lambda function should exist"
+  }
+
+  assert {
+    condition     = aws_lambda_function.reconcile_build_post.function_name != ""
+    error_message = "reconcile_build_post Lambda function should exist"
   }
 
   # Auth domain (3 functions)

@@ -31,6 +31,15 @@ test.describe('Admin Authentication - Minimal E2E', () => {
     adminLoginPage,
     page,
   }) => {
+    // 実 AWS 環境 (MSW 無効) では実在する Cognito ユーザーが必要。
+    // CI では auth モジュールが作るテストユーザーの認証情報が SSM 経由で
+    // 渡る (deploy.yml)。手元での実環境実行など未設定の場合のみスキップする。
+    test.skip(
+      process.env.VITE_ENABLE_MSW_MOCK === 'false' &&
+        !(process.env.TEST_ADMIN_EMAIL && process.env.TEST_ADMIN_PASSWORD),
+      '実環境では TEST_ADMIN_EMAIL/TEST_ADMIN_PASSWORD が必要'
+    );
+
     // Act: 有効な認証情報でログイン
     await adminLoginPage.login(testCredentials.email, testCredentials.password);
 

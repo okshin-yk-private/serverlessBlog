@@ -1032,4 +1032,42 @@ describe('PostEditor', () => {
       expect(addButton).not.toBeDisabled();
     });
   });
+
+  it('カテゴリ未設定の自動保存は公開状態とcategoryを送信しない', async () => {
+    const onAutosave = vi.fn().mockResolvedValue(undefined);
+    const initialData: PostData = {
+      title: '公開中の記事',
+      contentMarkdown: '本文',
+      category: '',
+      tags: [],
+      publishStatus: 'published',
+    };
+
+    render(
+      <PostEditor
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+        onAutosave={onAutosave}
+        categories={mockCategories}
+        initialData={initialData}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/タイトル/i), {
+      target: { value: '公開中の記事（編集中）' },
+    });
+
+    await waitFor(() => expect(onAutosave).toHaveBeenCalled(), {
+      timeout: 2500,
+    });
+    const payload = onAutosave.mock.calls.at(-1)?.[0];
+    expect(payload).toEqual(
+      expect.objectContaining({
+        title: '公開中の記事（編集中）',
+        saveMode: 'autosave',
+      })
+    );
+    expect(payload).not.toHaveProperty('category');
+    expect(payload).not.toHaveProperty('publishStatus');
+  });
 });

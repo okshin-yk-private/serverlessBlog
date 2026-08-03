@@ -41,6 +41,20 @@ type MockDynamoDBClient struct {
 	DeleteItemFunc func(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
 }
 
+func (m *MockDynamoDBClient) UpdateItem(_ context.Context, _ *dynamodb.UpdateItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error) {
+	return &dynamodb.UpdateItemOutput{}, nil
+}
+
+func (m *MockDynamoDBClient) TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, _ ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+	if len(params.TransactItems) > 0 && params.TransactItems[0].Delete != nil && m.DeleteItemFunc != nil {
+		_, err := m.DeleteItemFunc(ctx, &dynamodb.DeleteItemInput{TableName: params.TransactItems[0].Delete.TableName, Key: params.TransactItems[0].Delete.Key})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &dynamodb.TransactWriteItemsOutput{}, nil
+}
+
 func (m *MockDynamoDBClient) GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 	if m.GetItemFunc != nil {
 		return m.GetItemFunc(ctx, params, optFns...)
@@ -1174,7 +1188,7 @@ func TestTriggerSiteBuild_MissingProjectName(t *testing.T) {
 	t.Setenv("CODEBUILD_PROJECT_NAME", "")
 
 	// triggerSiteBuild should not panic and should return silently
-	triggerSiteBuild(context.Background())
+	triggerSiteBuild(context.Background(), &MockDynamoDBClient{}, testTableName)
 }
 
 // TestTriggerSiteBuild_ClientError tests that triggerSiteBuild handles client errors gracefully
@@ -1191,5 +1205,5 @@ func TestTriggerSiteBuild_ClientError(t *testing.T) {
 	}
 
 	// triggerSiteBuild should not panic and should handle error gracefully
-	triggerSiteBuild(context.Background())
+	triggerSiteBuild(context.Background(), &MockDynamoDBClient{}, testTableName)
 }

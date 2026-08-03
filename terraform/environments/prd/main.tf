@@ -191,6 +191,30 @@ module "cdn" {
 }
 
 #------------------------------------------------------------------------------
+# Module 7: CodeBuild (Astro SSG atomic release deployment)
+#------------------------------------------------------------------------------
+
+module "codebuild" {
+  source = "../../modules/codebuild"
+
+  project_name            = var.project_name
+  environment             = var.environment
+  public_site_bucket_name = module.storage.public_site_bucket_name
+  public_site_bucket_arn  = module.storage.public_site_bucket_arn
+  release_kvs_arn         = module.cdn.release_kvs_arn
+  aws_region              = var.aws_region
+  api_url                 = module.cdn.api_base_url
+  site_url                = var.enable_custom_domain ? "https://${var.domain_name}" : "https://${module.cdn.distribution_domain_name}"
+
+  github_repo   = "https://github.com/okshin-yk-private/serverlessBlog.git"
+  github_branch = "main"
+
+  tags = local.common_tags
+
+  depends_on = [module.storage, module.cdn]
+}
+
+#------------------------------------------------------------------------------
 # S3 Bucket Policies for CloudFront OAC
 # Created after CDN module to avoid circular dependency
 #------------------------------------------------------------------------------

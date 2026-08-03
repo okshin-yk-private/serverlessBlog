@@ -15,14 +15,19 @@ runs:
       with:
         bun-version: ${{ inputs.bun-version }}
     - name: Cache Bun dependencies
+      # Lockfile is bun.lock (text format) — this repo has no bun.lockb anywhere.
+      # The cache key is scoped by working-directory so the four bun projects
+      # (root, frontend/admin, frontend/public-astro, scripts/deploy) can't
+      # restore/overwrite each other's node_modules. Keep both in sync with
+      # any future project moves.
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ${{ inputs.working-directory }}/node_modules
           ~/.bun/install/cache
-        key: bun-deps-${{ runner.os }}-${{ hashFiles(format('{0}/bun.lockb', inputs.working-directory)) }}
+        key: bun-deps-${{ runner.os }}-${{ inputs.working-directory }}-${{ hashFiles(format('{0}/bun.lock', inputs.working-directory)) }}
         restore-keys: |
-          bun-deps-${{ runner.os }}-
+          bun-deps-${{ runner.os }}-${{ inputs.working-directory }}-
     - name: Install dependencies
       shell: bash
       working-directory: ${{ inputs.working-directory }}

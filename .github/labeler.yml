@@ -57,3 +57,9 @@ terraform:
     - any-glob-to-any-file:
       - 'terraform/**'
       - '.terraform-version'
+
+# Atomic deployment scripts
+deploy-scripts:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'scripts/deploy/**'

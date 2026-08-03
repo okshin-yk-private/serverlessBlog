@@ -225,7 +225,7 @@
 # +---------------------------+------------------------------------------------+
 #
 # After import, verify:
-# - All 11 Lambda functions are properly imported
+# - All API and background Lambda functions are properly imported
 # - Runtime is provided.al2023
 # - Architecture is arm64
 # - Memory size is 128 MB

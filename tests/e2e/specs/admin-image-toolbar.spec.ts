@@ -31,7 +31,7 @@ test.describe('Admin Tiptap Editor - toolbar image button', () => {
   test('ツールバーの画像ボタンから選んだファイルが markdown に挿入される', async ({
     page,
   }) => {
-    await page.goto('/posts/new');
+    await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     await expect(page.getByTestId('toolbar-image-button')).toBeVisible();

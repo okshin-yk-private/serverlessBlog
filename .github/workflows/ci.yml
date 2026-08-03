@@ -43,17 +43,27 @@ permissions:
   id-token: write # Required for AWS OIDC authentication
 
 env:
-  GO_VERSION: '1.25.12'
   TERRAFORM_VERSION: '1.14.0'
   AWS_REGION: 'ap-northeast-1'
 
 jobs:
+  verify-go-toolchain:
+    name: Verify Go Toolchain Configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Verify version sources
+        run: scripts/ci/verify-go-toolchain.sh
+
   # =======================================
   # Job 0: Setup Labels (Auto-label + Check)
   # =======================================
   setup-labels:
     name: Auto-label and Get Labels
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       pr-number: ${{ steps.get-pr.outputs.pr-number }}
       has-infrastructure: ${{ steps.check-labels.outputs.has-infrastructure }}
@@ -62,6 +72,7 @@ jobs:
       has-tests: ${{ steps.check-labels.outputs.has-tests }}
       has-workflow: ${{ steps.check-labels.outputs.has-workflow }}
       has-go: ${{ steps.check-labels.outputs.has-go }}
+      has-deploy-scripts: ${{ steps.check-labels.outputs.has-deploy-scripts }}
     steps:
       - name: Get PR number
         id: get-pr
@@ -88,32 +99,39 @@ jobs:
 
           echo "PR Labels: $LABELS"
 
+          # 部分文字列一致だと "frontend" が "frontend-foo" のような別ラベルにも
+          # 誤爆する。カンマ区切りリストの前後をカンマで囲み ",label," の形で
+          # 完全一致検索することで誤爆を防ぐ。
+          has_label() {
+            echo ",${LABELS}," | grep -q ",$1,"
+          }
+
           # 各ラベルの存在をチェック
-          if echo "$LABELS" | grep -q "infrastructure"; then
+          if has_label "infrastructure"; then
             echo "has-infrastructure=true" >> $GITHUB_OUTPUT
           else
             echo "has-infrastructure=false" >> $GITHUB_OUTPUT
           fi
 
-          if echo "$LABELS" | grep -q "terraform"; then
+          if has_label "terraform"; then
             echo "has-terraform=true" >> $GITHUB_OUTPUT
           else
             echo "has-terraform=false" >> $GITHUB_OUTPUT
           fi
 
-          if echo "$LABELS" | grep -q "frontend"; then
+          if has_label "frontend"; then
             echo "has-frontend=true" >> $GITHUB_OUTPUT
           else
             echo "has-frontend=false" >> $GITHUB_OUTPUT
           fi
 
-          if echo "$LABELS" | grep -q "tests"; then
+          if has_label "tests"; then
             echo "has-tests=true" >> $GITHUB_OUTPUT
           else
             echo "has-tests=false" >> $GITHUB_OUTPUT
           fi
 
-          if echo "$LABELS" | grep -q "workflow"; then
+          if has_label "workflow"; then
             echo "has-workflow=true" >> $GITHUB_OUTPUT
           else
             echo "has-workflow=false" >> $GITHUB_OUTPUT
@@ -121,10 +139,16 @@ jobs:
 
           # Note: Rust label check removed - Rust implementation has been deleted (Task 21.2)
 
-          if echo "$LABELS" | grep -q "go"; then
+          if has_label "go"; then
             echo "has-go=true" >> $GITHUB_OUTPUT
           else
             echo "has-go=false" >> $GITHUB_OUTPUT
+          fi
+
+          if has_label "deploy-scripts"; then
+            echo "has-deploy-scripts=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-deploy-scripts=false" >> $GITHUB_OUTPUT
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -136,16 +160,14 @@ jobs:
     needs: [setup-labels]
     name: ESLint & Prettier Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: '22'
-
+      # No setup-node here: eslint/prettier run through `bun run`, which
+      # doesn't need a separate Node.js install.
       - name: Setup Bun + Install Dependencies (root)
         uses: ./.github/actions/setup-bun-deps
         with:
@@ -175,16 +197,14 @@ jobs:
     needs: [setup-labels]
     name: Type Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: '22'
-
+      # No setup-node here: `bun run typecheck` shells out to `tsc`/`astro
+      # check` via bun, which doesn't need a separate Node.js install.
       - name: Setup Bun + Install Dependencies (root)
         uses: ./.github/actions/setup-bun-deps
         with:
@@ -226,6 +246,7 @@ jobs:
     needs: [setup-labels]
     name: Go Lint (golangci-lint)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: needs.setup-labels.outputs.has-go == 'true'
 
     steps:
@@ -235,14 +256,14 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: ${{ env.GO_VERSION }}
-          check-latest: true
+          go-version-file: go-functions/go.mod
+          check-latest: false
           cache-dependency-path: go-functions/go.sum
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: v2.11
+          version: v2.12.2
           working-directory: go-functions
           args: --timeout=5m
 
@@ -263,6 +284,7 @@ jobs:
     needs: [setup-labels]
     name: Go Tests (Coverage)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: needs.setup-labels.outputs.has-go == 'true'
 
     steps:
@@ -272,8 +294,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: ${{ env.GO_VERSION }}
-          check-latest: true
+          go-version-file: go-functions/go.mod
+          check-latest: false
           cache-dependency-path: go-functions/go.sum
 
       - name: Run Go tests with coverage
@@ -349,9 +371,11 @@ jobs:
     needs: [setup-labels]
     name: Go Tests (Race Detection)
     runs-on: ubuntu-latest
-    if: |
-      needs.setup-labels.outputs.has-go == 'true' &&
-      (github.base_ref == 'develop' || github.base_ref == 'main')
+    timeout-minutes: 10
+    # NOTE: the base_ref == develop/main clause that used to live here was dead:
+    # on.pull_request.branches already restricts this workflow to
+    # [main, develop], so the clause was always true. Removed.
+    if: needs.setup-labels.outputs.has-go == 'true'
 
     steps:
       - name: Checkout code
@@ -360,8 +384,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: ${{ env.GO_VERSION }}
-          check-latest: true
+          go-version-file: go-functions/go.mod
+          check-latest: false
           cache-dependency-path: go-functions/go.sum
 
       - name: Run Go tests with race detector
@@ -390,6 +414,7 @@ jobs:
     needs: [setup-labels, go-tests-coverage, go-tests-race]
     name: Go Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: |
       always() &&
       needs.setup-labels.outputs.has-go == 'true'
@@ -430,6 +455,7 @@ jobs:
     needs: [setup-labels]
     name: Terraform Format Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: needs.setup-labels.outputs.has-terraform == 'true'
     outputs:
       fmt-outcome: ${{ steps.fmt.outcome }}
@@ -458,10 +484,14 @@ jobs:
   terraform-build-lambdas:
     name: Build Lambda (${{ matrix.function }})
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [setup-labels]
-    if: |
-      needs.setup-labels.outputs.has-terraform == 'true' ||
-      needs.setup-labels.outputs.has-go == 'true'
+    # Only terraform-plan-dev/prd consume these binaries, and both require
+    # has-terraform == 'true'. go-functions/** carries the `go` + `infrastructure`
+    # labels but NOT `terraform` (see .github/labeler.yml), so gating on
+    # has-go too used to build all Lambdas in the matrix below (plus a merge job whose output
+    # nothing reads) on every Go-only PR for no reason.
+    if: needs.setup-labels.outputs.has-terraform == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -480,6 +510,8 @@ jobs:
             path: posts/delete
           - function: posts-build_status
             path: posts/build_status
+          - function: posts-reconcile_build
+            path: posts/reconcile_build
           - function: posts-get_by_slug
             path: posts/get_by_slug
           - function: auth-login
@@ -509,8 +541,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: ${{ env.GO_VERSION }}
-          check-latest: true
+          go-version-file: go-functions/go.mod
+          check-latest: false
           cache-dependency-path: go-functions/go.sum
 
       - name: Cache Lambda binary
@@ -552,6 +584,7 @@ jobs:
   terraform-merge-artifacts:
     name: Merge Lambda Artifacts
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [terraform-build-lambdas]
     if: needs.terraform-build-lambdas.result == 'success'
     steps:
@@ -590,7 +623,7 @@ jobs:
           echo "========================================="
           echo "Verifying Lambda Binaries"
           echo "========================================="
-          FUNCS="posts-create posts-get posts-get_public posts-get_by_slug posts-list posts-update posts-delete posts-build_status auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete"
+          FUNCS="posts-create posts-get posts-get_public posts-get_by_slug posts-list posts-update posts-delete posts-build_status posts-reconcile_build auth-login auth-logout auth-refresh images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete"
           MISSING=0
           for f in $FUNCS; do
             if [ -f "go-functions/bin/$f/bootstrap" ]; then
@@ -604,7 +637,7 @@ jobs:
             echo "ERROR: $MISSING binaries missing!"
             exit 1
           fi
-          echo "✓ All 23 binaries verified"
+          echo "✓ All 19 binaries verified"
 
       - name: Save combined Lambda cache
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
@@ -625,32 +658,20 @@ jobs:
   terraform-validate-dev:
     name: Terraform Validate (DEV)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [setup-labels, terraform-fmt]
     if: |
       needs.setup-labels.outputs.has-terraform == 'true' &&
       needs.terraform-fmt.result == 'success' &&
       github.base_ref == 'develop'
-    env:
-      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+      - name: Setup Terraform (cached)
+        uses: ./.github/actions/setup-terraform-cached
         with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-
-      - name: Create Terraform plugin cache dir
-        run: mkdir -p ${{ github.workspace }}/.terraform.d/plugin-cache
-
-      - name: Cache Terraform providers
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: ${{ github.workspace }}/.terraform.d/plugin-cache
-          key: terraform-providers-${{ runner.os }}-${{ hashFiles('terraform/**/.terraform.lock.hcl') }}
-          restore-keys: |
-            terraform-providers-${{ runner.os }}-
+          terraform-version: ${{ env.TERRAFORM_VERSION }}
 
       - name: Terraform Init (backend disabled)
         working-directory: terraform/environments/dev
@@ -670,32 +691,20 @@ jobs:
   terraform-validate-prd:
     name: Terraform Validate (PRD)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [setup-labels, terraform-fmt]
     if: |
       needs.setup-labels.outputs.has-terraform == 'true' &&
       needs.terraform-fmt.result == 'success' &&
       github.base_ref == 'main'
-    env:
-      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+      - name: Setup Terraform (cached)
+        uses: ./.github/actions/setup-terraform-cached
         with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-
-      - name: Create Terraform plugin cache dir
-        run: mkdir -p ${{ github.workspace }}/.terraform.d/plugin-cache
-
-      - name: Cache Terraform providers
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: ${{ github.workspace }}/.terraform.d/plugin-cache
-          key: terraform-providers-${{ runner.os }}-${{ hashFiles('terraform/**/.terraform.lock.hcl') }}
-          restore-keys: |
-            terraform-providers-${{ runner.os }}-
+          terraform-version: ${{ env.TERRAFORM_VERSION }}
 
       - name: Terraform Init (backend disabled)
         working-directory: terraform/environments/prd
@@ -715,6 +724,7 @@ jobs:
   terraform-security-scan:
     name: Checkov Security Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [setup-labels, terraform-fmt]
     if: |
       needs.setup-labels.outputs.has-terraform == 'true' &&
@@ -755,57 +765,90 @@ jobs:
         # Code Scanning API rate limit can fail this step when many Dependabot PRs
         # run concurrently. SARIF visibility is best-effort, so don't fail the job.
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+        uses: github/codeql-action/upload-sarif@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4
         with:
           sarif_file: results.sarif
           category: checkov-terraform
 
   # =======================================
-  # Job: Terraform Test
+  # Job: Terraform Test - Determine Matrix Targets
+  # `terraform test` only discovers *.tftest.hcl in the CURRENT module's
+  # tests/ dir - it does NOT recurse into child modules. Running it with
+  # `working-directory: terraform` therefore only ever exercised
+  # terraform/tests/ (22 of 232 `run` blocks, 9.5%); the 191 blocks under
+  # terraform/modules/*/tests/, 7 under bootstrap/tests/, and 12 under
+  # terraform/environments/*/tests/ never ran, even though the preceding
+  # `find . -name "*.tftest.hcl" | head -1` guard made the job look like it
+  # found tests. scripts/ci/terraform-test-targets.sh enumerates every
+  # terraform dir that actually has tests (optionally filtered to changed
+  # dirs), and the matrix job below runs `terraform test` in each one.
   # =======================================
-  terraform-test:
-    name: Terraform Test
+  terraform-test-matrix-prep:
+    name: Terraform Test - Determine Targets
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [setup-labels, terraform-fmt]
     if: |
       needs.setup-labels.outputs.has-terraform == 'true' &&
       needs.terraform-fmt.result == 'success'
-    env:
-      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
+    outputs:
+      targets: ${{ steps.targets.outputs.targets }}
+      has-targets: ${{ steps.targets.outputs.has-targets }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          # Full history is required so terraform-test-targets.sh can diff
+          # against origin/${{ github.base_ref }} for the --changed filter.
+          fetch-depth: 0
+
+      - name: Determine terraform test targets
+        id: targets
+        run: |
+          TARGETS=$(bash scripts/ci/terraform-test-targets.sh --changed "origin/${{ github.base_ref }}" --json)
+          echo "targets=$TARGETS" >> $GITHUB_OUTPUT
+          echo "Targets: $TARGETS"
+          if [ -z "$TARGETS" ] || [ "$TARGETS" = "[]" ]; then
+            echo "has-targets=false" >> $GITHUB_OUTPUT
+          else
+            echo "has-targets=true" >> $GITHUB_OUTPUT
+          fi
+
+  # =======================================
+  # Job: Terraform Test (Matrix)
+  # One leg per terraform dir with tests (see terraform-test-matrix-prep
+  # above). An empty matrix would error the workflow, so this job is
+  # entirely gated on has-targets == 'true' instead of relying on an empty
+  # `fromJSON([])` matrix.
+  # =======================================
+  terraform-test:
+    name: Terraform Test (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [setup-labels, terraform-test-matrix-prep]
+    if: needs.terraform-test-matrix-prep.outputs.has-targets == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ${{ fromJSON(needs.terraform-test-matrix-prep.outputs.targets) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+      - name: Setup Terraform (cached)
+        uses: ./.github/actions/setup-terraform-cached
         with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-
-      - name: Create Terraform plugin cache dir
-        run: mkdir -p ${{ github.workspace }}/.terraform.d/plugin-cache
-
-      - name: Cache Terraform providers
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: ${{ github.workspace }}/.terraform.d/plugin-cache
-          key: terraform-providers-${{ runner.os }}-${{ hashFiles('terraform/**/.terraform.lock.hcl') }}
-          restore-keys: |
-            terraform-providers-${{ runner.os }}-
+          terraform-version: ${{ env.TERRAFORM_VERSION }}
 
       - name: Run Terraform Tests
-        working-directory: terraform
+        working-directory: ${{ matrix.dir }}
         run: |
           echo "========================================="
-          echo "Terraform Module Tests"
+          echo "Terraform Module Tests: ${{ matrix.dir }}"
           echo "========================================="
           terraform init -backend=false
-          if find . -name "*.tftest.hcl" -type f | head -1 | grep -q .; then
-            echo "Running terraform test..."
-            terraform test
-            echo "✓ All module tests passed"
-          else
-            echo "ℹ No test files found (.tftest.hcl)"
-          fi
+          terraform test
+          echo "✓ Module tests passed for ${{ matrix.dir }}"
 
   # =======================================
   # Job: Terraform Plan (DEV)
@@ -813,6 +856,7 @@ jobs:
   terraform-plan-dev:
     name: Terraform Plan (DEV)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [setup-labels, terraform-validate-dev, terraform-merge-artifacts]
     environment: dev
     # NOTE: Duplicate CI runs for the *same* PR (from the `labeled`/`unlabeled`
@@ -828,8 +872,6 @@ jobs:
       needs.terraform-validate-dev.result == 'success' &&
       needs.terraform-merge-artifacts.result == 'success' &&
       github.base_ref == 'develop'
-    env:
-      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
     outputs:
       plan-exitcode: ${{ steps.plan.outputs.exitcode }}
     steps:
@@ -842,11 +884,11 @@ jobs:
           name: lambda-binaries
           path: go-functions/bin
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+      - name: Setup Terraform (cached)
+        uses: ./.github/actions/setup-terraform-cached
         with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-          terraform_wrapper: false
+          terraform-version: ${{ env.TERRAFORM_VERSION }}
+          terraform-wrapper: 'false'
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
@@ -854,17 +896,6 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: GitHubActions-TerraformPlan-DEV
-
-      - name: Create Terraform plugin cache dir
-        run: mkdir -p ${{ github.workspace }}/.terraform.d/plugin-cache
-
-      - name: Cache Terraform providers
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: ${{ github.workspace }}/.terraform.d/plugin-cache
-          key: terraform-providers-${{ runner.os }}-${{ hashFiles('terraform/**/.terraform.lock.hcl') }}
-          restore-keys: |
-            terraform-providers-${{ runner.os }}-
 
       - name: Get Basic Auth Credentials from SSM
         run: |
@@ -941,6 +972,7 @@ jobs:
   terraform-plan-prd:
     name: Terraform Plan (PRD)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [setup-labels, terraform-validate-prd, terraform-merge-artifacts]
     environment: prod
     # NOTE: Duplicate CI runs for the *same* PR (from the `labeled`/`unlabeled`
@@ -956,8 +988,6 @@ jobs:
       needs.terraform-validate-prd.result == 'success' &&
       needs.terraform-merge-artifacts.result == 'success' &&
       github.base_ref == 'main'
-    env:
-      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
     outputs:
       plan-exitcode: ${{ steps.plan.outputs.exitcode }}
     steps:
@@ -970,11 +1000,11 @@ jobs:
           name: lambda-binaries
           path: go-functions/bin
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+      - name: Setup Terraform (cached)
+        uses: ./.github/actions/setup-terraform-cached
         with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-          terraform_wrapper: false
+          terraform-version: ${{ env.TERRAFORM_VERSION }}
+          terraform-wrapper: 'false'
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
@@ -982,17 +1012,6 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: GitHubActions-TerraformPlan-PRD
-
-      - name: Create Terraform plugin cache dir
-        run: mkdir -p ${{ github.workspace }}/.terraform.d/plugin-cache
-
-      - name: Cache Terraform providers
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: ${{ github.workspace }}/.terraform.d/plugin-cache
-          key: terraform-providers-${{ runner.os }}-${{ hashFiles('terraform/**/.terraform.lock.hcl') }}
-          restore-keys: |
-            terraform-providers-${{ runner.os }}-
 
       - name: Get PRD credentials from SSM
         run: |
@@ -1077,17 +1096,15 @@ jobs:
     needs: [setup-labels]
     name: Frontend Tests (Public Site - Astro)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: needs.setup-labels.outputs.has-frontend == 'true'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: '22'
-
+      # No setup-node here: this job only runs bun/vitest and a bash build
+      # script, nothing calls `node -e` directly.
       - name: Setup Bun + Install Dependencies (public-astro)
         uses: ./.github/actions/setup-bun-deps
         with:
@@ -1107,6 +1124,16 @@ jobs:
         env:
           CI: true
 
+      # e2e-public-tests needs this exact same build (astro preview serves
+      # dist/), so publish it here instead of letting that job rebuild it
+      # from scratch (Astro builds were happening twice per PR).
+      - name: Upload Astro build output
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: public-astro-dist
+          path: frontend/public-astro/dist/
+          retention-days: 2
+
       - name: Run frontend (public-astro) integration tests
         working-directory: frontend/public-astro
         run: bun run test:integration -- --run
@@ -1120,17 +1147,14 @@ jobs:
     needs: [setup-labels]
     name: Frontend Tests (Admin)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: needs.setup-labels.outputs.has-frontend == 'true'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: '22'
-
+      # No setup-node here: this job only runs `bun run test:coverage`.
       - name: Setup Bun + Install Dependencies (root)
         uses: ./.github/actions/setup-bun-deps
         with:
@@ -1164,6 +1188,7 @@ jobs:
   e2e-public-tests:
     name: E2E Tests (Public Site)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [frontend-astro-tests]
     if: |
       !cancelled() &&
@@ -1215,16 +1240,18 @@ jobs:
           sudo rm -f /etc/apt/sources.list.d/azure-cli.list || true
           bunx playwright install-deps chromium
 
-      # astro preview (started by playwright.config.ts) serves dist/, so the
-      # site has to be built against the mock API before Playwright runs.
-      - name: Build Astro site against mock API
-        working-directory: frontend/public-astro
-        run: bash tests/build-with-mock.sh
-        env:
-          CI: true
+      # astro preview (started by playwright.config.ts) serves dist/. Reuse
+      # the exact build frontend-astro-tests already produced against the
+      # mock API instead of rebuilding it here (Astro was building twice
+      # per PR).
+      - name: Download Astro build output
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: public-astro-dist
+          path: frontend/public-astro/dist
 
       - name: Run E2E tests (Public Site) - Chromium only
-        run: bun run test:e2e -- --project=chromium --workers=1
+        run: bun run test:e2e -- --project=chromium
         env:
           CI: true
 
@@ -1240,8 +1267,9 @@ jobs:
   # Job 7: E2E Tests - Admin Site (always runs if frontend tests passed)
   # =======================================
   e2e-admin-tests:
-    name: E2E Tests (Admin - Auth, CRUD, Categories & Security)
+    name: E2E Tests (Admin - Full Suite)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [frontend-admin-tests]
     if: |
       !cancelled() &&
@@ -1293,13 +1321,23 @@ jobs:
           sudo rm -f /etc/apt/sources.list.d/azure-cli.list || true
           bunx playwright install-deps chromium
 
-      - name: Run E2E tests (Admin - Auth, CRUD, Categories & Security) - Chromium only
-        # PR 時にゲートする admin spec を 4 件に拡張（旧: auth/crud/security の 3 件）。
-        # 残りの admin-*.spec.ts (tiptap / image / metadata / autosave / unsaved-guard /
-        # publish-flow / preview-parity / slug-conflict) は MSW 環境で flakiness があり、
-        # post-deploy AWS E2E ジョブ (deploy.yml) で全件実行する運用とする。
-        # 安定化したら順次 PR CI に追加する。
-        run: bun run test:e2e:admin -- tests/e2e/specs/admin-auth.spec.ts tests/e2e/specs/admin-crud.spec.ts tests/e2e/specs/admin-categories.spec.ts tests/e2e/specs/admin-unauthorized-access.spec.ts --project=chromium --workers=1
+      - name: Run E2E tests (Admin) - Chromium only
+        # admin-*.spec.ts 全件 (33 テスト) を実行する。
+        #
+        # コミット deee4d8 は Tiptap エディタ初期化のレースによる flakiness を
+        # 理由に 9 spec を PR CI から除外し、「post-deploy の AWS E2E で全件
+        # 実行する」としたが、その代替経路は実在しなかった (Issue #520)。
+        # 現在は当該レースが解消しており、CI と同じ workers=4 / retry 無しで
+        # 5 回連続 33 passed (各 26 秒) を確認したため、全件をここでゲートする。
+        #
+        # admin spec が検証するのはエディタ・画像・autosave といった UI の
+        # 振る舞いであり、データが決定的で速い MSW がその適切な層。実 AWS 環境
+        # に対する post-deploy E2E は「デプロイされたものが動くか」を見る
+        # smoke (admin-auth) に限定している。
+        #
+        # --workers=1 は playwright.admin.config.ts の workers 設定
+        # (CI 時は 4) を上書きしてしまうため渡さない。
+        run: bun run test:e2e:admin -- --project=chromium
         env:
           CI: true
 
@@ -1312,13 +1350,47 @@ jobs:
           retention-days: 3
 
   # =======================================
-  # Job 7: Coverage Summary and Enforcement (runs when any test ran)
+  # Job: Deploy Scripts Tests (conditional on 'deploy-scripts' label)
+  # scripts/deploy/*.test.ts (59 tests covering the atomic CloudFront KVS
+  # release-pointer deploy) previously ran nowhere - not in CI, not in
+  # `bun run verify`, not in the husky pre-commit hook.
+  # =======================================
+  deploy-scripts-tests:
+    needs: [setup-labels]
+    name: Deploy Scripts Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: needs.setup-labels.outputs.has-deploy-scripts == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Bun + Install Dependencies (scripts/deploy)
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: scripts/deploy
+
+      - name: Run deploy scripts tests
+        working-directory: scripts/deploy
+        run: bun run test -- --run
+        env:
+          CI: true
+
+  # =======================================
+  # Job 7: Coverage Badges (runs when any test ran)
   # Note: backend-unit-tests removed (Task 21.3) - Node.js Lambda deleted
   # Note: infrastructure-tests removed - CDK to Terraform migration completed
+  # Note: this job only downloads coverage artifacts and generates badges.
+  # Coverage is actually ENFORCED by go-tests-coverage (90% threshold, see
+  # "Check coverage threshold" step above) and frontend/admin's vitest
+  # coverageThreshold (80%, frontend/admin/vitest.config.ts) - not by
+  # anything in this job.
   # =======================================
   coverage-check:
-    name: Coverage Summary & Enforcement
+    name: Coverage Badges
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs:
       - go-tests
       - frontend-admin-tests
@@ -1371,53 +1443,13 @@ jobs:
           path: docs/badges/
           retention-days: 3
 
-      - name: Verify 100% Coverage Requirement
-        run: |
-          echo "========================================="
-          echo "Coverage Summary"
-          echo "========================================="
-
-          # Function to check coverage from lcov-report/index.html
-          check_coverage() {
-            local component=$1
-            local coverage_path=$2
-
-            echo ""
-            echo "--- $component ---"
-
-            if [ -f "$coverage_path/lcov-report/index.html" ]; then
-              # Extract coverage percentages from HTML report
-              echo "✓ Coverage report exists for $component"
-
-              # Check if coverage.json exists (if using json reporter)
-              if [ -f "$coverage_path/coverage-final.json" ]; then
-                echo "✓ Coverage data available"
-              fi
-            else
-              echo "⊘ Coverage report not available for $component (skipped)"
-            fi
-          }
-
-          check_coverage "Go Lambda" "coverage-go"
-          check_coverage "Frontend (Public)" "coverage-frontend-public"
-          check_coverage "Frontend (Admin)" "coverage-frontend-admin"
-
-          echo ""
-          echo "========================================="
-          echo "Coverage checks completed!"
-          echo "========================================="
-          echo ""
-          echo "Note: Individual test jobs enforce 100% coverage"
-          echo "via jest.config.cjs coverageThreshold settings."
-          echo "If any test job passed, it means 100% coverage"
-          echo "was achieved for that component."
-
   # =======================================
   # Job: Final CI Success Check
   # =======================================
   ci-success:
     name: All CI Checks Passed
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs:
       - setup-labels
       - lint
@@ -1432,6 +1464,7 @@ jobs:
       - terraform-validate-dev
       - terraform-validate-prd
       - terraform-security-scan
+      - terraform-test-matrix-prep
       - terraform-test
       - terraform-plan-dev
       - terraform-plan-prd
@@ -1441,6 +1474,8 @@ jobs:
       - e2e-public-tests
       - e2e-admin-tests
       - coverage-check
+      # Deploy scripts
+      - deploy-scripts-tests
     if: always()
 
     steps:
@@ -1455,6 +1490,7 @@ jobs:
           echo "  go: ${{ needs.setup-labels.outputs.has-go }}"
           echo "  frontend: ${{ needs.setup-labels.outputs.has-frontend }}"
           echo "  infrastructure: ${{ needs.setup-labels.outputs.has-infrastructure }}"
+          echo "  deploy-scripts: ${{ needs.setup-labels.outputs.has-deploy-scripts }}"
           echo ""
           echo "--- Lint ---"
           echo "  ESLint & Prettier: ${{ needs.lint.result }}"
@@ -1471,6 +1507,7 @@ jobs:
           echo "  Validate (DEV): ${{ needs.terraform-validate-dev.result }}"
           echo "  Validate (PRD): ${{ needs.terraform-validate-prd.result }}"
           echo "  Security Scan: ${{ needs.terraform-security-scan.result }}"
+          echo "  Test - Determine Targets: ${{ needs.terraform-test-matrix-prep.result }}"
           echo "  Test: ${{ needs.terraform-test.result }}"
           echo "  Plan (DEV): ${{ needs.terraform-plan-dev.result }}"
           echo "  Plan (PRD): ${{ needs.terraform-plan-prd.result }}"
@@ -1480,55 +1517,62 @@ jobs:
           echo "  Admin Tests: ${{ needs.frontend-admin-tests.result }}"
           echo "  E2E Public: ${{ needs.e2e-public-tests.result }}"
           echo "  E2E Admin: ${{ needs.e2e-admin-tests.result }}"
-          echo "  Coverage: ${{ needs.coverage-check.result }}"
+          echo "  Coverage Badges: ${{ needs.coverage-check.result }}"
+          echo ""
+          echo "--- Deploy Scripts ---"
+          echo "  Deploy Scripts Tests: ${{ needs.deploy-scripts-tests.result }}"
           echo ""
           echo "========================================="
 
       - name: Verify required checks
         run: |
-          # Lint is always required
-          if [ "${{ needs.lint.result }}" != "success" ]; then
-            echo "❌ Lint check failed or was cancelled"
-            exit 1
-          fi
-
-          # Type check runs on every PR (no label gate), so it is always required
-          if [ "${{ needs.typecheck.result }}" != "success" ]; then
-            echo "❌ Type check failed or was cancelled"
-            exit 1
-          fi
-
-          # Check if any job failed (excluding skipped jobs)
+          # Every dependency must resolve to "success" (ran and passed) or
+          # "skipped" (its `if:` gate correctly excluded it - e.g. no
+          # matching label, or no terraform test targets changed on this
+          # PR). Anything else - "failure", "cancelled", or an unexpected
+          # empty value - fails the gate.
+          #
+          # Previously this only checked for the literal string "failure",
+          # so a *cancelled* job passed silently. Worse, if
+          # terraform-merge-artifacts failed, both terraform-plan-dev and
+          # terraform-plan-prd become "skipped" (their `if:` requires the
+          # merge job to succeed) - skipped != failure, so CI reported
+          # green even though the merge step was broken. Checking
+          # terraform-merge-artifacts and terraform-security-scan directly
+          # here closes that hole.
           FAILED=false
 
-          # Go Backend failures
-          if [ "${{ needs.go-lint.result }}" == "failure" ] || \
-             [ "${{ needs.go-tests.result }}" == "failure" ]; then
-            echo "❌ Go Backend checks failed"
-            FAILED=true
-          fi
+          check_required() {
+            local name="$1"
+            local result="$2"
+            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+              echo "❌ $name: $result"
+              FAILED=true
+            else
+              echo "✓ $name: $result"
+            fi
+          }
 
-          # Terraform failures
-          if [ "${{ needs.terraform-fmt.result }}" == "failure" ] || \
-             [ "${{ needs.terraform-build-lambdas.result }}" == "failure" ] || \
-             [ "${{ needs.terraform-validate-dev.result }}" == "failure" ] || \
-             [ "${{ needs.terraform-validate-prd.result }}" == "failure" ] || \
-             [ "${{ needs.terraform-test.result }}" == "failure" ] || \
-             [ "${{ needs.terraform-plan-dev.result }}" == "failure" ] || \
-             [ "${{ needs.terraform-plan-prd.result }}" == "failure" ]; then
-            echo "❌ Terraform checks failed"
-            FAILED=true
-          fi
-
-          # Frontend failures
-          if [ "${{ needs.frontend-astro-tests.result }}" == "failure" ] || \
-             [ "${{ needs.frontend-admin-tests.result }}" == "failure" ] || \
-             [ "${{ needs.e2e-public-tests.result }}" == "failure" ] || \
-             [ "${{ needs.e2e-admin-tests.result }}" == "failure" ] || \
-             [ "${{ needs.coverage-check.result }}" == "failure" ]; then
-            echo "❌ Frontend checks failed"
-            FAILED=true
-          fi
+          check_required "Lint" "${{ needs.lint.result }}"
+          check_required "Type Check" "${{ needs.typecheck.result }}"
+          check_required "Go Lint" "${{ needs.go-lint.result }}"
+          check_required "Go Tests" "${{ needs.go-tests.result }}"
+          check_required "Terraform Format" "${{ needs.terraform-fmt.result }}"
+          check_required "Terraform Build Lambdas" "${{ needs.terraform-build-lambdas.result }}"
+          check_required "Terraform Merge Artifacts" "${{ needs.terraform-merge-artifacts.result }}"
+          check_required "Terraform Validate (DEV)" "${{ needs.terraform-validate-dev.result }}"
+          check_required "Terraform Validate (PRD)" "${{ needs.terraform-validate-prd.result }}"
+          check_required "Terraform Security Scan" "${{ needs.terraform-security-scan.result }}"
+          check_required "Terraform Test - Determine Targets" "${{ needs.terraform-test-matrix-prep.result }}"
+          check_required "Terraform Test" "${{ needs.terraform-test.result }}"
+          check_required "Terraform Plan (DEV)" "${{ needs.terraform-plan-dev.result }}"
+          check_required "Terraform Plan (PRD)" "${{ needs.terraform-plan-prd.result }}"
+          check_required "Frontend Astro Tests" "${{ needs.frontend-astro-tests.result }}"
+          check_required "Frontend Admin Tests" "${{ needs.frontend-admin-tests.result }}"
+          check_required "E2E Public" "${{ needs.e2e-public-tests.result }}"
+          check_required "E2E Admin" "${{ needs.e2e-admin-tests.result }}"
+          check_required "Coverage Badges" "${{ needs.coverage-check.result }}"
+          check_required "Deploy Scripts Tests" "${{ needs.deploy-scripts-tests.result }}"
 
           if [ "$FAILED" = true ]; then
             echo ""

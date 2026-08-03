@@ -9,7 +9,7 @@
 #
 # Prerequisites:
 #   - AWS CLI configured with appropriate credentials
-#   - Go 1.25+ installed
+#   - Go version pinned in go-functions/go.mod installed
 #   - Terraform 1.14+ installed
 #   - Bun installed
 #   - Node.js 22+ installed
@@ -32,8 +32,9 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Expected versions (matching GitHub Actions)
-EXPECTED_GO_VERSION="1.25"
+# Expected versions (Go is the single source of truth for CI and local deploy)
+GO_MODULE_FILE="$PROJECT_ROOT/go-functions/go.mod"
+EXPECTED_GO_VERSION="$(awk '$1 == "go" { print $2; exit }' "$GO_MODULE_FILE")"
 EXPECTED_TERRAFORM_VERSION="1.14"
 EXPECTED_NODE_VERSION="22"
 
@@ -367,6 +368,20 @@ compare_versions() {
     fi
 }
 
+compare_exact_version() {
+    local current="$1"
+    local expected="$2"
+    local name="$3"
+
+    if [[ "$current" == "$expected" ]]; then
+        log_success "$name version: $current (matches pinned $expected)"
+        return 0
+    fi
+
+    log_error "$name version mismatch: found $current, required exactly $expected"
+    return 1
+}
+
 # ===========================================
 # AWS Credential Validation (Requirement 2)
 # ===========================================
@@ -427,7 +442,7 @@ validate_prereq() {
     if command -v go &> /dev/null; then
         local go_version
         go_version=$(go version | grep -oE 'go[0-9]+\.[0-9]+(\.[0-9]+)?' | sed 's/go//')
-        if ! compare_versions "$go_version" "$EXPECTED_GO_VERSION" "Go"; then
+        if ! compare_exact_version "$go_version" "$EXPECTED_GO_VERSION" "Go"; then
             has_error=true
         fi
     else
@@ -1031,9 +1046,9 @@ build_and_deploy_astro() {
         return 0
     fi
 
-    # Fetch bucket and distribution from SSM/Terraform
+    # Fetch bucket and release KVS from SSM/Terraform
     local bucket_name=""
-    local distribution_id=""
+    local release_kvs_arn=""
 
     # Get public bucket from SSM
     local ssm_public_path="${SSM_PUBLIC_BUCKET_TEMPLATE//\{env\}/$env}"
@@ -1042,22 +1057,22 @@ build_and_deploy_astro() {
         return 1
     fi
 
-    # Get CloudFront distribution ID from Terraform
+    # Get CloudFront release KeyValueStore ARN from Terraform
     if [[ -d "$env_dir" ]]; then
         cd "$env_dir"
-        distribution_id=$(terraform output -raw cloudfront_distribution_id 2>/dev/null || echo "")
+        release_kvs_arn=$(terraform output -raw release_kvs_arn 2>/dev/null || echo "")
         cd "$astro_path"
     fi
 
-    if [[ -z "$distribution_id" ]]; then
-        log_warning "Could not fetch CloudFront distribution ID, invalidation may fail"
-        distribution_id="UNKNOWN"
+    if [[ -z "$release_kvs_arn" ]]; then
+        log_error "Could not fetch CloudFront release KeyValueStore ARN"
+        return 1
     fi
 
     # Deploy using atomic deployment script (Requirement 9.2)
     log_info "Deploying to S3 using atomic deployment..."
     log_verbose "Bucket: $bucket_name"
-    log_verbose "Distribution: $distribution_id"
+    log_verbose "Release KVS: $release_kvs_arn"
 
     local region
     region=$(aws configure get region 2>/dev/null || echo "ap-northeast-1")
@@ -1073,7 +1088,8 @@ build_and_deploy_astro() {
     local deploy_args=(
         "--project-root" "$PROJECT_ROOT"
         "--bucket" "$bucket_name"
-        "--distribution" "$distribution_id"
+        "--kvs-arn" "$release_kvs_arn"
+        "--revision" "r$(date +%s)-local"
         "--api-url" "$api_url"
         "--region" "$region"
         "--astro-path" "$ASTRO_PROJECT_PATH"

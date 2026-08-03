@@ -5,6 +5,13 @@
 # Mock provider for testing without AWS credentials
 mock_provider "aws" {}
 
+# Default variables applied to every run block below (can be overridden
+# per-run). categories_table_name became required when the module gained
+# the Categories table (variables.tf line 39); tests never picked it up.
+variables {
+  categories_table_name = "test-blog-categories"
+}
+
 # Test 1: Verify DynamoDB table is created with correct partition key
 # Requirement 2.1: BlogPostsTable with partition key `id` (String)
 run "table_partition_key" {
@@ -53,12 +60,12 @@ run "category_index_gsi" {
   }
 
   assert {
-    condition     = [for gsi in aws_dynamodb_table.blog_posts.global_secondary_index : gsi.hash_key if gsi.name == "CategoryIndex"][0] == "category"
+    condition     = [for ks in [for gsi in aws_dynamodb_table.blog_posts.global_secondary_index : gsi if gsi.name == "CategoryIndex"][0].key_schema : ks.attribute_name if ks.key_type == "HASH"][0] == "category"
     error_message = "CategoryIndex GSI must have 'category' as partition key"
   }
 
   assert {
-    condition     = [for gsi in aws_dynamodb_table.blog_posts.global_secondary_index : gsi.range_key if gsi.name == "CategoryIndex"][0] == "createdAt"
+    condition     = [for ks in [for gsi in aws_dynamodb_table.blog_posts.global_secondary_index : gsi if gsi.name == "CategoryIndex"][0].key_schema : ks.attribute_name if ks.key_type == "RANGE"][0] == "createdAt"
     error_message = "CategoryIndex GSI must have 'createdAt' as sort key"
   }
 }
@@ -79,12 +86,12 @@ run "publish_status_index_gsi" {
   }
 
   assert {
-    condition     = [for gsi in aws_dynamodb_table.blog_posts.global_secondary_index : gsi.hash_key if gsi.name == "PublishStatusIndex"][0] == "publishStatus"
+    condition     = [for ks in [for gsi in aws_dynamodb_table.blog_posts.global_secondary_index : gsi if gsi.name == "PublishStatusIndex"][0].key_schema : ks.attribute_name if ks.key_type == "HASH"][0] == "publishStatus"
     error_message = "PublishStatusIndex GSI must have 'publishStatus' as partition key"
   }
 
   assert {
-    condition     = [for gsi in aws_dynamodb_table.blog_posts.global_secondary_index : gsi.range_key if gsi.name == "PublishStatusIndex"][0] == "createdAt"
+    condition     = [for ks in [for gsi in aws_dynamodb_table.blog_posts.global_secondary_index : gsi if gsi.name == "PublishStatusIndex"][0].key_schema : ks.attribute_name if ks.key_type == "RANGE"][0] == "createdAt"
     error_message = "PublishStatusIndex GSI must have 'createdAt' as sort key"
   }
 }

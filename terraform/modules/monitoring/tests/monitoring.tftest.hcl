@@ -2,6 +2,9 @@
 # TDD: Tests to validate monitoring module functionality
 # Requirements: 8.1, 8.2, 8.3, 8.4, 8.5
 
+# Mock provider for testing without AWS credentials
+mock_provider "aws" {}
+
 variables {
   environment           = "prd"
   project_name          = "serverless-blog"
@@ -29,33 +32,36 @@ run "verify_sns_topic_created" {
   }
 }
 
-# Test 2: Verify Lambda error alarms are created for each function
+# Test 2: Verify the aggregated Lambda error alarm is created
+# Requirement 8.x: per-function alarms were consolidated into a single
+# metric-math alarm (lambda_errors_all) that sums Errors across all
+# functions, for cost optimization (see main.tf).
 run "verify_lambda_error_alarms" {
   command = plan
 
   assert {
-    condition     = length(aws_cloudwatch_metric_alarm.lambda_errors) == 2
-    error_message = "Lambda error alarms must be created for each function"
+    condition     = length(aws_cloudwatch_metric_alarm.lambda_errors_all) == 1
+    error_message = "Aggregated Lambda error alarm must be created"
   }
 
   assert {
-    condition     = aws_cloudwatch_metric_alarm.lambda_errors["createPost"].threshold == 1
-    error_message = "Lambda error threshold must be 1"
+    condition     = aws_cloudwatch_metric_alarm.lambda_errors_all[0].threshold == 5
+    error_message = "Aggregated Lambda error threshold must be 5"
   }
 }
 
-# Test 3: Verify Lambda duration alarms are created with correct threshold
+# Test 3: Verify the aggregated Lambda duration alarm is created with correct threshold
 run "verify_lambda_duration_alarms" {
   command = plan
 
   assert {
-    condition     = length(aws_cloudwatch_metric_alarm.lambda_duration) == 2
-    error_message = "Lambda duration alarms must be created for each function"
+    condition     = length(aws_cloudwatch_metric_alarm.lambda_duration_all) == 1
+    error_message = "Aggregated Lambda duration alarm must be created"
   }
 
   assert {
-    condition     = aws_cloudwatch_metric_alarm.lambda_duration["createPost"].threshold == 10000
-    error_message = "Lambda duration threshold must be 10000ms"
+    condition     = aws_cloudwatch_metric_alarm.lambda_duration_all[0].threshold == 10000
+    error_message = "Aggregated Lambda duration threshold must be 10000ms"
   }
 }
 
@@ -123,7 +129,7 @@ run "verify_alarms_disabled" {
   }
 
   assert {
-    condition     = length(aws_cloudwatch_metric_alarm.lambda_errors) == 0
+    condition     = length(aws_cloudwatch_metric_alarm.lambda_errors_all) == 0
     error_message = "Lambda alarms must not be created when disabled"
   }
 

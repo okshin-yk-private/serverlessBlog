@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -32,12 +33,15 @@ import (
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/middleware"
+	"serverless-blog/go-functions/internal/sitebuild"
 )
 
 // DynamoDBClientInterface defines the interface for DynamoDB operations (for testing)
 type DynamoDBClientInterface interface {
 	GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
 	DeleteItem(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
+	UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error)
+	TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error)
 }
 
 // S3ClientInterface defines the interface for S3 operations (for testing)
@@ -121,23 +125,26 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return *errResp, nil
 	}
 
-	// Delete post from DynamoDB
-	deleteInput := &dynamodb.DeleteItemInput{
-		TableName: &tableName,
-		Key: map[string]types.AttributeValue{
-			"id": &types.AttributeValueMemberS{Value: postID},
-		},
+	isPublished := existingPost.PublishStatus == domain.PublishStatusPublished
+	if isPublished {
+		_, err = dynamoClient.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: []types.TransactWriteItem{
+			{Delete: &types.Delete{TableName: &tableName, Key: map[string]types.AttributeValue{"id": &types.AttributeValueMemberS{Value: postID}}}},
+			sitebuild.RequestUpdate(tableName, time.Now()),
+		}})
+	} else {
+		_, err = dynamoClient.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+			TableName: &tableName,
+			Key:       map[string]types.AttributeValue{"id": &types.AttributeValueMemberS{Value: postID}},
+		})
 	}
-
-	_, err = dynamoClient.DeleteItem(ctx, deleteInput)
 	if err != nil {
 		return errorResponse(500, "failed to delete post")
 	}
 
 	// Trigger site rebuild if the deleted post was published
 	// Requirement 10.11: Only trigger build for published posts
-	if existingPost.PublishStatus == domain.PublishStatusPublished {
-		triggerSiteBuild(ctx)
+	if isPublished {
+		triggerSiteBuild(ctx, dynamoClient, tableName)
 	}
 
 	// Return 204 No Content
@@ -205,7 +212,7 @@ func deletePostImages(ctx context.Context, post domain.BlogPost) *events.APIGate
 
 // triggerSiteBuild triggers the Astro SSG build via CodeBuild
 // Requirement 10.11: Trigger CodeBuild when a published post is deleted
-func triggerSiteBuild(ctx context.Context) {
+func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface, tableName string) {
 	projectName := buildtrigger.SanitizeProjectName(os.Getenv("CODEBUILD_PROJECT_NAME"))
 	if projectName == "" {
 		slog.Warn("CODEBUILD_PROJECT_NAME not set or invalid, skipping build trigger")
@@ -218,14 +225,12 @@ func triggerSiteBuild(ctx context.Context) {
 		return
 	}
 
-	trigger := buildtrigger.NewBuildTrigger(client, projectName)
-	if err := trigger.TriggerBuild(ctx); err != nil {
-		//nolint:gosec // G706: projectName already passed buildtrigger.SanitizeProjectName regex validation, so no log-injection vector
+	coordinator := sitebuild.NewCoordinator(dynamoClient, client, tableName, projectName)
+	if _, err := coordinator.StartPending(ctx); err != nil {
 		slog.Error("failed to trigger site build", "error", err, "project", projectName)
 		return
 	}
 
-	//nolint:gosec // G706: see above — projectName is regex-validated.
 	slog.Info("site build triggered successfully", "project", projectName)
 }
 

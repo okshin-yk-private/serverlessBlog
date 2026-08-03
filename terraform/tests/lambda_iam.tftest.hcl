@@ -47,7 +47,7 @@ variables {
   categories_table_arn   = "arn:aws:dynamodb:ap-northeast-1:123456789012:table/test-blog-categories-table"
 }
 
-# Test 1: Verify Posts domain IAM role names (split into read/write/build-status)
+# Test 1: Verify Posts domain IAM role names
 run "verify_posts_iam_role" {
   command = plan
 
@@ -68,6 +68,11 @@ run "verify_posts_iam_role" {
   assert {
     condition     = aws_iam_role.lambda_posts_build_status.name == "blog-lambda-posts-build-status-role"
     error_message = "Posts domain build-status role name must be 'blog-lambda-posts-build-status-role'"
+  }
+
+  assert {
+    condition     = aws_iam_role.lambda_posts_build_reconciler.name == "blog-lambda-posts-build-reconciler-role"
+    error_message = "Posts domain build-reconciler role name must be 'blog-lambda-posts-build-reconciler-role'"
   }
 }
 
@@ -184,6 +189,11 @@ run "verify_role_outputs" {
   }
 
   assert {
+    condition     = output.posts_build_reconciler_role_name == "blog-lambda-posts-build-reconciler-role"
+    error_message = "posts_build_reconciler_role_name output must be correct"
+  }
+
+  assert {
     condition     = output.auth_role_name == "blog-lambda-auth-role"
     error_message = "auth_role_name output must be correct"
   }
@@ -217,12 +227,13 @@ run "verify_domain_roles_distinct" {
       aws_iam_role.lambda_posts_read.name,
       aws_iam_role.lambda_posts_write.name,
       aws_iam_role.lambda_posts_build_status.name,
+      aws_iam_role.lambda_posts_build_reconciler.name,
       aws_iam_role.lambda_auth.name,
       aws_iam_role.lambda_images.name,
       aws_iam_role.lambda_categories_read.name,
       aws_iam_role.lambda_categories_write.name,
-    ])) == 7
-    error_message = "All seven domain/purpose-specific IAM roles must have distinct names"
+    ])) == 8
+    error_message = "All eight domain/purpose-specific IAM roles must have distinct names"
   }
 }
 
@@ -248,8 +259,8 @@ run "verify_read_roles_are_read_only" {
   }
 }
 
-# Test 11: Least privilege - build-status role can poll CodeBuild but never start a build
-run "verify_build_status_role_cannot_start_build" {
+# Test 11: Least privilege - build-status role only reads durable state
+run "verify_build_status_role_is_read_only" {
   command = plan
 
   module {
@@ -257,23 +268,76 @@ run "verify_build_status_role_cannot_start_build" {
   }
 
   assert {
-    condition = !contains(
-      jsondecode(aws_iam_role_policy.lambda_posts_build_status_codebuild[0].policy).Statement[0].Action,
-      "codebuild:StartBuild"
-    )
-    error_message = "lambda_posts_build_status must never be granted codebuild:StartBuild"
+    condition     = jsondecode(aws_iam_role_policy.lambda_posts_build_status_dynamodb.policy).Statement[0].Action == ["dynamodb:GetItem"]
+    error_message = "lambda_posts_build_status must only read the durable state item"
+  }
+}
+
+# Test 12: Reconciler alone can start and poll CodeBuild
+run "verify_build_reconciler_permissions" {
+  command = plan
+
+  module {
+    source = "./modules/lambda"
   }
 
   assert {
     condition = contains(
-      jsondecode(aws_iam_role_policy.lambda_posts_build_status_codebuild[0].policy).Statement[0].Action,
+      jsondecode(aws_iam_role_policy.lambda_posts_build_reconciler_codebuild[0].policy).Statement[0].Action,
+      "codebuild:StartBuild"
+    )
+    error_message = "lambda_posts_build_reconciler must be able to start the configured project"
+  }
+
+  assert {
+    condition = contains(
+      jsondecode(aws_iam_role_policy.lambda_posts_build_reconciler_codebuild[0].policy).Statement[1].Action,
       "codebuild:BatchGetBuilds"
     )
-    error_message = "lambda_posts_build_status must be able to poll build results via codebuild:BatchGetBuilds"
+    error_message = "lambda_posts_build_reconciler must be able to poll active builds"
+  }
+
+  assert {
+    condition     = jsondecode(aws_iam_role_policy.lambda_posts_build_reconciler_codebuild[0].policy).Statement[1].Resource == "arn:aws:codebuild:ap-northeast-1:123456789012:project/test-codebuild-project"
+    error_message = "BatchGetBuilds must be scoped to the configured project ARN (IAM authorizes this action on the project, not on build ARNs)"
   }
 }
 
-# Test 12: Least privilege - write role retains codebuild:StartBuild (create/update/delete post)
+# Test 13: Completion events have retry/DLQ and scheduled compensation
+run "verify_build_reconcile_delivery" {
+  command = plan
+
+  module {
+    source = "./modules/lambda"
+  }
+
+  assert {
+    condition     = aws_cloudwatch_event_rule.codebuild_state_change[0].event_pattern != ""
+    error_message = "CodeBuild state changes must invoke the reconciler"
+  }
+
+  assert {
+    condition     = length(aws_cloudwatch_event_target.sitebuild_reconciler[0].dead_letter_config) == 1
+    error_message = "EventBridge target must use the encrypted reconciliation DLQ"
+  }
+
+  assert {
+    condition     = aws_cloudwatch_event_target.sitebuild_reconciler[0].retry_policy[0].maximum_retry_attempts >= 1
+    error_message = "EventBridge target must retry failed reconciliation"
+  }
+
+  assert {
+    condition     = aws_sqs_queue.sitebuild_reconcile_dlq[0].sqs_managed_sse_enabled
+    error_message = "Reconciliation DLQ must enable server-side encryption"
+  }
+
+  assert {
+    condition     = aws_scheduler_schedule.sitebuild_reconcile[0].schedule_expression == "rate(5 minutes)"
+    error_message = "A five-minute scheduled reconciliation must compensate for missed events"
+  }
+}
+
+# Test 14: Least privilege - write role retains codebuild:StartBuild (create/update/delete post)
 run "verify_write_role_has_start_build" {
   command = plan
 

@@ -1,55 +1,40 @@
 /**
- * Atomic Deployment Script for Astro SSG
+ * Atomic deployment for the public Astro site.
  *
- * Task 5.1: S3原子的デプロイ (Atomic S3 Deployment)
- *
- * Requirements:
- * - 6.1: Built static files shall be deployable to existing S3 bucket
- * - 6.2: S3 bucket shall have versioning enabled for rollback
- * - 6.3: New files uploaded to staging prefix (staging/{build-id}/)
- * - 6.4: After staging upload, atomic switch via S3 copy
- * - 6.5: NO direct aws s3 sync --delete to production prefix
- * - 6.6: If deployment fails after staging, previous version remains unchanged
- * - 6.7: Old staging prefixes cleaned up (retain last 3 versions for rollback)
- * - 6.8: Total static file size shall not exceed 50 MB
+ * A release is uploaded completely before the single activeRevision pointer in
+ * CloudFront KeyValueStore is changed. Hashed Astro assets stay at /_astro so
+ * both the old and new release remain usable while the KVS update propagates.
  */
-
 import {
-  S3Client,
+  HeadObjectCommand,
   PutObjectCommand,
-  CopyObjectCommand,
-  DeleteObjectsCommand,
-  ListObjectsV2Command,
+  S3Client,
 } from '@aws-sdk/client-s3';
 import {
-  CloudFrontClient,
-  CreateInvalidationCommand,
-} from '@aws-sdk/client-cloudfront';
+  CloudFrontKeyValueStoreClient,
+  DescribeKeyValueStoreCommand,
+  GetKeyCommand,
+  UpdateKeysCommand,
+} from '@aws-sdk/client-cloudfront-keyvaluestore';
+import { SignatureV4a } from '@aws-sdk/signature-v4a';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { lookup as mimeLookup } from 'mime-types';
 
-// =============================================================================
-// Constants
-// =============================================================================
-
-/** Maximum allowed static file size: 50 MB */
 const MAX_SIZE_BYTES = 50 * 1024 * 1024;
-
-/** Default number of versions to retain for rollback */
-const DEFAULT_RETAIN_VERSIONS = 3;
-
-// =============================================================================
-// Types
-// =============================================================================
+const ACTIVE_REVISION_KEY = 'activeRevision';
+const MAX_PROMOTION_ATTEMPTS = 3;
+const RELEASE_PATTERN = /^r\d+(?:-[a-z0-9][a-z0-9._-]*)?$/;
 
 export enum DeployErrorCode {
   SIZE_EXCEEDED = 'SIZE_EXCEEDED',
-  STAGING_UPLOAD_FAILED = 'STAGING_UPLOAD_FAILED',
-  VERSION_COPY_FAILED = 'VERSION_COPY_FAILED',
-  CLEANUP_FAILED = 'CLEANUP_FAILED',
-  INVALIDATION_FAILED = 'INVALIDATION_FAILED',
   DIST_PATH_NOT_FOUND = 'DIST_PATH_NOT_FOUND',
+  INVALID_REVISION = 'INVALID_REVISION',
+  RELEASE_UPLOAD_FAILED = 'RELEASE_UPLOAD_FAILED',
+  RELEASE_VERIFICATION_FAILED = 'RELEASE_VERIFICATION_FAILED',
+  RELEASE_CONFLICT = 'RELEASE_CONFLICT',
+  STALE_RELEASE = 'STALE_RELEASE',
+  KVS_PROMOTION_FAILED = 'KVS_PROMOTION_FAILED',
 }
 
 export class DeployError extends Error {
@@ -62,39 +47,46 @@ export class DeployError extends Error {
   }
 }
 
+interface CommandClient {
+  send(command: object): Promise<unknown>;
+}
+
+/**
+ * CloudFront KVS requires SigV4A. Pass the JavaScript signer directly instead
+ * of relying on the SDK's process-global registration container: package
+ * managers may install multiple @smithy/signature-v4 module instances.
+ */
+export function createKeyValueStoreClient(): CloudFrontKeyValueStoreClient {
+  return new CloudFrontKeyValueStoreClient({
+    region: 'us-east-1',
+    signerConstructor: SignatureV4a,
+  });
+}
+
 export interface AtomicDeployConfig {
-  /** S3 bucket name for deployment */
   bucketName: string;
-  /** CloudFront distribution ID for cache invalidation */
-  distributionId: string;
-  /** Local path to built dist directory */
+  keyValueStoreArn: string;
   distPath: string;
-  /** AWS region */
   region: string;
-  /** If true, only show what would be done without making changes */
+  /** Monotonic release name. CodeBuild uses r{CODEBUILD_BUILD_NUMBER}-{sha}. */
+  revision?: string;
   dryRun?: boolean;
-  /** Number of old versions to retain (default: 3) */
-  retainVersions?: number;
+  /** Test seam. Production callers must not set this. */
+  clients?: {
+    s3: CommandClient;
+    kvs: CommandClient;
+  };
 }
 
 export interface AtomicDeployResult {
-  /** Whether deployment succeeded */
   success: boolean;
-  /** Generated build ID */
   buildId: string;
-  /** Version prefix (final deployment path) */
   versionPrefix?: string;
-  /** Staging prefix (intermediate upload path) */
-  stagingPrefix?: string;
-  /** Number of files uploaded */
   filesUploaded?: number;
-  /** Total size in bytes */
   totalSizeBytes?: number;
-  /** Duration in milliseconds */
+  previousRevision?: string;
+  promoted?: boolean;
   durationMs: number;
-  /** Versions that were cleaned up */
-  cleanedUpVersions?: string[];
-  /** Error details if failed */
   error?: {
     code: DeployErrorCode;
     message: string;
@@ -113,137 +105,82 @@ interface FileEntry {
   sizeBytes: number;
 }
 
-// =============================================================================
-// Utility Functions
-// =============================================================================
-
-/**
- * Generate a unique build ID with timestamp prefix
- * Format: v{timestamp}-{random}
- */
 export function generateBuildId(): string {
+  // Epoch seconds, not milliseconds: every deployer sharing the release KVS
+  // (CodeBuild, GitHub Actions, local-deploy.sh) sequences revisions in
+  // seconds, and a millisecond value would permanently outrank them.
   const timestamp = Math.floor(Date.now() / 1000);
   const random = Math.random().toString(36).substring(2, 8);
-  return `v${timestamp}-${random}`;
+  return `r${timestamp}-${random}`;
 }
 
-/**
- * Get staging prefix for a build ID
- * Format: staging/{build-id}/
- */
-export function getStagingPrefix(buildId: string): string {
-  return `staging/${buildId}/`;
+export function validateRevision(revision: string): boolean {
+  return RELEASE_PATTERN.test(revision) && revision.length <= 128;
 }
 
-/**
- * Get version prefix for a build ID
- * Format: {build-id}/
- */
-export function getVersionPrefix(buildId: string): string {
-  return `${buildId}/`;
+export function getVersionPrefix(revision: string): string {
+  return `releases/${revision}/`;
 }
 
-/**
- * Calculate total size of a directory in bytes
- */
+export function getDeploymentKey(
+  relativePath: string,
+  revision: string
+): string {
+  return relativePath.startsWith('_astro/')
+    ? relativePath
+    : `${getVersionPrefix(revision)}${relativePath}`;
+}
+
+export function getRevisionSequence(revision: string): number | undefined {
+  const match = revision.match(/^r(\d+)(?:-|$)/);
+  if (!match) return undefined;
+  const sequence = Number(match[1]);
+  return Number.isSafeInteger(sequence) ? sequence : undefined;
+}
+
+export function isStaleRevision(candidate: string, current?: string): boolean {
+  if (!current || candidate === current) return false;
+  const candidateSequence = getRevisionSequence(candidate);
+  const currentSequence = getRevisionSequence(current);
+  return (
+    candidateSequence !== undefined &&
+    currentSequence !== undefined &&
+    candidateSequence < currentSequence
+  );
+}
+
 export async function calculateDirectorySize(dirPath: string): Promise<number> {
   try {
     const stats = await fs.promises.stat(dirPath);
-    if (!stats.isDirectory()) {
-      return stats.size;
-    }
+    if (!stats.isDirectory()) return stats.size;
 
     let totalSize = 0;
-    const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
-
-    for (const entry of entries) {
+    for (const entry of await fs.promises.readdir(dirPath, {
+      withFileTypes: true,
+    })) {
       const entryPath = path.join(dirPath, entry.name);
       if (entry.isDirectory()) {
         totalSize += await calculateDirectorySize(entryPath);
       } else if (entry.isFile()) {
-        const fileStats = await fs.promises.stat(entryPath);
-        totalSize += fileStats.size;
+        totalSize += (await fs.promises.stat(entryPath)).size;
       }
     }
-
     return totalSize;
   } catch {
-    // Return 0 for nonexistent paths
     return 0;
   }
 }
 
-/**
- * Validate directory size against 50MB limit
- * Requirement 6.8
- */
 export function validateDirectorySize(sizeBytes: number): SizeValidationResult {
-  if (sizeBytes <= MAX_SIZE_BYTES) {
-    return { valid: true, sizeBytes };
-  }
-
-  const sizeMB = (sizeBytes / (1024 * 1024)).toFixed(1);
+  if (sizeBytes <= MAX_SIZE_BYTES) return { valid: true, sizeBytes };
   return {
     valid: false,
     sizeBytes,
-    error: `Directory size (${sizeMB} MB) exceeds maximum allowed size of 50 MB`,
+    error: `Directory size (${(sizeBytes / 1024 / 1024).toFixed(1)} MB) exceeds maximum allowed size of 50 MB`,
   };
 }
 
-/**
- * List all version prefixes in the bucket
- * Filters to only include v{timestamp}-{random}/ format
- */
-export async function listVersions(
-  bucketName: string,
-  s3Client: S3Client
-): Promise<string[]> {
-  const command = new ListObjectsV2Command({
-    Bucket: bucketName,
-    Delimiter: '/',
-    Prefix: '',
-  });
-
-  const response = await s3Client.send(command);
-  const prefixes = response.CommonPrefixes || [];
-
-  // Filter to only version prefixes (v{timestamp}-*)
-  const versionPattern = /^v\d+-[a-z0-9]+\/$/;
-  const versions = prefixes
-    .map((p) => p.Prefix!)
-    .filter((prefix) => versionPattern.test(prefix));
-
-  // Sort by timestamp descending (newest first)
-  versions.sort((a, b) => {
-    const timestampA = parseInt(a.match(/^v(\d+)-/)![1], 10);
-    const timestampB = parseInt(b.match(/^v(\d+)-/)![1], 10);
-    return timestampB - timestampA;
-  });
-
-  return versions;
-}
-
-/**
- * Get list of versions to cleanup based on retain count
- * Requirement 6.7: Retain last 3 versions for rollback
- */
-export function getVersionsToCleanup(
-  versions: string[],
-  retainCount: number = DEFAULT_RETAIN_VERSIONS
-): string[] {
-  if (versions.length <= retainCount) {
-    return [];
-  }
-  return versions.slice(retainCount);
-}
-
-/**
- * Determine Cache-Control header based on filename
- * - _astro/* files: 1 year immutable (hashed filenames)
- * - HTML/XML/robots.txt: must-revalidate
- */
 export function getCacheControl(filename: string): string {
-  // HTML and XML files should always be revalidated
   if (
     filename.endsWith('.html') ||
     filename.endsWith('.xml') ||
@@ -251,295 +188,213 @@ export function getCacheControl(filename: string): string {
   ) {
     return 'public,max-age=0,must-revalidate';
   }
-  // _astro/* assets have content hashes, can be cached long-term
   return 'public,max-age=31536000,immutable';
 }
 
-/**
- * Get MIME type for a file
- */
 export function getContentType(filename: string): string {
-  const mimeType = mimeLookup(filename);
-  if (mimeType) {
-    return mimeType;
-  }
-  // Default to binary
-  return 'application/octet-stream';
+  return mimeLookup(filename) || 'application/octet-stream';
 }
 
-/**
- * Recursively list all files in a directory
- */
-async function listFiles(
-  dirPath: string,
-  basePath: string = ''
-): Promise<FileEntry[]> {
-  const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+async function listFiles(dirPath: string, basePath = ''): Promise<FileEntry[]> {
   const files: FileEntry[] = [];
-
-  for (const entry of entries) {
+  for (const entry of await fs.promises.readdir(dirPath, {
+    withFileTypes: true,
+  })) {
     const localPath = path.join(dirPath, entry.name);
     const relativePath = basePath ? `${basePath}/${entry.name}` : entry.name;
-
     if (entry.isDirectory()) {
-      const subFiles = await listFiles(localPath, relativePath);
-      files.push(...subFiles);
+      files.push(...(await listFiles(localPath, relativePath)));
     } else if (entry.isFile()) {
-      const stats = await fs.promises.stat(localPath);
       files.push({
         localPath,
         relativePath,
-        sizeBytes: stats.size,
+        sizeBytes: (await fs.promises.stat(localPath)).size,
       });
     }
   }
-
   return files;
 }
 
-// =============================================================================
-// Deployment Functions
-// =============================================================================
-
-/**
- * Upload all files to staging prefix
- * Requirement 6.3
- */
-async function uploadToStaging(
-  s3Client: S3Client,
-  config: AtomicDeployConfig,
-  buildId: string,
-  files: FileEntry[],
-  dryRun: boolean
-): Promise<void> {
-  const stagingPrefix = getStagingPrefix(buildId);
-
-  for (const file of files) {
-    const key = `${stagingPrefix}${file.relativePath}`;
-    const cacheControl = getCacheControl(file.relativePath);
-    const contentType = getContentType(file.relativePath);
-
-    if (dryRun) {
-      console.log(
-        `[DRY-RUN] Would upload: ${file.relativePath} -> s3://${config.bucketName}/${key}`
-      );
-      continue;
-    }
-
-    const fileContent = await fs.promises.readFile(file.localPath);
-    const command = new PutObjectCommand({
-      Bucket: config.bucketName,
-      Key: key,
-      Body: fileContent,
-      CacheControl: cacheControl,
-      ContentType: contentType,
-    });
-
-    await s3Client.send(command);
-  }
+function isNotFound(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === 'NotFound' ||
+      error.name === 'NoSuchKey' ||
+      error.name === 'ResourceNotFoundException')
+  );
 }
 
-/**
- * Copy files from staging to version prefix
- * Requirement 6.4: Atomic switch via S3 copy
- */
-async function copyToVersion(
-  s3Client: S3Client,
-  config: AtomicDeployConfig,
-  buildId: string,
-  files: FileEntry[],
-  dryRun: boolean
-): Promise<void> {
-  const stagingPrefix = getStagingPrefix(buildId);
-  const versionPrefix = getVersionPrefix(buildId);
-
-  for (const file of files) {
-    const sourceKey = `${stagingPrefix}${file.relativePath}`;
-    const destKey = `${versionPrefix}${file.relativePath}`;
-
-    if (dryRun) {
-      console.log(
-        `[DRY-RUN] Would copy: s3://${config.bucketName}/${sourceKey} -> ${destKey}`
-      );
-      continue;
-    }
-
-    const command = new CopyObjectCommand({
-      Bucket: config.bucketName,
-      CopySource: `${config.bucketName}/${sourceKey}`,
-      Key: destKey,
-    });
-
-    await s3Client.send(command);
-  }
-}
-
-/**
- * Also copy files to root prefix for direct access
- * This ensures files are accessible at / as well as at /v{version}/
- */
-async function copyToRoot(
-  s3Client: S3Client,
-  config: AtomicDeployConfig,
-  buildId: string,
-  files: FileEntry[],
-  dryRun: boolean
-): Promise<void> {
-  const stagingPrefix = getStagingPrefix(buildId);
-
-  for (const file of files) {
-    const sourceKey = `${stagingPrefix}${file.relativePath}`;
-    const destKey = file.relativePath;
-
-    if (dryRun) {
-      console.log(
-        `[DRY-RUN] Would copy to root: s3://${config.bucketName}/${sourceKey} -> ${destKey}`
-      );
-      continue;
-    }
-
-    const command = new CopyObjectCommand({
-      Bucket: config.bucketName,
-      CopySource: `${config.bucketName}/${sourceKey}`,
-      Key: destKey,
-    });
-
-    await s3Client.send(command);
-  }
-}
-
-/**
- * Delete objects under a prefix
- */
-async function deletePrefix(
-  s3Client: S3Client,
+async function headObjectSize(
+  client: CommandClient,
   bucketName: string,
-  prefix: string,
-  dryRun: boolean
-): Promise<void> {
-  // List all objects under the prefix
-  const listCommand = new ListObjectsV2Command({
-    Bucket: bucketName,
-    Prefix: prefix,
-  });
-
-  const listResponse = await s3Client.send(listCommand);
-  const objects = listResponse.Contents || [];
-
-  if (objects.length === 0) {
-    return;
-  }
-
-  if (dryRun) {
-    console.log(
-      `[DRY-RUN] Would delete ${objects.length} objects under ${prefix}`
-    );
-    return;
-  }
-
-  // Delete in batches of 1000 (S3 limit)
-  const batchSize = 1000;
-  for (let i = 0; i < objects.length; i += batchSize) {
-    const batch = objects.slice(i, i + batchSize);
-    const deleteCommand = new DeleteObjectsCommand({
-      Bucket: bucketName,
-      Delete: {
-        Objects: batch.map((obj) => ({ Key: obj.Key! })),
-      },
-    });
-    await s3Client.send(deleteCommand);
+  key: string
+): Promise<number | undefined> {
+  try {
+    const response = (await client.send(
+      new HeadObjectCommand({ Bucket: bucketName, Key: key })
+    )) as { ContentLength?: number };
+    return response.ContentLength;
+  } catch (error) {
+    if (isNotFound(error)) return undefined;
+    throw error;
   }
 }
 
-/**
- * Clean up old versions beyond retain count
- * Requirement 6.7
- */
-async function cleanupOldVersions(
-  s3Client: S3Client,
+async function uploadAndVerifyFiles(
+  client: CommandClient,
   config: AtomicDeployConfig,
-  dryRun: boolean
-): Promise<string[]> {
-  const retainCount = config.retainVersions ?? DEFAULT_RETAIN_VERSIONS;
-  const versions = await listVersions(config.bucketName, s3Client);
-  const toCleanup = getVersionsToCleanup(versions, retainCount);
-
-  for (const versionPrefix of toCleanup) {
-    await deletePrefix(s3Client, config.bucketName, versionPrefix, dryRun);
-    // Also clean up corresponding staging prefix
-    const buildId = versionPrefix.replace(/\/$/, '');
-    await deletePrefix(
-      s3Client,
-      config.bucketName,
-      getStagingPrefix(buildId),
-      dryRun
-    );
-  }
-
-  return toCleanup;
-}
-
-/**
- * Invalidate CloudFront cache
- * Requirement 9.9: Invalidate changed paths
- */
-async function invalidateCache(
-  cloudFrontClient: CloudFrontClient,
-  distributionId: string,
+  revision: string,
+  files: FileEntry[],
   dryRun: boolean
 ): Promise<void> {
-  if (dryRun) {
-    console.log(
-      `[DRY-RUN] Would invalidate CloudFront distribution ${distributionId}`
+  // Assets first: old and new HTML can safely coexist during KVS propagation.
+  const orderedFiles = [
+    ...files.filter((file) => file.relativePath.startsWith('_astro/')),
+    ...files.filter((file) => !file.relativePath.startsWith('_astro/')),
+  ];
+
+  for (const file of orderedFiles) {
+    const key = getDeploymentKey(file.relativePath, revision);
+    if (dryRun) {
+      console.log(
+        `[DRY-RUN] Would upload and verify ${file.relativePath} -> s3://${config.bucketName}/${key}`
+      );
+      continue;
+    }
+
+    const existingSize = await headObjectSize(client, config.bucketName, key);
+    if (existingSize !== undefined) {
+      if (existingSize === file.sizeBytes) continue;
+      throw new DeployError(
+        DeployErrorCode.RELEASE_CONFLICT,
+        `Existing object has different size: s3://${config.bucketName}/${key}`
+      );
+    }
+
+    await client.send(
+      new PutObjectCommand({
+        Bucket: config.bucketName,
+        Key: key,
+        Body: await fs.promises.readFile(file.localPath),
+        CacheControl: getCacheControl(file.relativePath),
+        ContentType: getContentType(file.relativePath),
+        IfNoneMatch: '*',
+      })
     );
-    return;
+
+    const uploadedSize = await headObjectSize(client, config.bucketName, key);
+    if (uploadedSize !== file.sizeBytes) {
+      throw new DeployError(
+        DeployErrorCode.RELEASE_VERIFICATION_FAILED,
+        `Uploaded object verification failed: s3://${config.bucketName}/${key}`
+      );
+    }
   }
-
-  const command = new CreateInvalidationCommand({
-    DistributionId: distributionId,
-    InvalidationBatch: {
-      CallerReference: `atomic-deploy-${Date.now()}`,
-      Paths: {
-        Quantity: 1,
-        Items: ['/*'],
-      },
-    },
-  });
-
-  await cloudFrontClient.send(command);
 }
 
-// =============================================================================
-// Main Deployment Function
-// =============================================================================
+async function getActiveRevision(
+  client: CommandClient,
+  keyValueStoreArn: string
+): Promise<string | undefined> {
+  try {
+    const response = (await client.send(
+      new GetKeyCommand({
+        KvsARN: keyValueStoreArn,
+        Key: ACTIVE_REVISION_KEY,
+      })
+    )) as { Value?: string };
+    return response.Value;
+  } catch (error) {
+    if (isNotFound(error)) return undefined;
+    throw error;
+  }
+}
 
-/**
- * Execute atomic deployment
- *
- * Flow:
- * 1. Validate dist size (Requirement 6.8)
- * 2. Generate build ID
- * 3. Upload to staging prefix (Requirement 6.3)
- * 4. Copy to version prefix (Requirement 6.4)
- * 5. Copy to root prefix (for direct access)
- * 6. Invalidate CloudFront cache
- * 7. Cleanup old versions (Requirement 6.7)
- *
- * Requirement 6.5: Never use direct sync --delete to production
- * Requirement 6.6: On failure, previous version remains unchanged
- */
+export async function promoteRelease(
+  client: CommandClient,
+  keyValueStoreArn: string,
+  revision: string,
+  dryRun = false
+): Promise<{ previousRevision?: string; promoted: boolean }> {
+  let previousRevision: string | undefined;
+
+  for (let attempt = 1; attempt <= MAX_PROMOTION_ATTEMPTS; attempt += 1) {
+    // Capture the ETag before reading the pointer. Any concurrent promotion
+    // after this point makes IfMatch fail, including one that happens between
+    // the pointer read and our update.
+    const description = dryRun
+      ? undefined
+      : ((await client.send(
+          new DescribeKeyValueStoreCommand({ KvsARN: keyValueStoreArn })
+        )) as { ETag?: string });
+    previousRevision = await getActiveRevision(client, keyValueStoreArn);
+    if (isStaleRevision(revision, previousRevision)) {
+      throw new DeployError(
+        DeployErrorCode.STALE_RELEASE,
+        `Refusing to replace newer active release ${previousRevision} with ${revision}`
+      );
+    }
+    if (previousRevision === revision) {
+      return { previousRevision, promoted: false };
+    }
+    if (dryRun) {
+      console.log(
+        `[DRY-RUN] Would update ${ACTIVE_REVISION_KEY}: ${previousRevision ?? '(unset)'} -> ${revision}`
+      );
+      return { previousRevision, promoted: true };
+    }
+
+    if (!description?.ETag) {
+      throw new DeployError(
+        DeployErrorCode.KVS_PROMOTION_FAILED,
+        'CloudFront KeyValueStore did not return an ETag'
+      );
+    }
+
+    try {
+      await client.send(
+        new UpdateKeysCommand({
+          KvsARN: keyValueStoreArn,
+          IfMatch: description.ETag,
+          Puts: [{ Key: ACTIVE_REVISION_KEY, Value: revision }],
+        })
+      );
+      return { previousRevision, promoted: true };
+    } catch (error) {
+      if (!(error instanceof Error) || error.name !== 'ConflictException') {
+        throw error;
+      }
+      if (attempt === MAX_PROMOTION_ATTEMPTS) throw error;
+    }
+  }
+
+  throw new DeployError(
+    DeployErrorCode.KVS_PROMOTION_FAILED,
+    'CloudFront KeyValueStore promotion retries were exhausted'
+  );
+}
+
 export async function atomicDeploy(
   config: AtomicDeployConfig
 ): Promise<AtomicDeployResult> {
   const startTime = Date.now();
-  const buildId = generateBuildId();
+  const revision = config.revision ?? generateBuildId();
   const dryRun = config.dryRun ?? false;
-
-  const s3Client = new S3Client({ region: config.region });
-  const cloudFrontClient = new CloudFrontClient({ region: config.region });
+  const clients =
+    config.clients ??
+    ({
+      s3: new S3Client({ region: config.region }) as unknown as CommandClient,
+      // CloudFront KVS is a global data-plane API exposed through us-east-1.
+      kvs: createKeyValueStoreClient() as unknown as CommandClient,
+    } satisfies AtomicDeployConfig['clients']);
 
   try {
-    // Step 1: Validate dist path exists
+    if (!validateRevision(revision)) {
+      throw new DeployError(
+        DeployErrorCode.INVALID_REVISION,
+        `Invalid release revision: ${revision}`
+      );
+    }
     if (!fs.existsSync(config.distPath)) {
       throw new DeployError(
         DeployErrorCode.DIST_PATH_NOT_FOUND,
@@ -547,7 +402,6 @@ export async function atomicDeploy(
       );
     }
 
-    // Step 2: Validate size (Requirement 6.8)
     console.log('Validating distribution size...');
     const totalSize = await calculateDirectorySize(config.distPath);
     const sizeValidation = validateDirectorySize(totalSize);
@@ -557,100 +411,61 @@ export async function atomicDeploy(
         sizeValidation.error!
       );
     }
-    console.log(`Size OK: ${(totalSize / (1024 * 1024)).toFixed(2)} MB`);
 
-    // Step 3: List all files
     const files = await listFiles(config.distPath);
-    console.log(`Found ${files.length} files to deploy`);
-
-    // Step 4: Upload to staging (Requirement 6.3)
-    console.log(`Uploading to staging: ${getStagingPrefix(buildId)}`);
+    console.log(
+      `Uploading ${files.length} files to ${getVersionPrefix(revision)} (shared assets remain under _astro/)`
+    );
     try {
-      await uploadToStaging(s3Client, config, buildId, files, dryRun);
+      await uploadAndVerifyFiles(clients.s3, config, revision, files, dryRun);
     } catch (error) {
+      if (error instanceof DeployError) throw error;
       throw new DeployError(
-        DeployErrorCode.STAGING_UPLOAD_FAILED,
-        `Failed to upload to staging: ${error instanceof Error ? error.message : String(error)}`
+        DeployErrorCode.RELEASE_UPLOAD_FAILED,
+        `Release upload failed: ${error instanceof Error ? error.message : String(error)}`
       );
     }
 
-    // Step 5: Copy to version prefix (Requirement 6.4)
-    console.log(`Copying to version: ${getVersionPrefix(buildId)}`);
+    console.log(`Promoting release ${revision} through CloudFront KVS...`);
+    let promotion: { previousRevision?: string; promoted: boolean };
     try {
-      await copyToVersion(s3Client, config, buildId, files, dryRun);
+      promotion = await promoteRelease(
+        clients.kvs,
+        config.keyValueStoreArn,
+        revision,
+        dryRun
+      );
     } catch (error) {
+      if (error instanceof DeployError) throw error;
       throw new DeployError(
-        DeployErrorCode.VERSION_COPY_FAILED,
-        `Failed to copy to version prefix: ${error instanceof Error ? error.message : String(error)}`
+        DeployErrorCode.KVS_PROMOTION_FAILED,
+        `KVS promotion failed: ${error instanceof Error ? error.message : String(error)}`
       );
     }
-
-    // Step 6: Copy to root prefix (for direct access)
-    console.log('Copying to root prefix...');
-    await copyToRoot(s3Client, config, buildId, files, dryRun);
-
-    // Step 7: Invalidate CloudFront cache
-    console.log('Invalidating CloudFront cache...');
-    try {
-      await invalidateCache(cloudFrontClient, config.distributionId, dryRun);
-    } catch (error) {
-      // Invalidation failure is non-fatal but logged
-      console.warn(
-        `Warning: CloudFront invalidation failed: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-
-    // Step 8: Cleanup old versions (Requirement 6.7)
-    console.log('Cleaning up old versions...');
-    let cleanedUpVersions: string[] = [];
-    try {
-      cleanedUpVersions = await cleanupOldVersions(s3Client, config, dryRun);
-      if (cleanedUpVersions.length > 0) {
-        console.log(`Cleaned up ${cleanedUpVersions.length} old version(s)`);
-      }
-    } catch (error) {
-      // Cleanup failure is non-fatal but logged
-      console.warn(
-        `Warning: Cleanup failed: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-
-    const durationMs = Date.now() - startTime;
-    console.log(`Deployment completed in ${(durationMs / 1000).toFixed(1)}s`);
 
     return {
       success: true,
-      buildId,
-      versionPrefix: getVersionPrefix(buildId),
-      stagingPrefix: getStagingPrefix(buildId),
+      buildId: revision,
+      versionPrefix: getVersionPrefix(revision),
       filesUploaded: files.length,
       totalSizeBytes: totalSize,
-      durationMs,
-      cleanedUpVersions,
+      previousRevision: promotion.previousRevision,
+      promoted: promotion.promoted,
+      durationMs: Date.now() - startTime,
     };
   } catch (error) {
-    const durationMs = Date.now() - startTime;
-
-    if (error instanceof DeployError) {
-      return {
-        success: false,
-        buildId,
-        durationMs,
-        error: {
-          code: error.code,
-          message: error.message,
-        },
-      };
-    }
-
+    const deployError =
+      error instanceof DeployError
+        ? error
+        : new DeployError(
+            DeployErrorCode.RELEASE_UPLOAD_FAILED,
+            error instanceof Error ? error.message : String(error)
+          );
     return {
       success: false,
-      buildId,
-      durationMs,
-      error: {
-        code: DeployErrorCode.STAGING_UPLOAD_FAILED,
-        message: error instanceof Error ? error.message : String(error),
-      },
+      buildId: revision,
+      durationMs: Date.now() - startTime,
+      error: { code: deployError.code, message: deployError.message },
     };
   }
 }

@@ -34,6 +34,8 @@ const (
 	DefaultLimit = 10
 	MaxLimit     = 100
 	MinLimit     = 1
+
+	publishStatusAttributeValue = ":publishStatus"
 )
 
 // SearchQueryMaxLength bounds the "q" search parameter (issue #491).
@@ -294,15 +296,15 @@ func buildQueryInput(tableName string, limit int32, category, publishStatus stri
 		queryInput.KeyConditionExpression = aws.String("category = :category")
 		queryInput.FilterExpression = aws.String("publishStatus = :publishStatus")
 		queryInput.ExpressionAttributeValues = map[string]types.AttributeValue{
-			":category":      &types.AttributeValueMemberS{Value: category},
-			":publishStatus": &types.AttributeValueMemberS{Value: publishStatus},
+			":category":                 &types.AttributeValueMemberS{Value: category},
+			publishStatusAttributeValue: &types.AttributeValueMemberS{Value: publishStatus},
 		}
 	} else {
 		// Use PublishStatusIndex to query by publishStatus
 		queryInput.IndexName = aws.String("PublishStatusIndex")
 		queryInput.KeyConditionExpression = aws.String("publishStatus = :publishStatus")
 		queryInput.ExpressionAttributeValues = map[string]types.AttributeValue{
-			":publishStatus": &types.AttributeValueMemberS{Value: publishStatus},
+			publishStatusAttributeValue: &types.AttributeValueMemberS{Value: publishStatus},
 		}
 	}
 
@@ -556,7 +558,7 @@ func executeCountQuery(ctx context.Context, client DynamoDBClientInterface, tabl
 			IndexName:              aws.String("PublishStatusIndex"),
 			KeyConditionExpression: aws.String("publishStatus = :publishStatus"),
 			ExpressionAttributeValues: map[string]types.AttributeValue{
-				":publishStatus": &types.AttributeValueMemberS{Value: publishStatus},
+				publishStatusAttributeValue: &types.AttributeValueMemberS{Value: publishStatus},
 			},
 			Select:            types.SelectCount,
 			ExclusiveStartKey: lastEvaluatedKey,
