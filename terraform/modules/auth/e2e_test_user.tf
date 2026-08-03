@@ -64,6 +64,7 @@ resource "aws_cognito_user_in_group" "e2e_admin" {
 # CI (deploy.yml の post-deploy E2E) が読み出す。dev の Basic 認証と同じく
 # SecureString + --with-decryption で扱う。
 resource "aws_ssm_parameter" "e2e_admin_email" {
+  #checkov:skip=CKV_AWS_337:Non-production only (a lifecycle precondition blocks prd). SecureString already encrypts at rest with the AWS-managed key; a CMK would only add a key-policy authorization layer, and every principal able to read this parameter already holds AWS account access that exceeds what the dev admin account grants. Revisit if this user is ever created outside non-production.
   count = var.create_e2e_test_user ? 1 : 0
 
   name        = "/serverless-blog/${var.environment}/e2e/admin-email"
@@ -75,6 +76,7 @@ resource "aws_ssm_parameter" "e2e_admin_email" {
 }
 
 resource "aws_ssm_parameter" "e2e_admin_password" {
+  #checkov:skip=CKV_AWS_337:Non-production only (a lifecycle precondition blocks prd). SecureString already encrypts at rest with the AWS-managed key; a CMK would only add a key-policy authorization layer, and every principal able to read this parameter already holds AWS account access that exceeds what the dev admin account grants. The value is a random_password regenerated whenever the user is recreated, never a human credential. Revisit if this user is ever created outside non-production.
   count = var.create_e2e_test_user ? 1 : 0
 
   name        = "/serverless-blog/${var.environment}/e2e/admin-password"
