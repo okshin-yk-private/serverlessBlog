@@ -33,6 +33,7 @@ import (
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/markdown"
 	"serverless-blog/go-functions/internal/middleware"
+	"serverless-blog/go-functions/internal/poststore"
 	"serverless-blog/go-functions/internal/sitebuild"
 )
 
@@ -101,6 +102,9 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	if existingPost.AuthorID != userID {
 		return errorResponse(403, "forbidden: you can only update your own posts")
 	}
+	if saveErr := validateSaveVersion(existingPost, req); saveErr != nil {
+		return *saveErr, nil
+	}
 	normalizeAutosaveRequest(req)
 
 	// Validate update fields
@@ -131,7 +135,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	}
 
 	requiresBuild := shouldTriggerBuild(existingPost, req)
-	if errResp := savePost(ctx, dynamoClient, tableName, updatedPost, requiresBuild); errResp != nil {
+	if errResp := savePost(ctx, dynamoClient, tableName, updatedPost, existingPost, requiresBuild); errResp != nil {
 		return *errResp, nil
 	}
 
@@ -143,6 +147,18 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	// Return updated post with 200 status
 	return middleware.JSONResponse(200, postMutationResponse{BlogPost: *updatedPost, SiteBuild: siteBuildRequest})
+}
+
+func validateSaveVersion(post *domain.BlogPost, req *domain.UpdatePostRequest) *events.APIGatewayProxyResponse {
+	if req.SaveMode == domain.SaveModeAutosave && post.PublishStatus == domain.PublishStatusPublished {
+		resp, _ := errorResponse(409, "published posts require a manual save")
+		return &resp
+	}
+	if (req.Version == nil && post.Version != 0) || (req.Version != nil && *req.Version != post.Version) {
+		resp, _ := errorResponse(409, "post changed; reload before saving")
+		return &resp
+	}
+	return nil
 }
 
 func normalizeAutosaveRequest(req *domain.UpdatePostRequest) {
@@ -208,7 +224,8 @@ func getClientAndTable() (DynamoDBClientInterface, string, *events.APIGatewayPro
 // getExistingPost retrieves the existing post from DynamoDB
 func getExistingPost(ctx context.Context, client DynamoDBClientInterface, tableName, postID string) (*domain.BlogPost, *events.APIGatewayProxyResponse) {
 	getInput := &dynamodb.GetItemInput{
-		TableName: &tableName,
+		TableName:      &tableName,
+		ConsistentRead: aws.Bool(true),
 		Key: map[string]types.AttributeValue{
 			"id": &types.AttributeValueMemberS{Value: postID},
 		},
@@ -255,6 +272,7 @@ func buildUpdatedPost(existingPost *domain.BlogPost, req *domain.UpdatePostReque
 	}
 
 	// Update the updatedAt timestamp
+	updatedPost.Version = existingPost.Version + 1
 	updatedPost.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 
 	// Ensure immutable fields are not changed
@@ -320,20 +338,33 @@ func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface,
 }
 
 // savePost saves the updated post to DynamoDB
-func savePost(ctx context.Context, client DynamoDBClientInterface, tableName string, post *domain.BlogPost, requestBuild bool) *events.APIGatewayProxyResponse {
+func savePost(ctx context.Context, client DynamoDBClientInterface, tableName string, post, existing *domain.BlogPost, requestBuild bool) *events.APIGatewayProxyResponse {
 	av, err := attributevalue.MarshalMap(post)
 	if err != nil {
 		resp, _ := errorResponse(500, "failed to marshal post")
 		return &resp
 	}
 
-	if requestBuild {
-		_, err = client.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: []types.TransactWriteItem{
-			{Put: &types.Put{TableName: &tableName, Item: av}},
-			sitebuild.RequestUpdate(tableName, time.Now()),
-		}})
+	condition, names, values := poststore.VersionCondition(existing.Version)
+	put := &types.Put{TableName: &tableName, Item: av, ConditionExpression: condition, ExpressionAttributeNames: names, ExpressionAttributeValues: values}
+	if requestBuild || post.Slug != nil {
+		items := []types.TransactWriteItem{{Put: put}}
+		if post.Slug != nil {
+			items = append(items, poststore.ReserveSlug(tableName, *post.Slug, post.ID))
+		}
+		if existing.Slug != nil && (post.Slug == nil || *post.Slug != *existing.Slug) {
+			items = append(items, poststore.ReleaseSlug(tableName, *existing.Slug, post.ID))
+		}
+		if requestBuild {
+			items = append(items, sitebuild.RequestUpdate(tableName, time.Now()))
+		}
+		_, err = client.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: items})
 	} else {
-		_, err = client.PutItem(ctx, &dynamodb.PutItemInput{TableName: &tableName, Item: av})
+		_, err = client.PutItem(ctx, &dynamodb.PutItemInput{TableName: &tableName, Item: av, ConditionExpression: condition, ExpressionAttributeNames: names, ExpressionAttributeValues: values})
+	}
+	if poststore.IsConflict(err) {
+		resp, _ := errorResponse(409, "post or slug changed; reload before saving")
+		return &resp
 	}
 	if err != nil {
 		resp, _ := errorResponse(500, "failed to update post")
