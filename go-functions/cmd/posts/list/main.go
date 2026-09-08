@@ -60,6 +60,10 @@ var dynamoClientGetter = func() (DynamoDBClientInterface, error) {
 
 // ListPostsResponseItem represents a post item in the list response (without contentMarkdown)
 type ListPostsResponseItem struct {
+	Slug          *string  `json:"slug,omitempty"`
+	Excerpt       *string  `json:"excerpt,omitempty"`
+	CoverImageURL *string  `json:"coverImageUrl,omitempty"`
+	Version       int64    `json:"version"`
 	ID            string   `json:"id"`
 	Title         string   `json:"title"`
 	ContentHTML   string   `json:"contentHtml"`
@@ -327,6 +331,7 @@ func processResults(items []map[string]types.AttributeValue) []ListPostsResponse
 
 		// Convert to response item (without contentMarkdown)
 		responseItem := ListPostsResponseItem{
+			Slug: post.Slug, Excerpt: post.Excerpt, CoverImageURL: post.CoverImageURL, Version: post.Version,
 			ID:            post.ID,
 			Title:         post.Title,
 			ContentHTML:   post.ContentHTML,

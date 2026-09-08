@@ -23,8 +23,9 @@ const (
 
 // MockDynamoDBClient is a mock implementation of DynamoDBClientInterface
 type MockDynamoDBClient struct {
-	PutItemFunc func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
-	QueryFunc   func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
+	TransactFunc func(context.Context, *dynamodb.TransactWriteItemsInput) (*dynamodb.TransactWriteItemsOutput, error)
+	PutItemFunc  func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
+	QueryFunc    func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
 }
 
 func (m *MockDynamoDBClient) GetItem(_ context.Context, _ *dynamodb.GetItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
@@ -36,6 +37,9 @@ func (m *MockDynamoDBClient) UpdateItem(_ context.Context, _ *dynamodb.UpdateIte
 }
 
 func (m *MockDynamoDBClient) TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, _ ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+	if m.TransactFunc != nil {
+		return m.TransactFunc(ctx, params)
+	}
 	if len(params.TransactItems) > 0 && params.TransactItems[0].Put != nil && m.PutItemFunc != nil {
 		_, err := m.PutItemFunc(ctx, &dynamodb.PutItemInput{TableName: params.TransactItems[0].Put.TableName, Item: params.TransactItems[0].Put.Item})
 		if err != nil {
@@ -2039,5 +2043,28 @@ func TestHandler_InvalidSlug_Returns400(t *testing.T) {
 	})
 	if resp.StatusCode != 400 {
 		t.Errorf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandler_AtomicSlugConflictDespiteStaleIndex(t *testing.T) {
+	defer setupTest(t)()
+	mock := &MockDynamoDBClient{
+		// Empty GSI result must not override the atomic reservation failure.
+		TransactFunc: func(_ context.Context, in *dynamodb.TransactWriteItemsInput) (*dynamodb.TransactWriteItemsOutput, error) {
+			if len(in.TransactItems) != 2 {
+				t.Fatalf("draft post and slug must commit together: %d", len(in.TransactItems))
+			}
+			claim := in.TransactItems[1].Put
+			if claim == nil || claim.Item["id"].(*types.AttributeValueMemberS).Value != "SLUG#same-slug" || claim.ConditionExpression == nil {
+				t.Fatal("missing conditional slug reservation")
+			}
+			code := "ConditionalCheckFailed"
+			return nil, &types.TransactionCanceledException{CancellationReasons: []types.CancellationReason{{Code: &code}}}
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mock, nil }
+	response, err := Handler(context.Background(), events.APIGatewayProxyRequest{Body: `{"title":"Test","contentMarkdown":"Body","category":"tech","publishStatus":"draft","slug":"same-slug"}`, RequestContext: events.APIGatewayProxyRequestContext{Authorizer: map[string]interface{}{"claims": map[string]interface{}{"sub": testAuthorID}}}})
+	if err != nil || response.StatusCode != 409 {
+		t.Fatalf("expected conflict: %+v %v", response, err)
 	}
 }

@@ -426,7 +426,7 @@ func TestHandler_MissingTableName(t *testing.T) {
 	}
 }
 
-// TestHandler_MissingBucketName tests 500 response when BUCKET_NAME is not set and images exist
+// TestHandler_MissingBucketName retains deletion success when cleanup is unconfigured
 func TestHandler_MissingBucketName(t *testing.T) {
 	t.Setenv("TABLE_NAME", testTableName)
 	t.Setenv("BUCKET_NAME", "")
@@ -442,6 +442,9 @@ func TestHandler_MissingBucketName(t *testing.T) {
 	av := marshalPost(t, existingPost)
 
 	mockDynamoClient := &MockDynamoDBClient{
+		DeleteItemFunc: func(context.Context, *dynamodb.DeleteItemInput, ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+			return &dynamodb.DeleteItemOutput{}, nil
+		},
 		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 			return &dynamodb.GetItemOutput{Item: av}, nil
 		},
@@ -458,17 +461,8 @@ func TestHandler_MissingBucketName(t *testing.T) {
 		t.Fatalf("Handler returned unexpected error: %v", err)
 	}
 
-	if resp.StatusCode != 500 {
-		t.Errorf("expected status 500, got %d", resp.StatusCode)
-	}
-
-	var errResp domain.ErrorResponse
-	if err := json.Unmarshal([]byte(resp.Body), &errResp); err != nil {
-		t.Fatalf("failed to unmarshal response: %v", err)
-	}
-
-	if errResp.Message != "server configuration error" {
-		t.Errorf("expected error message %q, got %q", "server configuration error", errResp.Message)
+	if resp.StatusCode != 204 {
+		t.Errorf("committed deletion must return 204 despite cleanup failure, got %d", resp.StatusCode)
 	}
 }
 
@@ -580,7 +574,7 @@ func TestHandler_DynamoDBDeleteItemError(t *testing.T) {
 	}
 }
 
-// TestHandler_S3ClientInitError tests 500 response when S3 client fails to initialize
+// TestHandler_S3ClientInitError retains deletion success when cleanup initialization fails
 func TestHandler_S3ClientInitError(t *testing.T) {
 	cleanup := setupTest(t)
 	defer cleanup()
@@ -589,6 +583,9 @@ func TestHandler_S3ClientInitError(t *testing.T) {
 	av := marshalPost(t, existingPost)
 
 	mockDynamoClient := &MockDynamoDBClient{
+		DeleteItemFunc: func(context.Context, *dynamodb.DeleteItemInput, ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+			return &dynamodb.DeleteItemOutput{}, nil
+		},
 		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 			return &dynamodb.GetItemOutput{Item: av}, nil
 		},
@@ -608,21 +605,12 @@ func TestHandler_S3ClientInitError(t *testing.T) {
 		t.Fatalf("Handler returned unexpected error: %v", err)
 	}
 
-	if resp.StatusCode != 500 {
-		t.Errorf("expected status 500, got %d", resp.StatusCode)
-	}
-
-	var errResp domain.ErrorResponse
-	if err := json.Unmarshal([]byte(resp.Body), &errResp); err != nil {
-		t.Fatalf("failed to unmarshal response: %v", err)
-	}
-
-	if errResp.Message != "server error" {
-		t.Errorf("expected error message %q, got %q", "server error", errResp.Message)
+	if resp.StatusCode != 204 {
+		t.Errorf("committed deletion must return 204 despite cleanup failure, got %d", resp.StatusCode)
 	}
 }
 
-// TestHandler_S3DeleteObjectsError tests 500 response when S3 DeleteObjects fails
+// TestHandler_S3DeleteObjectsError retains deletion success when cleanup fails
 func TestHandler_S3DeleteObjectsError(t *testing.T) {
 	cleanup := setupTest(t)
 	defer cleanup()
@@ -631,6 +619,9 @@ func TestHandler_S3DeleteObjectsError(t *testing.T) {
 	av := marshalPost(t, existingPost)
 
 	mockDynamoClient := &MockDynamoDBClient{
+		DeleteItemFunc: func(context.Context, *dynamodb.DeleteItemInput, ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+			return &dynamodb.DeleteItemOutput{}, nil
+		},
 		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 			return &dynamodb.GetItemOutput{Item: av}, nil
 		},
@@ -656,17 +647,8 @@ func TestHandler_S3DeleteObjectsError(t *testing.T) {
 		t.Fatalf("Handler returned unexpected error: %v", err)
 	}
 
-	if resp.StatusCode != 500 {
-		t.Errorf("expected status 500, got %d", resp.StatusCode)
-	}
-
-	var errResp domain.ErrorResponse
-	if err := json.Unmarshal([]byte(resp.Body), &errResp); err != nil {
-		t.Fatalf("failed to unmarshal response: %v", err)
-	}
-
-	if errResp.Message != "failed to delete images" {
-		t.Errorf("expected error message %q, got %q", "failed to delete images", errResp.Message)
+	if resp.StatusCode != 204 {
+		t.Errorf("committed deletion must return 204 despite cleanup failure, got %d", resp.StatusCode)
 	}
 }
 
@@ -1206,4 +1188,28 @@ func TestTriggerSiteBuild_ClientError(t *testing.T) {
 
 	// triggerSiteBuild should not panic and should handle error gracefully
 	triggerSiteBuild(context.Background(), &MockDynamoDBClient{}, testTableName)
+}
+
+func TestHandler_ConflictDoesNotDeleteImages(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+	av := marshalPost(t, createTestPostWithImages())
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return &MockDynamoDBClient{
+			GetItemFunc: func(context.Context, *dynamodb.GetItemInput, ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+				return &dynamodb.GetItemOutput{Item: av}, nil
+			},
+			DeleteItemFunc: func(context.Context, *dynamodb.DeleteItemInput, ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+				return nil, &types.ConditionalCheckFailedException{}
+			},
+		}, nil
+	}
+	s3ClientGetter = func() (S3ClientInterface, error) {
+		t.Fatal("must not delete images after a conflicting write")
+		return nil, nil
+	}
+	resp, err := Handler(context.Background(), createAuthenticatedRequest(testPostID))
+	if err != nil || resp.StatusCode != 409 {
+		t.Fatalf("expected conflict, got %d %v", resp.StatusCode, err)
+	}
 }
