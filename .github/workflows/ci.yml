@@ -92,10 +92,11 @@ jobs:
       - name: Check labels
         id: check-labels
         run: |
+          set -euo pipefail
           PR_NUMBER="${{ steps.get-pr.outputs.pr-number }}"
 
           # PRのラベルを取得
-          LABELS=$(gh api /repos/${{ github.repository }}/pulls/$PR_NUMBER --jq '.labels[].name' | tr '\n' ',' || echo "")
+          LABELS=$(gh api /repos/${{ github.repository }}/pulls/$PR_NUMBER --jq '.labels[].name' | tr '\n' ',')
 
           echo "PR Labels: $LABELS"
 
@@ -183,6 +184,9 @@ jobs:
 
       - name: Run Prettier check
         run: bun run format:check
+
+      - name: Test CI configuration guards
+        run: bun run test:unit:config
 
       - name: Lint frontend
         working-directory: frontend/admin
@@ -738,7 +742,7 @@ jobs:
 
       - name: Run Checkov Security Scan
         id: checkov
-        uses: bridgecrewio/checkov-action@9b70310bcd306d11740313070b940167d6b23085 # v12.3115.0
+        uses: bridgecrewio/checkov-action@f967808197a8d784d3e72919f38c3ff0cda7884e # v12.3122.0
         with:
           directory: terraform
           config_file: terraform/.checkov.yaml
@@ -765,7 +769,7 @@ jobs:
         # Code Scanning API rate limit can fail this step when many Dependabot PRs
         # run concurrently. SARIF visibility is best-effort, so don't fail the job.
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           sarif_file: results.sarif
           category: checkov-terraform
@@ -891,7 +895,7 @@ jobs:
           terraform-wrapper: 'false'
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -1007,7 +1011,7 @@ jobs:
           terraform-wrapper: 'false'
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -1451,6 +1455,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs:
+      - verify-go-toolchain
       - setup-labels
       - lint
       - typecheck
@@ -1476,7 +1481,7 @@ jobs:
       - coverage-check
       # Deploy scripts
       - deploy-scripts-tests
-    if: always()
+    if: ${{ !cancelled() }}
 
     steps:
       - name: Check job results
@@ -1526,26 +1531,15 @@ jobs:
 
       - name: Verify required checks
         run: |
-          # Every dependency must resolve to "success" (ran and passed) or
-          # "skipped" (its `if:` gate correctly excluded it - e.g. no
-          # matching label, or no terraform test targets changed on this
-          # PR). Anything else - "failure", "cancelled", or an unexpected
-          # empty value - fails the gate.
-          #
-          # Previously this only checked for the literal string "failure",
-          # so a *cancelled* job passed silently. Worse, if
-          # terraform-merge-artifacts failed, both terraform-plan-dev and
-          # terraform-plan-prd become "skipped" (their `if:` requires the
-          # merge job to succeed) - skipped != failure, so CI reported
-          # green even though the merge step was broken. Checking
-          # terraform-merge-artifacts and terraform-security-scan directly
-          # here closes that hole.
+          # Required jobs must succeed. Only jobs excluded by their explicit
+          # label/base/target gate may be skipped; failures always fail closed.
           FAILED=false
 
           check_required() {
             local name="$1"
             local result="$2"
-            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+            local required="${3:-true}"
+            if [ "$result" != "success" ] && { [ "$result" != "skipped" ] || [ "$required" != "false" ]; }; then
               echo "❌ $name: $result"
               FAILED=true
             else
@@ -1553,26 +1547,28 @@ jobs:
             fi
           }
 
+          check_required "Label Setup" "${{ needs.setup-labels.result }}"
+          check_required "Go Toolchain" "${{ needs.verify-go-toolchain.result }}"
           check_required "Lint" "${{ needs.lint.result }}"
           check_required "Type Check" "${{ needs.typecheck.result }}"
-          check_required "Go Lint" "${{ needs.go-lint.result }}"
-          check_required "Go Tests" "${{ needs.go-tests.result }}"
-          check_required "Terraform Format" "${{ needs.terraform-fmt.result }}"
-          check_required "Terraform Build Lambdas" "${{ needs.terraform-build-lambdas.result }}"
-          check_required "Terraform Merge Artifacts" "${{ needs.terraform-merge-artifacts.result }}"
-          check_required "Terraform Validate (DEV)" "${{ needs.terraform-validate-dev.result }}"
-          check_required "Terraform Validate (PRD)" "${{ needs.terraform-validate-prd.result }}"
-          check_required "Terraform Security Scan" "${{ needs.terraform-security-scan.result }}"
-          check_required "Terraform Test - Determine Targets" "${{ needs.terraform-test-matrix-prep.result }}"
-          check_required "Terraform Test" "${{ needs.terraform-test.result }}"
-          check_required "Terraform Plan (DEV)" "${{ needs.terraform-plan-dev.result }}"
-          check_required "Terraform Plan (PRD)" "${{ needs.terraform-plan-prd.result }}"
-          check_required "Frontend Astro Tests" "${{ needs.frontend-astro-tests.result }}"
-          check_required "Frontend Admin Tests" "${{ needs.frontend-admin-tests.result }}"
-          check_required "E2E Public" "${{ needs.e2e-public-tests.result }}"
-          check_required "E2E Admin" "${{ needs.e2e-admin-tests.result }}"
-          check_required "Coverage Badges" "${{ needs.coverage-check.result }}"
-          check_required "Deploy Scripts Tests" "${{ needs.deploy-scripts-tests.result }}"
+          check_required "Go Lint" "${{ needs.go-lint.result }}" "${{ needs.setup-labels.outputs.has-go == 'true' }}"
+          check_required "Go Tests" "${{ needs.go-tests.result }}" "${{ needs.setup-labels.outputs.has-go == 'true' }}"
+          check_required "Terraform Format" "${{ needs.terraform-fmt.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
+          check_required "Terraform Build Lambdas" "${{ needs.terraform-build-lambdas.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
+          check_required "Terraform Merge Artifacts" "${{ needs.terraform-merge-artifacts.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
+          check_required "Terraform Validate (DEV)" "${{ needs.terraform-validate-dev.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && github.base_ref == 'develop' }}"
+          check_required "Terraform Validate (PRD)" "${{ needs.terraform-validate-prd.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && github.base_ref == 'main' }}"
+          check_required "Terraform Security Scan" "${{ needs.terraform-security-scan.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
+          check_required "Terraform Test - Determine Targets" "${{ needs.terraform-test-matrix-prep.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
+          check_required "Terraform Test" "${{ needs.terraform-test.result }}" "${{ needs.terraform-test-matrix-prep.outputs.has-targets == 'true' }}"
+          check_required "Terraform Plan (DEV)" "${{ needs.terraform-plan-dev.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && github.base_ref == 'develop' }}"
+          check_required "Terraform Plan (PRD)" "${{ needs.terraform-plan-prd.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && github.base_ref == 'main' }}"
+          check_required "Frontend Astro Tests" "${{ needs.frontend-astro-tests.result }}" "${{ needs.setup-labels.outputs.has-frontend == 'true' }}"
+          check_required "Frontend Admin Tests" "${{ needs.frontend-admin-tests.result }}" "${{ needs.setup-labels.outputs.has-frontend == 'true' }}"
+          check_required "E2E Public" "${{ needs.e2e-public-tests.result }}" "${{ needs.setup-labels.outputs.has-frontend == 'true' }}"
+          check_required "E2E Admin" "${{ needs.e2e-admin-tests.result }}" "${{ needs.setup-labels.outputs.has-frontend == 'true' }}"
+          check_required "Coverage Badges" "${{ needs.coverage-check.result }}" "${{ needs.setup-labels.outputs.has-go == 'true' || needs.setup-labels.outputs.has-frontend == 'true' }}"
+          check_required "Deploy Scripts Tests" "${{ needs.deploy-scripts-tests.result }}" "${{ needs.setup-labels.outputs.has-deploy-scripts == 'true' }}"
 
           if [ "$FAILED" = true ]; then
             echo ""
