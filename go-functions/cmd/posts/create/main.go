@@ -30,6 +30,7 @@ import (
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/markdown"
 	"serverless-blog/go-functions/internal/middleware"
+	"serverless-blog/go-functions/internal/poststore"
 	"serverless-blog/go-functions/internal/sitebuild"
 )
 
@@ -153,6 +154,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	// Create post entity
 	post := domain.BlogPost{
+		Version:         1,
 		ID:              postID,
 		Title:           req.Title,
 		ContentMarkdown: req.ContentMarkdown,
@@ -177,21 +179,27 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	}
 
 	var siteBuildRequest *sitebuild.Request
-	if publishStatus == domain.PublishStatusPublished {
-		_, err = dynamoClient.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: []types.TransactWriteItem{
-			{Put: &types.Put{TableName: &tableName, Item: av}},
-			sitebuild.RequestUpdate(tableName, time.Now()),
-		}})
-		if err != nil {
-			return errorResponse(500, "failed to create post")
+	if publishStatus == domain.PublishStatusPublished || post.Slug != nil {
+		items := []types.TransactWriteItem{{Put: &types.Put{TableName: &tableName, Item: av, ConditionExpression: aws.String("attribute_not_exists(id)")}}}
+		if post.Slug != nil {
+			items = append(items, poststore.ReserveSlug(tableName, *post.Slug, post.ID))
 		}
+		if publishStatus == domain.PublishStatusPublished {
+			items = append(items, sitebuild.RequestUpdate(tableName, time.Now()))
+		}
+		_, err = dynamoClient.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: items})
+	} else {
+		_, err = dynamoClient.PutItem(ctx, &dynamodb.PutItemInput{TableName: &tableName, Item: av, ConditionExpression: aws.String("attribute_not_exists(id)")})
+	}
+	if poststore.IsConflict(err) {
+		return errorResponse(409, "post with this slug already exists")
+	}
+	if err != nil {
+		return errorResponse(500, "failed to create post")
+	}
+	if publishStatus == domain.PublishStatusPublished {
 		request := triggerSiteBuild(ctx, dynamoClient, tableName)
 		siteBuildRequest = &request
-	} else {
-		_, err = dynamoClient.PutItem(ctx, &dynamodb.PutItemInput{TableName: &tableName, Item: av})
-		if err != nil {
-			return errorResponse(500, "failed to create post")
-		}
 	}
 
 	// Return created post with 201 status

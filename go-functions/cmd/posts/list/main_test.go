@@ -2979,3 +2979,18 @@ func TestHandler_CacheControl(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessResults_PreservesPublicMetadata(t *testing.T) {
+	slug, excerpt, cover := "friendly-slug", "Custom summary", "https://example.com/cover.png"
+	post := createTestPost("post-1", domain.PublishStatusPublished, "tech", "2026-09-08T00:00:00Z")
+	post.Slug, post.Excerpt, post.CoverImageURL = &slug, &excerpt, &cover
+	post.Version = 4
+	item, err := attributevalue.MarshalMap(post)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := processResults([]map[string]types.AttributeValue{item})
+	if len(items) != 1 || items[0].Slug == nil || *items[0].Slug != slug || items[0].Excerpt == nil || *items[0].Excerpt != excerpt || items[0].CoverImageURL == nil || *items[0].CoverImageURL != cover || items[0].Version != 4 {
+		t.Fatalf("lost metadata: %+v", items)
+	}
+}

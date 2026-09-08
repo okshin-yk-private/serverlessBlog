@@ -33,6 +33,7 @@ import (
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/middleware"
+	"serverless-blog/go-functions/internal/poststore"
 	"serverless-blog/go-functions/internal/sitebuild"
 )
 
@@ -93,7 +94,8 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	// Get existing post from DynamoDB
 	getInput := &dynamodb.GetItemInput{
-		TableName: &tableName,
+		TableName:      &tableName,
+		ConsistentRead: boolPtr(true),
 		Key: map[string]types.AttributeValue{
 			"id": &types.AttributeValueMemberS{Value: postID},
 		},
@@ -120,22 +122,10 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return errorResponse(403, "forbidden: you can only delete your own posts")
 	}
 
-	// Delete associated images from S3 if any
-	if errResp := deletePostImages(ctx, existingPost); errResp != nil {
-		return *errResp, nil
-	}
-
 	isPublished := existingPost.PublishStatus == domain.PublishStatusPublished
-	if isPublished {
-		_, err = dynamoClient.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: []types.TransactWriteItem{
-			{Delete: &types.Delete{TableName: &tableName, Key: map[string]types.AttributeValue{"id": &types.AttributeValueMemberS{Value: postID}}}},
-			sitebuild.RequestUpdate(tableName, time.Now()),
-		}})
-	} else {
-		_, err = dynamoClient.DeleteItem(ctx, &dynamodb.DeleteItemInput{
-			TableName: &tableName,
-			Key:       map[string]types.AttributeValue{"id": &types.AttributeValueMemberS{Value: postID}},
-		})
+	err = deletePostRecord(ctx, dynamoClient, tableName, existingPost)
+	if poststore.IsConflict(err) {
+		return errorResponse(409, "post changed; reload before deleting")
 	}
 	if err != nil {
 		return errorResponse(500, "failed to delete post")
@@ -147,12 +137,38 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		triggerSiteBuild(ctx, dynamoClient, tableName)
 	}
 
+	// The record is committed first: a failed version check must not remove images.
+	// Cleanup failure cannot undo the deletion; retain an operational warning.
+	if cleanupErr := deletePostImages(ctx, existingPost); cleanupErr != nil {
+		slog.Warn("post deleted but image cleanup failed", "postId", postID, "response", cleanupErr.Body)
+	}
+
 	// Return 204 No Content
 	return events.APIGatewayProxyResponse{
 		StatusCode: 204,
 		Headers:    middleware.CORSHeaders(),
 		Body:       "",
 	}, nil
+}
+
+func deletePostRecord(ctx context.Context, dynamoClient DynamoDBClientInterface, tableName string, post domain.BlogPost) error {
+	var err error
+	isPublished := post.PublishStatus == domain.PublishStatusPublished
+	condition, names, values := poststore.VersionCondition(post.Version)
+	deletion := &types.Delete{TableName: &tableName, Key: map[string]types.AttributeValue{"id": &types.AttributeValueMemberS{Value: post.ID}}, ConditionExpression: condition, ExpressionAttributeNames: names, ExpressionAttributeValues: values}
+	if isPublished || post.Slug != nil {
+		items := []types.TransactWriteItem{{Delete: deletion}}
+		if post.Slug != nil {
+			items = append(items, poststore.ReleaseSlug(tableName, *post.Slug, post.ID))
+		}
+		if isPublished {
+			items = append(items, sitebuild.RequestUpdate(tableName, time.Now()))
+		}
+		_, err = dynamoClient.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: items})
+	} else {
+		_, err = dynamoClient.DeleteItem(ctx, &dynamodb.DeleteItemInput{TableName: deletion.TableName, Key: deletion.Key, ConditionExpression: condition, ExpressionAttributeNames: names, ExpressionAttributeValues: values})
+	}
+	return err
 }
 
 // deletePostImages deletes associated images from S3
@@ -201,7 +217,8 @@ func deletePostImages(ctx context.Context, post domain.BlogPost) *events.APIGate
 			},
 		}
 
-		if _, s3DeleteErr := s3Client.DeleteObjects(ctx, s3DeleteInput); s3DeleteErr != nil {
+		result, s3DeleteErr := s3Client.DeleteObjects(ctx, s3DeleteInput)
+		if s3DeleteErr != nil || (result != nil && len(result.Errors) > 0) {
 			resp, _ := errorResponse(500, "failed to delete images")
 			return &resp
 		}
