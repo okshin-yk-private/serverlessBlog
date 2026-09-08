@@ -86,3 +86,18 @@ export function sortPostsByDate(posts: Post[]): Post[] {
     return dateB - dateA;
   });
 }
+
+/** Build canonical routes plus legacy ID aliases, refusing ambiguous paths. */
+export function getPostStaticPaths(posts: Post[]) {
+  const owners = new Map<string, string>();
+  return posts.flatMap((post) => {
+    const slug = getPostPathSegment(post);
+    const segments = slug === post.id ? [slug] : [slug, post.id];
+    return segments.map((segment) => {
+      if (owners.has(segment))
+        throw new Error(`Duplicate post path: ${segment}`);
+      owners.set(segment, post.id);
+      return { params: { slug: segment }, props: { post } };
+    });
+  });
+}

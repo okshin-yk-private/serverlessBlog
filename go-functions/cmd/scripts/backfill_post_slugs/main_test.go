@@ -22,6 +22,12 @@ type mockDDB struct {
 	updateFn func(context.Context, *dynamodb.UpdateItemInput, ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error)
 }
 
+func (m *mockDDB) TransactWriteItems(ctx context.Context, in *dynamodb.TransactWriteItemsInput, opts ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+	u := in.TransactItems[0].Update
+	_, err := m.updateFn(ctx, &dynamodb.UpdateItemInput{TableName: u.TableName, Key: u.Key, UpdateExpression: u.UpdateExpression, ConditionExpression: u.ConditionExpression, ExpressionAttributeNames: u.ExpressionAttributeNames, ExpressionAttributeValues: u.ExpressionAttributeValues}, opts...)
+	return &dynamodb.TransactWriteItemsOutput{}, err
+}
+
 func (m *mockDDB) Scan(ctx context.Context, in *dynamodb.ScanInput, opts ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 	return m.scanFn(ctx, in, opts...)
 }
@@ -153,7 +159,7 @@ func TestWriteSlug_OK(t *testing.T) {
 	if captured == nil {
 		t.Fatal("UpdateItem not called")
 	}
-	if *captured.UpdateExpression != "SET slug = :s" {
+	if *captured.UpdateExpression != "SET slug = :s ADD #version :one" {
 		t.Errorf("unexpected expression: %s", *captured.UpdateExpression)
 	}
 	got := captured.ExpressionAttributeValues[":s"].(*types.AttributeValueMemberS).Value

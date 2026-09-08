@@ -371,7 +371,12 @@ export const handlers = [
       );
     }
 
-    const newPost = createMockPost(body);
+    const newPost = createMockPost({
+      ...body,
+      publishStatus:
+        body.saveMode === 'autosave' ? 'draft' : body.publishStatus,
+      version: 1,
+    });
     mockPosts.unshift(newPost);
 
     return HttpResponse.json(
@@ -411,6 +416,7 @@ export const handlers = [
 
     const { id } = params;
     const body = (await request.json()) as {
+      version?: number;
       title?: string;
       contentMarkdown?: string;
       category?: string;
@@ -440,10 +446,23 @@ export const handlers = [
     }
 
     const wasPublished = mockPosts[postIndex].publishStatus === 'published';
+    if (
+      body.version !== mockPosts[postIndex].version ||
+      (wasPublished && body.saveMode === 'autosave')
+    ) {
+      return HttpResponse.json(
+        { message: 'post changed or requires manual save' },
+        { status: 409 }
+      );
+    }
     const updatedPost = {
       ...mockPosts[postIndex],
       ...body,
-      contentHtml: `<p>${body.contentMarkdown}</p>`,
+      version: mockPosts[postIndex].version + 1,
+      contentHtml:
+        body.contentMarkdown === undefined
+          ? mockPosts[postIndex].contentHtml
+          : `<p>${body.contentMarkdown}</p>`,
       updatedAt: new Date().toISOString(),
     };
 

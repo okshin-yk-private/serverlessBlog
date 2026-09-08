@@ -96,8 +96,8 @@ export default defineConfig({
   // E2Eテスト時にMSWモックを有効化
   // --mode testでviteを実行し、.env.testファイルから環境変数を読み込む
   webServer: {
-    command: 'cd frontend/admin && npm run dev:e2e',
-    url: 'http://localhost:3001',
+    command: `cd frontend/admin && bun run dev:e2e --host 127.0.0.1 --port ${process.env.ADMIN_DEV_PORT || '3001'} --strictPort`,
+    url: process.env.ADMIN_BASE_URL || 'http://localhost:3001',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },

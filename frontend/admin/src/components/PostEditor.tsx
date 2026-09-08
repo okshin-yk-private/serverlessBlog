@@ -53,7 +53,7 @@ export interface CategoryOption {
 }
 
 interface PostEditorProps {
-  onSave: (data: PostData) => Promise<void>;
+  onSave: (data: PostData) => Promise<void | boolean>;
   onCancel: () => void;
   initialData?: PostData;
   /** 画像アップロード関数 (省略時は api/posts.uploadImage) */
@@ -129,6 +129,9 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
     const [metadataError, setMetadataError] = useState<string | null>(null);
 
     const [isSaving, setIsSaving] = useState(false);
+    const [savedPublishStatus, setSavedPublishStatus] = useState(
+      initialData?.publishStatus ?? 'draft'
+    );
 
     // 画像アップロードのエラー表示 (UploadImage 拡張からのコールバック)
     const [uploadError, setUploadError] = useState<{
@@ -155,30 +158,33 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
       saveMode: 'autosave',
       ...(meta.category ? { category: meta.category } : {}),
       slug: meta.slug || undefined,
-      excerpt: meta.excerpt || undefined,
-      coverImageUrl: meta.coverImageUrl || undefined,
+      excerpt: meta.excerpt,
+      coverImageUrl: meta.coverImageUrl,
     };
     const noopAutosave = useRef(async () => {}).current;
     const autosave = useAutosave<AutosavePostData>({
       data: autosaveData,
       save: onAutosave ?? noopAutosave,
-      enabled: !!onAutosave,
+      enabled: !!onAutosave && initialData?.publishStatus !== 'published',
       isReady: (d) =>
         d.title.trim().length > 0 && d.contentMarkdown.trim().length > 0,
     });
+
+    const isDirty =
+      autosave.isDirty || meta.publishStatus !== savedPublishStatus;
 
     // 未保存状態でブラウザ閉じ/リロードを警告 (beforeunload)
     useEffect(() => {
       if (!onAutosave) return;
       const handler = (e: BeforeUnloadEvent) => {
-        if (!autosave.isDirty) return;
+        if (!isDirty) return;
         e.preventDefault();
         // Modern browsers ignore the message but require returnValue to be set
         e.returnValue = '';
       };
       window.addEventListener('beforeunload', handler);
       return () => window.removeEventListener('beforeunload', handler);
-    }, [onAutosave, autosave.isDirty]);
+    }, [onAutosave, isDirty]);
 
     // Refresh Preview HTML whenever the writer toggles to the preview tab or
     // edits markdown. We grab Tiptap's getHTML() to mirror the exact node tree
@@ -263,29 +269,34 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
       // 保存処理
       setIsSaving(true);
       try {
-        await onSave({
+        await autosave.pauseAndWait();
+        const saved = await onSave({
           title,
           contentMarkdown,
           category: meta.category,
           tags: meta.tags,
           publishStatus: meta.publishStatus,
           slug: meta.slug || undefined,
-          excerpt: meta.excerpt || undefined,
-          coverImageUrl: meta.coverImageUrl || undefined,
+          excerpt: meta.excerpt,
+          coverImageUrl: meta.coverImageUrl,
         });
         // autosave hook の baseline を現在値に揃える
         // (これがないと explicit save 後も isDirty=true のままになる)
-        if (onAutosave) {
+        if (onAutosave && saved !== false) {
           autosave.markClean();
+          setSavedPublishStatus(meta.publishStatus);
         }
+      } catch {
+        // The page displays the API error; preserve the dirty baseline.
       } finally {
+        autosave.resume();
         setIsSaving(false);
       }
     };
 
     const handleCancelClick = () => {
       // autosave 有効かつ未保存変更がある場合のみ確認ダイアログを表示
-      if (onAutosave && autosave.isDirty) {
+      if (onAutosave && isDirty) {
         const confirmed = window.confirm(
           '未保存の変更があります。本当にキャンセルしますか？'
         );
@@ -485,7 +496,9 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
                 }`}
                 aria-live="polite"
               >
-                {autosave.savedAgoLabel}
+                {initialData?.publishStatus === 'published'
+                  ? '公開中の記事は保存ボタンで反映されます'
+                  : autosave.savedAgoLabel}
               </span>
             )}
           </div>

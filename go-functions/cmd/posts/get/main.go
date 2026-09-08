@@ -12,6 +12,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -61,7 +62,8 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	// Get the post from DynamoDB
 	getInput := &dynamodb.GetItemInput{
-		TableName: &tableName,
+		TableName:      &tableName,
+		ConsistentRead: aws.Bool(true),
 		Key: map[string]types.AttributeValue{
 			"id": &types.AttributeValueMemberS{Value: postID},
 		},
