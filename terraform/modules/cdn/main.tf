@@ -374,6 +374,15 @@ async function handler(event) {
     }
   }
 
+  // Release prefixes are internal origin paths, never viewer-facing routes.
+  var decodedUri;
+  try { decodedUri = decodeURIComponent(uri); } catch (error) { decodedUri = '/releases'; }
+  if (decodedUri === '/releases' || decodedUri.indexOf('/releases/') === 0 ||
+      /(^|\/)\.{1,2}(\/|$)/.test(decodedUri)) {
+    return { statusCode: 404, statusDescription: 'Not Found',
+      headers: { 'cache-control': { value: 'no-store' } } };
+  }
+
   // These paths use separate origins/cache behaviors and are never versioned.
   if (uri === '/_astro' || uri.indexOf('/_astro/') === 0 ||
       uri === '/api' ||
@@ -381,8 +390,7 @@ async function handler(event) {
       uri === '/admin' ||
       uri.indexOf('/admin/') === 0 ||
       uri === '/images' ||
-      uri.indexOf('/images/') === 0 ||
-      uri.indexOf('/releases/') === 0) {
+      uri.indexOf('/images/') === 0) {
     return request;
   }
 
@@ -464,6 +472,15 @@ async function handler(event) {
     }
   }
 
+  // Release prefixes are internal origin paths, never viewer-facing routes.
+  var decodedUri;
+  try { decodedUri = decodeURIComponent(uri); } catch (error) { decodedUri = '/releases'; }
+  if (decodedUri === '/releases' || decodedUri.indexOf('/releases/') === 0 ||
+      /(^|\/)\.{1,2}(\/|$)/.test(decodedUri)) {
+    return { statusCode: 404, statusDescription: 'Not Found',
+      headers: { 'cache-control': { value: 'no-store' } } };
+  }
+
   // These paths use separate origins/cache behaviors and are never versioned.
   if (uri === '/_astro' || uri.indexOf('/_astro/') === 0 ||
       uri === '/api' ||
@@ -471,8 +488,7 @@ async function handler(event) {
       uri === '/admin' ||
       uri.indexOf('/admin/') === 0 ||
       uri === '/images' ||
-      uri.indexOf('/images/') === 0 ||
-      uri.indexOf('/releases/') === 0) {
+      uri.indexOf('/images/') === 0) {
     return request;
   }
 

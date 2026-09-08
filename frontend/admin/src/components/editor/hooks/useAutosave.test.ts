@@ -318,3 +318,49 @@ describe('useAutosave', () => {
     expect(result.current.savedAgoLabel).toMatch(/保存済み/);
   });
 });
+
+describe('manual save coordination', () => {
+  it('waits for the in-flight autosave and suppresses subsequent flushes until resumed', async () => {
+    let complete!: () => void;
+    const save = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          complete = resolve;
+        })
+    );
+    const { result, rerender } = renderHook(
+      ({ data }) => useAutosave({ data, save }),
+      { initialProps: { data: 'old' } }
+    );
+    rerender({ data: 'autosaved' });
+    let flushing!: Promise<void>;
+    act(() => {
+      flushing = result.current.flush();
+    });
+    expect(save).toHaveBeenCalledTimes(1);
+    let paused = false;
+    let waiting!: Promise<void>;
+    act(() => {
+      waiting = result.current.pauseAndWait().then(() => {
+        paused = true;
+      });
+    });
+    expect(paused).toBe(false);
+    rerender({ data: 'manual' });
+    await act(async () => {
+      complete();
+      await flushing;
+      await waiting;
+    });
+    expect(paused).toBe(true);
+    await act(async () => {
+      await result.current.flush();
+    });
+    expect(save).toHaveBeenCalledTimes(1);
+    act(() => {
+      result.current.markClean();
+      result.current.resume();
+    });
+    expect(result.current.isDirty).toBe(false);
+  });
+});
