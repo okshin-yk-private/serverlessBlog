@@ -4,7 +4,7 @@
  *
  * `/posts/<slug>/index.html` として静的生成する。slug を持たない記事は
  * `/posts/<id>/index.html` にフォールバックする。
- * SEO の canonical は生成された URL をそのまま採用する。
+ * 既存のID URLも維持し、canonicalはslug URLへ統一する。
  */
 import Layout from '../../layouts/Layout.astro';
 import { fetchAllPosts, type Post } from '../../lib/api';
@@ -15,7 +15,7 @@ import {
   getPostImageUrls,
 } from '../../lib/postDetailUtils';
 import type { JsonLdPost } from '../../lib/jsonLdUtils';
-import { getPostPathSegment } from '../../lib/postUtils';
+import { getPostPathSegment, getPostStaticPaths } from '../../lib/postUtils';
 
 /**
  * getStaticPaths: 全公開記事のパスを生成する。
@@ -28,10 +28,7 @@ import { getPostPathSegment } from '../../lib/postUtils';
 export async function getStaticPaths() {
   const posts = await fetchAllPosts();
 
-  return posts.map((post) => ({
-    params: { slug: getPostPathSegment(post) },
-    props: { post },
-  }));
+  return getPostStaticPaths(posts);
 }
 
 interface Props {
@@ -39,9 +36,9 @@ interface Props {
 }
 
 const { post } = Astro.props;
-const description = generateDescription(post.contentHtml);
+const description = post.excerpt || generateDescription(post.contentHtml);
 const publishedDate = formatPublishedDate(post);
-const firstImage = getFirstImage(post.imageUrls);
+const firstImage = post.coverImageUrl || getFirstImage(post.imageUrls);
 const images = getPostImageUrls(post);
 
 // SEO: publishedAt or createdAt for article meta
@@ -70,6 +67,7 @@ const jsonLdPost: JsonLdPost = {
   publishedAt={articlePublishedAt}
   modifiedAt={articleModifiedAt}
   jsonLdPost={jsonLdPost}
+  canonicalUrl={new URL(`/posts/${getPostPathSegment(post)}/`, Astro.site ?? Astro.url).href}
 >
   <article class="post-detail">
     <header class="post-header">

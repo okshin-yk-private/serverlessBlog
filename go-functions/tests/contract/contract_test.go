@@ -41,7 +41,7 @@ func TestPostsListContract(t *testing.T) {
 					"createdAt": "2024-01-15T09:00:00Z",
 					"updatedAt": "2024-01-15T10:00:00Z",
 					"publishedAt": "2024-01-15T10:00:00Z",
-					"imageUrls": []
+					"imageUrls": [], "version": 1
 				}
 			],
 			"count": 1,
@@ -134,7 +134,7 @@ func TestPostCreateContract(t *testing.T) {
 			"createdAt": "2024-01-01T00:00:00Z",
 			"updatedAt": "2024-01-01T00:00:00Z",
 			"publishedAt": "2024-01-01T00:00:00Z",
-			"imageUrls": []
+			"imageUrls": [], "version": 1
 		}`
 
 		publishedAt := "2024-01-01T00:00:00Z"
@@ -185,7 +185,7 @@ func TestPostUpdateContract(t *testing.T) {
 			"createdAt": "2024-01-15T09:00:00Z",
 			"updatedAt": "2024-01-16T00:00:00Z",
 			"publishedAt": "2024-01-15T10:00:00Z",
-			"imageUrls": []
+			"imageUrls": [], "version": 1
 		}`
 
 		publishedAt := "2024-01-15T10:00:00Z"

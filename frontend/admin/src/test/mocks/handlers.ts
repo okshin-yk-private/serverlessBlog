@@ -109,6 +109,7 @@ export const handlers = [
       items: [
         {
           id: 'post-1',
+          version: 1,
           title: 'テスト記事1',
           category: 'tech',
           publishStatus: 'published',
@@ -129,6 +130,7 @@ export const handlers = [
       items: [
         {
           id: 'post-1',
+          version: 1,
           title: 'テスト記事1',
           category: 'tech',
           publishStatus: 'published',
@@ -147,6 +149,7 @@ export const handlers = [
 
     return HttpResponse.json({
       id: params.id,
+      version: 1,
       title: 'テスト記事',
       contentMarkdown: '# テスト',
       contentHtml: '<h1>テスト</h1>',
@@ -167,6 +170,7 @@ export const handlers = [
     return HttpResponse.json(
       {
         id: 'new-post-id',
+        version: 1,
         title: body.title,
         contentMarkdown: body.contentMarkdown,
         contentHtml: `<p>${body.contentMarkdown}</p>`,
@@ -188,6 +192,7 @@ export const handlers = [
     const body = (await request.json()) as any;
     return HttpResponse.json({
       id: params.id,
+      version: (body.version ?? 0) + 1,
       title: body.title,
       contentMarkdown: body.contentMarkdown,
       contentHtml: `<p>${body.contentMarkdown}</p>`,

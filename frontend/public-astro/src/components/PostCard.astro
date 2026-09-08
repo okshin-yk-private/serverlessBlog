@@ -20,7 +20,7 @@ interface Props {
 }
 
 const { post } = Astro.props;
-const excerpt = generateExcerpt(post.contentHtml, 100);
+const excerpt = post.excerpt || generateExcerpt(post.contentHtml, 100);
 const formattedDate = formatDateJa(post.createdAt);
 
 // PR7: prefer slug-based URL when the post has one; fall back to id for

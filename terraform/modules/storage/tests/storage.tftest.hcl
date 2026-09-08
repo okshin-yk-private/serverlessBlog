@@ -406,14 +406,11 @@ run "public_site_bucket_lifecycle" {
   }
 
   assert {
-    condition = anytrue([
+    condition = alltrue([
       for rule in aws_s3_bucket_lifecycle_configuration.public_site.rule :
-      rule.id == "expire-public-releases" &&
-      rule.status == "Enabled" &&
-      rule.filter[0].prefix == "releases/" &&
-      rule.expiration[0].days == 30
+      length(rule.expiration) == 0
     ])
-    error_message = "Versioned public releases must be retained for 30 days"
+    error_message = "Current public objects must not expire by age; active releases may be old"
   }
 }
 
@@ -477,5 +474,25 @@ run "admin_site_bucket_versioning_and_lifecycle" {
       rule.noncurrent_version_expiration[0].noncurrent_days == 7
     ])
     error_message = "Admin site bucket must retain noncurrent versions for a 7-day rollback window"
+  }
+}
+
+# Only the public-site bucket may expose missing-object status to this distribution.
+run "public_site_missing_object_status" {
+  command = apply
+  variables {
+    project_name                = "serverless-blog"
+    environment                 = "dev"
+    cloudfront_distribution_arn = "arn:aws:cloudfront::123456789012:distribution/TEST"
+  }
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.public_site[0].policy).Statement :
+      statement.Action == "s3:ListBucket" &&
+      statement.Resource == aws_s3_bucket.public_site.arn &&
+      statement.Principal.Service == "cloudfront.amazonaws.com" &&
+      statement.Condition.StringEquals["AWS:SourceArn"] == var.cloudfront_distribution_arn
+    ])
+    error_message = "Missing-object detection must be restricted to the public bucket and the configured distribution"
   }
 }
