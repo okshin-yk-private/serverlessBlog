@@ -7,7 +7,7 @@ import { getTiptapEditor, setEditorContent } from '../utils/tiptapHelpers';
  *
  * - 入力停止後 1.5s 程度で `保存済み` ラベルに遷移する
  * - 新規記事は最初の autosave 完了で URL が /posts/edit/{id} に置換される
- * - 既存記事の編集中も 1.5s で保存される
+ * - 既存下書き記事の編集中も 1.5s で保存される
  *
  * MSW モック環境前提。リロードを跨ぐ復元検証は MSW 側の state が
  * 初期化されてしまうため、本 spec のスコープ外。
@@ -46,11 +46,11 @@ test.describe('Admin Autosave', () => {
     await expect(status).toHaveText(/保存済み/, { timeout: 3000 });
   });
 
-  test('既存記事の編集: 本文変更後 autosave で saved に遷移する', async ({
+  test('既存下書き記事の編集: 本文変更後 autosave で saved に遷移する', async ({
     page,
   }) => {
-    // 既存記事を編集 (mockData の post-1 を利用)
-    await page.goto('posts/edit/post-1');
+    // 既存記事を編集 (mockData の下書き post-5 を利用)
+    await page.goto('posts/edit/post-5');
     await expect(getTiptapEditor(page)).toBeVisible();
 
     const status = page.getByTestId('autosave-status');
@@ -79,5 +79,30 @@ test.describe('Admin Autosave', () => {
     await expect(page).toHaveURL(/\/posts\/new$/);
     const status = page.getByTestId('autosave-status');
     await expect(status).toHaveText(/未保存/);
+  });
+  test('公開中の記事は自動保存せず明示保存だけで更新する', async ({ page }) => {
+    await page.goto('posts/edit/post-1');
+    await expect(getTiptapEditor(page)).toBeVisible();
+    const writes: string[] = [];
+    page.on('request', (request) => {
+      if (
+        request.method() === 'PUT' &&
+        request.url().includes('/admin/posts/post-1')
+      )
+        writes.push(request.postData() ?? '');
+    });
+    await setEditorContent(page, '# 未公開の編集途中');
+    await expect(page.getByTestId('autosave-status')).toHaveText(
+      '公開中の記事は保存ボタンで反映されます'
+    );
+    await page.waitForTimeout(2000);
+    expect(writes).toHaveLength(0);
+    await page.getByTestId('publish-button').click();
+    await expect(page).toHaveURL(/\/posts$/);
+    expect(writes).toHaveLength(1);
+    expect(JSON.parse(writes[0])).toMatchObject({
+      saveMode: 'manual',
+      version: 1,
+    });
   });
 });

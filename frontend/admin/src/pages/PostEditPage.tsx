@@ -18,6 +18,7 @@ const PostEditPage = () => {
   const [initialData, setInitialData] = useState<PostData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const versionRef = useRef(0);
   const editorRef = useRef<PostEditorHandle>(null);
 
   // カテゴリを動的に取得
@@ -38,6 +39,7 @@ const PostEditPage = () => {
 
       try {
         const post = await getPost(id);
+        versionRef.current = post.version ?? 0;
         setInitialData({
           title: post.title,
           contentMarkdown: post.contentMarkdown,
@@ -64,7 +66,11 @@ const PostEditPage = () => {
     // このhandleSaveは呼ばれない。したがって、冗長なIDチェックは不要。
     try {
       setError(null);
-      const updated = await updatePost(id!, { ...data, saveMode: 'manual' });
+      const updated = await updatePost(id!, {
+        ...data,
+        saveMode: 'manual',
+        version: versionRef.current,
+      });
       navigate('/posts', {
         state: {
           postId: id!,
@@ -78,10 +84,10 @@ const PostEditPage = () => {
         setError(
           err.response.data?.message ?? 'この slug は既に使われています'
         );
-        return;
+        return false;
       }
       setError('記事の更新に失敗しました');
-      // エラーは再スローしない（UIでエラーメッセージを表示するのみ）
+      return false;
     }
   };
 
@@ -89,7 +95,11 @@ const PostEditPage = () => {
   const handleAutosave = useCallback(
     async (data: AutosavePostData) => {
       if (!id) return;
-      await updatePost(id, data);
+      const updated = await updatePost(id, {
+        ...data,
+        version: versionRef.current,
+      });
+      versionRef.current = updated?.version ?? versionRef.current;
     },
     [id]
   );

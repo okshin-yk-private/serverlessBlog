@@ -34,9 +34,10 @@ const (
 
 // MockDynamoDBClient is a mock implementation of DynamoDBClientInterface
 type MockDynamoDBClient struct {
-	GetItemFunc func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
-	PutItemFunc func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
-	QueryFunc   func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
+	TransactFunc func(context.Context, *dynamodb.TransactWriteItemsInput) (*dynamodb.TransactWriteItemsOutput, error)
+	GetItemFunc  func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
+	PutItemFunc  func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
+	QueryFunc    func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
 }
 
 func (m *MockDynamoDBClient) UpdateItem(_ context.Context, _ *dynamodb.UpdateItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error) {
@@ -44,6 +45,9 @@ func (m *MockDynamoDBClient) UpdateItem(_ context.Context, _ *dynamodb.UpdateIte
 }
 
 func (m *MockDynamoDBClient) TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, _ ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+	if m.TransactFunc != nil {
+		return m.TransactFunc(ctx, params)
+	}
 	if len(params.TransactItems) > 0 && params.TransactItems[0].Put != nil && m.PutItemFunc != nil {
 		_, err := m.PutItemFunc(ctx, &dynamodb.PutItemInput{TableName: params.TransactItems[0].Put.TableName, Item: params.TransactItems[0].Put.Item})
 		if err != nil {
@@ -140,7 +144,7 @@ func createTestPost() domain.BlogPost {
 	}
 }
 
-func TestHandler_AutosavePreservesPublishedStatusAndCategory(t *testing.T) {
+func TestHandler_AutosaveRejectsPublishedPost(t *testing.T) {
 	cleanup := setupTest(t)
 	defer cleanup()
 
@@ -172,10 +176,10 @@ func TestHandler_AutosavePreservesPublishedStatusAndCategory(t *testing.T) {
 
 	request := createAuthenticatedRequest(testPostID, `{"title":"Autosaved","category":"","publishStatus":"draft","saveMode":"autosave"}`)
 	response, handlerErr := Handler(context.Background(), request)
-	if handlerErr != nil || response.StatusCode != 200 {
-		t.Fatalf("expected 200 response, got status=%d err=%v body=%s", response.StatusCode, handlerErr, response.Body)
+	if handlerErr != nil || response.StatusCode != 409 {
+		t.Fatalf("expected 409 response, got status=%d err=%v body=%s", response.StatusCode, handlerErr, response.Body)
 	}
-	if saved.Category != "technology" || saved.PublishStatus != domain.PublishStatusPublished {
+	if saved.ID != "" {
 		t.Fatalf("autosave changed protected fields: category=%q status=%q", saved.Category, saved.PublishStatus)
 	}
 	if buildClientCalled {
@@ -1976,5 +1980,57 @@ func TestHandler_InvalidSlugFormat_Returns400(t *testing.T) {
 	resp, _ := Handler(context.Background(), createAuthenticatedRequest(testPostID, string(body)))
 	if resp.StatusCode != 400 {
 		t.Errorf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandler_StaleVersionDoesNotWrite(t *testing.T) {
+	defer setupTest(t)()
+	post := createTestPost()
+	post.Version = 2
+	item, _ := attributevalue.MarshalMap(post)
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return &MockDynamoDBClient{
+			GetItemFunc: func(context.Context, *dynamodb.GetItemInput, ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+				return &dynamodb.GetItemOutput{Item: item}, nil
+			},
+			PutItemFunc: func(context.Context, *dynamodb.PutItemInput, ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+				t.Fatal("stale editor wrote data")
+				return nil, nil
+			},
+		}, nil
+	}
+	response, err := Handler(context.Background(), createAuthenticatedRequest(testPostID, `{"title":"stale","version":1}`))
+	if err != nil || response.StatusCode != 409 {
+		t.Fatalf("expected conflict: %+v %v", response, err)
+	}
+}
+
+func TestHandler_ConcurrentWriteFailsCondition(t *testing.T) {
+	defer setupTest(t)()
+	post := createTestPost()
+	post.Version = 2
+	post.PublishStatus = domain.PublishStatusDraft
+	item, _ := attributevalue.MarshalMap(post)
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return &MockDynamoDBClient{
+			GetItemFunc: func(context.Context, *dynamodb.GetItemInput, ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+				return &dynamodb.GetItemOutput{Item: item}, nil
+			},
+			PutItemFunc: func(_ context.Context, in *dynamodb.PutItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+				if in.ConditionExpression == nil || in.ExpressionAttributeValues[":version"].(*types.AttributeValueMemberN).Value != "2" {
+					t.Fatal("write must compare the read version")
+				}
+				var written domain.BlogPost
+				_ = attributevalue.UnmarshalMap(in.Item, &written)
+				if written.Version != 3 {
+					t.Fatalf("version must advance: %d", written.Version)
+				}
+				return nil, &types.ConditionalCheckFailedException{}
+			},
+		}, nil
+	}
+	response, err := Handler(context.Background(), createAuthenticatedRequest(testPostID, `{"title":"concurrent","version":2}`))
+	if err != nil || response.StatusCode != 409 {
+		t.Fatalf("expected conflict: %+v %v", response, err)
 	}
 }
