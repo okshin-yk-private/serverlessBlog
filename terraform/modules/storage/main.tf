@@ -306,21 +306,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "public_site" {
     }
   }
 
-  # Release documents are immutable and can be rolled back by changing the KVS
-  # pointer during this window. Shared /_astro assets are intentionally excluded
-  # because an old or still-propagating release may reference them.
-  rule {
-    id     = "expire-public-releases"
-    status = "Enabled"
+  # Releases must remain available while activeRevision references them.
+  # Age alone cannot identify inactive releases. Retain current objects until
+  # an active-revision-aware garbage collector can safely remove old releases.
 
-    filter {
-      prefix = "releases/"
-    }
-
-    expiration {
-      days = 30
-    }
-  }
 }
 
 # Configure access logging for public site bucket (when enabled)
@@ -352,6 +341,18 @@ resource "aws_s3_bucket_policy" "public_site" {
           StringEquals = {
             "AWS:SourceArn" = var.cloudfront_distribution_arn
           }
+        }
+      },
+      {
+        # Distinguish missing public objects (404) from denied requests (403).
+        # Public routing always selects an object; query strings are not forwarded.
+        Sid       = "AllowCloudFrontMissingObjectStatus"
+        Effect    = "Allow"
+        Principal = { Service = "cloudfront.amazonaws.com" }
+        Action    = "s3:ListBucket"
+        Resource  = aws_s3_bucket.public_site.arn
+        Condition = {
+          StringEquals = { "AWS:SourceArn" = var.cloudfront_distribution_arn }
         }
       }
     ]

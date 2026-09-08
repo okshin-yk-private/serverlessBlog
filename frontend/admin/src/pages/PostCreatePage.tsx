@@ -16,7 +16,8 @@ const PostCreatePage = () => {
   const [error, setError] = useState<string | null>(null);
   const editorRef = useRef<PostEditorHandle>(null);
   // autosave で記事が初回作成された後の id。これ以降の保存は updatePost を使う。
-  const [postId, setPostId] = useState<string | null>(null);
+  const versionRef = useRef(0);
+  const postIdRef = useRef<string | null>(null);
 
   // カテゴリを動的に取得
   const {
@@ -32,12 +33,13 @@ const PostCreatePage = () => {
       // PR5a の autosave が先に走って postId を確定済みのケースでは updatePost、
       // それ以外の (autosave がまだ走っていない) 初回保存では createPost。
       let savedId: string;
-      if (postId) {
-        const updated = await updatePost(postId, {
+      if (postIdRef.current) {
+        const updated = await updatePost(postIdRef.current, {
           ...data,
           saveMode: 'manual',
+          version: versionRef.current,
         });
-        savedId = postId;
+        savedId = postIdRef.current;
         navigate('/posts', {
           state: {
             postId: savedId,
@@ -49,7 +51,8 @@ const PostCreatePage = () => {
       } else {
         const created = await createPost({ ...data, saveMode: 'manual' });
         savedId = created.id;
-        setPostId(created.id);
+        postIdRef.current = created.id;
+        versionRef.current = created.version ?? 0;
         navigate('/posts', {
           state: {
             postId: savedId,
@@ -66,10 +69,10 @@ const PostCreatePage = () => {
         setError(
           err.response.data?.message ?? 'この slug は既に使われています'
         );
-        return;
+        return false;
       }
       setError('記事の作成に失敗しました');
-      // エラーを再スローしない（unhandled promiseエラーを防ぐ）
+      return false;
     }
   };
 
@@ -79,20 +82,22 @@ const PostCreatePage = () => {
   //   ローカル state を失う)。
   // - 2 回目以降: updatePost(id, data)。
   // 失敗時は throw → useAutosave が status='error' に遷移させる。
-  const handleAutosave = useCallback(
-    async (data: AutosavePostData) => {
-      if (postId) {
-        await updatePost(postId, data);
-        return;
-      }
-      const created = await createPost(data);
-      setPostId(created.id);
-      const adminBase = import.meta.env.BASE_URL.replace(/\/$/, '');
-      const newUrl = `${adminBase}/posts/edit/${created.id}`;
-      window.history.replaceState(null, '', newUrl);
-    },
-    [postId]
-  );
+  const handleAutosave = useCallback(async (data: AutosavePostData) => {
+    if (postIdRef.current) {
+      const updated = await updatePost(postIdRef.current, {
+        ...data,
+        version: versionRef.current,
+      });
+      versionRef.current = updated?.version ?? versionRef.current;
+      return;
+    }
+    const created = await createPost(data);
+    postIdRef.current = created.id;
+    versionRef.current = created.version ?? 0;
+    const adminBase = import.meta.env.BASE_URL.replace(/\/$/, '');
+    const newUrl = `${adminBase}/posts/edit/${created.id}`;
+    window.history.replaceState(null, '', newUrl);
+  }, []);
 
   const handleCancel = () => {
     navigate('/posts');

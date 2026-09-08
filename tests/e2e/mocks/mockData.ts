@@ -10,6 +10,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
 export interface MockPost {
+  version: number;
   id: string;
   title: string;
   contentMarkdown: string;
@@ -36,6 +37,7 @@ export const createMockPost = (overrides: Partial<MockPost> = {}): MockPost => {
 
   return {
     id: uuidv4(),
+    version: 1,
     title: 'Test Article Title',
     contentMarkdown:
       '# Test Content\n\nThis is test content in markdown format.',

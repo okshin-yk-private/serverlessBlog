@@ -14,7 +14,7 @@ import {
   getFirstImage,
   getPostImageUrls,
 } from '../../../lib/postDetailUtils';
-import { getPostPathSegment } from '../../../lib/postUtils';
+import { getPostPathSegment, getPostStaticPaths } from '../../../lib/postUtils';
 import type { Post } from '../../../lib/api';
 
 /**
@@ -103,21 +103,14 @@ describe('Post Detail Page - Utility Functions', () => {
   });
 
   describe('getStaticPaths Output Format', () => {
-    // getStaticPaths lives inside the .astro file and cannot be imported here,
-    // but it delegates the identifier choice to getPostPathSegment. Asserting
-    // on that helper is what actually guards the contract, because PostCard
-    // builds its href from the very same call.
-    const buildPaths = (posts: Post[]) =>
-      posts.map((post) => ({
-        params: { slug: getPostPathSegment(post) },
-        props: { post },
-      }));
+    const buildPaths = getPostStaticPaths;
 
     it('should use the slug when the post has one', () => {
       const paths = buildPaths([{ ...mockPost, slug: 'test-article' }]);
 
-      expect(paths).toHaveLength(1);
+      expect(paths).toHaveLength(2);
       expect(paths[0].params.slug).toBe('test-article');
+      expect(paths[1].params.slug).toBe('test-123');
       expect(paths[0].props.post.id).toBe('test-123');
     });
 
@@ -138,12 +131,23 @@ describe('Post Detail Page - Utility Functions', () => {
         { ...mockPost, id: 'test-789', slug: 'third-post' },
       ]);
 
-      expect(paths).toHaveLength(3);
+      expect(paths).toHaveLength(5);
       expect(paths.map((p) => p.params.slug)).toEqual([
         'first-post',
+        'test-123',
         'test-456',
         'third-post',
+        'test-789',
       ]);
+    });
+
+    it('rejects overlapping slug and legacy ID routes', () => {
+      expect(() =>
+        buildPaths([
+          { ...mockPost, slug: 'another-id' },
+          { ...mockPost, id: 'another-id' },
+        ])
+      ).toThrow('Duplicate post path');
     });
 
     it('should handle empty posts array', () => {
