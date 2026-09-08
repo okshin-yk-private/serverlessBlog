@@ -26,11 +26,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"serverless-blog/go-functions/internal/domain"
+	"serverless-blog/go-functions/internal/poststore"
 )
 
 const defaultSlugIndex = "SlugIndex"
 
 type ddbAPI interface {
+	TransactWriteItems(context.Context, *dynamodb.TransactWriteItemsInput, ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error)
 	Scan(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error)
 	Query(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
 	UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error)
@@ -230,15 +232,18 @@ func slugInUseBy(ctx context.Context, client ddbAPI, tableName, indexName, slug,
 }
 
 func writeSlug(ctx context.Context, client ddbAPI, tableName, postID, slug string) error {
-	_, err := client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
-		TableName: aws.String(tableName),
-		Key: map[string]types.AttributeValue{
-			"id": &types.AttributeValueMemberS{Value: postID},
-		},
-		UpdateExpression: aws.String("SET slug = :s"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":s": &types.AttributeValueMemberS{Value: slug},
-		},
-	})
+	// The condition prevents overwriting a slug chosen after the scan. Claim
+	// ownership and advance the editor version in the same transaction.
+	_, err := client.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: []types.TransactWriteItem{
+		{Update: &types.Update{
+			TableName:                 aws.String(tableName),
+			Key:                       map[string]types.AttributeValue{"id": &types.AttributeValueMemberS{Value: postID}},
+			UpdateExpression:          aws.String("SET slug = :s ADD #version :one"),
+			ConditionExpression:       aws.String("attribute_exists(id) AND (attribute_not_exists(slug) OR slug = :empty)"),
+			ExpressionAttributeNames:  map[string]string{"#version": "version"},
+			ExpressionAttributeValues: map[string]types.AttributeValue{":s": &types.AttributeValueMemberS{Value: slug}, ":empty": &types.AttributeValueMemberS{Value: ""}, ":one": &types.AttributeValueMemberN{Value: "1"}},
+		}},
+		poststore.ReserveSlug(tableName, slug, postID),
+	}})
 	return err
 }

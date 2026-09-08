@@ -449,6 +449,13 @@ run "ssg_404_error_response" {
     ])
     error_message = "Distribution must have custom error response for 404 -> 404 /404.html"
   }
+  assert {
+    condition = alltrue([
+      for err in aws_cloudfront_distribution.main.custom_error_response : err.error_code != 403
+    ])
+    error_message = "API authorization errors must not be converted to static HTML or 404"
+  }
+
 }
 
 # Test 17: Verify tags are applied
