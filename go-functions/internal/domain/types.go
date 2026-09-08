@@ -137,6 +137,7 @@ func getJapaneseTokenizer() *tokenizer.Tokenizer {
 // They are pointers so legacy items lacking these attributes round-trip without
 // emitting null fields in JSON.
 type BlogPost struct {
+	Version         int64    `json:"version" dynamodbav:"version"`
 	ID              string   `json:"id" dynamodbav:"id"`
 	Title           string   `json:"title" dynamodbav:"title"`
 	ContentMarkdown string   `json:"contentMarkdown" dynamodbav:"contentMarkdown"`
@@ -205,6 +206,7 @@ func (r *CreatePostRequest) Validate() error {
 
 // UpdatePostRequest represents the request body for updating a post.
 type UpdatePostRequest struct {
+	Version         *int64   `json:"version,omitempty"`
 	Title           *string  `json:"title,omitempty"`
 	ContentMarkdown *string  `json:"contentMarkdown,omitempty"`
 	Category        *string  `json:"category,omitempty"`

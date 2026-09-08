@@ -2,6 +2,7 @@ import axios from 'axios';
 import { apiClient } from './client';
 
 export interface Post {
+  version?: number;
   id: string;
   title: string;
   contentMarkdown: string;
@@ -36,6 +37,7 @@ export interface CreatePostRequest {
 }
 
 export interface UpdatePostRequest {
+  version?: number;
   title?: string;
   contentMarkdown?: string;
   category?: string;
