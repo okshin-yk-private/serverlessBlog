@@ -224,6 +224,7 @@ describe('PostEditPage', () => {
           tags: ['test-tag'],
           publishStatus: 'published',
           saveMode: 'manual',
+          version: 0,
         });
       });
     });

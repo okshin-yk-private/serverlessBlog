@@ -16,6 +16,7 @@ import { AuthProvider } from '../contexts/AuthContext';
 // モック
 vi.mock('../api/posts', () => ({
   createPost: vi.fn(),
+  updatePost: vi.fn(),
   uploadImage: vi.fn(),
   deleteImage: vi.fn(),
 }));
@@ -515,4 +516,53 @@ describe('PostCreatePage', () => {
       });
     });
   });
+});
+
+it('waits for the first autosave and updates the same post on manual save', async () => {
+  vi.mocked(postsApi.createPost).mockReset();
+  vi.mocked(postsApi.updatePost).mockReset();
+  let finish!: (post: postsApi.Post) => void;
+  vi.mocked(postsApi.createPost).mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve;
+    })
+  );
+  vi.mocked(postsApi.updatePost).mockResolvedValueOnce({
+    id: 'saved-draft',
+    version: 2,
+  } as postsApi.Post);
+  render(
+    <BrowserRouter>
+      <AuthProvider>
+        <PostCreatePage />
+      </AuthProvider>
+    </BrowserRouter>
+  );
+  fireEvent.change(screen.getByLabelText(/タイトル/i), {
+    target: { value: 'Race test' },
+  });
+  await setBodyContent('Body');
+  await waitFor(() =>
+    expect(screen.getByLabelText(/カテゴリ/i)).not.toBeDisabled()
+  );
+  fireEvent.change(screen.getByLabelText(/カテゴリ/i), {
+    target: { value: 'tech' },
+  });
+  await act(async () => {
+    window.dispatchEvent(new Event('blur'));
+  });
+  await waitFor(() => expect(postsApi.createPost).toHaveBeenCalled());
+  const callsBeforeSave = vi.mocked(postsApi.createPost).mock.calls.length;
+  fireEvent.click(screen.getByTestId('save-draft-button'));
+  expect(postsApi.updatePost).not.toHaveBeenCalled();
+  await act(async () => {
+    finish({ id: 'saved-draft', version: 1 } as postsApi.Post);
+  });
+  await waitFor(() =>
+    expect(postsApi.updatePost).toHaveBeenCalledWith(
+      'saved-draft',
+      expect.objectContaining({ saveMode: 'manual', version: 1 })
+    )
+  );
+  expect(postsApi.createPost).toHaveBeenCalledTimes(callsBeforeSave);
 });

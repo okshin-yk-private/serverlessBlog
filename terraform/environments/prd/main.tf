@@ -264,6 +264,18 @@ resource "aws_s3_bucket_policy" "public_site_cloudfront" {
             "AWS:SourceArn" = module.cdn.distribution_arn
           }
         }
+      },
+      {
+        # Distinguish missing public objects (404) from denied requests (403).
+        # Public routing always selects an object; query strings are not forwarded.
+        Sid       = "AllowCloudFrontMissingObjectStatus"
+        Effect    = "Allow"
+        Principal = { Service = "cloudfront.amazonaws.com" }
+        Action    = "s3:ListBucket"
+        Resource  = module.storage.public_site_bucket_arn
+        Condition = {
+          StringEquals = { "AWS:SourceArn" = module.cdn.distribution_arn }
+        }
       }
     ]
   })

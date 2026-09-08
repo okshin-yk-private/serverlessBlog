@@ -30,6 +30,8 @@ export interface UseAutosaveResult {
    * isDirty を false に戻す (autosave hook 経由でない保存に対応するため)。
    */
   markClean: () => void;
+  pauseAndWait: () => Promise<void>;
+  resume: () => void;
   error: Error | null;
   /** dirty (last saved との差分があるか) */
   isDirty: boolean;
@@ -87,6 +89,7 @@ export function useAutosave<T>(
   const saveRef = useRef(save);
   const isReadyRef = useRef<((d: T) => boolean) | undefined>(isReady);
   const enabledRef = useRef(enabled);
+  const pausedRef = useRef(false);
 
   // 直近で保存済みのスナップショット (JSON シリアライズ済) と未保存変更の有無
   const lastSavedSerializedRef = useRef<string>(serialize(data));
@@ -126,7 +129,7 @@ export function useAutosave<T>(
     if (serialized === lastSavedSerializedRef.current) {
       return;
     }
-    if (enabledRef.current === false) {
+    if (enabledRef.current === false || pausedRef.current) {
       return;
     }
     if (isReadyRef.current && !isReadyRef.current(current)) {
@@ -136,7 +139,8 @@ export function useAutosave<T>(
     // 既存 in-flight があれば「完了後に再保存」を予約
     if (inFlightRef.current) {
       pendingAfterFlightRef.current = true;
-      return inFlightRef.current;
+      await inFlightRef.current.catch(() => {});
+      return;
     }
 
     setStatus('saving');
@@ -165,7 +169,7 @@ export function useAutosave<T>(
     } finally {
       inFlightRef.current = null;
       // in-flight 中に変更があれば再保存をキック
-      if (pendingAfterFlightRef.current) {
+      if (pendingAfterFlightRef.current && !pausedRef.current) {
         pendingAfterFlightRef.current = false;
         const stillDirty =
           serialize(dataRef.current) !== lastSavedSerializedRef.current;
@@ -186,6 +190,18 @@ export function useAutosave<T>(
     await performSave();
   }, [clearTimer, performSave]);
 
+  const pauseAndWait = useCallback(async () => {
+    pausedRef.current = true;
+    clearTimer();
+    pendingAfterFlightRef.current = false;
+    // A failed autosave must not prevent the explicit save from being retried.
+    await inFlightRef.current?.catch(() => {});
+  }, [clearTimer]);
+
+  const resume = useCallback(() => {
+    pausedRef.current = false;
+  }, []);
+
   const markClean = useCallback(() => {
     clearTimer();
     pendingAfterFlightRef.current = false;
@@ -197,7 +213,7 @@ export function useAutosave<T>(
 
   // data 変更を検知して debounce タイマーをセット
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || pausedRef.current) {
       clearTimer();
       return;
     }
@@ -278,6 +294,8 @@ export function useAutosave<T>(
     savedAgoLabel,
     flush,
     markClean,
+    pauseAndWait,
+    resume,
     error,
     isDirty,
   };
