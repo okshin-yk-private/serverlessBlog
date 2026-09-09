@@ -104,7 +104,7 @@ const PostCreatePage = () => {
   };
 
   return (
-    <AdminLayout title="New Article" subtitle="新しい記事を作成">
+    <AdminLayout compact title="New Article" subtitle="新しい記事を作成">
       {error && (
         <div
           className="admin-alert admin-alert-error"

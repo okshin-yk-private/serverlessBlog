@@ -93,6 +93,11 @@ export const MetadataSidebar = ({
   const slugError = validateSlug(value.slug);
   const excerptError = validateExcerpt(value.excerpt);
 
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    if (excerptError && detailsRef.current) detailsRef.current.open = true;
+  }, [excerptError]);
+
   const [tagInput, setTagInput] = useState('');
 
   const addTag = () => {
@@ -124,10 +129,8 @@ export const MetadataSidebar = ({
   };
 
   return (
-    <aside
-      data-testid="metadata-sidebar"
-      className="space-y-6 lg:sticky lg:top-4 lg:self-start"
-    >
+    <aside data-testid="metadata-sidebar" className="space-y-4 lg:self-start">
+      <h2 className="admin-panel-label">公開設定</h2>
       {/* 公開状態 */}
       <section className="admin-panel">
         <label htmlFor="publishStatus" className="admin-panel-label mb-1 block">
@@ -151,132 +154,6 @@ export const MetadataSidebar = ({
             </option>
           ))}
         </select>
-      </section>
-
-      {/* Slug */}
-      <section className="admin-panel">
-        <div className="mb-1 flex items-center justify-between">
-          <label htmlFor="metadata-slug" className="admin-panel-label">
-            Slug
-          </label>
-          <button
-            type="button"
-            data-testid="metadata-slug-lock"
-            aria-pressed={value.slugLocked}
-            onClick={() => onChange({ slugLocked: !value.slugLocked })}
-            className="admin-inline-link"
-            disabled={disabled}
-          >
-            {value.slugLocked ? '🔒 手動編集中' : '🔓 自動生成中'}
-          </button>
-        </div>
-        <input
-          id="metadata-slug"
-          type="text"
-          data-testid="metadata-slug-input"
-          value={value.slug}
-          onChange={(e) => onChange({ slug: e.target.value })}
-          readOnly={!value.slugLocked}
-          maxLength={SLUG_MAX}
-          className={`admin-field admin-field-mono w-full ${
-            slugError ? 'admin-field-invalid' : ''
-          } ${!value.slugLocked ? 'admin-field-readonly' : ''}`}
-          disabled={disabled}
-        />
-        <p className="admin-field-hint mt-1">
-          {value.slug ? `/posts/${value.slug}` : '— (未設定)'}
-        </p>
-        {slugError && (
-          <p
-            className="admin-field-error mt-1"
-            data-testid="metadata-slug-error"
-          >
-            {slugError}
-          </p>
-        )}
-      </section>
-
-      {/* Excerpt */}
-      <section className="admin-panel">
-        <div className="mb-1 flex items-center justify-between">
-          <label htmlFor="metadata-excerpt" className="admin-panel-label">
-            概要 (excerpt)
-          </label>
-          <button
-            type="button"
-            onClick={fillExcerptFromBody}
-            className="admin-inline-link"
-            data-testid="metadata-excerpt-autofill"
-            disabled={disabled}
-          >
-            本文から自動
-          </button>
-        </div>
-        <textarea
-          id="metadata-excerpt"
-          data-testid="metadata-excerpt-input"
-          value={value.excerpt}
-          onChange={(e) => onChange({ excerpt: e.target.value })}
-          rows={3}
-          className={`admin-field w-full ${excerptError ? 'admin-field-invalid' : ''}`}
-          disabled={disabled}
-        />
-        <p
-          className={`mt-1 text-right ${
-            value.excerpt.length > EXCERPT_MAX
-              ? 'admin-field-error'
-              : 'admin-field-hint'
-          }`}
-          data-testid="metadata-excerpt-counter"
-        >
-          {value.excerpt.length} / {EXCERPT_MAX}
-        </p>
-        {excerptError && (
-          <p
-            className="admin-field-error mt-1"
-            data-testid="metadata-excerpt-error"
-          >
-            {excerptError}
-          </p>
-        )}
-      </section>
-
-      {/* Cover image */}
-      <section className="admin-panel">
-        <div className="mb-1 flex items-center justify-between">
-          <label htmlFor="metadata-cover" className="admin-panel-label">
-            カバー画像
-          </label>
-          <button
-            type="button"
-            onClick={fillCoverFromBody}
-            className="admin-inline-link"
-            data-testid="metadata-cover-autofill"
-            disabled={disabled}
-          >
-            本文先頭画像から
-          </button>
-        </div>
-        <input
-          id="metadata-cover"
-          type="url"
-          data-testid="metadata-cover-input"
-          value={value.coverImageUrl}
-          onChange={(e) => onChange({ coverImageUrl: e.target.value })}
-          placeholder="https://..."
-          className="admin-field w-full"
-          disabled={disabled}
-        />
-        {value.coverImageUrl && (
-          <div className="admin-thumb mt-2 overflow-hidden">
-            <img
-              src={value.coverImageUrl}
-              alt="カバー画像プレビュー"
-              data-testid="metadata-cover-preview"
-              className="block h-24 w-full object-cover"
-            />
-          </div>
-        )}
       </section>
 
       {/* Category */}
@@ -333,52 +210,195 @@ export const MetadataSidebar = ({
         )}
       </section>
 
-      {/* Tags */}
+      {/* Slug */}
       <section className="admin-panel">
-        <label htmlFor="tags" className="admin-panel-label mb-1 block">
-          タグ
-        </label>
-        {value.tags.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-1" data-testid="tags-list">
-            {value.tags.map((tag, index) => (
-              <span key={index} className="admin-tag inline-flex items-center">
-                {tag}
-                <button
-                  type="button"
-                  onClick={() => removeTag(index)}
-                  aria-label={`${tag}を削除`}
-                  data-testid={`remove-tag-${index}`}
-                  className="admin-tag-remove ml-1 inline-flex h-4 w-4 items-center justify-center"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        <div className="flex gap-2">
-          <input
-            id="tags"
-            type="text"
-            data-testid="tag-input"
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={handleTagKeyDown}
-            placeholder="Enterで追加"
-            className="admin-field flex-1"
-            disabled={disabled}
-          />
-          <Button
+        <div className="mb-1 flex items-center justify-between">
+          <label htmlFor="metadata-slug" className="admin-panel-label">
+            Slug
+          </label>
+          <button
             type="button"
-            variant="secondary"
-            onClick={addTag}
-            disabled={disabled || !tagInput.trim()}
-            data-testid="add-tag-button"
+            data-testid="metadata-slug-lock"
+            aria-pressed={value.slugLocked}
+            onClick={() => onChange({ slugLocked: !value.slugLocked })}
+            className="admin-inline-link"
+            disabled={disabled}
           >
-            追加
-          </Button>
+            {value.slugLocked ? '🔒 手動編集中' : '🔓 自動生成中'}
+          </button>
         </div>
+        <input
+          id="metadata-slug"
+          type="text"
+          data-testid="metadata-slug-input"
+          value={value.slug}
+          onChange={(e) => onChange({ slug: e.target.value })}
+          readOnly={!value.slugLocked}
+          maxLength={SLUG_MAX}
+          className={`admin-field admin-field-mono w-full ${
+            slugError ? 'admin-field-invalid' : ''
+          } ${!value.slugLocked ? 'admin-field-readonly' : ''}`}
+          disabled={disabled}
+        />
+        <p className="admin-field-hint mt-1">
+          {value.slug ? `/posts/${value.slug}` : '— (未設定)'}
+        </p>
+        {slugError && (
+          <p
+            className="admin-field-error mt-1"
+            data-testid="metadata-slug-error"
+          >
+            {slugError}
+          </p>
+        )}
       </section>
+
+      <details
+        ref={detailsRef}
+        className="admin-writing-details"
+        onInvalidCapture={(event) => {
+          event.currentTarget.open = true;
+        }}
+      >
+        <summary>詳細設定</summary>
+        <div className="space-y-4 mt-4">
+          {/* Excerpt */}
+          <section className="admin-panel">
+            <div className="mb-1 flex items-center justify-between">
+              <label htmlFor="metadata-excerpt" className="admin-panel-label">
+                概要 (excerpt)
+              </label>
+              <button
+                type="button"
+                onClick={fillExcerptFromBody}
+                className="admin-inline-link"
+                data-testid="metadata-excerpt-autofill"
+                disabled={disabled}
+              >
+                本文から自動
+              </button>
+            </div>
+            <textarea
+              id="metadata-excerpt"
+              data-testid="metadata-excerpt-input"
+              value={value.excerpt}
+              onChange={(e) => onChange({ excerpt: e.target.value })}
+              rows={3}
+              className={`admin-field w-full ${excerptError ? 'admin-field-invalid' : ''}`}
+              disabled={disabled}
+            />
+            <p
+              className={`mt-1 text-right ${
+                value.excerpt.length > EXCERPT_MAX
+                  ? 'admin-field-error'
+                  : 'admin-field-hint'
+              }`}
+              data-testid="metadata-excerpt-counter"
+            >
+              {value.excerpt.length} / {EXCERPT_MAX}
+            </p>
+            {excerptError && (
+              <p
+                className="admin-field-error mt-1"
+                data-testid="metadata-excerpt-error"
+              >
+                {excerptError}
+              </p>
+            )}
+          </section>
+
+          {/* Cover image */}
+          <section className="admin-panel">
+            <div className="mb-1 flex items-center justify-between">
+              <label htmlFor="metadata-cover" className="admin-panel-label">
+                カバー画像
+              </label>
+              <button
+                type="button"
+                onClick={fillCoverFromBody}
+                className="admin-inline-link"
+                data-testid="metadata-cover-autofill"
+                disabled={disabled}
+              >
+                本文先頭画像から
+              </button>
+            </div>
+            <input
+              id="metadata-cover"
+              type="url"
+              data-testid="metadata-cover-input"
+              value={value.coverImageUrl}
+              onChange={(e) => onChange({ coverImageUrl: e.target.value })}
+              placeholder="https://..."
+              className="admin-field w-full"
+              disabled={disabled}
+            />
+            {value.coverImageUrl && (
+              <div className="admin-thumb mt-2 overflow-hidden">
+                <img
+                  src={value.coverImageUrl}
+                  alt="カバー画像プレビュー"
+                  data-testid="metadata-cover-preview"
+                  className="block h-24 w-full object-cover"
+                />
+              </div>
+            )}
+          </section>
+
+          {/* Tags */}
+          <section className="admin-panel">
+            <label htmlFor="tags" className="admin-panel-label mb-1 block">
+              タグ
+            </label>
+            {value.tags.length > 0 && (
+              <div
+                className="mb-2 flex flex-wrap gap-1"
+                data-testid="tags-list"
+              >
+                {value.tags.map((tag, index) => (
+                  <span
+                    key={index}
+                    className="admin-tag inline-flex items-center"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => removeTag(index)}
+                      aria-label={`${tag}を削除`}
+                      data-testid={`remove-tag-${index}`}
+                      className="admin-tag-remove ml-1 inline-flex h-4 w-4 items-center justify-center"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                id="tags"
+                type="text"
+                data-testid="tag-input"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={handleTagKeyDown}
+                placeholder="Enterで追加"
+                className="admin-field flex-1"
+                disabled={disabled}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={addTag}
+                disabled={disabled || !tagInput.trim()}
+                data-testid="add-tag-button"
+              >
+                追加
+              </Button>
+            </div>
+          </section>
+        </div>
+      </details>
     </aside>
   );
 };

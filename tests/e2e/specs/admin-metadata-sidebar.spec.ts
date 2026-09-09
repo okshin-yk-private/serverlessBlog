@@ -58,6 +58,7 @@ test.describe('Admin Metadata Sidebar', () => {
     await page.goto('posts/new');
     await expect(getTiptapEditor(page)).toBeVisible();
 
+    await page.getByText('詳細設定', { exact: true }).click();
     const excerpt = page.getByTestId('metadata-excerpt-input');
     await excerpt.fill('a'.repeat(161));
     const counter = page.getByTestId('metadata-excerpt-counter');
@@ -75,10 +76,50 @@ test.describe('Admin Metadata Sidebar', () => {
       '![hero](https://cdn.example.com/cover.jpg)\n\n本文。'
     );
 
+    await page.getByText('詳細設定', { exact: true }).click();
     await page.getByTestId('metadata-cover-autofill').click();
     await expect(page.getByTestId('metadata-cover-input')).toHaveValue(
       'https://cdn.example.com/cover.jpg'
     );
     await expect(page.getByTestId('metadata-cover-preview')).toBeVisible();
+  });
+  test('PC・スマートフォンで長文編集中も保存でき、詳細設定を開閉できる', async ({
+    page,
+  }) => {
+    await page.goto('posts/new');
+    await expect(getTiptapEditor(page)).toBeVisible();
+    await page.getByTestId('post-title-input').fill('長文の執筆');
+    await setEditorContent(
+      page,
+      Array.from(
+        { length: 40 },
+        (_, i) => `段落 ${i + 1}。執筆画面の確認。`
+      ).join('\n\n')
+    );
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      await expect(
+        page.getByTestId('metadata-excerpt-input')
+      ).not.toBeVisible();
+      await page.getByText('詳細設定', { exact: true }).click();
+      await expect(page.getByTestId('metadata-excerpt-input')).toBeVisible();
+      await page.getByTestId('metadata-excerpt-input').fill('概要を保持');
+      await page.getByText('詳細設定', { exact: true }).click();
+      await page.evaluate(() => window.scrollTo(0, 1000));
+      await expect(page.getByTestId('save-draft-button')).toBeInViewport();
+      await expect(page.getByTestId('autosave-status')).toBeInViewport();
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth
+        )
+      ).toBe(true);
+      await page.screenshot({
+        path: `/tmp/serverlessblog-writing-${width}.png`,
+      });
+    }
+    await page.getByText('詳細設定', { exact: true }).click();
+    await expect(page.getByTestId('metadata-excerpt-input')).toHaveValue(
+      '概要を保持'
+    );
   });
 });
