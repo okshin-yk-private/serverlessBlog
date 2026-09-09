@@ -110,7 +110,7 @@ const PostEditPage = () => {
 
   if (loading) {
     return (
-      <AdminLayout title="Edit Article">
+      <AdminLayout compact title="Edit Article">
         <PostEditSkeleton />
       </AdminLayout>
     );
@@ -118,14 +118,14 @@ const PostEditPage = () => {
 
   if (error && !initialData) {
     return (
-      <AdminLayout title="Edit Article">
+      <AdminLayout compact title="Edit Article">
         <div className="admin-alert admin-alert-error">{error}</div>
       </AdminLayout>
     );
   }
 
   return (
-    <AdminLayout title="Edit Article" subtitle="記事を編集">
+    <AdminLayout compact title="Edit Article" subtitle="記事を編集">
       {error && <div className="admin-alert admin-alert-error">{error}</div>}
 
       <div className="admin-card">
