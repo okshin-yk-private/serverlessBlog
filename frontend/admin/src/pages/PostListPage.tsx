@@ -172,6 +172,7 @@ const PostListPage = () => {
         category: post.category,
         publishStatus: newStatus,
         saveMode: 'manual',
+        version: post.version ?? 0,
       });
 
       if (updated?.siteBuild) {

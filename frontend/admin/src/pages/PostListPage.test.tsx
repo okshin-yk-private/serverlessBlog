@@ -759,6 +759,7 @@ describe('PostListPage', () => {
           category: 'tech',
           publishStatus: 'published',
           saveMode: 'manual',
+          version: 0,
         });
         expect(screen.getByText(/記事を公開しました/i)).toBeInTheDocument();
       });
@@ -797,6 +798,7 @@ describe('PostListPage', () => {
           category: 'tech',
           publishStatus: 'draft',
           saveMode: 'manual',
+          version: 0,
         });
         expect(
           screen.getByText(/記事を下書きに変更しました/i)

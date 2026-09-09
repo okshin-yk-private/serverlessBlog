@@ -1040,7 +1040,7 @@ describe('PostEditor', () => {
       contentMarkdown: '本文',
       category: '',
       tags: [],
-      publishStatus: 'published',
+      publishStatus: 'draft',
     };
 
     render(
@@ -1069,5 +1069,98 @@ describe('PostEditor', () => {
     );
     expect(payload).not.toHaveProperty('category');
     expect(payload).not.toHaveProperty('publishStatus');
+  });
+});
+
+describe('save regression coverage', () => {
+  const initialData = {
+    title: 'Existing article',
+    contentMarkdown: 'Body',
+    category: 'tech',
+    tags: [],
+    publishStatus: 'draft' as const,
+    slug: 'existing-article',
+  };
+
+  it('keeps the dirty warning after an explicit save failure', async () => {
+    const onSave = vi.fn().mockResolvedValue(false);
+    const onAutosave = vi.fn().mockResolvedValue(undefined);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    try {
+      render(
+        <PostEditor
+          initialData={initialData}
+          categories={mockCategories}
+          onSave={onSave}
+          onAutosave={onAutosave}
+          onCancel={vi.fn()}
+        />
+      );
+      fireEvent.change(screen.getByLabelText(/タイトル/i), {
+        target: { value: 'Unsaved change' },
+      });
+      fireEvent.submit(screen.getByTestId('post-title-input').closest('form')!);
+      await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+      await waitFor(() =>
+        expect(screen.getByTestId('cancel-button')).toBeEnabled()
+      );
+      fireEvent.click(screen.getByTestId('cancel-button'));
+      expect(confirm).toHaveBeenCalledOnce();
+      expect(screen.getByTestId('autosave-status')).not.toHaveAttribute(
+        'data-autosave-status',
+        'saved'
+      );
+    } finally {
+      confirm.mockRestore();
+    }
+  });
+
+  it('sends empty strings when clearing excerpt and cover image', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PostEditor
+        initialData={{
+          ...initialData,
+          excerpt: 'Old summary',
+          coverImageUrl: 'https://example.com/old.png',
+        }}
+        categories={mockCategories}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />
+    );
+    fireEvent.change(screen.getByLabelText(/概要/), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('カバー画像'), {
+      target: { value: '' },
+    });
+    fireEvent.submit(screen.getByTestId('post-title-input').closest('form')!);
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ excerpt: '', coverImageUrl: '' })
+      )
+    );
+  });
+
+  it('does not autosave public content on window blur', async () => {
+    const onAutosave = vi.fn();
+    render(
+      <PostEditor
+        initialData={{ ...initialData, publishStatus: 'published' }}
+        categories={mockCategories}
+        onSave={vi.fn()}
+        onAutosave={onAutosave}
+        onCancel={vi.fn()}
+      />
+    );
+    fireEvent.change(screen.getByLabelText(/タイトル/i), {
+      target: { value: 'Private work in progress' },
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event('blur'));
+    });
+    expect(onAutosave).not.toHaveBeenCalled();
+    expect(
+      screen.getByText('公開中の記事は保存ボタンで反映されます')
+    ).toBeInTheDocument();
   });
 });
