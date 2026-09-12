@@ -314,3 +314,6 @@ go-functions/bin/
 /*.jpeg
 /*.gif
 !fallacy.png
+
+# Local Lighthouse HTML/JSON reports
+frontend/public-astro/lighthouse-results/

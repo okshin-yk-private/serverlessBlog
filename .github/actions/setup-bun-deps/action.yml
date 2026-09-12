@@ -3,7 +3,7 @@ description: 'Setup Bun runtime and install frontend dependencies with caching'
 inputs:
   bun-version:
     description: 'Bun version to install'
-    default: '1.2.0'
+    default: '1.3.11'
   working-directory:
     description: 'Directory containing package.json'
     default: 'frontend'
@@ -31,15 +31,5 @@ runs:
     - name: Install dependencies
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      # Dependabot only updates package.json (the npm ecosystem doesn't touch
-      # bun.lock), so --frozen-lockfile would always fail on its PRs. The
-      # dependabot-bun-lockfile workflow regenerates and pushes bun.lock back
-      # to the PR; here we just need to let the install succeed so the rest
-      # of CI (lint/test/build) can run.
-      run: |
-        if [[ "${GITHUB_ACTOR}" == "dependabot[bot]" ]]; then
-          echo "Dependabot PR: running bun install without --frozen-lockfile"
-          bun install --no-summary
-        else
-          bun install --frozen-lockfile
-        fi
+      # Native Bun updates include bun.lock. Never test an unrecorded resolution.
+      run: bun install --frozen-lockfile

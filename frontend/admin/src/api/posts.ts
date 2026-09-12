@@ -163,11 +163,7 @@ export const deletePost = async (id: string): Promise<void> => {
  * 公開サイトビルドのステータスレスポンス型
  */
 export type BuildStatusValue =
-  | 'idle'
-  | 'queued'
-  | 'in-progress'
-  | 'succeeded'
-  | 'failed';
+  'idle' | 'queued' | 'in-progress' | 'succeeded' | 'failed';
 
 export interface BuildStatusResponse {
   buildId?: string;

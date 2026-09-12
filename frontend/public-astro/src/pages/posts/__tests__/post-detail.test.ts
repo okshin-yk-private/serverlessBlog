@@ -14,7 +14,7 @@ import {
   getFirstImage,
   getPostImageUrls,
 } from '../../../lib/postDetailUtils';
-import { getPostPathSegment, getPostStaticPaths } from '../../../lib/postUtils';
+import { getPostStaticPaths } from '../../../lib/postUtils';
 import type { Post } from '../../../lib/api';
 
 /**

@@ -32,3 +32,32 @@ regexes = [
   '''AKIAIOSFODNN7EXAMPLE''',
   '''wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY''',
 ]
+
+
+# justification: These historical CDK S3 object names are content hashes, not
+# credentials. Both the exact snapshot path and archive-key shape must match.
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Historical CDK asset archive hashes"
+condition = "AND"
+regexTarget = "line"
+paths = [
+  '''^infrastructure/test/__snapshots__/(?:layers-stack|rust-lambda-stack)\.test\.ts\.snap$''',
+]
+regexes = [
+  '''^\s*"S3Key":\s*"[0-9a-f]{64}\.zip",?\s*$''',
+]
+
+# justification: Only the literal truncated JWT fixtures in the retired Rust
+# parity test are exempt. A complete JWT or a value in another path still scans.
+[[rules.allowlists]]
+description = "Historical Rust parity test truncated JWT placeholders"
+condition = "AND"
+regexTarget = "line"
+paths = ['''^rust-functions/tests/api_parity/auth_parity\.rs$''']
+regexes = [
+  '''^\s*"(?:accessToken|idToken)":\s*"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9\.\.\.",?\s*$''',
+  '''^\s*"refreshToken":\s*"eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ\.\.\.",?\s*$''',
+]

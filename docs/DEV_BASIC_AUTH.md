@@ -278,13 +278,30 @@ aws ssm put-parameter \
   --region ap-northeast-1
 ```
 
-#### 2. Clear CDK Cache and Redeploy
+#### 2. Apply the authorized DEV Terraform change and verify LIVE functions
 
-```bash
-cd infrastructure
-cdk context --clear
-cdk deploy --context stage=dev --all
-```
+The CDK deployment instructions previously listed here are obsolete. The current
+DEV infrastructure uses Terraform. Updating Parameter Store alone does **not**
+update credentials already embedded in the CloudFront Functions.
+
+1. Obtain authorization for the DEV deployment and review the exact Terraform
+   plan. Do not deploy unrelated changes or assume a full develop release is needed.
+2. Apply the approved DEV infrastructure change through the current deployment
+   workflow, which reads the SSM parameters and passes them to Terraform.
+3. Verify the distribution has finished deployment and its default and `/admin/*`
+   behaviors reference the intended LIVE `PublicCombinedFunction-dev` and
+   `AdminCombinedFunction-dev`. Checking only `BasicAuthFunction-dev` is insufficient.
+4. Confirm inside a controlled process that neither LIVE verifier accepts the old
+   value. Compare secrets in memory and report only match/non-match; do not print
+   values, put them in shell history, or test the leaked password against a login URL.
+5. Record the parameter version, function ETags, deployment time, and verification
+   outcome without including credentials. Modification timestamps alone do not
+   prove the password value changed. Confirm any reuse separately.
+
+The historical credential finding #424 remains unresolved until this evidence is
+available. Redaction from documentation or PR #227 does not revoke it. CloudTrail
+records management operations, not every Basic authentication request; S3 origin
+access logs do not cover all requests served or rejected at the edge.
 
 #### 3. (Optional) Update GitHub Secrets
 

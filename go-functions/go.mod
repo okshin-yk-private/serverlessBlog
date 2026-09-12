@@ -1,6 +1,6 @@
 module serverless-blog/go-functions
 
-go 1.26.5
+go 1.26.6
 
 require (
 	github.com/aws/aws-lambda-go v1.55.0
@@ -43,5 +43,5 @@ require (
 	github.com/ikawaha/kagome-dict v1.1.7 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
 )
