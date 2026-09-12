@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -1221,7 +1222,7 @@ func TestHandler_ConflictDoesNotDeleteImages(t *testing.T) {
 func TestHandler_ImageCleanupWarningIsSingleJSONEvent(t *testing.T) {
 	cleanup := setupTest(t)
 	defer cleanup()
-	postID := "post\r\nFORGED level=INFO\t\x00"
+	postID := "post\r\nFORGED level=INFO\t\x00\\\""
 	existingPost := createTestPostWithImages()
 	existingPost.ID = postID
 	av := marshalPost(t, existingPost)
@@ -1260,7 +1261,12 @@ func TestHandler_ImageCleanupWarningIsSingleJSONEvent(t *testing.T) {
 	if err := json.Unmarshal(raw, &event); err != nil {
 		t.Fatalf("invalid JSON log: %v", err)
 	}
-	if event["postId"] != postID || event["level"] != "WARN" {
-		t.Fatalf("input must be retained as data: %+v", event)
+	escapedID, ok := event["postId"].(string)
+	if !ok || strings.ContainsAny(escapedID, "\r\n\t\x00") || event["level"] != "WARN" {
+		t.Fatalf("extracted log field must contain no raw control characters: %+v", event)
+	}
+	decodedID, err := strconv.Unquote(`"` + escapedID + `"`)
+	if err != nil || decodedID != postID {
+		t.Fatalf("escaped input must remain reversible: decoded=%q err=%v", decodedID, err)
 	}
 }

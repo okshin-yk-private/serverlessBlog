@@ -67,6 +67,12 @@ Never dismiss a credential as a false positive just because it was removed from
 current files. Rotation/revocation and propagation to the actual verifier must
 be established first. Do not try leaked values against a live login endpoint.
 
+The delete-handler cleanup warning uses a JSON logger and quotes control characters
+inside the `postId` field. Normal IDs remain unchanged, and anomalous IDs can be
+decoded without losing evidence. This also keeps extracted plain-text log fields
+safe from line injection. The regression test checks both a single JSON event and
+reversible escaping after JSON parsing.
+
 ## Local verification
 
 ```bash
