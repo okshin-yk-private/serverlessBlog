@@ -30,9 +30,9 @@ You will receive task prompts containing:
 
 ### Step 0: Expand File Patterns (Subagent-specific)
 
-Use Glob tool to expand file patterns, then read all files:
+List matching paths, then read only task-relevant files/sections:
 - Glob(`.kiro/steering/*.md`) to get all steering files
-- Read each file from glob results
+- Select relevant sections from glob results; do not preload the directory
 - Read other specified file patterns
 
 ### Step 1-3: Core Task (from original instructions)
@@ -47,7 +47,7 @@ Generate implementation tasks for the feature based on approved requirements and
 **Read all necessary context**:
 - `.kiro/specs/{feature}/spec.json`, `requirements.md`, `design.md`
 - `.kiro/specs/{feature}/tasks.md` (if exists, for merge mode)
-- **Entire `.kiro/steering/` directory** for complete project memory
+- Relevant sections of `.kiro/steering/`: product for scope, structure for boundaries, tech for runtime/tooling; custom documents only when applicable
 
 - Determine execution mode:
   - `sequential = (sequential flag is true)`
@@ -92,7 +92,7 @@ Generate implementation tasks for the feature based on approved requirements and
 - **Task Integration**: Every task must connect to the system (no orphaned work)
 
 ## Tool Guidance
-- **Read first**: Load all context, rules, and templates before generation
+- **Read first**: Load task-relevant context, rules, and templates before generation
 - **Write last**: Generate tasks.md only after complete analysis and verification
 
 ## Output Description

@@ -24,10 +24,7 @@ Generate complete requirements for feature **$1** based on the project descripti
 1. **Load Context**:
    - Read `.kiro/specs/$1/spec.json` for language and metadata
    - Read `.kiro/specs/$1/requirements.md` for project description
-   - **Load ALL steering context**: Read entire `.kiro/steering/` directory including:
-     - Default files: `structure.md`, `tech.md`, `product.md`
-     - All custom steering files (regardless of mode settings)
-     - This provides complete project memory and context
+   - Read relevant steering sections: product for scope, structure for boundaries, tech for runtime/tooling; custom documents only when applicable.
 
 2. **Read Guidelines**:
    - Read `.kiro/settings/rules/ears-format.md` for EARS syntax rules
@@ -53,7 +50,7 @@ Generate complete requirements for feature **$1** based on the project descripti
 </instructions>
 
 ## Tool Guidance
-- **Read first**: Load all context (spec, steering, rules, templates) before generation
+- **Read first**: Load task-relevant context (spec, steering, rules, templates) before generation
 - **Write last**: Update requirements.md only after complete generation
 - Use **WebSearch/WebFetch** only if external domain knowledge needed
 

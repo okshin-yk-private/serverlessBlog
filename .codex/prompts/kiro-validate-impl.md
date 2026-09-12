@@ -47,9 +47,7 @@ For each detected feature:
 - Read `.kiro/specs/<feature>/requirements.md` for requirements
 - Read `.kiro/specs/<feature>/design.md` for design structure
 - Read `.kiro/specs/<feature>/tasks.md` for task list
-- **Load ALL steering context**: Read entire `.kiro/steering/` directory including:
-  - Default files: `structure.md`, `tech.md`, `product.md`
-  - All custom steering files (regardless of mode settings)
+- Read relevant steering sections: product for scope, structure for boundaries, tech for runtime/tooling; custom documents only when applicable.
 
 ### 3. Execute Validation
 
@@ -98,7 +96,7 @@ Provide summary in the language specified in spec.json:
 
 ## Tool Guidance
 - **Conversation parsing**: Extract `/prompts:kiro-spec-impl` patterns from history
-- **Read context**: Load all specs and steering before validation
+- **Read context**: Load the selected specs and relevant steering sections before validation
 - **Bash for tests**: Execute test commands to verify pass status
 - **Grep for traceability**: Search codebase for requirement evidence
 - **LS/Glob for structure**: Verify file structure matches design

@@ -25,10 +25,7 @@ Interactive design quality review for feature **$1** based on approved requireme
    - Read `.kiro/specs/$1/spec.json` for language and metadata
    - Read `.kiro/specs/$1/requirements.md` for requirements
    - Read `.kiro/specs/$1/design.md` for design document
-   - **Load ALL steering context**: Read entire `.kiro/steering/` directory including:
-     - Default files: `structure.md`, `tech.md`, `product.md`
-     - All custom steering files (regardless of mode settings)
-     - This provides complete project memory and context
+   - Read relevant steering sections: product for scope, structure for boundaries, tech for runtime/tooling; custom documents only when applicable.
 
 2. **Read Review Guidelines**:
    - Read `.kiro/settings/rules/design-review.md` for review criteria and process
@@ -52,7 +49,7 @@ Interactive design quality review for feature **$1** based on approved requireme
 </instructions>
 
 ## Tool Guidance
-- **Read first**: Load all context (spec, steering, rules) before review
+- **Read first**: Load task-relevant context (spec, steering, rules) before review
 - **Grep if needed**: Search codebase for pattern validation or integration checks
 - **Interactive**: Engage with user throughout the review process
 

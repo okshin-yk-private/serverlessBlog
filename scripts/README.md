@@ -17,5 +17,9 @@
 
 ## AI/運用補助
 - `sync-ai-docs.ts`
-  - AI向けドキュメントの同期・更新に利用。
+  - MCP設定と非kiroコマンドを同期。AGENTS.md / CLAUDE.mdは共有ルールへの参照を検証するだけで上書きしない。
   - 例: `bun scripts/sync-ai-docs.ts`
+
+- `run-codex.sh`
+  - 起動元のディレクトリに関係なく、このGitルートをCodexの作業ディレクトリにする。
+  - 例: `bash /path/to/serverlessBlog/scripts/run-codex.sh`

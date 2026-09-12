@@ -27,7 +27,7 @@ Generate technical design document for feature **$1** based on approved requirem
 
 **Read all necessary context**:
 - `.kiro/specs/$1/spec.json`, `requirements.md`, `design.md` (if exists)
-- **Entire `.kiro/steering/` directory** for complete project memory
+- Relevant sections of `.kiro/steering/`: product for scope, structure for boundaries, tech for runtime/tooling; custom documents only when applicable
 - `.kiro/settings/templates/specs/design.md` for document structure
 - `.kiro/settings/rules/design-principles.md` for design principles
 - `.kiro/settings/templates/specs/research.md` for discovery log structure
@@ -118,7 +118,7 @@ Generate technical design document for feature **$1** based on approved requirem
 </instructions>
 
 ## Tool Guidance
-- **Read first**: Load all context before taking action (specs, steering, templates, rules)
+- **Read first**: Load task-relevant context before taking action (specs, steering, templates, rules)
 - **Research when uncertain**: Use WebSearch/WebFetch for external dependencies, APIs, and latest best practices
 - **Analyze existing code**: Use Grep to find patterns and integration points in codebase
 - **Write last**: Generate design.md (and research.md updates) only after all research and analysis complete

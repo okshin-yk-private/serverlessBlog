@@ -13,7 +13,10 @@ context: `/investigate-aws`, `/investigate-terraform`, `/investigate-cdk`. Do no
 
 ## Skills
 
-Invoke by name; each carries its own workflow.
+Invoke by name; each carries its own workflow. Shared bodies also have Codex
+entrypoints in `.agents/skills/`; preserve both CLIs when updating them.
+`team-implement` remains Claude-only. Follow shared scope/verification/completion
+rules even when using a skill.
 
 - `/create-issue`, `/implement-issue`, `/create-pr`, `/review-pr-comments` — GitHub loop
 - `/team-implement` — parallel TDD across issues (details in the skill)
