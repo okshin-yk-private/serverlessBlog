@@ -92,4 +92,3 @@ After all icons are placed, run a validation pass:
 - Simple diagrams (< 10 resources): 800 x 600
 - Medium diagrams (10-30 resources): 1200 x 900
 - Complex diagrams (30+ resources): 1600 x 1200+
-
