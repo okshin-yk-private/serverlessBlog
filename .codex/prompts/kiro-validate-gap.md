@@ -25,10 +25,7 @@ Analyze implementation gap for feature **$1** based on approved requirements and
 1. **Load Context**:
    - Read `.kiro/specs/$1/spec.json` for language and metadata
    - Read `.kiro/specs/$1/requirements.md` for requirements
-   - **Load ALL steering context**: Read entire `.kiro/steering/` directory including:
-     - Default files: `structure.md`, `tech.md`, `product.md`
-     - All custom steering files (regardless of mode settings)
-     - This provides complete project memory and context
+   - Read relevant steering sections: product for scope, structure for boundaries, tech for runtime/tooling; custom documents only when applicable.
 
 2. **Read Analysis Guidelines**:
    - Read `.kiro/settings/rules/gap-analysis.md` for comprehensive analysis framework
@@ -53,7 +50,7 @@ Analyze implementation gap for feature **$1** based on approved requirements and
 </instructions>
 
 ## Tool Guidance
-- **Read first**: Load all context (spec, steering, rules) before analysis
+- **Read first**: Load task-relevant context (spec, steering, rules) before analysis
 - **Grep extensively**: Search codebase for patterns, conventions, and integration points
 - **WebSearch/WebFetch**: Research external dependencies and best practices when needed
 - **Write last**: Generate analysis only after complete investigation

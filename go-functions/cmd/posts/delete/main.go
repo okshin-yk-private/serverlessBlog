@@ -14,6 +14,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/url"
 	"os"
@@ -140,7 +141,10 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// The record is committed first: a failed version check must not remove images.
 	// Cleanup failure cannot undo the deletion; retain an operational warning.
 	if cleanupErr := deletePostImages(ctx, existingPost); cleanupErr != nil {
-		slog.Warn("post deleted but image cleanup failed", "postId", postID, "response", cleanupErr.Body)
+		// Preserve normal IDs, but escape control characters even when a log viewer
+		// extracts the JSON field as plain text. Quoting keeps the input reversible.
+		quotedPostID := fmt.Sprintf("%q", postID)
+		middleware.NewLoggerFromContext(ctx).Warn("post deleted but image cleanup failed", "postId", quotedPostID[1:len(quotedPostID)-1], "response", cleanupErr.Body)
 	}
 
 	// Return 204 No Content

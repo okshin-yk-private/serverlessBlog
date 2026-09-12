@@ -9,11 +9,7 @@ export default defineConfig({
     setupFiles: './src/test/setup.ts',
     // ローカル実行時の負荷軽減: ワーカー数を制限
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        maxForks: process.env.CI ? 4 : 2,
-      },
-    },
+    maxWorkers: process.env.CI ? 4 : 2,
     env: {
       // 単体テスト環境では VITE_ENABLE_MSW_MOCK を未設定にして、Amplifyモックを使用
       VITE_ENABLE_MSW_MOCK: undefined as string | undefined,

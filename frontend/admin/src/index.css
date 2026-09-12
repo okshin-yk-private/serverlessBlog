@@ -933,3 +933,81 @@
     padding: 3px 8px;
   }
 }
+
+/* Keep writing controls within reach without reserving a second mobile row. */
+.admin-page-writing .admin-hero {
+  padding: 16px 32px;
+  text-align: left;
+}
+.admin-page-writing .admin-hero-content {
+  max-width: none;
+}
+.admin-page-writing .admin-hero-subtitle {
+  margin-bottom: 4px;
+}
+.admin-page-writing .admin-hero::before,
+.admin-page-writing .admin-hero::after {
+  display: none;
+}
+.admin-page-writing .admin-main {
+  padding-top: 20px;
+}
+.admin-writing-actions {
+  grid-column: 1 / -1;
+  position: sticky;
+  top: 88px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+.admin-writing-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-writing-status {
+  flex-basis: 100%;
+}
+.admin-writing-details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 12px 0;
+}
+.admin-writing-grid > * {
+  min-width: 0;
+}
+@media (max-width: 768px) {
+  .admin-page-writing .admin-hero {
+    padding: 12px 20px;
+  }
+  .admin-page-writing .admin-main {
+    padding-top: 12px;
+  }
+  .admin-writing-actions {
+    top: 72px;
+    gap: 8px;
+    padding: 8px;
+  }
+  .admin-writing-title {
+    display: none;
+  }
+  .admin-writing-actions .admin-btn {
+    padding: 8px 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-page-writing .admin-header-container { gap: 12px; }
+  .admin-page-writing .admin-logo { flex-shrink: 0; }
+  .admin-page-writing .admin-logo-image { max-width: 116px; height: auto; }
+  .admin-page-writing .admin-nav { min-width: 0; overflow-x: auto; }
+  .admin-page-writing .admin-nav > * { flex-shrink: 0; }
+}

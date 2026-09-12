@@ -28,9 +28,9 @@ You will receive task prompts containing:
 
 ### Step 0: Expand File Patterns (Subagent-specific)
 
-Use Glob tool to expand file patterns, then read all files:
+List matching paths, then read only task-relevant files/sections:
 - Glob(`.kiro/steering/*.md`) to get all steering files
-- Read each file from glob results
+- Select relevant sections from glob results; do not preload the directory
 - Read other specified file patterns
 
 ### Step 1-4: Core Task (from original instructions)
@@ -43,10 +43,7 @@ Generate complete requirements for the feature based on the project description 
 1. **Load Context**:
    - Read `.kiro/specs/{feature}/spec.json` for language and metadata
    - Read `.kiro/specs/{feature}/requirements.md` for project description
-   - **Load ALL steering context**: Read entire `.kiro/steering/` directory including:
-     - Default files: `structure.md`, `tech.md`, `product.md`
-     - All custom steering files (regardless of mode settings)
-     - This provides complete project memory and context
+   - Read relevant steering sections: product for scope, structure for boundaries, tech for runtime/tooling; custom documents only when applicable.
 
 2. **Read Guidelines**:
    - Read `.kiro/settings/rules/ears-format.md` for EARS syntax rules
@@ -71,7 +68,7 @@ Generate complete requirements for the feature based on the project description 
 - Generate initial version first, then iterate with user feedback (no sequential questions upfront)
 
 ## Tool Guidance
-- **Read first**: Load all context (spec, steering, rules, templates) before generation
+- **Read first**: Load task-relevant context (spec, steering, rules, templates) before generation
 - **Write last**: Update requirements.md only after complete generation
 - Use **WebSearch/WebFetch** only if external domain knowledge needed
 

@@ -12,6 +12,7 @@ interface AdminLayoutProps {
   title?: string;
   subtitle?: string;
   actions?: React.ReactNode;
+  compact?: boolean;
 }
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({
@@ -19,10 +20,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
   title,
   subtitle,
   actions,
+  compact = false,
 }) => {
   return (
     <>
-      <div className="admin-page">
+      <div className={`admin-page${compact ? ' admin-page-writing' : ''}`}>
         <AdminHeader />
 
         {(title || subtitle) && (

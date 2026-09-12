@@ -140,7 +140,7 @@ These are global AWS services that span all regions.
 
 | Element                       | Notes                                        |
 |-------------------------------|----------------------------------------------|
-| Users / Internet              | Place **above** the AWS Cloud group, x-aligned with the primary ingress target (see SKILL.md Step 3, Rule A+). Fall back to left placement only for horizontal-flow diagrams. |
+| Users / Internet              | Place **above** the AWS Cloud group, x-aligned with the primary ingress target (see [layout.md](layout.md), Rule A+). Fall back to left placement only for horizontal-flow diagrams. |
 | Corporate data center         | Use Corporate Data Center group, outside AWS  |
 | Third-party services          | Use generic icons outside AWS Cloud           |
 | On-premises servers           | Use server icons outside AWS Cloud            |

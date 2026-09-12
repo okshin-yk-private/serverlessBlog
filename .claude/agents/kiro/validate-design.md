@@ -27,9 +27,9 @@ You will receive task prompts containing:
 
 ### Step 0: Expand File Patterns (Subagent-specific)
 
-Use Glob tool to expand file patterns, then read all files:
+List matching paths, then read only task-relevant files/sections:
 - Glob(`.kiro/steering/*.md`) to get all steering files
-- Read each file from glob results
+- Select relevant sections from glob results; do not preload the directory
 - Read other specified file patterns
 
 ### Step 1-4: Core Task (from original instructions)
@@ -43,10 +43,7 @@ Interactive design quality review for feature based on approved requirements and
    - Read `.kiro/specs/{feature}/spec.json` for language and metadata
    - Read `.kiro/specs/{feature}/requirements.md` for requirements
    - Read `.kiro/specs/{feature}/design.md` for design document
-   - **Load ALL steering context**: Read entire `.kiro/steering/` directory including:
-     - Default files: `structure.md`, `tech.md`, `product.md`
-     - All custom steering files (regardless of mode settings)
-     - This provides complete project memory and context
+   - Read relevant steering sections: product for scope, structure for boundaries, tech for runtime/tooling; custom documents only when applicable.
 
 2. **Read Review Guidelines**:
    - Read `.kiro/settings/rules/design-review.md` for review criteria and process
@@ -69,7 +66,7 @@ Interactive design quality review for feature based on approved requirements and
 - **Actionable feedback**: All suggestions must be implementable
 
 ## Tool Guidance
-- **Read first**: Load all context (spec, steering, rules) before review
+- **Read first**: Load task-relevant context (spec, steering, rules) before review
 - **Grep if needed**: Search codebase for pattern validation or integration checks
 - **Interactive**: Engage with user throughout the review process
 

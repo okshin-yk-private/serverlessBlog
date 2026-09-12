@@ -310,8 +310,57 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
     return (
       <form
         onSubmit={handleSubmit}
-        className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]"
+        className="admin-writing-grid grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]"
       >
+        {/* ボタン + autosave ステータス */}
+        <div className="admin-writing-actions" aria-label="記事の保存操作">
+          <span className="admin-writing-title" title={title}>
+            {title.trim() || '無題の記事'}
+          </span>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={isSaving}
+            data-testid={
+              meta.publishStatus === 'published'
+                ? 'publish-button'
+                : 'save-draft-button'
+            }
+          >
+            {isSaving
+              ? '保存中...'
+              : meta.publishStatus === 'published'
+                ? '公開内容を保存'
+                : '下書き保存'}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleCancelClick}
+            disabled={isSaving}
+            data-testid="cancel-button"
+          >
+            キャンセル
+          </Button>
+          {onAutosave && (
+            <span
+              data-testid="autosave-status"
+              data-autosave-status={autosave.status}
+              className={`admin-writing-status text-sm ${
+                autosave.status === 'error'
+                  ? 'admin-autosave-error'
+                  : autosave.status === 'saving'
+                    ? 'admin-autosave-active'
+                    : 'admin-autosave-idle'
+              }`}
+              aria-live="polite"
+            >
+              {initialData?.publishStatus === 'published'
+                ? '公開中の記事は保存ボタンで反映されます'
+                : autosave.savedAgoLabel}
+            </span>
+          )}
+        </div>
         <div className="space-y-6">
           {/* タイトル */}
           <div>
@@ -459,49 +508,6 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
               {metadataError}
             </p>
           )}
-
-          {/* ボタン + autosave ステータス */}
-          <div className="flex items-center gap-3">
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={isSaving}
-              data-testid={
-                meta.publishStatus === 'published'
-                  ? 'publish-button'
-                  : 'save-draft-button'
-              }
-            >
-              {isSaving ? '保存中...' : '保存'}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleCancelClick}
-              disabled={isSaving}
-              data-testid="cancel-button"
-            >
-              キャンセル
-            </Button>
-            {onAutosave && (
-              <span
-                data-testid="autosave-status"
-                data-autosave-status={autosave.status}
-                className={`ml-auto text-sm ${
-                  autosave.status === 'error'
-                    ? 'admin-autosave-error'
-                    : autosave.status === 'saving'
-                      ? 'admin-autosave-active'
-                      : 'admin-autosave-idle'
-                }`}
-                aria-live="polite"
-              >
-                {initialData?.publishStatus === 'published'
-                  ? '公開中の記事は保存ボタンで反映されます'
-                  : autosave.savedAgoLabel}
-              </span>
-            )}
-          </div>
         </div>
         <MetadataSidebar
           value={meta}

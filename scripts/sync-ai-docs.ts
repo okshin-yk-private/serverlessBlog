@@ -97,18 +97,15 @@ function normalizeRelPath(relPath: string) {
   return relPath.split(path.sep).join('/');
 }
 
-async function syncAgents() {
-  const source = path.join(aiDir, 'agents.md');
-  const content = await readText(source);
-  const changedAgents = await writeIfChanged(
-    path.join(repoRoot, 'AGENTS.md'),
-    content
-  );
-  const changedClaude = await writeIfChanged(
-    path.join(repoRoot, 'CLAUDE.md'),
-    content
-  );
-  return changedAgents || changedClaude;
+async function validateAgentEntrypoints() {
+  // Entrypoints intentionally differ by CLI; never regenerate them from .ai/agents.md.
+  for (const name of ['AGENTS.md', 'CLAUDE.md']) {
+    const content = await readText(path.join(repoRoot, name));
+    if (!content.includes('docs/ai-shared-rules.md')) {
+      throw new Error(`${name} must reference docs/ai-shared-rules.md`);
+    }
+  }
+  await readText(path.join(repoRoot, 'docs', 'ai-shared-rules.md'));
 }
 
 async function syncMcp() {
@@ -257,8 +254,10 @@ async function updateConfigToml(mcpToml: string) {
 }
 
 async function main() {
-  const changed =
-    (await syncAgents()) || (await syncMcp()) || (await syncCommands());
+  await validateAgentEntrypoints();
+  const mcpChanged = await syncMcp();
+  const commandsChanged = await syncCommands();
+  const changed = mcpChanged || commandsChanged;
 
   if (checkOnly && changed) {
     process.exitCode = 1;

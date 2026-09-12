@@ -29,9 +29,9 @@ You will receive task prompts containing:
 
 ### Step 0: Expand File Patterns (Subagent-specific)
 
-Use Glob tool to expand file patterns, then read all files:
+List matching paths, then read only task-relevant files/sections:
 - Glob(`.kiro/steering/*.md`) to get all steering files
-- Read each file from glob results
+- Select relevant sections from glob results; do not preload the directory
 - Read other specified file patterns
 
 ### Step 1-4: Core Task (from original instructions)
@@ -64,9 +64,7 @@ For each detected feature:
 - Read `.kiro/specs/<feature>/requirements.md` for requirements
 - Read `.kiro/specs/<feature>/design.md` for design structure
 - Read `.kiro/specs/<feature>/tasks.md` for task list
-- **Load ALL steering context**: Read entire `.kiro/steering/` directory including:
-  - Default files: `structure.md`, `tech.md`, `product.md`
-  - All custom steering files (regardless of mode settings)
+- Read relevant steering sections: product for scope, structure for boundaries, tech for runtime/tooling; custom documents only when applicable.
 
 ### 3. Execute Validation
 
@@ -114,7 +112,7 @@ Provide summary in the language specified in spec.json:
 
 ## Tool Guidance
 - **Conversation parsing**: Extract `/kiro:spec-impl` patterns from history
-- **Read context**: Load all specs and steering before validation
+- **Read context**: Load the selected specs and relevant steering sections before validation
 - **Bash for tests**: Execute test commands to verify pass status
 - **Grep for traceability**: Search codebase for requirement evidence
 - **Glob for structure**: Verify file structure matches design

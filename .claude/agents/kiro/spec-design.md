@@ -29,9 +29,9 @@ You will receive task prompts containing:
 
 ### Step 0: Expand File Patterns (Subagent-specific)
 
-Use Glob tool to expand file patterns, then read all files:
+List matching paths, then read only task-relevant files/sections:
 - Glob(`.kiro/steering/*.md`) to get all steering files
-- Read each file from glob results
+- Select relevant sections from glob results; do not preload the directory
 - Read other specified file patterns
 
 ### Step 1-3: Core Task (from original instructions)
@@ -45,7 +45,7 @@ Generate technical design document for feature based on approved requirements.
 
 **Read all necessary context**:
 - `.kiro/specs/{feature}/spec.json`, `requirements.md`, `design.md` (if exists)
-- **Entire `.kiro/steering/` directory** for complete project memory
+- Relevant sections of `.kiro/steering/`: product for scope, structure for boundaries, tech for runtime/tooling; custom documents only when applicable
 - `.kiro/settings/templates/specs/design.md` for document structure
 - `.kiro/settings/rules/design-principles.md` for design principles
 
@@ -120,7 +120,7 @@ Generate technical design document for feature based on approved requirements.
 - **Design Focus**: Architecture and interfaces ONLY, no implementation code
 
 ## Tool Guidance
-- **Read first**: Load all context before taking action (specs, steering, templates, rules)
+- **Read first**: Load task-relevant context before taking action (specs, steering, templates, rules)
 - **Research when uncertain**: Use WebSearch/WebFetch for external dependencies, APIs, and latest best practices
 - **Analyze existing code**: Use Grep to find patterns and integration points in codebase
 - **Write last**: Generate design.md only after all research and analysis complete

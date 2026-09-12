@@ -1,152 +1,152 @@
 # Security Scanning Operations Guide
 
-This document describes the repository-wide vulnerability scanning system, how to triage findings, how to suppress false positives, and the roadmap for tightening enforcement.
+GitHub **Security → Code scanning** is the source of truth for SARIF findings.
+Dependabot, Bun audit, and govulncheck are complementary sources; one empty view
+is not proof that the other dependency trees or deployed versions are safe.
 
-For Terraform-specific tooling details, see [`terraform/docs/SECURITY_TOOLING.md`](../terraform/docs/SECURITY_TOOLING.md).
+## Scanner inventory
 
----
+| Scanner | Scope | Findings | Execution/reporting failures | Evidence |
+| --- | --- | --- | --- | --- |
+| Gitleaks 8.24.3 | Full reachable Git history of the scanned SHA | Visible, non-blocking while baseline is reviewed | Blocking | Code scanning `gitleaks`, redacted artifact |
+| CodeQL | Go and JS/TS source, security-and-quality queries | Code scanning rules | Blocking | `/language:go`, `/language:javascript-typescript` |
+| Trivy 0.70.0 | Dependencies (including dev) and secrets, all severities | Visible, non-blocking during baseline review | Blocking | `trivy-fs`, SARIF artifact |
+| Bun audit 1.3.11 | Root, admin, public-astro, deploy scripts; all dependencies | Warning plus JSON artifact | Missing/malformed reports and command errors block | `dependency-audit-*` artifact |
+| govulncheck 1.8.0 | Go call paths, including standard library | Exit 3 produces a warning and report | Other nonzero exits block | `govulncheck.txt` artifact |
+| Checkov | Terraform-labeled PRs after fmt succeeds | `soft_fail: true` | Existing CI policy | `checkov-terraform` |
+| Local gitleaks / Trivy config | Commit secrets / changed Terraform | Blocking per pre-commit config | Blocking | Local output |
+| Dependabot | Scheduled package version updates | PRs | Check updater logs | Dependency graph / PRs |
 
-## 1. Scanner Inventory
+The weekly Security Scan resolves **develop and main to immutable SHAs**, then
+scans each separately. PRs scan the event merge SHA; pushes and manual runs scan
+the event SHA. Every CodeQL/SARIF upload supplies both ref and SHA. Artifact names
+are distinct per target, while SARIF categories stay stable. Markdown-only PRs
+are scanned because documentation can contain credentials.
 
-| Scanner | Layer | Trigger | Severity threshold | Phase 1 mode | Result location | Config |
-|---|---|---|---|---|---|---|
-| **gitleaks** (pre-commit) | secrets | local commit | all default rules | block on detect | terminal | `.pre-commit-config.yaml`, `.gitleaks.toml` |
-| **gitleaks** (CI) | secrets (full history) | PR / push develop·main / weekly / manual | all default rules | non-blocking | Security → Code scanning (`gitleaks`) | `.github/workflows/security-scan.yml`, `.gitleaks.toml` |
-| **CodeQL (Go)** | SAST | PR / push / weekly / manual | security-and-quality | non-blocking | Security → Code scanning (`/language:go`) | `.github/workflows/security-scan.yml` |
-| **CodeQL (JS/TS)** | SAST | PR / push / weekly / manual | security-and-quality | non-blocking | Security → Code scanning (`/language:javascript-typescript`) | `.github/workflows/security-scan.yml` |
-| **Trivy fs** | vuln + secret + IaC + license | PR / push / weekly / manual | HIGH, CRITICAL | non-blocking (`exit-code: 0`) | Security → Code scanning (`trivy-fs`) | `.github/workflows/security-scan.yml`, `.trivyignore` |
-| **Trivy config** (pre-commit) | IaC | local commit on `^terraform/` | HIGH, CRITICAL | block on detect | terminal | `.pre-commit-config.yaml`, `.trivyignore` |
-| **Checkov** (Terraform) | IaC | PR with `terraform` label | (config-defined) | soft-fail, SARIF uploaded | Security → Code scanning (`checkov-terraform`) | `.github/workflows/ci.yml`, `terraform/.checkov.yaml` |
-| **npm audit** | JS dependencies | PR (lint job) | high | `continue-on-error: true` | job log | `.github/workflows/ci.yml` |
-| **golangci-lint** | Go static analysis | PR with `go` label | (preset) | blocking | job log | `go-functions/.golangci.yml` |
-| **govulncheck** | Go dependencies | PR with `go` label | (Go vuln DB) | `continue-on-error: true` | job log | `.github/workflows/ci.yml` |
-| **Dependabot** | dependencies | weekly + on advisory | all severities | PR-based | repo PRs + Insights → Dependency graph | `.github/dependabot.yml` |
+Gitleaks uses `--log-opts="--full-history HEAD"`: a branch report represents that
+branch's reachable history, rather than silently including every fetched branch.
+Reports use `--redact=100`; do not print secret snippets or raw report contents.
 
-Result aggregation: GitHub **Security → Code scanning** is the source of truth for SARIF findings. **Security → Dependabot** lists outstanding dependency advisories.
+The Security Scan Summary fails if target selection, a scanner, or an upload
+fails or is skipped. A green summary means the scanners finished; **it does not
+mean zero vulnerabilities**. Check all reports and current-head alerts before
+releasing. Trivy filesystem scanning does not run IaC or license checks here;
+Checkov and local Trivy config cover separate scopes. AWS live state is not scanned.
 
----
+## Dependency updates
 
-## 2. Triage Workflow
+The four JavaScript projects use Dependabot's native `bun` ecosystem and text
+`bun.lock`. Review both the manifest and lockfile, then install with
+`bun install --frozen-lockfile`, including Dependabot PRs. The old privileged
+`pull_request_target` lockfile regeneration workflow has been removed: PR code
+and lifecycle scripts no longer execute with a token capable of pushing commits.
 
-When a finding appears in the Code Scanning tab:
+Bun version updates are supported, but automatic Bun security-update PRs are not.
+Enabling repository-level Dependabot security updates does not change that limit.
+Use the four explicit Bun audits and Trivy to find security updates; do not wait
+for an automatic PR. Major upgrades are reviewed manually.
 
-1. **Open the alert** and read the rule description, location, and dataflow.
-2. **Reproduce locally** — see [Section 5](#5-local-validation).
-3. **Decide one of three outcomes**:
-   - **Fix** — write a code change addressing the root cause; reference the alert in the PR description.
-   - **Suppress with justification** — see [Section 4](#4-suppression-recipes). All suppressions must include a `# justification:` comment explaining why.
-   - **Dismiss as false positive** — use the GitHub UI's "Dismiss alert" with reason; do this only after confirming with another engineer.
-4. **Re-run the scan** to confirm the alert is resolved.
+Sources: [GitHub supported ecosystems](https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories),
+[Bun audit](https://bun.com/docs/install/audit).
 
-**SLA targets** (advisory; not yet enforced):
-- CRITICAL: triage within 1 business day
-- HIGH: triage within 1 week
-- MEDIUM/LOW: review at next sprint planning
+## Triage and exceptions
 
----
+1. Confirm scanner, ref, SHA, location, affected version, and publication date.
+2. Trace the relevant input/API path. Package inclusion is not proof of exploitability.
+3. Fix and run affected tests/builds. Regenerate lockfiles; do not hand-edit integrity values.
+4. Re-scan the same final SHA and inspect uploads. A skipped test or upload is not success.
+5. For a false positive, retain evidence before a narrow suppression or human-reviewed dismissal.
 
-## 3. Dependabot PR Workflow
+Every exception needs a `justification:` comment. Prefer rule-specific path **AND**
+exact-value-shape conditions over directory-wide exclusions. `.gitleaks.toml`
+only adds exceptions for 21 historical CDK archive hashes and five literally
+truncated Rust JWT fixtures. A different value, key, or path is not exempt.
+The historical Basic authentication alert **#424 remains detectable**.
 
-Dependabot opens grouped PRs every Monday morning JST plus ungrouped PRs whenever GitHub publishes a security advisory matching this repo.
+Never dismiss a credential as a false positive just because it was removed from
+current files. Rotation/revocation and propagation to the actual verifier must
+be established first. Do not try leaked values against a live login endpoint.
 
-### Standard review
+The delete-handler cleanup warning uses a JSON logger and quotes control characters
+inside the `postId` field. Normal IDs remain unchanged, and anomalous IDs can be
+decoded without losing evidence. This also keeps extracted plain-text log fields
+safe from line injection. The regression test checks both a single JSON event and
+reversible escaping after JSON parsing.
 
-1. Check the PR description for the changelog excerpt and CVE references.
-2. Wait for CI to complete; verify the affected jobs pass.
-3. Approve and merge per branch policy (squash for `develop`).
-
-### Bun-specific step (mandatory)
-
-Dependabot uses the `npm` ecosystem for Bun projects (see the note in `.github/dependabot.yml`). It updates `package.json` but **does not regenerate `bun.lock`**. Reviewers must:
-
-```bash
-git fetch origin
-git checkout dependabot/<branch>
-bun install                    # regenerates bun.lock to match the new package.json
-git add bun.lock
-git commit -m "chore(deps): regenerate bun.lock"
-git push
-```
-
-CI will re-run; merge once green.
-
-### Auto-merge
-
-**Disabled for now.** Re-evaluate after 4 weeks of observing Dependabot PR cadence and quality (track in an issue).
-
----
-
-## 4. Suppression Recipes
-
-| Tool | Mechanism | Example |
-|---|---|---|
-| Trivy | `.trivyignore` (one rule ID per line) | `AVD-AWS-0089  # justification: bucket versioning enforced at module level` |
-| Checkov | `terraform/.checkov.yaml` `skip-check` list | `skip-check: [CKV_AWS_018]  # justification: ...` |
-| gitleaks | `.gitleaks.toml` `[allowlist]` paths or regexes | already includes AWS canonical example keys |
-| CodeQL | inline `// codeql[<rule-id>]` comment | `// codeql[js/disabled-certificate-validation] justification: test-only stub` |
-| Dependabot | per-dependency `ignore` block in `.github/dependabot.yml` | `- dependency-name: "lodash"\n  versions: ["4.x"]` |
-| npm audit | per-finding `package.json` `overrides` or `bun.lock` resolution pin | (case-by-case) |
-
-**Rule**: every suppression must carry a `justification:` comment naming a compensating control or explaining why the finding is benign in this codebase.
-
----
-
-## 5. Local Validation
+## Local verification
 
 ```bash
-# All pre-commit hooks (formatters, linters, gitleaks, trivy-config)
-pre-commit run --all-files
+bun run verify
+# Run in each of: ., frontend/admin, frontend/public-astro, scripts/deploy
+bun audit --json
 
-# Full-history secret scan
-gitleaks detect --source . --config .gitleaks.toml --verbose
+# Within go-functions, using its go.mod toolchain:
+go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
-# Mirror the CI Trivy filesystem scan
-trivy fs --severity HIGH,CRITICAL \
-  --scanners vuln,secret,misconfig,license \
-  --ignorefile .trivyignore .
+# Full history, with secret redaction:
+gitleaks detect --source . --config .gitleaks.toml \
+  --redact=100 --log-opts="--full-history HEAD"
 
-# Mirror the existing Terraform-scoped Trivy pre-commit hook
+# Match the CI dependency/secret scope; keep findings visible:
+trivy fs --scanners vuln,secret --include-dev-deps --ignorefile .trivyignore .
+# IaC is a separate scope:
 trivy config --severity HIGH,CRITICAL --ignorefile .trivyignore terraform/
-
-# Mirror Checkov
-checkov --config-file terraform/.checkov.yaml --directory terraform
-
-# Mirror govulncheck
-cd go-functions && go run golang.org/x/vuln/cmd/govulncheck@latest ./...
-
-# Mirror npm audit (each frontend project)
-( cd frontend/public && npm audit --production --audit-level=high )
-( cd frontend/admin  && npm audit --production --audit-level=high )
 ```
 
----
+For dependency changes run builds and relevant E2E in addition to `bun run verify`.
+Use the mock API build script for Astro and MSW for local admin E2E. Add frontend,
+go, deploy-scripts, or workflow labels as appropriate; labels can select CI suites.
+DEV and PRD deployment still require explicit authorization for the target.
 
-## 6. Phase 3 Hard-Fail Roadmap
+## Remaining issues as of 2026-09-12
 
-Phase 1 prioritizes visibility. Once a clean baseline holds for **at least two weeks** of merges, the following changes ship as separate PRs (one per row preferred to keep blast radius small):
+- **Historical credential #424:** on 2026-09-12, a read-only in-memory comparison
+  confirmed that the current DEV SSM password differs from the historical value.
+  Both associated LIVE verifiers (PublicCombinedFunction-dev and
+  AdminCombinedFunction-dev) match SSM and reject a different credential via their
+  authentication guard. The distribution is Deployed. The historical value was
+  not sent to the public endpoint. Reuse outside this DEV environment is still
+  awaiting owner confirmation; do not classify the original leak as a false positive.
+  PR #227's two exposed values were redacted. Git history remains. See
+  `DEV_BASIC_AUTH.md` for any further rotation steps.
+- **extract-zip High advisories:** the unpatched package has been removed from the
+  dependency tree by replacing LHCI with Lighthouse 13.4.1. This addresses
+  [GHSA-jmr9-qjv8-65gv](https://github.com/advisories/GHSA-jmr9-qjv8-65gv) and
+  [GHSA-7pqw-9j4j-h8q3](https://github.com/advisories/GHSA-7pqw-9j4j-h8q3)
+  without suppressing the findings or forcing incompatible transitive overrides.
+- Existing React Router RSC exception in `.trivyignore` remains separate from the
+  dependency updates. Re-evaluate it if the application starts using RSC.
 
-| # | Scanner | File / location | Change |
-|---|---|---|---|
-| 1 | npm audit (public) | `.github/workflows/ci.yml` `lint` job | Drop `continue-on-error: true` from the public-site step |
-| 2 | npm audit (admin) | `.github/workflows/ci.yml` `lint` job | Drop `continue-on-error: true` from the admin-dashboard step |
-| 3 | govulncheck | `.github/workflows/ci.yml` `go-lint` job | Drop `continue-on-error: true` |
-| 4 | Checkov | `.github/workflows/ci.yml` `terraform-security-scan` + `terraform/.checkov.yaml` | Flip `soft_fail`/`soft-fail` to `false` |
-| 5 | Trivy fs | `.github/workflows/security-scan.yml` `trivy-fs` job | Change `exit-code: '0'` → `'1'` |
-| 6 | gitleaks | `.github/workflows/security-scan.yml` `gitleaks` job | Remove `continue-on-error: true` |
+## Local Lighthouse collection
 
-After all six flips, update **branch protection** in the repo settings to require these checks:
+In `frontend/public-astro`, run `bun run lighthouse:collect` after building.
+Both `lighthouse` and `lighthouse:collect` now collect local static pages using
+Lighthouse 13, Node >=22.19, and an existing Chrome installation. Set `CHROME_PATH`
+if Chrome is not auto-detected. No browser download is performed.
 
-- `gitleaks`
-- `CodeQL (go)`
-- `CodeQL (javascript-typescript)`
-- `Trivy (filesystem)`
-- `Checkov Security Scan` (already exists)
+The server binds to loopback, audits HTML pages except `404.html`, and saves an
+HTML/JSON report pair per page under ignored `lighthouse-results/`. Use
+`--dist <directory>` or `--output <directory>` to override paths. Missing builds,
+missing Chrome, and Lighthouse runtime errors fail the command. Static-server
+path escape handling is covered by the config tests.
 
----
+This replaces LHCI's `autorun` with local collection. There was no repository LHCI
+assertion/upload configuration or CI caller. No temporary-public-storage upload
+is performed. Scores from Lighthouse 13 must not be treated as directly comparable
+to Lighthouse 12; establish a new baseline before adding score gates.
 
-## 7. Maintenance Notes
+Source: [Lighthouse 13.4.1 API and runtime requirements](https://github.com/GoogleChrome/lighthouse/tree/v13.4.1).
 
-- **Action SHA pinning**: every action in `security-scan.yml` is pinned by 40-char SHA per the existing convention (see `.github/workflows/ci.yml` line 59 onward). Dependabot's `github-actions` ecosystem will surface SHA-bump PRs weekly.
-- **gitleaks `rev` in pre-commit**: pinned to `v8.24.3`. `pre-commit.ci` autoupdate runs weekly — if a future major version (v9+) introduces a breaking change, add a temporary `skip:` entry in `.pre-commit-config.yaml` and pin manually.
-- **Astro components**: CodeQL's `javascript-typescript` extractor analyzes the JS chunks emitted by the Astro build but **not** the `.astro` SFC bodies directly. Continue to rely on ESLint and human review there.
-- **Trivy ignore file**: comments are mandatory; a finding suppressed without justification will be rejected in code review.
+## Enforcement rollout
+
+Scanner and upload failures block now. Findings remain non-blocking during
+baseline review so an unrevoked historical credential or unpatched upstream
+library is not silently hidden to make CI green.
+
+After a reviewed baseline and two weeks of stable scans, separately enable gates
+for new secrets and new Critical/High dependency findings, then tighten existing
+findings with explicit, expiring exceptions if needed. Require **Security Scan
+Summary** in branch protection only after validating its live behavior. Record
+remaining upstream/operational risks rather than interpreting the waiting period
+as approval to accept them. Monitoring main on a schedule prevents new advisories
+from being missed between production releases.
