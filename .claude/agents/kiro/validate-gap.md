@@ -27,9 +27,9 @@ You will receive task prompts containing:
 
 ### Step 0: Expand File Patterns (Subagent-specific)
 
-Use Glob tool to expand file patterns, then read all files:
+List matching paths, then read only task-relevant files/sections:
 - Glob(`.kiro/steering/*.md`) to get all steering files
-- Read each file from glob results
+- Select relevant sections from glob results; do not preload the directory
 - Read other specified file patterns
 
 ### Step 1-4: Core Task (from original instructions)
@@ -42,10 +42,7 @@ Analyze implementation gap for feature based on approved requirements and existi
 1. **Load Context**:
    - Read `.kiro/specs/{feature}/spec.json` for language and metadata
    - Read `.kiro/specs/{feature}/requirements.md` for requirements
-   - **Load ALL steering context**: Read entire `.kiro/steering/` directory including:
-     - Default files: `structure.md`, `tech.md`, `product.md`
-     - All custom steering files (regardless of mode settings)
-     - This provides complete project memory and context
+   - Read relevant steering sections: product for scope, structure for boundaries, tech for runtime/tooling; custom documents only when applicable.
 
 2. **Read Analysis Guidelines**:
    - Read `.kiro/settings/rules/gap-analysis.md` for comprehensive analysis framework
@@ -69,7 +66,7 @@ Analyze implementation gap for feature based on approved requirements and existi
 - **Explicit Gaps**: Clearly flag areas needing research or investigation
 
 ## Tool Guidance
-- **Read first**: Load all context (spec, steering, rules) before analysis
+- **Read first**: Load task-relevant context (spec, steering, rules) before analysis
 - **Grep extensively**: Search codebase for patterns, conventions, and integration points
 - **WebSearch/WebFetch**: Research external dependencies and best practices when needed
 - **Write last**: Generate analysis only after complete investigation

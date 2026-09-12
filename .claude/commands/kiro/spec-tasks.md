@@ -26,7 +26,7 @@ Generate implementation tasks for feature **$1** based on approved requirements 
 **Read all necessary context**:
 - `.kiro/specs/$1/spec.json`, `requirements.md`, `design.md`
 - `.kiro/specs/$1/tasks.md` (if exists, for merge mode)
-- **Entire `.kiro/steering/` directory** for complete project memory
+- Relevant sections of `.kiro/steering/`: product for scope, structure for boundaries, tech for runtime/tooling; custom documents only when applicable
 
 **Validate approvals**:
 - If `-y` flag provided ($2 == "-y"): Auto-approve requirements and design in spec.json
@@ -72,7 +72,7 @@ Generate implementation tasks for feature **$1** based on approved requirements 
 </instructions>
 
 ## Tool Guidance
-- **Read first**: Load all context, rules, and templates before generation
+- **Read first**: Load task-relevant context, rules, and templates before generation
 - **Write last**: Generate tasks.md only after complete analysis and verification
 
 ## Output Description

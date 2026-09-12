@@ -110,7 +110,7 @@ Issue番号にサフィックスを付与して強制指定可能。手動指定
 最大同時実行: 3 Executors
 ```
 
-`-y` フラグがない場合、ユーザーの承認を待つ。
+`-y` または同じ対象・範囲の実行計画への明示承認があれば継続する。未承認の計画だけ確認する。
 
 ## Phase 3: チーム作成 & TaskList作成
 
@@ -217,23 +217,17 @@ Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #63 ..
   ## 実装ルール
   1. ブランチ名: <fix/issue-N or feat/issue-N>
   2. ベースブランチ: origin/develop
-  3. TDDプロトコル厳守: RED → GREEN → REFACTOR
-  4. Conventional Commitsでコミット
-  5. テストコマンド:
-     - Go: cd go-functions && go test ./... -v
-     - Frontend Admin: cd frontend/admin && bun run test:coverage
-     - Frontend Public: cd frontend/public && bun run test:coverage
-     - Terraform: cd terraform && terraform fmt -check -recursive && terraform validate
-  6. フォーマッター:
-     - Go: cd go-functions && gofmt -w .
-     - Frontend: bun run format:check
-     - Terraform: terraform fmt -recursive
-  7. **Codexレビュー（MANDATORY - push前に必ず実行）**:
+  3. 動作変更はTDD: RED → GREEN → REFACTOR。静的変更は共有検証ルールに従う。
+  4. commitが依頼範囲に含まれる場合だけConventional Commitsでコミット
+  5. 検証は docs/ai-verification.md の変更範囲別コマンドを使う。
+     動作変更には回帰テスト、静的変更には適切な構文・参照検証を行う。
+  6. 修正したファイルのフォーマットを確認する。
+  7. **pushが承認されている場合は事前にCodexレビューを試行**:
      - 変更ファイル取得: `git diff --name-only origin/develop...HEAD`
      - レビュー実行: `Skill("codex:review", "<files> --focus all")`
-     - HIGH/MEDIUM指摘 → 修正・テスト再実行・コミット・再レビュー（最大2サイクル）
-     - MCP利用不可の場合は警告ログのみでpushを続行
-  8. 完了後、ブランチをpush: git push -u origin <branch-name>
+     - HIGH/MEDIUM指摘 → 根拠を確認し、範囲内の修正・該当検証・再レビューを行う。未解決なら報告し、レビュー済みとしてpushしない。
+     - MCP利用不可ならReview: SKIPPEDと報告する。必須チェックが通り、pushが承認済みなら続行可能。
+  8. pushが依頼範囲に含まれる場合だけ、完了後に対象ブランチをpushする。
 
   ## 完了報告形式
   以下の形式で報告:
@@ -247,7 +241,7 @@ Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #63 ..
 
 **Phase 4a: Post-Spawn自動リカバリ（3つ目のExecutorがタイムアウトした場合）**
 
-Phase 4のステップ10でタイムアウトが発生した場合、以下の3層リカバリを実行する。
+Phase 4のステップ10でタイムアウトが発生した場合、以下の段階的なリカバリを実行する。
 
 **Layer 2: SendMessageによる起動確認**
 ```
@@ -266,38 +260,23 @@ TaskList()
 # → まだ pending のままならLayer 3へ
 ```
 
-**Layer 3: tmux send-keysフォールバック**
-```
-# Step 4: tmux session名を動的取得
-Bash(command="tmux display-message -p '#{session_name}'")
-# → session名を取得（例: "main"）
+**Layer 3: 対象を確認できない場合は手動復旧**
 
-# Step 5: 最新のペイン（最大index）を特定
-Bash(command="tmux list-panes -t <session> -F '#{pane_index}' | sort -n | tail -1")
-# → 最大indexのペインが3つ目のExecutorのペイン
+Agent Teamsのメッセージ送信とタスク状態の再確認で復旧しなければ、
+対象Executor名と状態を報告する。最大pane indexから対象を推測しない。
+このワークフローではtmuxへのキー送信を自動実行しない。
+Enterは入力途中のコマンド実行や確認画面の承認になる可能性がある。
 
-# Step 6: そのペインにEnterキーを送信
-Bash(command="tmux send-keys -t <session>:<window>.<pane_index> Enter")
-# → ユーザーが手動で Ctrl+J Enter していた操作を自動化
-
-# Step 7: 30秒待機後、最終確認
-Bash(command="sleep 30")
-TaskList()
-# → タスクが in_progress になっていれば成功 → Phase 5へ進む
-# → まだ pending → ユーザーに手動介入を依頼
-```
-
-**安全性:**
-- ペイン特定は最大index（最新ペイン）をターゲットとし、既存ペインに影響しない
-- 実行中のExecutorに `Enter` を送信しても空メッセージ送信となり無害
-- tmux session名は動的取得するため環境に依存しない
+将来自動復旧を実装する場合は、起動時に保存したpane IDとExecutorのプロセスの
+対応、現在の入力状態を検証する必要がある。対応が不明なら自動操作を止める。
+他のExecutorの進行は妨げない。
 
 **最終フォールバック:**
-Layer 3でも起動しない場合、ユーザーに手動介入を依頼:
+メッセージによる復旧に失敗した場合、対象ペインをユーザーが確認してから手動介入する:
 ```
 AskUserQuestion(
   questions=[{
-    question="Executor 3 が自動起動できませんでした。tmuxペインで Ctrl+J → Enter を手動実行してください。実行後、こちらを選択してください。",
+    question="Executor 3 が起動していません。対象ペインと入力内容を確認して手動で再開してください。",
     header="手動介入",
     options=[
       {label: "実行済み", description: "Ctrl+J Enter を手動で実行した"},
@@ -314,7 +293,7 @@ AskUserQuestion(
 - **Executor生成は必ず逐次実行**: 同一ターンでの複数Task()呼び出し禁止
 - **生成間隔**: 前のExecutorからidle通知を受信し、`sleep` で安定化待ちをしてから次を生成（tmuxレースコンディション回避）
 - **Post-spawn verification**: 3つ目のExecutorは90秒のidle通知待機後、Phase 4aの自動リカバリを実行
-- **tmux permission**: `Bash(tmux:*)` と `Bash(sleep:*)` が `.claude/settings.local.json` の `permissions.allow` に登録されていること
+- 自動復旧のためにtmux操作権限を追加しない。権限不足は許可済みの手段で対応する。
 
 ### Worktree Executor権限要件
 
@@ -348,7 +327,6 @@ Worktree分離モード（`isolation: "worktree"`）のExecutorは、`.claude/se
 - `Bash(gh pr:*)` - GitHub PR操作
 
 **Commander用（Post-Spawnリカバリ）:**
-- `Bash(tmux:*)` - tmux send-keys によるペインへのキー送信（Phase 4aリカバリ）
 - `Bash(sleep:*)` - Executor生成間隔の待機・リカバリ待機
 
 **フォールバック戦略:**
@@ -363,7 +341,7 @@ Worktree分離モード（`isolation: "worktree"`）のExecutorは、`.claude/se
 
 ## Phase 6: PR作成
 
-各完了Issueに対して `gh pr create` を実行:
+PR作成が依頼範囲に含まれる場合、各完了Issueに対して `gh pr create` を実行:
 
 ```bash
 gh pr create \
@@ -384,6 +362,9 @@ Closes #<Issue番号>
 EOF
 )"
 ```
+
+CI確認まで依頼されていれば、現在のhead SHAの必要jobが終了するまで追跡する。
+実行中・未実施・ブロックされた検証は成功として報告しない。
 
 ## Phase 7: サマリーレポート
 
