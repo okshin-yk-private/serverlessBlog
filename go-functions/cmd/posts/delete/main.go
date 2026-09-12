@@ -140,7 +140,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// The record is committed first: a failed version check must not remove images.
 	// Cleanup failure cannot undo the deletion; retain an operational warning.
 	if cleanupErr := deletePostImages(ctx, existingPost); cleanupErr != nil {
-		slog.Warn("post deleted but image cleanup failed", "postId", postID, "response", cleanupErr.Body)
+		middleware.NewLoggerFromContext(ctx).Warn("post deleted but image cleanup failed", "postId", postID, "response", cleanupErr.Body)
 	}
 
 	// Return 204 No Content

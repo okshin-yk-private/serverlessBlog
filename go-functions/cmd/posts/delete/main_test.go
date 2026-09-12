@@ -12,6 +12,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -1211,5 +1213,54 @@ func TestHandler_ConflictDoesNotDeleteImages(t *testing.T) {
 	resp, err := Handler(context.Background(), createAuthenticatedRequest(testPostID))
 	if err != nil || resp.StatusCode != 409 {
 		t.Fatalf("expected conflict, got %d %v", resp.StatusCode, err)
+	}
+}
+
+// Exercise the actual handler log path: request-controlled line breaks must stay
+// inside a single JSON event, without changing the committed deletion response.
+func TestHandler_ImageCleanupWarningIsSingleJSONEvent(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+	postID := "post\r\nFORGED level=INFO\t\x00"
+	existingPost := createTestPostWithImages()
+	existingPost.ID = postID
+	av := marshalPost(t, existingPost)
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return &MockDynamoDBClient{
+			GetItemFunc: func(context.Context, *dynamodb.GetItemInput, ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+				return &dynamodb.GetItemOutput{Item: av}, nil
+			},
+			DeleteItemFunc: func(context.Context, *dynamodb.DeleteItemInput, ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+				return &dynamodb.DeleteItemOutput{}, nil
+			},
+		}, nil
+	}
+	s3ClientGetter = func() (S3ClientInterface, error) {
+		return nil, errors.New("cleanup failed")
+	}
+	output, err := os.CreateTemp(t.TempDir(), "cleanup-log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalStdout := os.Stdout
+	os.Stdout = output
+	t.Cleanup(func() { os.Stdout = originalStdout; _ = output.Close() })
+	response, err := Handler(context.Background(), createAuthenticatedRequest(postID))
+	if err != nil || response.StatusCode != 204 {
+		t.Fatalf("expected committed deletion: response=%+v err=%v", response, err)
+	}
+	raw, err := os.ReadFile(output.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(raw), "\n") != 1 {
+		t.Fatalf("expected one log event, got %q", raw)
+	}
+	var event map[string]any
+	if err := json.Unmarshal(raw, &event); err != nil {
+		t.Fatalf("invalid JSON log: %v", err)
+	}
+	if event["postId"] != postID || event["level"] != "WARN" {
+		t.Fatalf("input must be retained as data: %+v", event)
 	}
 }

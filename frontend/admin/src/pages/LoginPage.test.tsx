@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import LoginPage from './LoginPage';
 import { AuthProvider } from '../contexts/AuthContext';
 import * as amplifyAuth from 'aws-amplify/auth';
@@ -647,6 +647,183 @@ describe('LoginPage', () => {
           'ログインに失敗しました。メールアドレスとパスワードを確認してください。'
         )
       ).toBeInTheDocument();
+    });
+  });
+
+  describe('初回ログインのパスワード変更', () => {
+    const startPasswordChallenge = async () => {
+      vi.mocked(amplifyAuth.signIn).mockResolvedValue({
+        isSignedIn: false,
+        nextStep: {
+          signInStep: 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED',
+          missingAttributes: [],
+        },
+      });
+      vi.mocked(amplifyAuth.signOut).mockResolvedValue();
+      const user = userEvent.setup();
+      render(
+        <MemoryRouter initialEntries={['/login']}>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route
+                path="/dashboard"
+                element={<h1>Dashboard destination</h1>}
+              />
+              <Route path="/posts" element={<h1>Posts destination</h1>} />
+            </Routes>
+          </AuthProvider>
+        </MemoryRouter>
+      );
+      await user.type(
+        screen.getByLabelText('メールアドレス'),
+        'test@example.com'
+      );
+      await user.type(screen.getByLabelText('パスワード'), 'Temporary123!');
+      await user.click(screen.getByRole('button', { name: 'ログイン' }));
+      expect(
+        await screen.findByRole('heading', { name: '新しいパスワードを設定' })
+      ).toBeInTheDocument();
+      expect(screen.getByText('test@example.com')).toBeInTheDocument();
+      expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBeNull();
+      return user;
+    };
+
+    const enterPassword = async (
+      user: ReturnType<typeof userEvent.setup>,
+      password = 'Updated123!',
+      confirmation = password
+    ) => {
+      await user.type(screen.getByLabelText('新しいパスワード'), password);
+      await user.type(
+        screen.getByLabelText('新しいパスワード（確認）'),
+        confirmation
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'パスワードを設定' })
+      );
+    };
+
+    it('弱いパスワードと確認不一致を拒否し、修正後にだけ送信する', async () => {
+      const user = await startPasswordChallenge();
+      await enterPassword(user, 'short', 'different');
+      expect(
+        screen.getByText('パスワードが一致しません。')
+      ).toBeInTheDocument();
+      expect(vi.mocked(amplifyAuth.confirmSignIn)).not.toHaveBeenCalled();
+      await user.clear(screen.getByLabelText('新しいパスワード'));
+      await user.clear(screen.getByLabelText('新しいパスワード（確認）'));
+      vi.mocked(amplifyAuth.confirmSignIn).mockRejectedValue(
+        new Error('Service unavailable')
+      );
+      await enterPassword(user);
+      expect(
+        await screen.findByText('Service unavailable')
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText('パスワードが一致しません。')
+      ).not.toBeInTheDocument();
+      expect(
+        vi.mocked(amplifyAuth.confirmSignIn)
+      ).toHaveBeenCalledExactlyOnceWith({ challengeResponse: 'Updated123!' });
+    });
+
+    it.each([
+      [null, 'Dashboard destination'],
+      ['/posts', 'Posts destination'],
+    ])(
+      '成功時に保存された遷移先 %s を消費してログインを完了する',
+      async (redirect, destination) => {
+        const user = await startPasswordChallenge();
+        if (redirect) sessionStorage.setItem('auth_redirect_path', redirect);
+        vi.mocked(amplifyAuth.confirmSignIn).mockResolvedValue({
+          isSignedIn: true,
+          nextStep: { signInStep: 'DONE' },
+        });
+        vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue({
+          tokens: { idToken: { toString: () => 'mock-jwt-token' } },
+        } as any);
+        vi.mocked(amplifyAuth.getCurrentUser).mockResolvedValue({
+          userId: 'user-123',
+          username: 'test@example.com',
+        });
+        await enterPassword(user);
+        expect(
+          await screen.findByRole('heading', { name: destination })
+        ).toBeInTheDocument();
+        expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBe(
+          'mock-jwt-token'
+        );
+        expect(sessionStorage.getItem('auth_redirect_path')).toBeNull();
+      }
+    );
+
+    it.each([
+      [
+        new Error('InvalidPasswordException'),
+        'パスワードが要件を満たしていません。8文字以上で、大文字・小文字・数字を含めてください。',
+      ],
+      [
+        new Error('password policy violation'),
+        'パスワードが要件を満たしていません。8文字以上で、大文字・小文字・数字を含めてください。',
+      ],
+      [new Error('Service unavailable'), 'Service unavailable'],
+      [new Error(''), 'パスワードの変更に失敗しました。'],
+      [null, 'パスワードの変更に失敗しました。'],
+      [{ message: 123 }, 'パスワードの変更に失敗しました。'],
+    ])(
+      '変更失敗 %j を表示し、セッションを作らず再試行を許可する',
+      async (error, message) => {
+        const user = await startPasswordChallenge();
+        vi.mocked(amplifyAuth.confirmSignIn).mockRejectedValue(error);
+        await enterPassword(user);
+        expect(await screen.findByText(message)).toBeInTheDocument();
+        expect(
+          screen.getByRole('button', { name: 'パスワードを設定' })
+        ).toBeEnabled();
+        expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBeNull();
+      }
+    );
+
+    it('送信中は入力と再送信を無効にし、失敗後に復帰する', async () => {
+      const user = await startPasswordChallenge();
+      let rejectRequest!: (reason: Error) => void;
+      vi.mocked(amplifyAuth.confirmSignIn).mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            rejectRequest = reject;
+          })
+      );
+      await enterPassword(user);
+      expect(screen.getByRole('button', { name: '設定中...' })).toBeDisabled();
+      expect(screen.getByLabelText('新しいパスワード')).toBeDisabled();
+      expect(screen.getByLabelText('新しいパスワード（確認）')).toBeDisabled();
+      await act(async () => {
+        rejectRequest(new Error('Retry later'));
+      });
+      expect(await screen.findByText('Retry later')).toBeInTheDocument();
+      expect(screen.getByLabelText('新しいパスワード')).toBeEnabled();
+    });
+
+    it('キャンセルするとサインアウトし、再ログイン時に入力とエラーを残さない', async () => {
+      const user = await startPasswordChallenge();
+      await enterPassword(user, 'short', 'different');
+      await user.click(screen.getByRole('button', { name: 'キャンセル' }));
+      expect(
+        await screen.findByRole('heading', { name: '管理画面ログイン' })
+      ).toBeInTheDocument();
+      expect(vi.mocked(amplifyAuth.signOut)).toHaveBeenCalledOnce();
+      await user.type(
+        screen.getByLabelText('メールアドレス'),
+        'test@example.com'
+      );
+      await user.type(screen.getByLabelText('パスワード'), 'Temporary123!');
+      await user.click(screen.getByRole('button', { name: 'ログイン' }));
+      expect(await screen.findByLabelText('新しいパスワード')).toHaveValue('');
+      expect(screen.getByLabelText('新しいパスワード（確認）')).toHaveValue('');
+      expect(
+        screen.queryByText('パスワードが一致しません。')
+      ).not.toBeInTheDocument();
     });
   });
 });

@@ -1,28 +1,26 @@
 # Dependabot configuration
 # See: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 #
-# Phase 1 (visibility): weekly grouped PRs for minor/patch updates, individual PRs for majors.
-# Security advisories are published as separate ungrouped PRs regardless of these settings.
+# Phase 1 (visibility): weekly grouped PRs for minor/patch updates; majors are reviewed manually.
+# Bun supports version updates, but not automatic security-update PRs.
+# Security Scan audits every bun.lock independently of this schedule.
 #
 # Schedule strategy:
 #   Spread weekly runs across Mon–Sat to avoid the GitHub Code Scanning API rate
 #   limit (5,000 req/h per installation) when many ecosystems open PRs concurrently.
 #   Times are staggered by 1h within each day for the same reason.
 #
-# Note on Bun:
-#   We use the `npm` ecosystem because Dependabot's experimental `bun` ecosystem
-#   does not reliably parse `bun.lock` (text format) at this time.
-#   Dependabot will update `package.json` only; reviewers must regenerate
-#   `bun.lock` locally with `bun install` before merging.
-#   See docs/SECURITY_SCANNING.md for the full Dependabot review workflow.
+# Bun's native ecosystem updates package.json and the text bun.lock together.
+# https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories
+# See docs/SECURITY_SCANNING.md for review and security-update limitations.
 
 version: 2
 
 updates:
   # ============================================================
-  # JavaScript / TypeScript (Bun via npm ecosystem) — Monday
+  # JavaScript / TypeScript (native Bun ecosystem) — Monday
   # ============================================================
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -47,7 +45,7 @@ updates:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/frontend/public-astro"
     schedule:
       interval: "weekly"
@@ -72,7 +70,7 @@ updates:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/frontend/admin"
     schedule:
       interval: "weekly"
@@ -97,7 +95,7 @@ updates:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/scripts/deploy"
     schedule:
       interval: "weekly"

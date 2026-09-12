@@ -1,21 +1,16 @@
 # Repository-wide vulnerability scanning workflow.
 #
-# Scope: secrets (gitleaks), SAST (CodeQL), filesystem vulns/secrets/IaC/license (Trivy fs).
+# Scope: secrets (gitleaks), SAST (CodeQL), dependency vulns + secrets (Trivy fs).
 # Checkov for Terraform stays in ci.yml (label-conditional) and uploads its own SARIF.
 #
-# Phase 1 stance: visibility-first. Scanners exit cleanly so the workflow never blocks;
-# all findings show up in GitHub Security → Code scanning. The hard-fail roadmap is
-# tracked in docs/SECURITY_SCANNING.md.
+# Findings remain visible during baseline review. Scanner and upload errors fail.
+# Scheduled runs scan both deploy branches at fixed SHAs.
 
 name: Security Scan
 
 on:
   pull_request:
     branches: [main, develop]
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - '.kiro/**'
   push:
     branches: [main, develop]
   schedule:
@@ -33,6 +28,37 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  scan-targets:
+    name: Select immutable scan targets
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.targets.outputs.targets }}
+    steps:
+      - id: targets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_REF: ${{ github.ref }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, subprocess
+          if os.environ['EVENT_NAME'] == 'schedule':
+              targets = []
+              for branch in ['develop', 'main']:
+                  sha = subprocess.check_output([
+                      'gh', 'api', f"repos/{os.environ['REPOSITORY']}/git/ref/heads/{branch}",
+                      '--jq', '.object.sha',
+                  ], text=True).strip()
+                  targets.append({'name': branch, 'ref': f'refs/heads/{branch}', 'sha': sha})
+          else:
+              targets = [{'name': 'event', 'ref': os.environ['EVENT_REF'], 'sha': os.environ['EVENT_SHA']}]
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('targets=' + json.dumps(targets) + '\n')
+          PYTHON
+
   # =======================================
   # Job: gitleaks - secret scanning across full git history
   # We use the gitleaks CLI directly (not gitleaks-action) because
@@ -41,7 +67,12 @@ jobs:
   # =======================================
   gitleaks:
     name: Gitleaks (secrets)
+    needs: scan-targets
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.scan-targets.outputs.targets) }}
     timeout-minutes: 10
     env:
       GITLEAKS_VERSION: '8.24.3'
@@ -49,6 +80,7 @@ jobs:
       - name: Checkout (full history)
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          ref: ${{ matrix.target.sha }}
           fetch-depth: 0
 
       - name: Install gitleaks CLI
@@ -70,60 +102,50 @@ jobs:
             --config .gitleaks.toml \
             --report-format sarif \
             --report-path gitleaks.sarif \
-            --redact \
+            --redact=100 \
+            --log-opts="--full-history HEAD" \
             --verbose \
             --exit-code 0
 
+      - name: Verify Gitleaks SARIF was generated
+        run: test -s gitleaks.sarif
+
       - name: Upload gitleaks SARIF to Code Scanning
         if: always() && hashFiles('gitleaks.sarif') != ''
-        # Code Scanning API rate limit can fail this step when many Dependabot PRs
-        # run concurrently. SARIF visibility is best-effort, so don't fail the job.
-        continue-on-error: true
         uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           sarif_file: gitleaks.sarif
+          ref: ${{ matrix.target.ref }}
+          sha: ${{ matrix.target.sha }}
           category: gitleaks
 
       - name: Upload gitleaks SARIF as artifact
         if: always() && hashFiles('gitleaks.sarif') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: gitleaks-sarif
+          name: gitleaks-sarif-${{ matrix.target.name }}
           path: gitleaks.sarif
           retention-days: 3
 
   # =======================================
   # Job: CodeQL - SAST for Go and JavaScript/TypeScript
-  # build-mode: none — modern CodeQL extracts source without requiring a
-  # working compile step. This avoids the brittleness of autobuild (which
-  # mis-handles Bun-managed JS/TS projects and multiple Go main packages).
+  # JS/TS uses build-mode none; Go uses autobuild with the go.mod toolchain.
   # =======================================
   codeql:
     name: CodeQL (${{ matrix.language }})
+    needs: scan-targets
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Phase 1: visibility-only. Don't fail the workflow on CodeQL hiccups while
-    # we shake out language-specific build modes. Findings still upload to
-    # Security → Code scanning. Drop continue-on-error in Phase 3.
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Go: autobuild is the most robust mode for a typical Go module repo.
-          # CodeQL detects go.mod and runs `go build ./...` itself. This handles
-          # multiple main packages under cmd/<group>/<func>.
-          - language: go
-            build-mode: autobuild
-          # JS/TS: build-mode: none works because the language is interpreted
-          # and CodeQL extracts source without needing a build step. This avoids
-          # autobuild attempting (and failing) to run npm/yarn against Bun-managed
-          # subprojects.
-          - language: javascript-typescript
-            build-mode: none
+        target: ${{ fromJSON(needs.scan-targets.outputs.targets) }}
+        language: [go, javascript-typescript]
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ matrix.target.sha }}
 
       - name: Setup Go
         if: matrix.language == 'go'
@@ -137,86 +159,159 @@ jobs:
         uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
+          build-mode: ${{ matrix.language == 'go' && 'autobuild' || 'none' }}
           queries: security-and-quality
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
+          ref: ${{ matrix.target.ref }}
+          sha: ${{ matrix.target.sha }}
           category: /language:${{ matrix.language }}
 
   # =======================================
-  # Job: Trivy filesystem scan (vulns + secrets)
-  # We use aquasecurity/trivy-action (the maintained official wrapper) with the
-  # absolute minimum option set to maximize the chance of a successful initial
-  # baseline. continue-on-error keeps the job non-blocking in Phase 1; the
-  # subsequent debug step prints diagnostics regardless of outcome so we can
-  # iterate on flag/config issues from the workflow logs. Misconfig, license
-  # scanners will be re-enabled in a follow-up once the baseline run completes
-  # successfully. trivyignore wiring is now enabled (see trivyignores below).
+  # Job: Trivy filesystem scan (all four Bun lockfiles and Go, plus secrets).
+  # Findings are non-blocking until the documented clean-baseline period completes.
+  # Scanner failures and SARIF upload errors are always blocking.
   # =======================================
   trivy-fs:
     name: Trivy (filesystem)
+    needs: scan-targets
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.scan-targets.outputs.targets) }}
     timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ matrix.target.sha }}
 
       - name: Run Trivy filesystem scan
         id: trivy
-        continue-on-error: true
+        env:
+          TRIVY_INCLUDE_DEV_DEPS: 'true'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
           format: 'sarif'
           output: 'trivy-fs.sarif'
-          severity: 'HIGH,CRITICAL'
+          scanners: 'vuln,secret'
+          severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
+          version: 'v0.70.0'
           exit-code: '0'
           # 到達不能と判断した指摘を根拠付きで抑制する。
           # 抑制理由は .trivyignore 側にコメントで記載すること。
           trivyignores: '.trivyignore'
 
-      - name: Trivy debug
-        if: always()
-        run: |
-          echo "=== Trivy step outcome: ${{ steps.trivy.outcome }} ==="
-          echo "=== which trivy ==="
-          which trivy || echo "(trivy not on PATH)"
-          echo "=== trivy version ==="
-          trivy --version 2>&1 || echo "(trivy --version failed)"
-          echo "=== SARIF file presence ==="
-          ls -la trivy-fs.sarif 2>&1 || echo "(no SARIF generated)"
-          echo "=== SARIF head (first 50 lines) ==="
-          head -n 50 trivy-fs.sarif 2>&1 || echo "(cannot read SARIF)"
+      - name: Verify SARIF was generated
+        run: test -s trivy-fs.sarif
 
       - name: Upload Trivy SARIF to Code Scanning
         if: always() && hashFiles('trivy-fs.sarif') != ''
-        # Code Scanning API rate limit can fail this step when many Dependabot PRs
-        # run concurrently. SARIF visibility is best-effort, so don't fail the job.
-        continue-on-error: true
         uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           sarif_file: trivy-fs.sarif
+          ref: ${{ matrix.target.ref }}
+          sha: ${{ matrix.target.sha }}
           category: trivy-fs
 
       - name: Upload Trivy SARIF as artifact
         if: always() && hashFiles('trivy-fs.sarif') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: trivy-fs-sarif
+          name: trivy-fs-sarif-${{ matrix.target.name }}
           path: trivy-fs.sarif
           retention-days: 3
 
+  dependency-audit:
+    name: Bun and Go dependency audit
+    needs: scan-targets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.scan-targets.outputs.targets) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ matrix.target.sha }}
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.3.11'
+      - name: Audit all Bun lockfiles
+        run: |
+          python3 - <<'PYTHON'
+          import json, pathlib, subprocess
+          for directory in ['.', 'frontend/admin', 'frontend/public-astro', 'scripts/deploy']:
+              if not (pathlib.Path(directory) / 'bun.lock').is_file():
+                  raise SystemExit(f'Missing bun.lock in {directory}')
+              result = subprocess.run(['bun', 'audit', '--json'], cwd=directory, capture_output=True, text=True)
+              try:
+                  data = json.loads(result.stdout)
+              except json.JSONDecodeError:
+                  raise SystemExit(f'Bun audit produced no valid report in {directory}: exit {result.returncode}')
+              if result.returncode not in [0, 1] or not isinstance(data, dict):
+                  raise SystemExit(f'Bun audit failed in {directory}: exit {result.returncode}')
+              if any(not isinstance(items, list) for items in data.values()):
+                  raise SystemExit(f'Bun audit error response in {directory}')
+              count = sum(len(items) for items in data.values())
+              if (result.returncode == 0) != (count == 0):
+                  raise SystemExit(f'Bun audit exit/report mismatch in {directory}')
+              for items in data.values():
+                  for item in items:
+                      if not isinstance(item, dict) or item.get('severity') not in ['low', 'moderate', 'high', 'critical']:
+                          raise SystemExit(f'Invalid Bun advisory in {directory}')
+              name = directory.replace('/', '-') if directory != '.' else 'root'
+              pathlib.Path(f'bun-audit-{name}.json').write_text(json.dumps(data, indent=2))
+              print(f'{directory}: {count} dependency advisories')
+              if count:
+                  print(f'::warning title=Dependency findings::{directory}: {count} advisories; see artifact')
+          PYTHON
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go-functions/go.mod
+          cache-dependency-path: go-functions/go.sum
+      - name: Install govulncheck
+        working-directory: go-functions
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+      - name: Audit Go call paths
+        working-directory: go-functions
+        run: |
+          status=0
+          govulncheck ./... > ../govulncheck.txt 2>&1 || status=$?
+          cat ../govulncheck.txt
+          case "$status" in
+            0) ;;
+            3) echo '::warning title=Go vulnerability findings::See govulncheck artifact; findings remain non-blocking during baseline review.' ;;
+            *) exit "$status" ;;
+          esac
+      - name: Preserve dependency reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dependency-audit-${{ matrix.target.name }}
+          path: |
+            bun-audit-*.json
+            govulncheck.txt
+          if-no-files-found: error
+          retention-days: 7
+
   # =======================================
-  # Job: Summary (always runs, never blocks)
+  # Job: Summary (fails on missing or failed scanners/uploads)
   # =======================================
   security-scan-summary:
     name: Security Scan Summary
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [gitleaks, codeql, trivy-fs]
+    needs: [scan-targets, gitleaks, codeql, trivy-fs, dependency-audit]
     if: always()
     steps:
       - name: Render summary
@@ -229,8 +324,21 @@ jobs:
             echo "| Gitleaks (secrets) | ${{ needs.gitleaks.result }} |"
             echo "| CodeQL | ${{ needs.codeql.result }} |"
             echo "| Trivy (fs) | ${{ needs.trivy-fs.result }} |"
+            echo "| Bun / Go audit | ${{ needs.dependency-audit.result }} |"
             echo ""
             echo "Findings appear in **Security → Code scanning** under the categories: \`gitleaks\`, \`/language:go\`, \`/language:javascript-typescript\`, \`trivy-fs\`."
             echo ""
             echo "Phase 1 stance is visibility-first; see \`docs/SECURITY_SCANNING.md\` for the hard-fail roadmap."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Require successful scanners and uploads
+        env:
+          AUDIT_RESULT: ${{ needs.dependency-audit.result }}
+          TARGETS_RESULT: ${{ needs.scan-targets.result }}
+          GITLEAKS_RESULT: ${{ needs.gitleaks.result }}
+          CODEQL_RESULT: ${{ needs.codeql.result }}
+          TRIVY_RESULT: ${{ needs.trivy-fs.result }}
+        run: |
+          for result in "$TARGETS_RESULT" "$GITLEAKS_RESULT" "$CODEQL_RESULT" "$TRIVY_RESULT" "$AUDIT_RESULT"; do
+            test "$result" = success || exit 1
+          done
