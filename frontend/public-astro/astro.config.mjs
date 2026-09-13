@@ -50,6 +50,12 @@ export default defineConfig({
 
   // Vite configuration
   vite: {
+    // Keep Japanese unicode-range chunks lazy: inlining small chunks into CSS
+    // would transfer font data even for characters the current page never uses.
+    build: {
+      assetsInlineLimit: (filePath) =>
+        /\.woff2?$/.test(filePath) ? false : undefined,
+    },
     plugins: [
       // Tailwind CSS 4.x via Vite plugin
       tailwindcss(),

@@ -4,6 +4,7 @@ build/
 cdk.out/
 coverage/
 .next/
+**/.astro/
 playwright-report/
 playwright-report-admin/
 test-results/

@@ -13,6 +13,11 @@ import SEO from '../components/SEO.astro';
 import JsonLd from '../components/JsonLd.astro';
 import Header from '../components/Header.astro';
 import type { JsonLdPost } from '../lib/jsonLdUtils';
+import '@fontsource/zen-kaku-gothic-new/400.css';
+import '@fontsource/zen-kaku-gothic-new/500.css';
+import '@fontsource/zen-kaku-gothic-new/700.css';
+import '@fontsource/zen-old-mincho/400.css';
+import '@fontsource/zen-old-mincho/700.css';
 
 interface Props {
   /** Page title */
@@ -38,7 +43,8 @@ interface Props {
 }
 
 const SITE_NAME = 'bone of my fallacy';
-const DEFAULT_DESCRIPTION = 'プログラミング、テクノロジー、ライフスタイルについてのブログ';
+const DEFAULT_DESCRIPTION =
+  'プログラミング、テクノロジー、ライフスタイルについてのブログ';
 
 const {
   title,
@@ -70,8 +76,11 @@ const {
           if (saved !== 'light' && saved !== 'dark' && saved !== 'system') {
             saved = 'system';
           }
-          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          var resolved = saved === 'system' ? (prefersDark ? 'dark' : 'light') : saved;
+          var prefersDark = window.matchMedia(
+            '(prefers-color-scheme: dark)'
+          ).matches;
+          var resolved =
+            saved === 'system' ? (prefersDark ? 'dark' : 'light') : saved;
           document.documentElement.setAttribute('data-theme', resolved);
         } catch (e) {
           document.documentElement.setAttribute('data-theme', 'light');
@@ -80,15 +89,24 @@ const {
     </script>
 
     <!-- Theme-aware favicon -->
-    <link id="site-favicon" rel="icon" type="image/png" href="/favicon-light.png" />
+    <link
+      id="site-favicon"
+      rel="icon"
+      type="image/png"
+      href="/favicon-light.png"
+    />
     <script is:inline>
       (function () {
         var favicon = document.getElementById('site-favicon');
         if (!favicon) return;
 
         var syncFavicon = function () {
-          var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-          favicon.setAttribute('href', isDark ? '/favicon-dark.png' : '/favicon-light.png');
+          var isDark =
+            document.documentElement.getAttribute('data-theme') === 'dark';
+          favicon.setAttribute(
+            'href',
+            isDark ? '/favicon-dark.png' : '/favicon-light.png'
+          );
         };
 
         syncFavicon();
@@ -113,15 +131,19 @@ const {
     />
 
     <!-- JSON-LD Structured Data (Task 3.2) -->
-    {jsonLdPost && (
-      <JsonLd type="BlogPosting" post={jsonLdPost} />
-    )}
-    {showWebSiteJsonLd && (
-      <JsonLd type="WebSite" siteName={SITE_NAME} siteDescription={description} />
-    )}
+    {jsonLdPost && <JsonLd type="BlogPosting" post={jsonLdPost} />}
+    {
+      showWebSiteJsonLd && (
+        <JsonLd
+          type="WebSite"
+          siteName={SITE_NAME}
+          siteDescription={description}
+        />
+      )
+    }
 
     <!-- Global Styles -->
-    <style>
+    <style is:global>
       @import '../styles/global.css';
       @import '../../../shared-ui/src/article.css';
     </style>
@@ -146,7 +168,10 @@ const {
         var handler = function (e) {
           var saved = localStorage.getItem('theme') || 'system';
           if (saved !== 'system') return;
-          document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+          document.documentElement.setAttribute(
+            'data-theme',
+            e.matches ? 'dark' : 'light'
+          );
         };
         mql.addEventListener('change', handler);
       })();

@@ -69,11 +69,25 @@ jobs:
       has-infrastructure: ${{ steps.check-labels.outputs.has-infrastructure }}
       has-terraform: ${{ steps.check-labels.outputs.has-terraform }}
       has-frontend: ${{ steps.check-labels.outputs.has-frontend }}
+      has-astro: ${{ steps.frontend-changes.outputs.astro }}
+      has-admin: ${{ steps.frontend-changes.outputs.admin }}
       has-tests: ${{ steps.check-labels.outputs.has-tests }}
       has-workflow: ${{ steps.check-labels.outputs.has-workflow }}
       has-go: ${{ steps.check-labels.outputs.has-go }}
       has-deploy-scripts: ${{ steps.check-labels.outputs.has-deploy-scripts }}
     steps:
+      - name: Checkout code for component detection
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Detect frontend components
+        id: frontend-changes
+        run: bash scripts/ci/detect-changes.sh ci "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
       - name: Get PR number
         id: get-pr
         run: echo "pr-number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
@@ -1101,7 +1115,7 @@ jobs:
     name: Frontend Tests (Public Site - Astro)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: needs.setup-labels.outputs.has-frontend == 'true'
+    if: needs.setup-labels.outputs.has-astro == 'true'
 
     steps:
       - name: Checkout code
@@ -1114,9 +1128,9 @@ jobs:
         with:
           working-directory: frontend/public-astro
 
-      - name: Run frontend (public-astro) unit tests
+      - name: Run frontend (public-astro) unit tests with coverage
         working-directory: frontend/public-astro
-        run: bun run test -- --run
+        run: bun run test:coverage -- --run
         env:
           CI: true
 
@@ -1152,7 +1166,7 @@ jobs:
     name: Frontend Tests (Admin)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: needs.setup-labels.outputs.has-frontend == 'true'
+    if: needs.setup-labels.outputs.has-admin == 'true'
 
     steps:
       - name: Checkout code
@@ -1493,7 +1507,8 @@ jobs:
           echo "Labels detected:"
           echo "  terraform: ${{ needs.setup-labels.outputs.has-terraform }}"
           echo "  go: ${{ needs.setup-labels.outputs.has-go }}"
-          echo "  frontend: ${{ needs.setup-labels.outputs.has-frontend }}"
+          echo "  Astro: ${{ needs.setup-labels.outputs.has-astro }}"
+          echo "  Admin: ${{ needs.setup-labels.outputs.has-admin }}"
           echo "  infrastructure: ${{ needs.setup-labels.outputs.has-infrastructure }}"
           echo "  deploy-scripts: ${{ needs.setup-labels.outputs.has-deploy-scripts }}"
           echo ""
@@ -1563,11 +1578,11 @@ jobs:
           check_required "Terraform Test" "${{ needs.terraform-test.result }}" "${{ needs.terraform-test-matrix-prep.outputs.has-targets == 'true' }}"
           check_required "Terraform Plan (DEV)" "${{ needs.terraform-plan-dev.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && github.base_ref == 'develop' }}"
           check_required "Terraform Plan (PRD)" "${{ needs.terraform-plan-prd.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && github.base_ref == 'main' }}"
-          check_required "Frontend Astro Tests" "${{ needs.frontend-astro-tests.result }}" "${{ needs.setup-labels.outputs.has-frontend == 'true' }}"
-          check_required "Frontend Admin Tests" "${{ needs.frontend-admin-tests.result }}" "${{ needs.setup-labels.outputs.has-frontend == 'true' }}"
-          check_required "E2E Public" "${{ needs.e2e-public-tests.result }}" "${{ needs.setup-labels.outputs.has-frontend == 'true' }}"
-          check_required "E2E Admin" "${{ needs.e2e-admin-tests.result }}" "${{ needs.setup-labels.outputs.has-frontend == 'true' }}"
-          check_required "Coverage Badges" "${{ needs.coverage-check.result }}" "${{ needs.setup-labels.outputs.has-go == 'true' || needs.setup-labels.outputs.has-frontend == 'true' }}"
+          check_required "Frontend Astro Tests" "${{ needs.frontend-astro-tests.result }}" "${{ needs.setup-labels.outputs.has-astro == 'true' }}"
+          check_required "Frontend Admin Tests" "${{ needs.frontend-admin-tests.result }}" "${{ needs.setup-labels.outputs.has-admin == 'true' }}"
+          check_required "E2E Public" "${{ needs.e2e-public-tests.result }}" "${{ needs.setup-labels.outputs.has-astro == 'true' }}"
+          check_required "E2E Admin" "${{ needs.e2e-admin-tests.result }}" "${{ needs.setup-labels.outputs.has-admin == 'true' }}"
+          check_required "Coverage Badges" "${{ needs.coverage-check.result }}" "${{ needs.setup-labels.outputs.has-go == 'true' || needs.setup-labels.outputs.has-admin == 'true' }}"
           check_required "Deploy Scripts Tests" "${{ needs.deploy-scripts-tests.result }}" "${{ needs.setup-labels.outputs.has-deploy-scripts == 'true' }}"
 
           if [ "$FAILED" = true ]; then

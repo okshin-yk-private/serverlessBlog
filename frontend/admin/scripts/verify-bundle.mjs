@@ -99,4 +99,6 @@ if (markerTotal === 0) {
   );
 }
 
-console.log('✓ Bundle verified: Cognito config embedded, single Amplify instance');
+console.log(
+  '✓ Bundle verified: Cognito config embedded, single Amplify instance'
+);

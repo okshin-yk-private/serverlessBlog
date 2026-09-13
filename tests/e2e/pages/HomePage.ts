@@ -80,7 +80,10 @@ export class HomePage extends BasePage {
    */
   async clickArticle(index: number): Promise<void> {
     const article = this.getArticleCards().nth(index);
-    await article.click();
+    await article
+      .locator(this.selectors.articleTitle)
+      .getByRole('link')
+      .click();
     await this.waitForPageLoad();
   }
 
@@ -91,7 +94,10 @@ export class HomePage extends BasePage {
     const article = this.page.locator(this.selectors.articleCard, {
       has: this.page.locator(this.selectors.articleTitle, { hasText: title }),
     });
-    await article.click();
+    await article
+      .locator(this.selectors.articleTitle)
+      .getByRole('link')
+      .click();
     await this.waitForPageLoad();
   }
 

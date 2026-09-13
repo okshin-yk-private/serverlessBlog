@@ -33,7 +33,8 @@ export interface Props {
   siteDescription?: string;
 }
 
-const SITE_URL = import.meta.env.SITE_URL || import.meta.env.SITE || 'https://example.com';
+const SITE_URL =
+  import.meta.env.SITE_URL || import.meta.env.SITE || 'https://example.com';
 
 const { type, post, siteName, siteDescription } = Astro.props;
 
@@ -47,6 +48,12 @@ if (type === 'BlogPosting' && post) {
 }
 ---
 
-{jsonLd && (
-  <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd).replace(/</g, '\\u003c')} />
-)}
+{
+  jsonLd && (
+    <script
+      is:inline
+      type="application/ld+json"
+      set:html={JSON.stringify(jsonLd).replace(/</g, '\\u003c')}
+    />
+  )
+}
