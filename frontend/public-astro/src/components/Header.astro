@@ -16,14 +16,28 @@ import ThemeToggle from './ThemeToggle.astro';
 <header class="site-header">
   <div class="header-container">
     <a href="/" class="site-logo" aria-label="bone of my fallacy - Home">
-      <img src="/logo-light.png" alt="bone of my fallacy" class="logo-image logo-image-light" />
-      <img src="/logo-dark.png" alt="" class="logo-image logo-image-dark" aria-hidden="true" />
+      <img
+        src="/logo-light.png"
+        alt="bone of my fallacy"
+        class="logo-image logo-image-light"
+      />
+      <img
+        src="/logo-dark.png"
+        alt=""
+        class="logo-image logo-image-dark"
+        aria-hidden="true"
+      />
     </a>
     <nav class="site-nav" aria-label="Main navigation">
       <a href="/" class="nav-link">Articles</a>
       <a href="/about" class="nav-link">About</a>
       <ThemeToggle />
-      <a href="/admin/" class="admin-icon-link" title="Admin" aria-label="Admin">
+      <a
+        href="/admin/"
+        class="admin-icon-link"
+        title="Admin"
+        aria-label="Admin"
+      >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
@@ -40,8 +54,7 @@ import ThemeToggle from './ThemeToggle.astro';
           <path
             stroke-linecap="round"
             stroke-linejoin="round"
-            d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-          ></path>
+            d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"></path>
         </svg>
       </a>
     </nav>
@@ -66,7 +79,7 @@ import ThemeToggle from './ThemeToggle.astro';
     display: flex;
     justify-content: space-between;
     align-items: center;
-    height: 88px;
+    height: 84px;
   }
 
   .site-logo {
@@ -74,7 +87,9 @@ import ThemeToggle from './ThemeToggle.astro';
     display: block;
     align-items: center;
     line-height: 0;
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition:
+      opacity 0.2s ease,
+      transform 0.2s ease;
   }
 
   .site-logo:hover {
@@ -84,7 +99,7 @@ import ThemeToggle from './ThemeToggle.astro';
 
   .logo-image {
     display: block;
-    height: 58px;
+    height: 52px;
     width: auto;
     max-width: 230px;
     object-fit: contain;
@@ -117,10 +132,11 @@ import ThemeToggle from './ThemeToggle.astro';
     text-decoration: none;
     font-family: var(--font-display);
     font-size: 0.78rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    transition: color 0.2s ease, background 0.2s ease;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    transition:
+      color 0.2s ease,
+      background 0.2s ease;
     padding: 10px 14px;
     border-radius: 999px;
     position: relative;

@@ -111,7 +111,7 @@ export default defineConfig({
   //   cd frontend/public-astro && bash tests/build-with-mock.sh
   // でモック API に対してビルドしておくこと（CI もこの順で実行する）。
   webServer: {
-    command: '(cd frontend/public-astro && bunx astro preview --port 3000)',
+    command: '(cd frontend/public-astro && node scripts/preview-e2e.mjs)',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,

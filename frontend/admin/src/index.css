@@ -1,7 +1,7 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 /* 公開サイト (public-astro) と共有する記事タイポグラフィ。
    @import は @plugin など他の at-rule より前に置く必要がある (CSS 仕様)。 */
-@import "../../shared-ui/src/article.css";
+@import '../../shared-ui/src/article.css';
 @plugin "@tailwindcss/typography";
 
 /* Self-hosted Shippori Mincho - 公開サイト (public-astro) と同一の本文書体 */
@@ -86,7 +86,7 @@
   color-scheme: light;
 }
 
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
   --color-bg: #121526;
   --color-surface: #181b2d;
   --color-surface-elevated: #1d2135;
@@ -154,15 +154,28 @@
   body {
     background-color: var(--color-bg);
     background-image:
-      radial-gradient(circle at 8% 0%, var(--color-primary-soft), transparent 28rem),
-      radial-gradient(circle at 92% 35%, var(--color-primary-soft), transparent 30rem);
+      radial-gradient(
+        circle at 8% 0%,
+        var(--color-primary-soft),
+        transparent 28rem
+      ),
+      radial-gradient(
+        circle at 92% 35%,
+        var(--color-primary-soft),
+        transparent 30rem
+      );
     color: var(--color-text);
     line-height: 1.75;
     min-height: 100vh;
     text-rendering: optimizeLegibility;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-display);
     color: var(--color-text-heading);
     letter-spacing: -0.035em;
@@ -243,8 +256,12 @@
     font-weight: 600;
     letter-spacing: 0.02em;
     cursor: pointer;
-    transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease,
-      border-color 0.25s ease, color 0.25s ease;
+    transition:
+      transform 0.25s ease,
+      box-shadow 0.25s ease,
+      background 0.25s ease,
+      border-color 0.25s ease,
+      color 0.25s ease;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
@@ -325,7 +342,10 @@
     border-radius: 24px;
     padding: 32px;
     margin-bottom: 24px;
-    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    transition:
+      transform 0.25s ease,
+      box-shadow 0.25s ease,
+      border-color 0.25s ease;
   }
 
   .admin-card:hover {
@@ -361,7 +381,10 @@
     border: 1px solid var(--color-border);
     border-radius: 24px;
     padding: 32px;
-    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    transition:
+      transform 0.25s ease,
+      box-shadow 0.25s ease,
+      border-color 0.25s ease;
   }
 
   /* PostCard と同じアクセントバー */
@@ -454,7 +477,9 @@
   .admin-input:focus {
     outline: none;
     border-color: var(--color-accent);
-    box-shadow: 0 0 0 4px var(--color-focus-ring), var(--shadow-card);
+    box-shadow:
+      0 0 0 4px var(--color-focus-ring),
+      var(--shadow-card);
   }
 
   .admin-input::placeholder {
@@ -679,7 +704,9 @@
     border: 1px solid var(--color-border);
     border-radius: 20px;
     overflow: hidden;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
   }
 
   .admin-editor-shell:focus-within {
@@ -700,7 +727,10 @@
     border: 1px solid transparent;
     border-radius: 999px;
     color: var(--color-text-muted);
-    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    transition:
+      background 0.2s ease,
+      color 0.2s ease,
+      border-color 0.2s ease;
   }
 
   .admin-editor-tool:hover:not(:disabled) {
@@ -747,7 +777,9 @@
     font-size: 0.875rem;
     background: var(--color-surface);
     color: var(--color-text-heading);
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
   }
 
   textarea.admin-field {
@@ -843,7 +875,9 @@
     color: var(--color-text-muted);
     background: transparent;
     border-radius: 999px;
-    transition: background 0.2s ease, color 0.2s ease;
+    transition:
+      background 0.2s ease,
+      color 0.2s ease;
   }
 
   .admin-segmented-item:hover:not(:disabled) {
@@ -1005,9 +1039,21 @@
 }
 
 @media (max-width: 768px) {
-  .admin-page-writing .admin-header-container { gap: 12px; }
-  .admin-page-writing .admin-logo { flex-shrink: 0; }
-  .admin-page-writing .admin-logo-image { max-width: 116px; height: auto; }
-  .admin-page-writing .admin-nav { min-width: 0; overflow-x: auto; }
-  .admin-page-writing .admin-nav > * { flex-shrink: 0; }
+  .admin-page-writing .admin-header-container {
+    gap: 12px;
+  }
+  .admin-page-writing .admin-logo {
+    flex-shrink: 0;
+  }
+  .admin-page-writing .admin-logo-image {
+    max-width: 116px;
+    height: auto;
+  }
+  .admin-page-writing .admin-nav {
+    min-width: 0;
+    overflow-x: auto;
+  }
+  .admin-page-writing .admin-nav > * {
+    flex-shrink: 0;
+  }
 }

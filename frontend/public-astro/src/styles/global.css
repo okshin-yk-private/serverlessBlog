@@ -1,20 +1,4 @@
-@import "tailwindcss";
-
-@font-face {
-  font-family: 'Shippori Mincho';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/shippori-mincho-400.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Shippori Mincho';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('/fonts/shippori-mincho-600.woff2') format('woff2');
-}
+@import 'tailwindcss';
 
 /* Brand tokens derived from the light/dark logo artwork.
    Dark theme overrides via [data-theme="dark"]. FOUC bootstrap in Layout.astro. */
@@ -61,12 +45,13 @@
   --color-focus-ring: rgba(36, 120, 59, 0.18);
   --shadow-card: 0 10px 30px rgba(36, 43, 31, 0.05);
   --shadow-card-strong: 0 24px 60px rgba(36, 43, 31, 0.1);
-  --font-display: 'Helvetica Neue', 'Avenir Next', 'Segoe UI', sans-serif;
-  --font-body: 'Shippori Mincho', 'Yu Mincho', serif;
+  --font-display:
+    'Zen Kaku Gothic New', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif;
+  --font-body: 'Zen Old Mincho', 'Yu Mincho', serif;
   color-scheme: light;
 }
 
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
   --color-bg: #121526;
   --color-surface: #181b2d;
   --color-surface-elevated: #1d2135;
@@ -128,19 +113,23 @@
     min-width: 320px;
     margin: 0;
     background-color: var(--color-bg);
-    background-image:
-      radial-gradient(circle at 8% 0%, var(--color-primary-soft), transparent 28rem),
-      radial-gradient(circle at 92% 35%, var(--color-primary-soft), transparent 30rem);
     color: var(--color-text);
     line-height: 1.75;
     min-height: 100vh;
     text-rendering: optimizeLegibility;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-display);
     color: var(--color-text-heading);
     letter-spacing: -0.035em;
+    font-weight: 700;
+    overflow-wrap: anywhere;
   }
 
   ::selection {
@@ -151,6 +140,17 @@
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 4px;
+  }
+}
+
+/* Match the selected real weights; shared article styles are also used by admin. */
+body .post-content :is(h1, h2, h3, h4, h5, h6, strong) {
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
 }
 
