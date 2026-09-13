@@ -1,50 +1,24 @@
 ---
-/**
- * index.astro - ホームページ（記事一覧）
- *
- * Task 2.2: 記事一覧ページ実装（TDD）
- * Task 3.2: JSON-LD構造化データ実装
- *
- * Requirements:
- * - 2.2: 記事一覧ページ実装
- *   - ホームページ (`index.astro`) で公開記事一覧を表示
- *   - 記事カードコンポーネントでタイトル、カテゴリ、作成日時、抜粋を表示
- *   - 記事詳細へのリンクを設定 (/posts/[id])
- *   - ビルド時に `/index.html` として静的生成
- * - 4.4: JSON-LD structured data with @type: "WebSite" schema for home page
- * - 14.1, 14.2: 日本語対応
- *
- * Implementation:
- * - PostCard.astro: 記事カードコンポーネント
- * - postUtils.ts: 抜粋生成、日付フォーマット、ソート関数
- * - postUtils.test.ts: 16テストケース (100%カバレッジ)
- * - build-output.test.ts: 15テストケース（ビルド出力検証）
- */
 import Layout from '../layouts/Layout.astro';
 import PostCard from '../components/PostCard.astro';
 import SearchBar from '../components/SearchBar.astro';
 import { fetchAllPosts, type Post } from '../lib/api';
 import { sortPostsByDate } from '../lib/postUtils';
-import type { SearchablePost } from '../lib/searchUtils';
 
-// ビルド時に公開記事を取得
 let posts: Post[] = [];
 let error: string | null = null;
-
 try {
-  const allPosts = await fetchAllPosts();
-  posts = sortPostsByDate(allPosts);
+  posts = sortPostsByDate(await fetchAllPosts());
 } catch (e) {
   console.error('Failed to fetch posts:', e);
   error = e instanceof Error ? e.message : 'Unknown error';
 }
-
-// 検索用のデータを生成（最小限のフィールドのみ）
-const searchablePosts: SearchablePost[] = posts.map((post) => ({
-  id: post.id,
-  title: post.title,
-  category: post.category,
-  tags: post.tags || [],
+const [featuredPost, nextPost] = posts;
+const searchablePosts = posts.map(({ id, title, category, tags }) => ({
+  id,
+  title,
+  category,
+  tags: tags || [],
 }));
 ---
 
@@ -53,184 +27,138 @@ const searchablePosts: SearchablePost[] = posts.map((post) => ({
   description="最新のブログ記事一覧。テクノロジー、ライフスタイル、プログラミングなど様々なトピックを扱っています。"
   showWebSiteJsonLd={true}
 >
-  <!-- Hero Section -->
-  <section class="hero-section" aria-labelledby="hero-title">
-    <div class="hero-inner">
-      <p class="hero-eyebrow">Thoughts, technology &amp; everyday life</p>
-      <h1 id="hero-title" class="hero-title">I am the bone of my fallacy</h1>
-      <span class="hero-seed" aria-hidden="true"></span>
-    </div>
-  </section>
-
-  <!-- Search Section -->
-  {posts.length > 0 && (
-    <div class="search-section">
-      <SearchBar posts={searchablePosts} />
-    </div>
-  )}
-
-  <div class="container">
-    {error ? (
-      <div class="error-message" role="alert">
-        <p>記事の取得に失敗しました: {error}</p>
-      </div>
-    ) : posts.length === 0 ? (
-      <p class="no-articles" data-testid="no-articles">記事がありません</p>
-    ) : (
-      <div class="post-list-container" data-testid="article-list">
-        {posts.map((post) => (
-          <PostCard post={post} />
-        ))}
-      </div>
-    )}
-  </div>
+  <main class="journal container" id="main-content">
+    <p class="site-tagline">I am the bone of my fallacy</p>
+    {
+      featuredPost ? (
+        <>
+          <section
+            class:list={['hero-section', { 'single-feature': !nextPost }]}
+            aria-label="最近の記事"
+          >
+            <PostCard post={featuredPost} variant="feature" />
+            {nextPost && (
+              <aside class="next-story" aria-label="あわせて読む">
+                <p class="section-eyebrow">あわせて読む</p>
+                <PostCard post={nextPost} variant="aside" />
+              </aside>
+            )}
+          </section>
+          <section class="archive" aria-labelledby="archive-title">
+            <SearchBar posts={searchablePosts} />
+            <div
+              id="article-records"
+              class="post-list-container"
+              data-testid="article-list"
+            >
+              {posts.map((post) => (
+                <PostCard post={post} />
+              ))}
+            </div>
+          </section>
+        </>
+      ) : (
+        <section class="empty-journal" aria-labelledby="empty-title">
+          <p class="section-eyebrow">
+            Thoughts, technology &amp; everyday life
+          </p>
+          <h1 id="empty-title">これまでの記録</h1>
+          {error ? (
+            <div class="error-message" role="alert">
+              <p>記事の取得に失敗しました: {error}</p>
+            </div>
+          ) : (
+            <p class="no-articles" data-testid="no-articles">
+              記事がありません
+            </p>
+          )}
+        </section>
+      )
+    }
+  </main>
 </Layout>
 
 <style>
+  .journal {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 40px 96px;
+  }
+  .site-tagline {
+    margin: 20px 0 50px;
+    font-size: 0.9rem;
+    color: var(--color-text);
+  }
   .hero-section {
-    position: relative;
-    overflow: hidden;
-    padding: 68px 32px;
-    text-align: center;
+    display: grid;
+    grid-template-columns: minmax(0, 2.3fr) minmax(0, 1fr);
+    gap: clamp(32px, 5vw, 72px);
+    padding-bottom: 60px;
+  }
+  .hero-section.single-feature {
+    grid-template-columns: minmax(0, 850px);
+  }
+  .next-story {
+    border-left: 1px solid var(--color-border);
+    padding-left: 32px;
+    min-width: 0;
+  }
+  .section-eyebrow {
+    margin: 0 0 32px;
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--color-text-heading);
+  }
+  .archive {
+    border-top: 1px solid var(--color-border);
+    padding-top: 36px;
+    scroll-margin-top: 100px;
+  }
+  .post-list-container {
     border-bottom: 1px solid var(--color-border);
   }
-
-  .hero-section::before,
-  .hero-section::after {
-    content: '';
-    position: absolute;
-    border: 1px solid var(--color-border);
-    border-radius: 50%;
-    opacity: 0.52;
-    pointer-events: none;
+  .empty-journal {
+    padding: 42px 0 110px;
   }
-
-  .hero-section::before {
-    width: 500px;
-    height: 500px;
-    top: -330px;
-    left: -110px;
+  .empty-journal h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
   }
-
-  .hero-section::after {
-    width: 360px;
-    height: 360px;
-    right: -180px;
-    bottom: -245px;
+  .no-articles {
+    margin-top: 32px;
+    color: var(--color-text);
   }
-
-  .hero-inner {
-    position: relative;
-    z-index: 1;
-    max-width: 850px;
-    margin: 0 auto;
-  }
-
-  .hero-eyebrow {
-    margin: 0 0 20px;
-    color: var(--color-text-muted);
-    font-family: var(--font-display);
-    font-size: 0.8rem;
-    font-weight: 600;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-  }
-
-  .hero-title {
-    margin: 0;
-    color: var(--color-text-muted);
-    font-family: var(--font-body);
-    font-size: clamp(1.25rem, 2.4vw, 1.75rem);
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    line-height: 1.45;
-  }
-
-  .hero-seed {
-    display: block;
-    width: 42px;
-    height: 42px;
-    margin: 28px auto 0;
-    background: url('/favicon-light.png') center / contain no-repeat;
-  }
-
-  :global(:root[data-theme='dark']) .hero-seed {
-    background-image: url('/favicon-dark.png');
-  }
-
-  .search-section {
-    padding: 52px 32px 0;
-    max-width: 1240px;
-    margin: 0 auto;
-  }
-
-  .container {
-    max-width: 1240px;
-    margin: 0 auto;
-    padding: 30px 40px 112px;
-  }
-
   .error-message {
     background: var(--color-danger-bg);
     border: 1px solid var(--color-danger-border);
-    border-radius: 8px;
+    border-radius: 6px;
     padding: 16px;
-    margin-bottom: 24px;
     color: var(--color-danger-text);
-    font-size: 0.95rem;
+    overflow-wrap: anywhere;
   }
-
-  .no-articles {
-    text-align: center;
-    color: var(--color-text-muted);
-    font-size: 1.125rem;
-    padding: 40px;
-  }
-
-  .post-list-container {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 22px;
-  }
-
-  @media (min-width: 768px) {
-    .post-list-container {
-      grid-template-columns: repeat(2, 1fr);
+  @media (max-width: 767px) {
+    .journal {
+      padding: 0 20px 64px;
     }
-  }
-
-  @media (min-width: 1100px) {
-    .post-list-container {
-      grid-template-columns: repeat(3, 1fr);
+    .site-tagline {
+      margin: 18px 0 36px;
+      font-size: 0.8rem;
     }
-  }
-
-  @media (max-width: 768px) {
     .hero-section {
-      padding: 50px 20px;
+      grid-template-columns: 1fr;
+      padding-bottom: 36px;
+      gap: 30px;
     }
-
-    .hero-eyebrow {
-      margin-bottom: 16px;
-      font-size: 0.68rem;
+    .next-story {
+      border-left: 0;
+      border-top: 1px solid var(--color-border);
+      padding: 24px 0 0;
     }
-
-    .hero-title {
-      font-size: 1.05rem;
+    .section-eyebrow {
+      margin-bottom: 18px;
     }
-
-    .hero-seed {
-      width: 36px;
-      height: 36px;
-      margin-top: 24px;
-    }
-
-    .search-section {
-      padding: 38px 20px 0;
-    }
-
-    .container {
-      padding: 22px 20px 72px;
+    .archive {
+      padding-top: 28px;
     }
   }
 </style>

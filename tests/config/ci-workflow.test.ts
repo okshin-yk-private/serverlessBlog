@@ -47,9 +47,63 @@ describe('CI aggregate executes the workflow shell', () => {
     expect(
       runGate({
         ...skipped,
-        "needs.setup-labels.outputs.has-frontend == 'true'": 'true',
+        "needs.setup-labels.outputs.has-admin == 'true'": 'true',
       })
     ).toBe(1);
+  });
+
+  for (const [name, flag] of [
+    ['frontend-astro-tests', 'has-astro'],
+    ['frontend-admin-tests', 'has-admin'],
+    ['e2e-public-tests', 'has-astro'],
+    ['e2e-admin-tests', 'has-admin'],
+  ]) {
+    test(`${name} skipped is rejected only when its component is required`, () => {
+      const skipped = { [`needs.${name}.result`]: 'skipped' };
+      expect(runGate(skipped)).toBe(0);
+      expect(
+        runGate({
+          ...skipped,
+          [`needs.setup-labels.outputs.${flag} == 'true'`]: 'true',
+        })
+      ).toBe(1);
+    });
+  }
+
+  test('public-only PR allows skipped admin and badge jobs', () => {
+    expect(
+      runGate({
+        "needs.setup-labels.outputs.has-astro == 'true'": 'true',
+        'needs.frontend-admin-tests.result': 'skipped',
+        'needs.e2e-admin-tests.result': 'skipped',
+        'needs.coverage-check.result': 'skipped',
+      })
+    ).toBe(0);
+  });
+
+  test('public coverage is enforced in its own job and component gates are wired', () => {
+    const publicJob = workflow
+      .split('  frontend-astro-tests:')[1]
+      .split('  frontend-admin-tests:')[0];
+    const adminJob = workflow
+      .split('  frontend-admin-tests:')[1]
+      .split('  e2e-public-tests:')[0];
+    expect(publicJob).toContain('run: bun run test:coverage -- --run');
+    expect(publicJob).toContain(
+      "if: needs.setup-labels.outputs.has-astro == 'true'"
+    );
+    expect(adminJob).toContain(
+      "if: needs.setup-labels.outputs.has-admin == 'true'"
+    );
+    expect(workflow).toContain(
+      'has-astro: ${{ steps.frontend-changes.outputs.astro }}'
+    );
+    expect(workflow).toContain(
+      'has-admin: ${{ steps.frontend-changes.outputs.admin }}'
+    );
+    expect(workflow).toContain(
+      'bash scripts/ci/detect-changes.sh ci "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"'
+    );
   });
 
   test('optional failures are never accepted', () => {

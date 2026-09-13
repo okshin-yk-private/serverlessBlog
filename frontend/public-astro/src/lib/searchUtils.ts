@@ -28,15 +28,22 @@ export interface SearchablePost {
  * - 大文字小文字を区別しない
  * - 日本語にも対応
  */
-export function searchPosts(posts: SearchablePost[], query: string): string[] {
+export function searchPosts(
+  posts: SearchablePost[],
+  query: string,
+  category = ''
+): string[] {
+  const candidates = category
+    ? posts.filter((post) => post.category === category)
+    : posts;
   // 空クエリの場合は全記事を返す
   if (!query.trim()) {
-    return posts.map((p) => p.id);
+    return candidates.map((p) => p.id);
   }
 
   const normalizedQuery = query.toLowerCase().trim();
 
-  return posts
+  return candidates
     .filter((post) => {
       // タイトルでマッチ
       if (post.title.toLowerCase().includes(normalizedQuery)) {

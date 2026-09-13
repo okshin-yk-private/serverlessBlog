@@ -57,9 +57,10 @@
     var btn = document.querySelector('[data-theme-toggle]');
     if (!btn) return;
     btn.addEventListener('click', function () {
-      var current = document.documentElement.getAttribute('data-theme') === 'dark'
-        ? 'dark'
-        : 'light';
+      var current =
+        document.documentElement.getAttribute('data-theme') === 'dark'
+          ? 'dark'
+          : 'light';
       var next = current === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', next);
       try {
@@ -83,7 +84,11 @@
     cursor: pointer;
     color: var(--color-text-muted);
     box-shadow: var(--shadow-card);
-    transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+    transition:
+      color 0.2s ease,
+      border-color 0.2s ease,
+      background 0.2s ease,
+      transform 0.2s ease;
   }
 
   .theme-toggle:hover {

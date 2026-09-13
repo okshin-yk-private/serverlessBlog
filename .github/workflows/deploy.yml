@@ -21,6 +21,12 @@ on:
       - 'terraform/**'
       - 'go-functions/**'
       - 'frontend/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'bunfig.toml'
+      - 'tsconfig*.json'
+      - 'scripts/deploy/**'
+      - 'scripts/ci/detect-changes.sh'
       - '.github/workflows/deploy.yml'
       - 'tests/e2e/**'
       - 'tests/config/**'
@@ -84,7 +90,7 @@ jobs:
         # Pin to specific commit SHA for security (Requirement 9.8)
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Detect changed paths
         id: changes
@@ -109,28 +115,19 @@ jobs:
               echo "astro=false" >> $GITHUB_OUTPUT
             fi
           else
-            # Push event - detect from changed files
-            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
-
-            if echo "$CHANGED" | grep -qE "^(terraform/|go-functions/)"; then
-              echo "infrastructure=true" >> $GITHUB_OUTPUT
-            else
-              echo "infrastructure=false" >> $GITHUB_OUTPUT
-            fi
-
-            # Admin frontend only - public site is now handled by Astro SSG
-            if echo "$CHANGED" | grep -qE "^frontend/admin/"; then
-              echo "frontend=true" >> $GITHUB_OUTPUT
-            else
-              echo "frontend=false" >> $GITHUB_OUTPUT
-            fi
-
-            if echo "$CHANGED" | grep -qE "^frontend/public-astro/"; then
-              echo "astro=true" >> $GITHUB_OUTPUT
-            else
-              echo "astro=false" >> $GITHUB_OUTPUT
-            fi
+            # Compare the entire push, including deletions and shared dependencies.
+            FLAGS=$(bash scripts/ci/detect-changes.sh deploy "$BEFORE_SHA" "$AFTER_SHA")
+            while IFS='=' read -r component changed; do
+              case "$component" in
+                infrastructure) echo "infrastructure=$changed" >> "$GITHUB_OUTPUT" ;;
+                admin) echo "frontend=$changed" >> "$GITHUB_OUTPUT" ;;
+                astro) echo "astro=$changed" >> "$GITHUB_OUTPUT" ;;
+              esac
+            done <<< "$FLAGS"
           fi
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
 
       - name: Determine target environment
         id: env
@@ -1424,7 +1421,8 @@ jobs:
           echo "========================================="
 
           # Check for failures
-          if [ "${{ needs.deploy-infrastructure-dev.result }}" == "failure" ] || \
+          if [ "${{ needs.detect-changes.result }}" != "success" ] || \
+             [ "${{ needs.deploy-infrastructure-dev.result }}" == "failure" ] || \
              [ "${{ needs.deploy-infrastructure-prd.result }}" == "failure" ] || \
              [ "${{ needs.deploy-admin-dev.result }}" == "failure" ] || \
              [ "${{ needs.deploy-admin-prd.result }}" == "failure" ] || \
