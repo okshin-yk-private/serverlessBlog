@@ -102,7 +102,7 @@ class GitHub:
         })
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
-                return json.load(response)
+                return None if response.status == 204 else json.load(response)
         except urllib.error.HTTPError as error:
             # Do not print response bodies or authentication material.
             raise Blocked(f"GitHub API {method} {path.split('?')[0]} returned HTTP {error.code}") from error
