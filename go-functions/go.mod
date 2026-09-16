@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/codebuild v1.78.0
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.74.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.68.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.1
 	github.com/gojp/kana v0.1.0
 	github.com/google/uuid v1.6.0
 	github.com/ikawaha/kagome-dict/ipa v1.2.6
