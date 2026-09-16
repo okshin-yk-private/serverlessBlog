@@ -47,53 +47,25 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
           min-height: 100vh;
         }
 
-        /* 公開サイト (index.astro / about.astro) のヒーローと同じ表現 */
+        /* 公開サイトの大見出し・余白・細い区切り線に合わせる。 */
         .admin-hero {
-          position: relative;
-          overflow: hidden;
-          padding: 68px 32px;
-          text-align: center;
+          padding: 48px 40px 36px;
+          text-align: left;
           border-bottom: 1px solid var(--color-border);
         }
 
-        .admin-hero::before,
-        .admin-hero::after {
-          content: '';
-          position: absolute;
-          border: 1px solid var(--color-border);
-          border-radius: 50%;
-          opacity: 0.52;
-          pointer-events: none;
-        }
-
-        .admin-hero::before {
-          width: 500px;
-          height: 500px;
-          top: -330px;
-          left: -110px;
-        }
-
-        .admin-hero::after {
-          width: 360px;
-          height: 360px;
-          right: -180px;
-          bottom: -245px;
-        }
-
         .admin-hero-content {
-          position: relative;
-          z-index: 1;
-          max-width: 850px;
+          max-width: 1160px;
           margin: 0 auto;
         }
 
         /* 公開サイトの hero-eyebrow 相当 */
         .admin-hero-subtitle {
-          margin: 0 0 20px;
+          margin: 0 0 12px;
           color: var(--color-text-muted);
           font-family: var(--font-display);
           font-size: 0.8rem;
-          font-weight: 600;
+          font-weight: 500;
           letter-spacing: 0.22em;
           text-transform: uppercase;
         }
@@ -101,24 +73,24 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
         /* 公開サイトの hero-title 相当 */
         .admin-hero-title {
           margin: 0;
-          color: var(--color-text-muted);
-          font-family: var(--font-body);
-          font-size: clamp(1.25rem, 2.4vw, 1.75rem);
-          font-weight: 500;
-          letter-spacing: 0.06em;
-          line-height: 1.45;
+          color: var(--color-text-heading);
+          font-family: var(--font-display);
+          font-size: clamp(2rem, 4.5vw, 3.5rem);
+          font-weight: 700;
+          letter-spacing: -0.035em;
+          line-height: 1.2;
         }
 
         .admin-hero-actions {
           margin-top: 28px;
           display: flex;
           gap: 12px;
-          justify-content: center;
+          justify-content: flex-start;
           flex-wrap: wrap;
         }
 
         .admin-main {
-          padding: 52px 0 112px;
+          padding: 36px 0 96px;
         }
 
         .admin-container {
@@ -127,11 +99,9 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
           padding: 0 40px;
         }
 
-        /* Shared styles moved to styles/admin.css */
-
         @media (max-width: 768px) {
           .admin-hero {
-            padding: 50px 20px;
+            padding: 32px 20px 28px;
           }
 
           .admin-hero-subtitle {
@@ -140,7 +110,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
           }
 
           .admin-hero-title {
-            font-size: 1.05rem;
+            font-size: 2rem;
           }
 
           .admin-main {

@@ -119,7 +119,8 @@ const AdminHeader: React.FC = () => {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          height: 88px;
+          height: 84px;
+          gap: 20px;
         }
 
         .admin-logo {
@@ -128,6 +129,7 @@ const AdminHeader: React.FC = () => {
           align-items: center;
           gap: 12px;
           line-height: 0;
+          flex-shrink: 0;
           transition: opacity 0.2s ease, transform 0.2s ease;
         }
 
@@ -138,7 +140,7 @@ const AdminHeader: React.FC = () => {
 
         .admin-logo-image {
           display: block;
-          height: 58px;
+          height: 52px;
           width: auto;
           max-width: 230px;
           object-fit: contain;
@@ -161,9 +163,16 @@ const AdminHeader: React.FC = () => {
         }
 
         .admin-nav {
+          min-width: 0;
+          overflow-x: auto;
+          padding: 6px;
           display: flex;
           gap: 8px;
           align-items: center;
+        }
+
+        .admin-nav > * {
+          flex-shrink: 0;
         }
 
         .admin-nav-link {
@@ -171,7 +180,7 @@ const AdminHeader: React.FC = () => {
           text-decoration: none;
           font-family: var(--font-display);
           font-size: 0.78rem;
-          font-weight: 600;
+          font-weight: 500;
           letter-spacing: 0.12em;
           text-transform: uppercase;
           transition: color 0.2s ease, background 0.2s ease;
@@ -224,7 +233,7 @@ const AdminHeader: React.FC = () => {
           border-radius: 999px;
           font-family: var(--font-display);
           font-size: 0.78rem;
-          font-weight: 600;
+          font-weight: 500;
           letter-spacing: 0.12em;
           text-transform: uppercase;
           cursor: pointer;
@@ -241,6 +250,7 @@ const AdminHeader: React.FC = () => {
           .admin-header-container {
             height: 72px;
             padding: 0 20px;
+            gap: 12px;
           }
 
           .admin-logo {
@@ -248,8 +258,8 @@ const AdminHeader: React.FC = () => {
           }
 
           .admin-logo-image {
-            height: 46px;
-            max-width: 178px;
+            max-width: 116px;
+            height: auto;
           }
 
           .admin-nav {

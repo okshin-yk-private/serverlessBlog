@@ -87,23 +87,6 @@
   }
 }
 
-/* Self-hosted Shippori Mincho - 公開サイト (public-astro) と同一の本文書体 */
-@font-face {
-  font-family: 'Shippori Mincho';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/shippori-mincho-400.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Shippori Mincho';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('/fonts/shippori-mincho-600.woff2') format('woff2');
-}
-
 /* ============================================
    Design Tokens (Light theme — default)
    public-astro/src/styles/global.css と同型に揃える。
@@ -163,8 +146,9 @@
   --shadow-card: 0 10px 30px rgba(36, 43, 31, 0.05);
   --shadow-card-strong: 0 24px 60px rgba(36, 43, 31, 0.1);
 
-  --font-display: 'Helvetica Neue', 'Avenir Next', 'Segoe UI', sans-serif;
-  --font-body: 'Shippori Mincho', 'Yu Mincho', serif;
+  --font-display:
+    'Zen Kaku Gothic New', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif;
+  --font-body: 'Zen Old Mincho', 'Yu Mincho', serif;
 
   color-scheme: light;
 }
@@ -235,18 +219,9 @@
   }
 
   body {
+    min-width: 320px;
+    margin: 0;
     background-color: var(--color-bg);
-    background-image:
-      radial-gradient(
-        circle at 8% 0%,
-        var(--color-primary-soft),
-        transparent 28rem
-      ),
-      radial-gradient(
-        circle at 92% 35%,
-        var(--color-primary-soft),
-        transparent 30rem
-      );
     color: var(--color-text);
     line-height: 1.75;
     min-height: 100vh;
@@ -262,6 +237,8 @@
     font-family: var(--font-display);
     color: var(--color-text-heading);
     letter-spacing: -0.035em;
+    font-weight: 700;
+    overflow-wrap: anywhere;
   }
 
   ::selection {
@@ -290,6 +267,8 @@
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
   }
 
   .admin-badge-dark {
@@ -336,7 +315,7 @@
     border-radius: 999px;
     font-family: var(--font-display);
     font-size: 0.88rem;
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: 0.02em;
     cursor: pointer;
     transition:
@@ -418,29 +397,18 @@
   /* ============================================
      Card Styles
      ============================================ */
-  /* 公開サイトの PostCard / about のカードと同じ面・角丸・余白 */
+  /* 公開サイトの編集誌型レイアウトに合わせ、面より区切り線で整理する。 */
   .admin-card {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 24px;
-    padding: 32px;
+    padding: 28px 0;
     margin-bottom: 24px;
-    transition:
-      transform 0.25s ease,
-      box-shadow 0.25s ease,
-      border-color 0.25s ease;
-  }
-
-  .admin-card:hover {
-    box-shadow: var(--shadow-card-strong);
-    border-color: var(--color-border-strong);
+    border-top: 1px solid var(--color-border);
   }
 
   /* ヒーローの eyebrow / about のセクション見出しと同じマイクロラベル */
   .admin-card-title {
     font-family: var(--font-display);
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--color-text-muted);
     letter-spacing: 0.22em;
     text-transform: uppercase;
@@ -458,39 +426,8 @@
   }
 
   .admin-stat-card {
-    position: relative;
-    overflow: hidden;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 24px;
-    padding: 32px;
-    transition:
-      transform 0.25s ease,
-      box-shadow 0.25s ease,
-      border-color 0.25s ease;
-  }
-
-  /* PostCard と同じアクセントバー */
-  .admin-stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 32px;
-    width: 44px;
-    height: 3px;
-    background: var(--color-accent);
-    border-radius: 0 0 999px 999px;
-    transition: width 0.25s ease;
-  }
-
-  .admin-stat-card:hover {
-    transform: translateY(-5px);
-    box-shadow: var(--shadow-card-strong);
-    border-color: var(--color-border-strong);
-  }
-
-  .admin-stat-card:hover::before {
-    width: 72px;
+    border-top: 1px solid var(--color-border);
+    padding: 24px 0;
   }
 
   .admin-stat-label {
@@ -498,15 +435,16 @@
     font-size: 0.72rem;
     color: var(--color-text-muted);
     margin: 8px 0 10px 0;
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: 0.12em;
     text-transform: uppercase;
   }
 
   .admin-stat-value {
     font-family: var(--font-display);
-    font-size: 2.5rem;
-    font-weight: 600;
+    font-size: clamp(2.5rem, 4vw, 3.5rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
     color: var(--color-text-heading);
     letter-spacing: -0.035em;
     margin: 0;
@@ -520,14 +458,12 @@
      List Styles
      ============================================ */
   .admin-list {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 24px;
-    overflow: hidden;
+    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
   }
 
   .admin-list-item {
-    padding: 22px 28px;
+    padding: 24px 12px;
     border-bottom: 1px solid var(--color-border);
     transition: background 0.2s ease;
   }
@@ -540,29 +476,46 @@
     background: var(--color-surface-elevated);
   }
 
+  .admin-record-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .admin-record-content {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-record-actions {
+    display: flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
   /* ============================================
      Input Styles
      ============================================ */
-  /* 公開サイトの SearchBar (.search-input) と同じ丸型入力 */
+  /* 公開サイトの検索欄と同じ、控えめな角丸と細い枠線。 */
   .admin-input {
     width: 100%;
     padding: 15px 24px;
     border: 1px solid var(--color-border);
-    border-radius: 999px;
+    border-radius: 6px;
     font-family: var(--font-body);
     font-size: 0.95rem;
     background: var(--color-surface);
     color: var(--color-text-heading);
     transition: all 0.2s ease;
-    box-shadow: var(--shadow-card);
   }
 
   .admin-input:focus {
     outline: none;
     border-color: var(--color-accent);
-    box-shadow:
-      0 0 0 4px var(--color-focus-ring),
-      var(--shadow-card);
+    box-shadow: 0 0 0 4px var(--color-focus-ring);
   }
 
   .admin-input::placeholder {
@@ -586,7 +539,7 @@
     color: var(--color-text-muted);
     font-family: var(--font-display);
     font-size: 0.78rem;
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     cursor: pointer;
@@ -610,7 +563,7 @@
      ============================================ */
   .admin-alert {
     padding: 16px 22px;
-    border-radius: 20px;
+    border-radius: 8px;
     margin-bottom: 24px;
     font-size: 0.93rem;
     line-height: 1.85;
@@ -646,7 +599,7 @@
   .admin-empty-title {
     font-family: var(--font-display);
     font-size: 1.125rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--color-text-heading);
     letter-spacing: -0.035em;
     margin: 0 0 8px 0;
@@ -678,7 +631,7 @@
     display: block;
     font-family: var(--font-display);
     font-size: 0.72rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--color-text-muted);
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -694,7 +647,7 @@
     width: 100%;
     padding: 13px 20px;
     border: 1px solid var(--color-border);
-    border-radius: 999px;
+    border-radius: 6px;
     font-family: var(--font-body);
     font-size: 0.95rem;
     background: var(--color-surface);
@@ -704,7 +657,7 @@
 
   /* 複数行入力は丸めすぎないよう、カードと同じ角丸に寄せる */
   .admin-form-textarea {
-    border-radius: 20px;
+    border-radius: 8px;
   }
 
   .admin-form-input:focus,
@@ -765,7 +718,7 @@
   .admin-dialog {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-radius: 24px;
+    border-radius: 8px;
     padding: 32px;
     max-width: 28rem;
     width: 100%;
@@ -785,7 +738,7 @@
   .admin-editor-shell {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-radius: 20px;
+    border-radius: 8px;
     overflow: hidden;
     transition:
       border-color 0.2s ease,
@@ -825,7 +778,7 @@
     background: var(--color-primary-soft);
     border-color: var(--color-primary);
     color: var(--color-primary);
-    font-weight: 600;
+    font-weight: 500;
   }
 
   .admin-spinner {
@@ -839,14 +792,14 @@
   .admin-panel {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-radius: 20px;
+    border-radius: 8px;
     padding: 20px;
   }
 
   .admin-panel-label {
     font-family: var(--font-display);
     font-size: 0.72rem;
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--color-text-muted);
@@ -855,7 +808,7 @@
   .admin-field {
     padding: 9px 16px;
     border: 1px solid var(--color-border);
-    border-radius: 999px;
+    border-radius: 6px;
     font-family: var(--font-body);
     font-size: 0.875rem;
     background: var(--color-surface);
@@ -866,7 +819,7 @@
   }
 
   textarea.admin-field {
-    border-radius: 16px;
+    border-radius: 6px;
   }
 
   .admin-field:focus {
@@ -906,7 +859,7 @@
   .admin-inline-link {
     font-family: var(--font-display);
     font-size: 0.7rem;
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: 0.06em;
     color: var(--color-accent);
     cursor: pointer;
@@ -920,7 +873,7 @@
 
   .admin-thumb {
     border: 1px solid var(--color-border);
-    border-radius: 16px;
+    border-radius: 6px;
   }
 
   .admin-tag {
@@ -930,7 +883,7 @@
     padding: 2px 10px;
     font-family: var(--font-display);
     font-size: 0.68rem;
-    font-weight: 600;
+    font-weight: 500;
   }
 
   .admin-tag-remove {
@@ -954,7 +907,7 @@
 
   .admin-segmented-item {
     font-family: var(--font-display);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--color-text-muted);
     background: transparent;
     border-radius: 999px;
@@ -976,12 +929,12 @@
   .admin-preview {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-radius: 20px;
+    border-radius: 8px;
   }
 
   .admin-alert-action {
     color: inherit;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
   }
 
@@ -1016,7 +969,7 @@
   .login-form-link {
     font-family: var(--font-display);
     font-size: 0.78rem;
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: 0.06em;
     color: var(--color-text-muted);
     transition: color 0.2s ease;
@@ -1033,16 +986,7 @@
 @media (max-width: 768px) {
   .admin-card,
   .admin-stat-card {
-    padding: 28px;
-    border-radius: 20px;
-  }
-
-  .admin-stat-card::before {
-    left: 28px;
-  }
-
-  .admin-list {
-    border-radius: 20px;
+    padding: 24px 0;
   }
 
   .admin-badge-header {
@@ -1057,14 +1001,13 @@
   text-align: left;
 }
 .admin-page-writing .admin-hero-content {
-  max-width: none;
+  max-width: 1160px;
+}
+.admin-page-writing .admin-hero-title {
+  font-size: clamp(1.25rem, 2.4vw, 1.75rem);
 }
 .admin-page-writing .admin-hero-subtitle {
   margin-bottom: 4px;
-}
-.admin-page-writing .admin-hero::before,
-.admin-page-writing .admin-hero::after {
-  display: none;
 }
 .admin-page-writing .admin-main {
   padding-top: 20px;
@@ -1072,7 +1015,7 @@
 .admin-writing-actions {
   grid-column: 1 / -1;
   position: sticky;
-  top: 88px;
+  top: 84px;
   z-index: 30;
   display: flex;
   align-items: center;
@@ -1121,22 +1064,25 @@
   }
 }
 
-@media (max-width: 768px) {
-  .admin-page-writing .admin-header-container {
-    gap: 12px;
+/* Match the real font weights used by the public article typography. */
+body .post-content :is(h1, h2, h3, h4, h5, h6, strong) {
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
   }
-  .admin-page-writing .admin-logo {
-    flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .admin-record-row {
+    flex-wrap: wrap;
   }
-  .admin-page-writing .admin-logo-image {
-    max-width: 116px;
-    height: auto;
-  }
-  .admin-page-writing .admin-nav {
-    min-width: 0;
-    overflow-x: auto;
-  }
-  .admin-page-writing .admin-nav > * {
-    flex-shrink: 0;
+
+  .admin-record-actions {
+    flex-basis: 100%;
   }
 }
