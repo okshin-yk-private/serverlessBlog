@@ -109,6 +109,8 @@ export const useCategories = (
   }, [fetchData]);
 
   useEffect(() => {
+    // Keep the stable sequence holder; cleanup invalidates its latest value.
+    const requestSequence = requestIdRef;
     isMountedRef.current = true;
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') void fetchData(true);
@@ -122,7 +124,7 @@ export const useCategories = (
 
     return () => {
       isMountedRef.current = false;
-      ++requestIdRef.current;
+      ++requestSequence.current;
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
