@@ -166,6 +166,7 @@ class ReleaseTests(unittest.TestCase):
 
     def test_dev_reuse_only_allows_administrative_changes(self):
         for file, accepted in [({'filename': 'docs/release.md'}, True),
+                               ({'filename': '.github/workflows/dependabot-auto-merge.yml'}, True),
                                ({'filename': 'go-functions/go.mod'}, False),
                                ({'filename': '.github/actions/setup/action.yml'}, False),
                                ({'filename': '.github/workflows/deploy.yml'}, False),

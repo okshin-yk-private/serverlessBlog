@@ -96,7 +96,7 @@ Actions secretへ直接登録します。個人の長期PATは使いません。
 | 種類                | 名前                               | 値                               |
 | ------------------- | ---------------------------------- | -------------------------------- |
 | Repository variable | `DEPENDABOT_AUTOMERGE_MODE`        | 最初は`dry-run`、承認後`enabled` |
-| Repository variable | `DEPENDABOT_AUTOMERGE_APP_ID`      | 専用AppのID                      |
+| Repository variable | `DEPENDABOT_AUTOMERGE_CLIENT_ID`   | 専用AppのClient ID               |
 | Actions secret      | `DEPENDABOT_AUTOMERGE_PRIVATE_KEY` | 専用Appの秘密鍵                  |
 
 `develop`のclassic branch protectionで、PR経由のマージと次を設定します。

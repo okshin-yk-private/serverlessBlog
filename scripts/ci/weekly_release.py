@@ -72,7 +72,11 @@ def administrative_path(path):
         or path.startswith(".claude/")
         or path.startswith(".codex/")
         or path.startswith(".kiro/")
-        or path in {".github/workflows/weekly-production-release.yml", "scripts/ci/weekly_release.py"}
+        or path in {
+            ".github/workflows/weekly-production-release.yml",
+            ".github/workflows/dependabot-auto-merge.yml",
+            "scripts/ci/weekly_release.py",
+        }
     )
 
 
