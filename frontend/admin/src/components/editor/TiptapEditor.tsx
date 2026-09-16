@@ -135,8 +135,7 @@ export const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(
       editable: !disabled,
       editorProps: {
         attributes: {
-          class:
-            'prose prose-sm max-w-none focus:outline-none min-h-[360px] px-3 py-2 font-sans text-sm',
+          class: 'post-content max-w-none focus:outline-none min-h-[360px] p-4',
         },
       },
       onUpdate: ({ editor }) => {

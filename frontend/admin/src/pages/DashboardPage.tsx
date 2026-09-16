@@ -127,7 +127,7 @@ const DashboardPage = () => {
             <h2
               style={{
                 fontSize: '1.25rem',
-                fontWeight: 600,
+                fontWeight: 700,
                 color: 'var(--color-text-heading)',
                 marginBottom: '16px',
               }}
@@ -148,7 +148,7 @@ const DashboardPage = () => {
                       <h3
                         style={{
                           fontSize: '1.125rem',
-                          fontWeight: 600,
+                          fontWeight: 700,
                           color: 'var(--color-text-heading)',
                           margin: '0 0 8px 0',
                         }}
@@ -188,7 +188,7 @@ const DashboardPage = () => {
             <h2
               style={{
                 fontSize: '1.25rem',
-                fontWeight: 600,
+                fontWeight: 700,
                 color: 'var(--color-text-heading)',
                 marginBottom: '16px',
               }}
@@ -209,7 +209,7 @@ const DashboardPage = () => {
                       <h3
                         style={{
                           fontSize: '1.125rem',
-                          fontWeight: 600,
+                          fontWeight: 700,
                           color: 'var(--color-text-heading)',
                           margin: '0 0 8px 0',
                         }}

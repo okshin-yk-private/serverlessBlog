@@ -243,9 +243,8 @@ const LoginPage = () => {
           .login-card {
             background: var(--color-surface);
             border: 1px solid var(--color-border);
-            border-radius: 24px;
+            border-radius: 8px;
             padding: 40px;
-            box-shadow: var(--shadow-card);
           }
 
           .login-header {
@@ -300,7 +299,7 @@ const LoginPage = () => {
           .login-title {
             font-family: var(--font-display);
             font-size: 1.5rem;
-            font-weight: 600;
+            font-weight: 700;
             letter-spacing: -0.035em;
             color: var(--color-text-heading);
             text-align: center;
@@ -328,7 +327,7 @@ const LoginPage = () => {
             display: block;
             font-family: var(--font-display);
             font-size: 0.72rem;
-            font-weight: 600;
+            font-weight: 500;
             letter-spacing: 0.12em;
             text-transform: uppercase;
             color: var(--color-text-muted);
@@ -339,7 +338,7 @@ const LoginPage = () => {
             width: 100%;
             padding: 12px 16px;
             border: 1px solid var(--color-border);
-            border-radius: 999px;
+            border-radius: 6px;
             font-family: var(--font-body);
             font-size: 0.95rem;
             background: var(--color-surface);
@@ -394,7 +393,7 @@ const LoginPage = () => {
             border-radius: 999px;
             font-family: var(--font-display);
             font-size: 0.9rem;
-            font-weight: 600;
+            font-weight: 500;
             cursor: pointer;
             transition: all 0.2s ease;
             margin-bottom: 16px;
@@ -491,9 +490,8 @@ const LoginPage = () => {
         .login-card {
           background: var(--color-surface);
           border: 1px solid var(--color-border);
-          border-radius: 24px;
+          border-radius: 8px;
           padding: 40px;
-          box-shadow: var(--shadow-card);
         }
 
         .login-header {
@@ -548,7 +546,7 @@ const LoginPage = () => {
         .login-title {
           font-family: var(--font-display);
           font-size: 1.5rem;
-          font-weight: 600;
+          font-weight: 700;
           letter-spacing: -0.035em;
           color: var(--color-text-heading);
           text-align: center;
@@ -595,7 +593,7 @@ const LoginPage = () => {
           border-radius: 999px;
           font-family: var(--font-display);
           font-size: 0.9rem;
-          font-weight: 600;
+          font-weight: 500;
           cursor: pointer;
           transition: all 0.2s ease;
         }
