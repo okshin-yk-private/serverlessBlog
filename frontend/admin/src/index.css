@@ -4,6 +4,89 @@
 @import '../../shared-ui/src/article.css';
 @plugin "@tailwindcss/typography";
 
+/* Article publication progress: actual stages, not an estimated percentage. */
+.admin-build-progress {
+  margin-bottom: 24px;
+  padding: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+}
+.admin-build-progress-heading,
+.admin-build-progress-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.admin-build-progress-heading {
+  justify-content: space-between;
+}
+.admin-build-progress-time {
+  font-variant-numeric: tabular-nums;
+}
+.admin-build-progress-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  list-style: none;
+  margin: 20px 0 12px;
+  padding: 0;
+}
+.admin-build-progress-steps li {
+  display: grid;
+  gap: 6px;
+}
+.admin-build-progress-track {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--color-surface-muted);
+}
+.admin-build-progress-steps [data-state='done'] .admin-build-progress-track,
+.admin-build-progress-steps [data-state='active'] .admin-build-progress-track {
+  background: var(--color-primary);
+}
+.admin-build-progress-steps [data-state='failed'] .admin-build-progress-track {
+  background: var(--color-danger);
+}
+.admin-build-progress-step-state {
+  font-size: 12px;
+}
+.admin-build-progress p {
+  margin: 12px 0;
+}
+.admin-build-progress-details {
+  margin: 12px 0;
+}
+.admin-build-progress-details summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.admin-build-progress-details dl {
+  margin-top: 8px;
+}
+.admin-build-progress-details dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+.admin-build-progress-details dd {
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+@media (max-width: 480px) {
+  .admin-build-progress {
+    padding: 14px;
+  }
+  .admin-build-progress-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* Self-hosted Shippori Mincho - 公開サイト (public-astro) と同一の本文書体 */
 @font-face {
   font-family: 'Shippori Mincho';

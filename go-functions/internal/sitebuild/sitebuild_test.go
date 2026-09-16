@@ -268,6 +268,7 @@ func TestReconcileSuccessfulBuildStartsTrailingRevision(t *testing.T) {
 	if len(dynamoClient.updates) != 3 {
 		t.Fatalf("expected completion, lock, and build-id updates, got %d", len(dynamoClient.updates))
 	}
+	assertCompletedBuildReference(t, dynamoClient.updates[0])
 }
 
 func TestReconcileFailedBuildStartsTrailingRevision(t *testing.T) {
@@ -298,6 +299,18 @@ func TestReconcileFailedBuildStartsTrailingRevision(t *testing.T) {
 	}
 	if len(dynamoClient.updates) != 3 {
 		t.Fatalf("expected failure, lock, and build-id updates, got %d", len(dynamoClient.updates))
+	}
+	assertCompletedBuildReference(t, dynamoClient.updates[0])
+}
+
+func assertCompletedBuildReference(t *testing.T, update *dynamodb.UpdateItemInput) {
+	t.Helper()
+	expression := aws.ToString(update.UpdateExpression)
+	if !strings.Contains(expression, "lastBuildId = :buildId") || !strings.Contains(expression, "lastBuildRevision = :revision") {
+		t.Fatalf("must retain the completed build for progress reads: %s", expression)
+	}
+	if update.ExpressionAttributeValues[":buildId"].(*dynamodbtypes.AttributeValueMemberS).Value != "project:build-2" || update.ExpressionAttributeValues[":revision"].(*dynamodbtypes.AttributeValueMemberN).Value != "2" {
+		t.Fatal("completed build reference must retain its revision")
 	}
 }
 
