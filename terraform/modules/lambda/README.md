@@ -172,11 +172,12 @@ module "lambda" {
 
 ### posts_build_status ロール
 
-対象: build_status_post のみ。ビルド状態のポーリングのみを行い、DynamoDB/S3には
-アクセスせず、ビルドの開始（StartBuild）もしない。
+対象: build_status_post のみ。DynamoDBのビルド状態と、対象CodeBuildプロジェクトの工程を読み取る。
+DynamoDB書込み、S3アクセス、ビルドの開始（StartBuild）は行わない。
 
 ```
-- codebuild:ListBuildsForProject / BatchGetBuilds
+- dynamodb:GetItem
+- codebuild:BatchGetBuilds（対象project ARNのみ）
 - logs:CreateLogGroup
 - logs:CreateLogStream
 - logs:PutLogEvents

@@ -30,14 +30,17 @@ var dynamoClientGetter = func() (sitebuild.DynamoDBClient, error) {
 // BuildStatusResponse is the API response body. Fields use camelCase JSON
 // to match the rest of the admin API.
 type BuildStatusResponse struct {
-	BuildID          string `json:"buildId,omitempty"`
-	Status           string `json:"status"`
-	Phase            string `json:"phase,omitempty"`
-	TargetRevision   int64  `json:"targetRevision,omitempty"`
-	DesiredRevision  int64  `json:"desiredRevision,omitempty"`
-	DeployedRevision int64  `json:"deployedRevision,omitempty"`
-	StartTime        string `json:"startTime,omitempty"`
-	EndTime          string `json:"endTime,omitempty"`
+	BuildID             string       `json:"buildId,omitempty"`
+	Status              string       `json:"status"`
+	Phase               string       `json:"phase,omitempty"`
+	TargetRevision      int64        `json:"targetRevision,omitempty"`
+	DesiredRevision     int64        `json:"desiredRevision,omitempty"`
+	DeployedRevision    int64        `json:"deployedRevision,omitempty"`
+	StartTime           string       `json:"startTime,omitempty"`
+	EndTime             string       `json:"endTime,omitempty"`
+	Phases              []BuildPhase `json:"phases,omitempty"`
+	FailedPhase         string       `json:"failedPhase,omitempty"`
+	ProgressUnavailable bool         `json:"progressUnavailable,omitempty"`
 }
 
 // Handler handles GET /admin/posts/{id}/build-status.
@@ -76,14 +79,12 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	resp := BuildStatusResponse{
 		BuildID: requestState.BuildID, Status: requestState.Status,
 		TargetRevision: requestState.TargetRevision, DesiredRevision: state.DesiredRevision,
-		DeployedRevision: state.DeployedRevision, StartTime: state.StartedAt, EndTime: state.CompletedAt,
+		DeployedRevision: state.DeployedRevision,
 	}
-	switch requestState.Status {
-	case sitebuild.StatusInProgress:
-		resp.Phase = "BUILD"
-	case sitebuild.StatusQueued:
+	if requestState.Status == sitebuild.StatusQueued {
 		resp.Phase = "QUEUED"
 	}
+	addBuildProgress(ctx, state, &resp)
 	return middleware.JSONResponse(200, resp)
 }
 

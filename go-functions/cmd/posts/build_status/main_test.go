@@ -47,8 +47,10 @@ func setup(t *testing.T, state sitebuild.State) {
 	t.Helper()
 	t.Setenv("TABLE_NAME", "posts")
 	original := dynamoClientGetter
+	originalBuild := codebuildClientGetter
 	dynamoClientGetter = func() (sitebuild.DynamoDBClient, error) { return &mockDynamo{state: state}, nil }
-	t.Cleanup(func() { dynamoClientGetter = original })
+	codebuildClientGetter = func() (buildReader, error) { return nil, errors.New("build detail unavailable") }
+	t.Cleanup(func() { dynamoClientGetter = original; codebuildClientGetter = originalBuild })
 }
 
 func TestHandlerCorrelatesTargetRevision(t *testing.T) {

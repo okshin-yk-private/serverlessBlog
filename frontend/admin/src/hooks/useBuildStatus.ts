@@ -3,6 +3,7 @@ import {
   fetchBuildStatus,
   type BuildStatusResponse,
   type BuildStatusValue,
+  type BuildPhase,
 } from '../api/posts';
 
 export interface UseBuildStatusOptions {
@@ -26,6 +27,9 @@ export interface UseBuildStatusResult {
   phase?: string;
   startTime?: string;
   endTime?: string;
+  phases?: BuildPhase[];
+  failedPhase?: string;
+  progressUnavailable?: boolean;
   error: string | null;
 }
 
@@ -72,6 +76,10 @@ export function useBuildStatus(
     let cancelled = false;
     stoppedRef.current = false;
 
+    // A new save must not display the previous revision's completion/clock.
+    setSnapshot({ status: 'idle' });
+    setError(null);
+
     const tick = async (): Promise<void> => {
       if (inFlight || stoppedRef.current) return;
       inFlight = true;
@@ -117,6 +125,9 @@ export function useBuildStatus(
     phase: snapshot.phase,
     startTime: snapshot.startTime,
     endTime: snapshot.endTime,
+    phases: snapshot.phases,
+    failedPhase: snapshot.failedPhase,
+    progressUnavailable: snapshot.progressUnavailable,
     error,
   };
 }

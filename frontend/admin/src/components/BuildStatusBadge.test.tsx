@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, within } from '@testing-library/react';
 
 vi.mock('../api/posts');
 const postsApi = await import('../api/posts');
@@ -113,5 +113,100 @@ describe('BuildStatusBadge', () => {
 
     await flush();
     expect(screen.getByRole('alert').textContent).toBe('AccessDenied');
+  });
+
+  it('shows the real phase and elapsed time without inventing a percentage', async () => {
+    vi.setSystemTime(new Date('2026-09-16T00:01:00Z'));
+    mockedFetch.mockResolvedValue({
+      status: 'in-progress',
+      phase: 'POST_BUILD',
+      startTime: '2026-09-16T00:00:00Z',
+      phases: [{ name: 'BUILD', status: 'SUCCEEDED', durationSeconds: 12 }],
+    });
+    render(<BuildStatusBadge postId="p-1" enabled />);
+    await flush();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'ファイル配置・配信先切替中'
+    );
+    const steps = within(
+      screen.getByRole('list', { name: '公開までの工程' })
+    ).getAllByRole('listitem');
+    expect(steps.map((step) => step.dataset.state)).toEqual([
+      'done',
+      'done',
+      'done',
+      'active',
+    ]);
+    expect(screen.getByText('ビルド開始から 1分0秒')).toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(screen.getByText('ビルド開始から 1分1秒')).toBeInTheDocument();
+    expect(screen.getByText('12秒')).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
+  it('keeps queued saves at the waiting step with no build clock', async () => {
+    mockedFetch.mockResolvedValue({ status: 'queued', phase: 'QUEUED' });
+    render(<BuildStatusBadge postId="p-1" enabled targetRevision={5} />);
+    await flush();
+    const steps = screen.getAllByRole('listitem');
+    expect(steps.map((step) => step.dataset.state)).toEqual([
+      'active',
+      'pending',
+      'pending',
+      'pending',
+    ]);
+    expect(screen.queryByText(/ビルド開始から/)).not.toBeInTheDocument();
+  });
+
+  it('identifies the failed phase instead of showing later cleanup as progress', async () => {
+    mockedFetch.mockResolvedValue({
+      status: 'failed',
+      phase: 'COMPLETED',
+      failedPhase: 'BUILD',
+    });
+    render(<BuildStatusBadge postId="p-1" enabled />);
+    await flush();
+    expect(
+      screen.getAllByRole('listitem').map((step) => step.dataset.state)
+    ).toEqual(['done', 'done', 'failed', 'pending']);
+    expect(
+      screen.getByText('記事の保存は完了しています。公開処理に失敗しました。')
+    ).toBeInTheDocument();
+  });
+
+  it('explains unavailable details and does not assume the BUILD phase', async () => {
+    mockedFetch.mockResolvedValue({
+      status: 'in-progress',
+      progressUnavailable: true,
+    });
+    render(<BuildStatusBadge postId="p-1" enabled />);
+    await flush();
+    expect(
+      screen.getByText(/工程の詳細を一時的に取得できません/)
+    ).toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole('listitem')
+        .every((step) => step.dataset.state === 'pending')
+    ).toBe(true);
+  });
+
+  it('freezes elapsed time at the build end and distinguishes propagation from completion', async () => {
+    mockedFetch.mockResolvedValue({
+      status: 'succeeded',
+      startTime: '2026-09-16T00:00:00Z',
+      endTime: '2026-09-16T00:01:12Z',
+    });
+    render(<BuildStatusBadge postId="p-1" enabled />);
+    await flush();
+    expect(screen.getByText('ビルド開始から 1分12秒')).toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+    expect(screen.getByText('ビルド開始から 1分12秒')).toBeInTheDocument();
+    expect(screen.getByText(/閲覧先によって反映まで/)).toBeInTheDocument();
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
   });
 });
