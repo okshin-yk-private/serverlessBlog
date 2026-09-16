@@ -24,6 +24,7 @@ import { lookup as mimeLookup } from 'mime-types';
 const MAX_SIZE_BYTES = 50 * 1024 * 1024;
 const ACTIVE_REVISION_KEY = 'activeRevision';
 const MAX_PROMOTION_ATTEMPTS = 3;
+const UPLOAD_CONCURRENCY = 8;
 const RELEASE_PATTERN = /^r\d+(?:-[a-z0-9][a-z0-9._-]*)?$/;
 
 export enum DeployErrorCode {
@@ -248,23 +249,18 @@ async function uploadAndVerifyFiles(
   dryRun: boolean
 ): Promise<void> {
   // Assets first: old and new HTML can safely coexist during KVS propagation.
-  const orderedFiles = [
-    ...files.filter((file) => file.relativePath.startsWith('_astro/')),
-    ...files.filter((file) => !file.relativePath.startsWith('_astro/')),
-  ];
-
-  for (const file of orderedFiles) {
+  const uploadFile = async (file: FileEntry): Promise<void> => {
     const key = getDeploymentKey(file.relativePath, revision);
     if (dryRun) {
       console.log(
         `[DRY-RUN] Would upload and verify ${file.relativePath} -> s3://${config.bucketName}/${key}`
       );
-      continue;
+      return;
     }
 
     const existingSize = await headObjectSize(client, config.bucketName, key);
     if (existingSize !== undefined) {
-      if (existingSize === file.sizeBytes) continue;
+      if (existingSize === file.sizeBytes) return;
       throw new DeployError(
         DeployErrorCode.RELEASE_CONFLICT,
         `Existing object has different size: s3://${config.bucketName}/${key}`
@@ -289,6 +285,57 @@ async function uploadAndVerifyFiles(
         `Uploaded object verification failed: s3://${config.bucketName}/${key}`
       );
     }
+  };
+
+  // Keep the asset barrier and bound both requests and in-memory file bodies.
+  // On failure, stop taking new files and drain all in-flight workers before
+  // returning. A caller must never promote while verification is outstanding.
+  for (const group of [
+    files.filter((file) => file.relativePath.startsWith('_astro/')),
+    files.filter((file) => !file.relativePath.startsWith('_astro/')),
+  ]) {
+    let next = 0;
+    let failed = false;
+    let failure: unknown;
+    const worker = async (): Promise<void> => {
+      while (!failed && next < group.length) {
+        const file = group[next++];
+        try {
+          await uploadFile(file);
+        } catch (error) {
+          if (!failed) failure = error;
+          failed = true;
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(UPLOAD_CONCURRENCY, group.length) }, worker)
+    );
+    if (failed) throw failure;
+  }
+}
+
+async function timedDeploymentPhase<T>(
+  phase: 'upload-and-verify' | 'promote',
+  revision: string,
+  operation: () => Promise<T>
+): Promise<T> {
+  const startedAt = Date.now();
+  let succeeded = false;
+  try {
+    const result = await operation();
+    succeeded = true;
+    return result;
+  } finally {
+    console.log(
+      JSON.stringify({
+        event: 'site-deploy-phase',
+        phase,
+        revision,
+        durationMs: Date.now() - startedAt,
+        status: succeeded ? 'succeeded' : 'failed',
+      })
+    );
   }
 }
 
@@ -417,7 +464,9 @@ export async function atomicDeploy(
       `Uploading ${files.length} files to ${getVersionPrefix(revision)} (shared assets remain under _astro/)`
     );
     try {
-      await uploadAndVerifyFiles(clients.s3, config, revision, files, dryRun);
+      await timedDeploymentPhase('upload-and-verify', revision, () =>
+        uploadAndVerifyFiles(clients.s3, config, revision, files, dryRun)
+      );
     } catch (error) {
       if (error instanceof DeployError) throw error;
       throw new DeployError(
@@ -429,11 +478,8 @@ export async function atomicDeploy(
     console.log(`Promoting release ${revision} through CloudFront KVS...`);
     let promotion: { previousRevision?: string; promoted: boolean };
     try {
-      promotion = await promoteRelease(
-        clients.kvs,
-        config.keyValueStoreArn,
-        revision,
-        dryRun
+      promotion = await timedDeploymentPhase('promote', revision, () =>
+        promoteRelease(clients.kvs, config.keyValueStoreArn, revision, dryRun)
       );
     } catch (error) {
       if (error instanceof DeployError) throw error;

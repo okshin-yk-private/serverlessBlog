@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useBuildStatus } from '../hooks/useBuildStatus';
 
 export interface BuildStatusBadgeProps {
@@ -33,6 +33,28 @@ const STATUS_CLASS: Record<string, string> = {
   failed: 'admin-badge-danger',
 };
 
+const PHASES: Record<string, { label: string; step: number }> = {
+  SUBMITTED: { label: '受付中', step: 0 },
+  QUEUED: { label: '順番待ち', step: 0 },
+  PROVISIONING: { label: '実行環境を準備中', step: 1 },
+  DOWNLOAD_SOURCE: { label: 'ソースを取得中', step: 1 },
+  INSTALL: { label: 'ビルドツールを準備中', step: 1 },
+  PRE_BUILD: { label: '依存関係を準備中', step: 1 },
+  BUILD: { label: 'ページを生成中', step: 2 },
+  POST_BUILD: { label: 'ファイル配置・配信先切替中', step: 3 },
+  UPLOAD_ARTIFACTS: { label: 'ビルドの後処理中', step: 3 },
+  FINALIZING: { label: 'ビルドの終了処理中', step: 3 },
+  COMPLETED: { label: '完了結果を確認中', step: 3 },
+};
+const STEP_LABELS = ['順番待ち', '準備', 'ページ生成', '公開処理'];
+
+function formatDuration(seconds: number): string {
+  const value = Math.max(0, Math.floor(seconds));
+  return value < 60
+    ? `${value}秒`
+    : `${Math.floor(value / 60)}分${value % 60}秒`;
+}
+
 /**
  * 公開直後のサイトリビルド状況をバッジで可視化する (PR5b)
  *
@@ -48,11 +70,27 @@ export const BuildStatusBadge: React.FC<BuildStatusBadgeProps> = ({
   intervalMs,
   targetRevision,
 }) => {
-  const { status, error } = useBuildStatus(postId, {
+  const {
+    status,
+    phase,
+    phases,
+    failedPhase,
+    startTime,
+    endTime,
+    progressUnavailable,
+    error,
+  } = useBuildStatus(postId, {
     enabled: enabled && Boolean(postId),
     intervalMs,
     targetRevision,
   });
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!enabled || status !== 'in-progress' || !startTime || endTime) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [enabled, status, startTime, endTime]);
 
   if (!enabled || !postId) {
     return null;
@@ -60,14 +98,123 @@ export const BuildStatusBadge: React.FC<BuildStatusBadgeProps> = ({
 
   const label = STATUS_LABEL[status] ?? STATUS_LABEL.idle;
   const className = STATUS_CLASS[status] ?? STATUS_CLASS.idle;
+  const currentPhase = PHASES[failedPhase || phase || ''];
+  const currentStep =
+    status === 'succeeded'
+      ? STEP_LABELS.length
+      : status === 'queued'
+        ? 0
+        : (currentPhase?.step ?? -1);
+  const started = startTime ? Date.parse(startTime) : NaN;
+  // Never keep a clock ticking after completion if final timestamps are missing.
+  const ended = endTime
+    ? Date.parse(endTime)
+    : status === 'in-progress'
+      ? now
+      : NaN;
+  const elapsed =
+    Number.isFinite(started) && Number.isFinite(ended)
+      ? formatDuration((ended - started) / 1000)
+      : undefined;
 
   return (
     <div
-      className="flex items-center gap-2 text-sm"
+      className="admin-build-progress"
       data-testid="build-status-badge"
       data-status={status}
     >
-      <span className={`admin-badge ${className}`}>{label}</span>
+      <div className="admin-build-progress-heading">
+        <div role="status" className="admin-build-progress-status">
+          <span className={`admin-badge ${className}`}>{label}</span>
+          <span>
+            {status === 'succeeded'
+              ? '配信先の切替が完了しました'
+              : status === 'queued'
+                ? '保存した内容の反映を待っています'
+                : failedPhase
+                  ? `${currentPhase?.label.replace(/中$/, '') ?? '工程'}で失敗`
+                  : status === 'in-progress'
+                    ? (currentPhase?.label ?? '工程を確認中')
+                    : ''}
+          </span>
+        </div>
+        {elapsed && (
+          <span className="admin-build-progress-time">
+            ビルド開始から {elapsed}
+          </span>
+        )}
+      </div>
+      <ol className="admin-build-progress-steps" aria-label="公開までの工程">
+        {STEP_LABELS.map((stepLabel, index) => {
+          const stepState =
+            index < currentStep
+              ? 'done'
+              : index === currentStep
+                ? status === 'failed' || failedPhase
+                  ? 'failed'
+                  : 'active'
+                : 'pending';
+          const stateLabel =
+            stepState === 'done'
+              ? '完了'
+              : stepState === 'failed'
+                ? '失敗'
+                : stepState === 'active'
+                  ? status === 'queued'
+                    ? '待機中'
+                    : '処理中'
+                  : currentStep < 0
+                    ? '未確認'
+                    : '未着手';
+          return (
+            <li
+              key={stepLabel}
+              data-state={stepState}
+              aria-current={stepState === 'active' ? 'step' : undefined}
+            >
+              <span className="admin-build-progress-track" aria-hidden="true" />
+              <span>{stepLabel}</span>
+              <span className="admin-build-progress-step-state">
+                {stateLabel}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      {status === 'queued' && (
+        <p>前のビルドがある場合は、その完了後に反映します。</p>
+      )}
+      {status === 'succeeded' && (
+        <p>閲覧先によって反映まで少し時間がかかる場合があります。</p>
+      )}
+      {status === 'failed' && (
+        <p>記事の保存は完了しています。公開処理に失敗しました。</p>
+      )}
+      {progressUnavailable && (
+        <p>工程の詳細を一時的に取得できません。反映状況のみ表示しています。</p>
+      )}
+      {phases && phases.length > 0 && (
+        <details className="admin-build-progress-details">
+          <summary>工程の詳細</summary>
+          <dl>
+            {phases.map((item, index) => (
+              <div key={`${item.name}-${index}`}>
+                <dt>{PHASES[item.name]?.label ?? item.name}</dt>
+                <dd>
+                  {item.durationSeconds !== undefined
+                    ? formatDuration(item.durationSeconds)
+                    : '—'}
+                  {['FAILED', 'FAULT', 'TIMED_OUT', 'STOPPED'].includes(
+                    item.status
+                  )
+                    ? '（失敗）'
+                    : ''}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+      )}
       {status === 'succeeded' && publicUrl && (
         <a
           href={publicUrl}

@@ -44,17 +44,19 @@ const (
 // State is persisted in the BlogPosts table. It intentionally omits all GSI
 // keys, so it never appears in article queries.
 type State struct {
-	ID               string `dynamodbav:"id"`
-	DesiredRevision  int64  `dynamodbav:"desiredRevision"`
-	DeployedRevision int64  `dynamodbav:"deployedRevision"`
-	ActiveRevision   int64  `dynamodbav:"activeRevision,omitempty"`
-	ActiveBuildID    string `dynamodbav:"activeBuildId,omitempty"`
-	StartToken       string `dynamodbav:"startToken,omitempty"`
-	Status           string `dynamodbav:"status"`
-	RequestedAt      string `dynamodbav:"requestedAt,omitempty"`
-	StartedAt        string `dynamodbav:"startedAt,omitempty"`
-	CompletedAt      string `dynamodbav:"completedAt,omitempty"`
-	LastError        string `dynamodbav:"lastError,omitempty"`
+	ID                string `dynamodbav:"id"`
+	DesiredRevision   int64  `dynamodbav:"desiredRevision"`
+	DeployedRevision  int64  `dynamodbav:"deployedRevision"`
+	ActiveRevision    int64  `dynamodbav:"activeRevision,omitempty"`
+	ActiveBuildID     string `dynamodbav:"activeBuildId,omitempty"`
+	LastBuildID       string `dynamodbav:"lastBuildId,omitempty"`
+	LastBuildRevision int64  `dynamodbav:"lastBuildRevision,omitempty"`
+	StartToken        string `dynamodbav:"startToken,omitempty"`
+	Status            string `dynamodbav:"status"`
+	RequestedAt       string `dynamodbav:"requestedAt,omitempty"`
+	StartedAt         string `dynamodbav:"startedAt,omitempty"`
+	CompletedAt       string `dynamodbav:"completedAt,omitempty"`
+	LastError         string `dynamodbav:"lastError,omitempty"`
 }
 
 // Request is returned to the admin UI and correlates one save with deployment.
@@ -297,7 +299,7 @@ func (c *Coordinator) Reconcile(ctx context.Context) (State, error) {
 		_, err = c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 			TableName:                aws.String(c.tableName),
 			Key:                      map[string]dynamodbtypes.AttributeValue{"id": &dynamodbtypes.AttributeValueMemberS{Value: StateItemID}},
-			UpdateExpression:         aws.String("SET deployedRevision = :revision, #status = :status, completedAt = :now REMOVE activeBuildId, startToken, startedAt, lastError"),
+			UpdateExpression:         aws.String("SET deployedRevision = :revision, #status = :status, completedAt = :now, lastBuildId = :buildId, lastBuildRevision = :revision REMOVE activeBuildId, startToken, startedAt, lastError"),
 			ConditionExpression:      aws.String("activeBuildId = :buildId AND activeRevision = :revision"),
 			ExpressionAttributeNames: map[string]string{attributeNameStatus: attributeStatusValue},
 			ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
@@ -322,14 +324,15 @@ func (c *Coordinator) Reconcile(ctx context.Context) (State, error) {
 	_, err = c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                aws.String(c.tableName),
 		Key:                      map[string]dynamodbtypes.AttributeValue{"id": &dynamodbtypes.AttributeValueMemberS{Value: StateItemID}},
-		UpdateExpression:         aws.String("SET #status = :failed, completedAt = :now, lastError = :error REMOVE activeBuildId, startToken, startedAt"),
+		UpdateExpression:         aws.String("SET #status = :failed, completedAt = :now, lastError = :error, lastBuildId = :buildId, lastBuildRevision = :revision REMOVE activeBuildId, startToken, startedAt"),
 		ConditionExpression:      aws.String("activeBuildId = :buildId"),
 		ExpressionAttributeNames: map[string]string{attributeNameStatus: attributeStatusValue},
 		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
-			":failed":             &dynamodbtypes.AttributeValueMemberS{Value: StatusFailed},
-			attributeValueNow:     &dynamodbtypes.AttributeValueMemberS{Value: now},
-			":error":              &dynamodbtypes.AttributeValueMemberS{Value: string(build.BuildStatus)},
-			attributeValueBuildID: &dynamodbtypes.AttributeValueMemberS{Value: state.ActiveBuildID},
+			":failed":              &dynamodbtypes.AttributeValueMemberS{Value: StatusFailed},
+			attributeValueNow:      &dynamodbtypes.AttributeValueMemberS{Value: now},
+			":error":               &dynamodbtypes.AttributeValueMemberS{Value: string(build.BuildStatus)},
+			attributeValueBuildID:  &dynamodbtypes.AttributeValueMemberS{Value: state.ActiveBuildID},
+			attributeValueRevision: &dynamodbtypes.AttributeValueMemberN{Value: strconv.FormatInt(state.ActiveRevision, 10)},
 		},
 	})
 	if err != nil {

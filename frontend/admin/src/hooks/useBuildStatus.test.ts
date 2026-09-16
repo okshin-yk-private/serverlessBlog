@@ -236,4 +236,26 @@ describe('useBuildStatus', () => {
     });
     expect(result.current.status).toBe('succeeded');
   });
+
+  it('clears completed details while a new save is being fetched', async () => {
+    mockedFetch
+      .mockResolvedValueOnce({
+        status: 'succeeded',
+        phase: 'COMPLETED',
+        startTime: '2026-09-16T00:00:00Z',
+        endTime: '2026-09-16T00:01:00Z',
+      })
+      .mockImplementationOnce(() => new Promise(() => {}));
+    const { result, rerender } = renderHook(
+      ({ revision }: { revision: number }) =>
+        useBuildStatus('post-1', { enabled: true, targetRevision: revision }),
+      { initialProps: { revision: 1 } }
+    );
+    await flush();
+    expect(result.current.status).toBe('succeeded');
+    rerender({ revision: 2 });
+    expect(result.current.status).toBe('idle');
+    expect(result.current.startTime).toBeUndefined();
+    expect(result.current.endTime).toBeUndefined();
+  });
 });

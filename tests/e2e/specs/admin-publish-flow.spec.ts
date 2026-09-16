@@ -5,10 +5,8 @@ import { resetMockPosts } from '../mocks/mockData';
  * Admin Publish Flow E2E Tests (WX PR5b)
  *
  * Verifies the BuildStatusBadge surfaces CodeBuild progress after publish.
- * The MSW build-status handler (frontend/admin/src/test/mocks/handlers.ts)
- * is wired to return "in-progress" on the first call and "succeeded"
- * thereafter, so the spec exercises the polling transition without a real
- * AWS round-trip.
+ * The MSW handler (tests/e2e/mocks/handlers.ts) stays "in-progress" for
+ * five seconds per target revision before succeeding. No AWS round-trip.
  */
 
 const E2E_TEST_PREFIX = '[E2E-TEST]';
@@ -56,6 +54,24 @@ test.describe('Admin Publish Flow - Build Status Badge', () => {
     await expect(badge).toBeVisible({ timeout: 10000 });
     await expect(badge).toHaveAttribute('data-status', 'in-progress');
     await expect(badge).toContainText('ビルド中');
+    await expect(badge.getByRole('status')).toContainText('ページを生成中');
+    await expect(
+      badge.getByRole('list', { name: '公開までの工程' })
+    ).toBeVisible();
+    await expect(badge.locator('[aria-current="step"]')).toContainText(
+      'ページ生成'
+    );
+
+    // The actual component must reflow at narrow writing-screen widths.
+    await page.setViewportSize({ width: 320, height: 800 });
+    expect(
+      await badge.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth
+      )
+    ).toBe(true);
+    await badge.screenshot({
+      path: test.info().outputPath('publication-progress-mobile.png'),
+    });
 
     // After the next poll cycle the MSW handler returns 'succeeded' and the
     // badge transitions, exposing a "公開サイトを開く" link is publicUrl is
@@ -65,6 +81,8 @@ test.describe('Admin Publish Flow - Build Status Badge', () => {
       timeout: 15000,
     });
     await expect(badge).toContainText('ビルド完了');
+    await expect(badge).toContainText('配信先の切替が完了しました');
+    await expect(badge).toContainText('閲覧先によって反映まで');
   });
 
   test('does not show the build status badge for draft saves', async ({

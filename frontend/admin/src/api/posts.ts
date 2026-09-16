@@ -174,6 +174,17 @@ export interface BuildStatusResponse {
   targetRevision?: number;
   desiredRevision?: number;
   deployedRevision?: number;
+  phases?: BuildPhase[];
+  failedPhase?: string;
+  progressUnavailable?: boolean;
+}
+
+export interface BuildPhase {
+  name: string;
+  status: string;
+  startTime?: string;
+  endTime?: string;
+  durationSeconds?: number;
 }
 
 /**
