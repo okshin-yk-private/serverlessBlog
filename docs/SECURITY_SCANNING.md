@@ -35,6 +35,12 @@ Checkov and local Trivy config cover separate scopes. AWS live state is not scan
 
 ## Dependency updates
 
+Dependabot auto-merge has a separate, initially read-only rollout described in
+[DEPENDABOT_AUTOMERGE.md](DEPENDABOT_AUTOMERGE.md). Its additional PR gate rejects
+new secrets and new/changed High or Critical dependency findings against the PR
+base using one Trivy database snapshot. The visibility-first scans below remain
+in place; their green summary still does not mean zero findings.
+
 The four JavaScript projects use Dependabot's native `bun` ecosystem and text
 `bun.lock`. Review both the manifest and lockfile, then install with
 `bun install --frozen-lockfile`, including Dependabot PRs. The old privileged
