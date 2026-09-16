@@ -45,7 +45,7 @@ const isAPIError = (error: unknown): error is APIError => {
 /**
  * カテゴリ一覧を取得するカスタムフック
  *
- * - 初回マウント時にfetchCategoriesを呼び出してカテゴリ一覧を取得
+ * - 初回マウント時と画面復帰時にカテゴリ一覧を取得
  * - categories、loading、error、refetch関数を返却
  * - アンマウント時は状態更新をスキップしてメモリリークを防止
  *
@@ -77,65 +77,54 @@ export const useCategories = (
   const [loading, setLoading] = useState<boolean>(enabled);
   const [error, setError] = useState<string | null>(null);
 
-  // マウント状態を追跡してアンマウント後の状態更新を防止
   const isMountedRef = useRef(true);
+  const requestIdRef = useRef(0);
 
-  /**
-   * カテゴリを取得する内部関数
-   * @param ignoreCancel - キャンセルフラグを無視するかどうか（手動refetch用）
-   */
-  const fetchData = useCallback(async (ignoreCancel = false) => {
-    setLoading(true);
+  // Only the latest request may update the options. Returning to the tab can
+  // start another read while an earlier request is still in flight.
+  const fetchData = useCallback(async (background = false) => {
+    if (!isMountedRef.current) return;
+    const requestId = ++requestIdRef.current;
+    const isCurrent = () =>
+      isMountedRef.current && requestId === requestIdRef.current;
+
+    if (!background) setLoading(true);
     setError(null);
 
     try {
       const data = await fetchCategories();
-
-      // アンマウント後は状態を更新しない
-      if (!isMountedRef.current && !ignoreCancel) {
-        return;
-      }
-
-      // sortOrder順でソート
-      const sorted = [...data].sort((a, b) => a.sortOrder - b.sortOrder);
-      setCategories(sorted);
+      if (!isCurrent()) return;
+      setCategories([...data].sort((a, b) => a.sortOrder - b.sortOrder));
     } catch (err) {
-      // アンマウント後は状態を更新しない
-      if (!isMountedRef.current && !ignoreCancel) {
-        return;
-      }
-
-      if (isAPIError(err)) {
-        setError(err.message);
-      } else {
-        setError('カテゴリの取得に失敗しました');
-      }
-      setCategories([]);
+      if (!isCurrent()) return;
+      setError(isAPIError(err) ? err.message : 'カテゴリの取得に失敗しました');
+      // Keep usable options and the editor's selection during a transient error.
     } finally {
-      // アンマウント後は状態を更新しない
-      if (isMountedRef.current || ignoreCancel) {
-        setLoading(false);
-      }
+      if (isCurrent()) setLoading(false);
     }
   }, []);
 
-  /**
-   * カテゴリを再取得する関数
-   */
   const refetch = useCallback(async () => {
-    await fetchData(true);
+    await fetchData();
   }, [fetchData]);
 
-  // 初回マウント時に自動フェッチ、アンマウント時にフラグをリセット
   useEffect(() => {
     isMountedRef.current = true;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void fetchData(true);
+    };
 
     if (enabled) {
-      fetchData();
+      void fetchData();
+      window.addEventListener('focus', refreshWhenVisible);
+      document.addEventListener('visibilitychange', refreshWhenVisible);
     }
 
     return () => {
       isMountedRef.current = false;
+      ++requestIdRef.current;
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, [enabled, fetchData]);
 
