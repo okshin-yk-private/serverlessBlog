@@ -807,3 +807,25 @@ func TestHandler_FiltersSlugReservationByIDPrefix(t *testing.T) {
 		t.Errorf("expected category ID 'cat-1', got %q", listResp[0].ID)
 	}
 }
+
+// A completed category save must be visible on the next list request, without
+// waiting for a site build or a browser cache to expire.
+func TestHandler_FreshCategoriesAfterSave(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return &MockDynamoDBClient{ScanFunc: func(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+			if params.ConsistentRead == nil || !*params.ConsistentRead {
+				t.Error("category reads must include completed writes")
+			}
+			return &dynamodb.ScanOutput{}, nil
+		}}, nil
+	}
+	response, err := Handler(context.Background(), events.APIGatewayProxyRequest{})
+	if err != nil || response.StatusCode != 200 {
+		t.Fatalf("list failed: status=%d err=%v", response.StatusCode, err)
+	}
+	if got := response.Headers["Cache-Control"]; got != "no-store" {
+		t.Errorf("category list must not reuse stale HTTP responses: got %q", got)
+	}
+}

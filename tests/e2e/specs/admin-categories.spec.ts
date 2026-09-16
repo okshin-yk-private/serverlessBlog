@@ -126,4 +126,52 @@ test.describe('Admin Categories - CRUD', () => {
       false
     );
   });
+  test('画面復帰でカテゴリーを再取得し、執筆中の内容と選択を保持する', async ({
+    adminPostCreatePage,
+    page,
+  }) => {
+    test.skip(
+      process.env.VITE_ENABLE_MSW_MOCK === 'false',
+      'Local MSW fixture only'
+    );
+    await adminPostCreatePage.navigate();
+    await adminPostCreatePage.fillTitle('編集中のタイトル');
+    await adminPostCreatePage.fillContent('保存前の本文');
+    await expect(
+      page.locator(
+        '[data-testid="post-category-select"] option[value="technology"]'
+      )
+    ).toBeAttached();
+    await adminPostCreatePage.selectCategory('technology');
+
+    // Change the mock server while the editor remains mounted, as when a
+    // category is created elsewhere. No article save or build is involved.
+    const created = await page.evaluate(async () => {
+      const response = await fetch('/admin/categories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionStorage.getItem('auth_session_token')}`,
+        },
+        body: JSON.stringify({
+          name: '復帰後の新カテゴリー',
+          slug: 'category-on-return',
+        }),
+      });
+      return response.status;
+    });
+    expect(created).toBe(201);
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    const category = page.getByTestId('post-category-select');
+    await expect(
+      category.locator('option[value="category-on-return"]')
+    ).toHaveText('復帰後の新カテゴリー');
+    await expect(category).toHaveValue('technology');
+    await expect(page.getByTestId('post-title-input')).toHaveValue(
+      '編集中のタイトル'
+    );
+    await expect(
+      page.locator('[data-testid="tiptap-editor"] [contenteditable="true"]')
+    ).toContainText('保存前の本文');
+  });
 });

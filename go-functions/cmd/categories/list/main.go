@@ -64,6 +64,8 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		scanInput := &dynamodb.ScanInput{
 			TableName:         aws.String(tableName),
 			ExclusiveStartKey: lastEvaluatedKey,
+			// The admin reads this list immediately after saving a category.
+			ConsistentRead: aws.Bool(true),
 		}
 
 		// Execute scan
@@ -99,7 +101,9 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	}
 
 	// Return response (empty array if no categories)
-	return middleware.PublicJSONResponse(200, response)
+	// Category writes use /admin/categories, so HTTP caches of /categories
+	// are not automatically invalidated by a successful save.
+	return middleware.JSONResponse(200, response)
 }
 
 // processResults converts DynamoDB items to Category structs

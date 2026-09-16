@@ -329,4 +329,100 @@ describe('useCategories', () => {
       expect(result.current.categories).toEqual(mockCategories);
     });
   });
+  describe('画面に戻ったときの更新', () => {
+    it('フォーカス復帰時に最新の選択肢を取得する', async () => {
+      mockedFetchCategories.mockResolvedValue(mockCategories);
+      const { result } = renderHook(() => useCategories());
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      const updated = [
+        ...mockCategories,
+        {
+          ...mockCategories[0],
+          id: 'new',
+          slug: 'new',
+          name: '新規',
+          sortOrder: 4,
+        },
+      ];
+      mockedFetchCategories.mockResolvedValue(updated);
+      await act(async () => {
+        window.dispatchEvent(new Event('focus'));
+      });
+      expect(result.current.categories).toEqual(updated);
+    });
+
+    it('非表示の間は取得せず、表示に戻ったときに取得する', async () => {
+      mockedFetchCategories.mockResolvedValue(mockCategories);
+      renderHook(() => useCategories());
+      await waitFor(() =>
+        expect(mockedFetchCategories).toHaveBeenCalledTimes(1)
+      );
+      const visibility = vi.spyOn(document, 'visibilityState', 'get');
+      try {
+        visibility.mockReturnValue('hidden');
+        await act(async () => {
+          document.dispatchEvent(new Event('visibilitychange'));
+        });
+        expect(mockedFetchCategories).toHaveBeenCalledTimes(1);
+        visibility.mockReturnValue('visible');
+        await act(async () => {
+          document.dispatchEvent(new Event('visibilitychange'));
+        });
+        expect(mockedFetchCategories).toHaveBeenCalledTimes(2);
+      } finally {
+        visibility.mockRestore();
+      }
+    });
+
+    it('再取得に失敗しても既存の選択肢を保持する', async () => {
+      mockedFetchCategories.mockResolvedValue(mockCategories);
+      const { result } = renderHook(() => useCategories());
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      mockedFetchCategories.mockRejectedValue(new Error('offline'));
+      await act(async () => {
+        window.dispatchEvent(new Event('focus'));
+      });
+      expect(result.current.categories).toEqual(mockCategories);
+      expect(result.current.error).not.toBeNull();
+    });
+
+    it('古いリクエストが後から完了しても最新の選択肢を上書きしない', async () => {
+      let resolveOld!: (value: categoriesApi.Category[]) => void;
+      mockedFetchCategories.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveOld = resolve;
+        })
+      );
+      const { result } = renderHook(() => useCategories());
+      const updated = [{ ...mockCategories[0], name: '変更後' }];
+      mockedFetchCategories.mockResolvedValue(updated);
+      await act(async () => {
+        await result.current.refetch();
+      });
+      await act(async () => {
+        resolveOld(mockCategories);
+      });
+      expect(result.current.categories).toEqual(updated);
+    });
+
+    it('無効時とアンマウント後は復帰イベントで取得しない', async () => {
+      mockedFetchCategories.mockResolvedValue(mockCategories);
+      const { unmount } = renderHook(() => useCategories({ enabled: false }));
+      await act(async () => {
+        window.dispatchEvent(new Event('focus'));
+      });
+      expect(mockedFetchCategories).not.toHaveBeenCalled();
+      unmount();
+      const active = renderHook(() => useCategories());
+      await waitFor(() =>
+        expect(mockedFetchCategories).toHaveBeenCalledTimes(1)
+      );
+      active.unmount();
+      await act(async () => {
+        window.dispatchEvent(new Event('focus'));
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(mockedFetchCategories).toHaveBeenCalledTimes(1);
+    });
+  });
 });
