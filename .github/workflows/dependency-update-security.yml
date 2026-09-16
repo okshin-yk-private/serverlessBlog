@@ -1,0 +1,88 @@
+name: Dependency Update Security
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-security-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-security:
+    name: Dependency Update Security Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Use an isolated scanner cache
+        run: echo "TRIVY_CACHE_DIR=$RUNNER_TEMP/dependency-trivy-cache" >> "$GITHUB_ENV"
+      # Read-only PR job. Even on the introducing PR, no merge token/secrets are
+      # present; the controller separately forbids policy/workflow edits.
+      - name: Checkout gate implementation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          path: control
+          persist-credentials: false
+      - name: Checkout base snapshot
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: baseline
+          persist-credentials: false
+      - name: Checkout candidate and history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install pinned scanners with release checksum verification
+        env:
+          GITLEAKS_VERSION: '8.24.3'
+          TRIVY_VERSION: '0.70.0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          for tool in gitleaks trivy; do
+            case "$tool" in
+              gitleaks)
+                version="$GITLEAKS_VERSION"
+                project=gitleaks/gitleaks
+                archive="gitleaks_${version}_linux_x64.tar.gz"
+                checksums="gitleaks_${version}_checksums.txt" ;;
+              trivy)
+                version="$TRIVY_VERSION"
+                project=aquasecurity/trivy
+                archive="trivy_${version}_Linux-64bit.tar.gz"
+                checksums="trivy_${version}_checksums.txt" ;;
+            esac
+            url="https://github.com/${project}/releases/download/v${version}"
+            curl --fail --silent --show-error --location "$url/$archive" -o "$archive"
+            curl --fail --silent --show-error --location "$url/$checksums" -o "$checksums"
+            awk -v file="$archive" '$2 == file { print }' "$checksums" > "$tool.sha256"
+            test "$(wc -l < "$tool.sha256")" -eq 1
+            sha256sum --check "$tool.sha256"
+            tar -xzf "$archive" "$tool"
+            sudo install -m 0755 "$tool" "/usr/local/bin/$tool"
+          done
+      - name: Reject new secrets in PR commits
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Use default rules without repository-wide history/lockfile exceptions.
+          # Output is redacted; do not publish a report containing secret values.
+          printf '[extend]\nuseDefault = true\n' > "$RUNNER_TEMP/new-secrets.toml"
+          gitleaks git candidate --config "$RUNNER_TEMP/new-secrets.toml" \
+            --log-opts="${BASE_SHA}..${HEAD_SHA}" --redact=100 --exit-code 1
+      - name: Download one vulnerability database snapshot
+        run: trivy image --download-db-only
+      - name: Reject new or changed High and Critical dependency findings
+        run: python3 control/scripts/ci/dependency_security.py baseline candidate
