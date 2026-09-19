@@ -298,13 +298,166 @@ describe('atomicDeploy', () => {
       filesUploaded: 3,
       promoted: true,
     });
-    expect([...objects.keys()]).toEqual([
+    expect([...objects.keys()].sort()).toEqual([
       '_astro/app.hash.js',
       'releases/r21-abcdef0/index.html',
       'releases/r21-abcdef0/posts/hello/index.html',
     ]);
     expect(commandNames.at(-1)).toBe('UpdateKeysCommand');
   });
+
+  test('bounds parallel work and verifies every asset before documents and promotion', async () => {
+    await createDist();
+    for (let i = 0; i < 12; i++) {
+      await fs.promises.writeFile(
+        path.join(testDir, '_astro', `font-${i}.woff2`),
+        'x'
+      );
+    }
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let active = 0;
+    let peak = 0;
+    const objects = new Map<string, number>();
+    const verified = new Set<string>();
+    const s3Send = vi.fn(async (command: unknown) => {
+      if (!(
+        command instanceof HeadObjectCommand ||
+        command instanceof PutObjectCommand
+      ))
+        throw new Error('unexpected command');
+      const key = command.input.Key!;
+      if (!key.startsWith('_astro/'))
+        expect(
+          [...verified].filter((k) => k.startsWith('_astro/'))
+        ).toHaveLength(13);
+      active++;
+      peak = Math.max(peak, active);
+      try {
+        await gate;
+        if (command instanceof PutObjectCommand) {
+          expect(command.input.IfNoneMatch).toBe('*');
+          objects.set(key, (command.input.Body as Uint8Array).byteLength);
+          return {};
+        }
+        const size = objects.get(key);
+        if (size === undefined) throw namedError('NotFound');
+        verified.add(key);
+        return { ContentLength: size };
+      } finally {
+        active--;
+      }
+    });
+    const kvsSend = vi.fn(async (command: unknown) => {
+      expect(verified.size).toBe(15);
+      expect(active).toBe(0);
+      if (command instanceof DescribeKeyValueStoreCommand)
+        return { ETag: 'etag' };
+      if (command instanceof GetKeyCommand) return { Value: 'r1-old' };
+      return {};
+    });
+    const pending = atomicDeploy({
+      bucketName: 'site',
+      keyValueStoreArn: 'store',
+      distPath: testDir,
+      region: 'ap-northeast-1',
+      revision: 'r2-new',
+      clients: { s3: { send: s3Send }, kvs: { send: kvsSend } },
+    });
+    await vi.waitFor(() => expect(active).toBe(8));
+    expect(kvsSend).not.toHaveBeenCalled();
+    release();
+    expect((await pending).success).toBe(true);
+    expect(peak).toBe(8);
+  });
+
+  test('stops scheduling after failure and drains in-flight requests before returning', async () => {
+    await createDist();
+    for (let i = 0; i < 12; i++)
+      await fs.promises.writeFile(
+        path.join(testDir, '_astro', `font-${i}.woff2`),
+        'x'
+      );
+    let fail!: () => void;
+    let drain!: () => void;
+    const failGate = new Promise<void>((resolve) => {
+      fail = resolve;
+    });
+    const drainGate = new Promise<void>((resolve) => {
+      drain = resolve;
+    });
+    let started = 0;
+    let returned = false;
+    let failureObserved = false;
+    const kvsSend = vi.fn();
+    const send = vi.fn(async () => {
+      const index = started++;
+      if (index === 0) {
+        await failGate;
+        failureObserved = true;
+        throw new Error('upload unavailable');
+      }
+      await drainGate;
+      return { ContentLength: 1 };
+    });
+    const pending = atomicDeploy({
+      bucketName: 'site',
+      keyValueStoreArn: 'store',
+      distPath: testDir,
+      region: 'ap-northeast-1',
+      revision: 'r2-new',
+      clients: { s3: { send }, kvs: { send: kvsSend } },
+    }).then((result) => {
+      returned = true;
+      return result;
+    });
+    await vi.waitFor(() => expect(started).toBe(8));
+    fail();
+    await vi.waitFor(() => expect(failureObserved).toBe(true));
+    expect(returned).toBe(false);
+    expect(started).toBe(8);
+    drain();
+    expect((await pending).success).toBe(false);
+    expect(started).toBe(8);
+    expect(kvsSend).not.toHaveBeenCalled();
+  });
+
+  test.each(['conflict', 'verification'] as const)(
+    'never promotes after %s failure',
+    async (failure) => {
+      await createDist();
+      const kvsSend = vi.fn();
+      let heads = 0;
+      const result = await atomicDeploy({
+        bucketName: 'site',
+        keyValueStoreArn: 'store',
+        distPath: testDir,
+        region: 'ap-northeast-1',
+        revision: 'r2-new',
+        clients: {
+          s3: {
+            send: vi.fn(async (command: unknown) => {
+              if (command instanceof HeadObjectCommand) {
+                if (failure === 'verification' && heads++ === 0)
+                  throw namedError('NotFound');
+                return { ContentLength: 999 };
+              }
+              return {};
+            }),
+          },
+          kvs: { send: kvsSend },
+        },
+      });
+      expect(result.error?.code).toBe(
+        failure === 'conflict'
+          ? DeployErrorCode.RELEASE_CONFLICT
+          : DeployErrorCode.RELEASE_VERIFICATION_FAILED
+      );
+      expect(kvsSend).not.toHaveBeenCalled();
+    }
+  );
 
   test('never promotes when an upload fails', async () => {
     await createDist();

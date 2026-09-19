@@ -15,6 +15,13 @@
 # "role must be an ARN" validation on aws_lambda_function - and are
 # unknown, not comparable, at plan time without an override).
 mock_provider "aws" {
+  override_resource {
+    target = aws_lambda_function.reconcile_build_post
+    values = {
+      arn = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-reconcile-build-post-go"
+    }
+  }
+
   override_data {
     target = data.aws_iam_policy_document.lambda_assume_role
     values = {
@@ -593,6 +600,18 @@ run "write_posts_functions_use_write_role" {
   assert {
     condition     = aws_lambda_function.delete_post.role == aws_iam_role.lambda_posts_write.arn
     error_message = "delete_post must use the posts write role"
+  }
+}
+
+run "build_status_codebuild_read_is_project_scoped" {
+  command = plan
+  variables {
+    codebuild_project_arn  = "arn:aws:codebuild:ap-northeast-1:123456789012:project/site-build"
+    codebuild_project_name = "site-build"
+  }
+  assert {
+    condition     = jsondecode(aws_iam_role_policy.lambda_posts_build_status_codebuild[0].policy).Statement[0].Action == ["codebuild:BatchGetBuilds"] && jsondecode(aws_iam_role_policy.lambda_posts_build_status_codebuild[0].policy).Statement[0].Resource == var.codebuild_project_arn
+    error_message = "Progress reads must allow only BatchGetBuilds on this project"
   }
 }
 

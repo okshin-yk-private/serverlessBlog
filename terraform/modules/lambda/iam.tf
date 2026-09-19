@@ -11,8 +11,8 @@
 #   - lambda_posts_read         - GetItem/Query only (public + admin reads)
 #   - lambda_posts_write        - GetItem/PutItem/DeleteItem/Query + S3 delete
 #                                 cascade + CodeBuild trigger (create/update/delete)
-#   - lambda_posts_build_status - GetItem only (reads durable build state;
-#                                 never starts a build or writes state)
+#   - lambda_posts_build_status - GetItem + project-scoped BatchGetBuilds
+#                                 (never starts a build or writes state)
 # - Auth domain: Cognito access only (unchanged - already least privilege)
 # - Images domain: S3 access only (unchanged - out of scope for #493)
 # - Categories domain:
@@ -190,7 +190,7 @@ resource "aws_iam_role_policy" "lambda_posts_write_codebuild" {
 # Posts Domain - Build Status Role
 # Used by: build_status_post only.
 #
-# This handler reads only the singleton build-state item from DynamoDB.
+# Reads the durable build state and phase timings for its CodeBuild project.
 # ======================
 
 resource "aws_iam_role" "lambda_posts_build_status" {
@@ -224,6 +224,20 @@ resource "aws_iam_role_policy" "lambda_posts_build_status_dynamodb" {
         Resource = var.table_arn
       }
     ]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_posts_build_status_codebuild" {
+  count = var.codebuild_project_arn != "" ? 1 : 0
+  name  = "blog-lambda-posts-build-status-codebuild-policy"
+  role  = aws_iam_role.lambda_posts_build_status.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["codebuild:BatchGetBuilds"]
+      Resource = var.codebuild_project_arn
+    }]
   })
 }
 

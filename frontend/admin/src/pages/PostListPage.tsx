@@ -297,19 +297,12 @@ const PostListPage = () => {
               data-testid="admin-article-item"
               className="admin-list-item"
             >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  gap: '16px',
-                }}
-              >
-                <div style={{ flex: 1 }}>
+              <div className="admin-record-row">
+                <div className="admin-record-content">
                   <h3
                     style={{
                       fontSize: '1.125rem',
-                      fontWeight: 600,
+                      fontWeight: 700,
                       color: 'var(--color-text-heading)',
                       margin: '0 0 8px 0',
                     }}
@@ -339,7 +332,7 @@ const PostListPage = () => {
                     <span>{formatDate(post.createdAt)}</span>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                <div className="admin-record-actions">
                   {/* 公開/下書き切り替えボタン */}
                   {post.publishStatus === 'draft' ? (
                     <button
