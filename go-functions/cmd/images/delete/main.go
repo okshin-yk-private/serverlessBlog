@@ -13,6 +13,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"os"
 	"strings"
@@ -23,7 +24,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
 	"serverless-blog/go-functions/internal/clients"
-	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/middleware"
 )
 
@@ -46,44 +46,48 @@ var getBucketName = func() string {
 
 // Handler handles DELETE /images/{key+} requests
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Extract user ID from Cognito claims (authentication check)
 	userID := extractUserID(request)
 	if userID == "" {
-		return errorResponse(401, "unauthorized")
+		return middleware.MessageResponse(401, "unauthorized")
 	}
 
 	// Get key from path parameters
 	key := request.PathParameters["key"]
 	if key == "" {
-		return errorResponse(400, "image key is required")
+		return middleware.MessageResponse(400, "image key is required")
 	}
 
 	// URL decode the key
 	decodedKey, err := url.QueryUnescape(key)
 	if err != nil {
-		return errorResponse(400, "invalid key")
+		return middleware.MessageResponse(400, "invalid key")
 	}
 
 	// Check for path traversal attacks
 	if isPathTraversal(decodedKey) {
-		return errorResponse(400, "invalid key")
+		return middleware.MessageResponse(400, "invalid key")
 	}
 
 	// Verify user owns the image
 	if !userOwnsImage(decodedKey, userID) {
-		return errorResponse(403, "forbidden")
+		return middleware.MessageResponse(403, "forbidden")
 	}
 
 	// Get bucket name from environment
 	bucketName := getBucketName()
 	if bucketName == "" {
-		return errorResponse(500, "server configuration error")
+		return middleware.ServerError(ctx, "server configuration error", errors.New("BUCKET_NAME is not configured"))
 	}
 
 	// Get S3 client
 	s3Client, err := s3ClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		return middleware.ServerError(ctx, "server error", err)
 	}
 
 	// Delete from S3
@@ -92,7 +96,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		Key:    aws.String(decodedKey),
 	})
 	if err != nil {
-		return errorResponse(500, "failed to delete image")
+		return middleware.ServerError(ctx, "failed to delete image", err)
 	}
 
 	// Return 204 No Content
@@ -136,11 +140,6 @@ func isPathTraversal(key string) bool {
 // userOwnsImage validates that the user owns the image by checking the key prefix.
 func userOwnsImage(key, userID string) bool {
 	return strings.HasPrefix(key, userID+"/")
-}
-
-// errorResponse creates an error response with CORS headers
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
 }
 
 // noContentResponse creates a 204 No Content response with CORS headers

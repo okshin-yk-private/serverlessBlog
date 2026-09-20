@@ -63,41 +63,45 @@ var timeNow = func() string {
 // Requirement 3.1: Create category and return 201
 // Requirement 3.2: Require Cognito authorization
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Requirement 3.2: Check authentication
 	authorID := auth.UserID(request)
 	if authorID == "" {
-		return errorResponse(401, "unauthorized")
+		return middleware.MessageResponse(401, "unauthorized")
 	}
 
 	// Categories are site-wide, so being signed in is not enough to change
 	// them: the caller has to be in the admin group.
 	if !auth.IsAdmin(request) {
-		return errorResponse(403, "forbidden")
+		return middleware.MessageResponse(403, "forbidden")
 	}
 
 	// Parse request body
 	// Requirement 9.2: Return 400 for invalid JSON
 	var req domain.CreateCategoryRequest
 	if err := json.Unmarshal([]byte(request.Body), &req); err != nil {
-		return errorResponse(400, "invalid request body")
+		return middleware.MessageResponse(400, "invalid request body")
 	}
 
 	// Validate request
 	// Requirement 3.3, 9.3, 9.4: Validate name and slug
 	if err := req.Validate(); err != nil {
-		return errorResponse(400, err.Error())
+		return middleware.MessageResponse(400, err.Error())
 	}
 
 	// Check for CATEGORIES_TABLE_NAME
 	tableName := os.Getenv("CATEGORIES_TABLE_NAME")
 	if tableName == "" {
-		return errorResponse(500, "server configuration error")
+		return middleware.ServerError(ctx, "server configuration error", errors.New("CATEGORIES_TABLE_NAME is not configured"))
 	}
 
 	// Get DynamoDB client
 	dynamoClient, err := dynamoClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		return middleware.ServerError(ctx, "server error", err)
 	}
 
 	// Determine slug (auto-generate if not provided)
@@ -118,7 +122,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		var maxSortOrder int
 		maxSortOrder, err = getMaxSortOrder(ctx, dynamoClient, tableName)
 		if err != nil {
-			return errorResponse(500, "failed to determine sort order")
+			return middleware.ServerError(ctx, "failed to determine sort order", err)
 		}
 		sortOrder = maxSortOrder + 1
 	}
@@ -142,7 +146,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// Marshal to DynamoDB attribute value
 	av, err := attributevalue.MarshalMap(category)
 	if err != nil {
-		return errorResponse(500, "failed to marshal category")
+		return middleware.ServerError(ctx, "failed to marshal category", err)
 	}
 
 	// Use TransactWriteItems for atomic slug uniqueness check
@@ -179,9 +183,9 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	if err != nil {
 		// Check if it's a transaction canceled error (slug already exists)
 		if isTransactionCanceledError(err) {
-			return errorResponse(409, "category with this slug already exists")
+			return middleware.MessageResponse(409, "category with this slug already exists")
 		}
-		return errorResponse(500, "failed to create category")
+		return middleware.ServerError(ctx, "failed to create category", err)
 	}
 
 	// Return created category with 201 status
@@ -238,12 +242,6 @@ func getMaxSortOrder(ctx context.Context, client DynamoDBClientInterface, tableN
 	}
 
 	return maxSortOrder, nil
-}
-
-// errorResponse creates an error response with CORS headers
-// Requirement 9.1: JSON error responses with message field
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
 }
 
 func main() {

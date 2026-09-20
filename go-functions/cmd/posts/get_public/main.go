@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -34,22 +35,26 @@ var dynamoClientGetter = func() (DynamoDBClientInterface, error) {
 
 // Handler handles GET /posts/:id requests (public)
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Validate post ID from path parameters
 	postID := request.PathParameters["id"]
 	if postID == "" {
-		return errorResponse(400, "post ID is required")
+		return middleware.MessageResponse(400, "post ID is required")
 	}
 
 	// Check for TABLE_NAME
 	tableName := os.Getenv("TABLE_NAME")
 	if tableName == "" {
-		return errorResponse(500, "server configuration error")
+		return middleware.ServerError(ctx, "server configuration error", errors.New("TABLE_NAME is not configured"))
 	}
 
 	// Get DynamoDB client
 	dynamoClient, err := dynamoClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		return middleware.ServerError(ctx, "server error", err)
 	}
 
 	// Get the post from DynamoDB
@@ -62,31 +67,26 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	result, err := dynamoClient.GetItem(ctx, getInput)
 	if err != nil {
-		return errorResponse(500, "failed to retrieve post")
+		return middleware.ServerError(ctx, "failed to retrieve post", err)
 	}
 
 	// Check if item was found
 	if len(result.Item) == 0 {
-		return errorResponse(404, "post not found")
+		return middleware.MessageResponse(404, "post not found")
 	}
 
 	// Unmarshal the post
 	var post domain.BlogPost
 	if err := attributevalue.UnmarshalMap(result.Item, &post); err != nil {
-		return errorResponse(500, "failed to parse post data")
+		return middleware.ServerError(ctx, "failed to parse post data", err)
 	}
 
 	// Check if the post is published (return 404 if not)
 	if post.PublishStatus != domain.PublishStatusPublished {
-		return errorResponse(404, "post not found")
+		return middleware.MessageResponse(404, "post not found")
 	}
 
 	return middleware.PublicJSONResponse(200, post)
-}
-
-// errorResponse creates an error response with CORS headers
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
 }
 
 func main() {

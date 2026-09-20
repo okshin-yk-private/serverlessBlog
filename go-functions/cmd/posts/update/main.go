@@ -15,7 +15,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
+	"errors"
 	"os"
 	"strings"
 	"time"
@@ -80,6 +80,10 @@ var markdownConverter = markdown.ConvertToHTML
 
 // Handler handles PUT /posts/:id requests.
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Validate and parse request
 	postID, req, userID, errResp := validateAndParseRequest(request)
 	if errResp != nil {
@@ -87,7 +91,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	}
 
 	// Get DynamoDB client and table name
-	dynamoClient, tableName, errResp := getClientAndTable()
+	dynamoClient, tableName, errResp := getClientAndTable(ctx)
 	if errResp != nil {
 		return *errResp, nil
 	}
@@ -100,7 +104,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	// Security: Verify ownership - only the author can update their post
 	if existingPost.AuthorID != userID {
-		return errorResponse(403, "forbidden: you can only update your own posts")
+		return middleware.MessageResponse(403, "forbidden: you can only update your own posts")
 	}
 	if saveErr := validateSaveVersion(existingPost, req); saveErr != nil {
 		return *saveErr, nil
@@ -109,27 +113,27 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	// Validate update fields
 	if validateErr := validateUpdateRequest(req); validateErr != nil {
-		return errorResponse(400, validateErr.Error())
+		return middleware.MessageResponse(400, validateErr.Error())
 	}
 
 	// PR6: domain-level validation (slug regex/format)
 	if validateErr := req.Validate(); validateErr != nil {
-		return errorResponse(400, validateErr.Error())
+		return middleware.MessageResponse(400, validateErr.Error())
 	}
 
 	// PR6: enforce slug uniqueness across other posts when slug changes.
 	if shouldCheckSlug(existingPost, req) {
 		exists, err := checkSlugExistsForOther(ctx, dynamoClient, tableName, *req.Slug, postID)
 		if err != nil {
-			return errorResponse(500, "failed to check slug uniqueness")
+			return middleware.ServerError(ctx, "failed to check slug uniqueness", err)
 		}
 		if exists {
-			return errorResponse(409, "post with this slug already exists")
+			return middleware.MessageResponse(409, "post with this slug already exists")
 		}
 	}
 
 	// Build updated post
-	updatedPost, errResp := buildUpdatedPost(existingPost, req)
+	updatedPost, errResp := buildUpdatedPost(ctx, existingPost, req)
 	if errResp != nil {
 		return *errResp, nil
 	}
@@ -151,11 +155,11 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 func validateSaveVersion(post *domain.BlogPost, req *domain.UpdatePostRequest) *events.APIGatewayProxyResponse {
 	if req.SaveMode == domain.SaveModeAutosave && post.PublishStatus == domain.PublishStatusPublished {
-		resp, _ := errorResponse(409, "published posts require a manual save")
+		resp, _ := middleware.MessageResponse(409, "published posts require a manual save")
 		return &resp
 	}
 	if (req.Version == nil && post.Version != 0) || (req.Version != nil && *req.Version != post.Version) {
-		resp, _ := errorResponse(409, "post changed; reload before saving")
+		resp, _ := middleware.MessageResponse(409, "post changed; reload before saving")
 		return &resp
 	}
 	return nil
@@ -177,27 +181,27 @@ func validateAndParseRequest(request events.APIGatewayProxyRequest) (postID stri
 	// Validate authentication
 	userID = auth.UserID(request)
 	if userID == "" {
-		resp, _ := errorResponse(401, "unauthorized")
+		resp, _ := middleware.MessageResponse(401, "unauthorized")
 		return "", nil, "", &resp
 	}
 
 	// Validate post ID
 	postID = request.PathParameters["id"]
 	if postID == "" {
-		resp, _ := errorResponse(400, "post ID is required")
+		resp, _ := middleware.MessageResponse(400, "post ID is required")
 		return "", nil, "", &resp
 	}
 
 	// Validate request body is present
 	if request.Body == "" {
-		resp, _ := errorResponse(400, "request body is required")
+		resp, _ := middleware.MessageResponse(400, "request body is required")
 		return "", nil, "", &resp
 	}
 
 	// Parse request body
 	var parsedReq domain.UpdatePostRequest
 	if err := json.Unmarshal([]byte(request.Body), &parsedReq); err != nil {
-		resp, _ := errorResponse(400, "invalid JSON format")
+		resp, _ := middleware.MessageResponse(400, "invalid JSON format")
 		return "", nil, "", &resp
 	}
 
@@ -205,16 +209,16 @@ func validateAndParseRequest(request events.APIGatewayProxyRequest) (postID stri
 }
 
 // getClientAndTable returns the DynamoDB client and table name
-func getClientAndTable() (DynamoDBClientInterface, string, *events.APIGatewayProxyResponse) {
+func getClientAndTable(ctx context.Context) (DynamoDBClientInterface, string, *events.APIGatewayProxyResponse) {
 	tableName := os.Getenv("TABLE_NAME")
 	if tableName == "" {
-		resp, _ := errorResponse(500, "server configuration error")
+		resp, _ := middleware.ServerError(ctx, "server configuration error", errors.New("TABLE_NAME is not configured"))
 		return nil, "", &resp
 	}
 
 	dynamoClient, err := dynamoClientGetter()
 	if err != nil {
-		resp, _ := errorResponse(500, "server error")
+		resp, _ := middleware.ServerError(ctx, "server error", err)
 		return nil, "", &resp
 	}
 
@@ -233,18 +237,18 @@ func getExistingPost(ctx context.Context, client DynamoDBClientInterface, tableN
 
 	result, err := client.GetItem(ctx, getInput)
 	if err != nil {
-		resp, _ := errorResponse(500, "failed to retrieve post")
+		resp, _ := middleware.ServerError(ctx, "failed to retrieve post", err)
 		return nil, &resp
 	}
 
 	if len(result.Item) == 0 {
-		resp, _ := errorResponse(404, "post not found")
+		resp, _ := middleware.MessageResponse(404, "post not found")
 		return nil, &resp
 	}
 
 	var existingPost domain.BlogPost
 	if err := attributevalue.UnmarshalMap(result.Item, &existingPost); err != nil {
-		resp, _ := errorResponse(500, "failed to parse post data")
+		resp, _ := middleware.ServerError(ctx, "failed to parse post data", err)
 		return nil, &resp
 	}
 
@@ -252,14 +256,14 @@ func getExistingPost(ctx context.Context, client DynamoDBClientInterface, tableN
 }
 
 // buildUpdatedPost applies updates and returns the updated post
-func buildUpdatedPost(existingPost *domain.BlogPost, req *domain.UpdatePostRequest) (*domain.BlogPost, *events.APIGatewayProxyResponse) {
+func buildUpdatedPost(ctx context.Context, existingPost *domain.BlogPost, req *domain.UpdatePostRequest) (*domain.BlogPost, *events.APIGatewayProxyResponse) {
 	updatedPost := applyUpdates(existingPost, req)
 
 	// If contentMarkdown was updated, regenerate contentHtml
 	if req.ContentMarkdown != nil {
 		contentHTML, err := markdownConverter(*req.ContentMarkdown)
 		if err != nil {
-			resp, _ := errorResponse(500, "failed to convert markdown")
+			resp, _ := middleware.ServerError(ctx, "failed to convert markdown", err)
 			return nil, &resp
 		}
 		updatedPost.ContentHTML = contentHTML
@@ -309,14 +313,14 @@ func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface,
 	// Get CodeBuild project name from environment, sanitized at the trust boundary
 	projectName := buildtrigger.SanitizeProjectName(os.Getenv("CODEBUILD_PROJECT_NAME"))
 	if projectName == "" {
-		slog.Warn("CODEBUILD_PROJECT_NAME not set or invalid, skipping build trigger")
+		middleware.LoggerFromContext(ctx).Warn("CODEBUILD_PROJECT_NAME not set or invalid, skipping build trigger")
 		return sitebuild.CurrentRequest(ctx, dynamoClient, tableName)
 	}
 
 	// Get CodeBuild client
 	client, err := codebuildClientGetter()
 	if err != nil {
-		slog.Error("failed to get CodeBuild client", "error", err)
+		middleware.LoggerFromContext(ctx).Error("failed to get CodeBuild client", "error", err)
 		return sitebuild.CurrentRequest(ctx, dynamoClient, tableName)
 	}
 
@@ -325,7 +329,7 @@ func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface,
 	request, err := coordinator.StartPending(ctx)
 	if err != nil {
 		// Requirement 10.10: Handle CodeBuild API errors gracefully
-		slog.Error("failed to trigger site build", "error", err, "project", projectName)
+		middleware.LoggerFromContext(ctx).Error("failed to trigger site build", "error", err, "project", projectName)
 		state, stateErr := coordinator.GetState(ctx)
 		if stateErr == nil {
 			return sitebuild.RequestForState(state, state.DesiredRevision)
@@ -333,7 +337,7 @@ func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface,
 		return sitebuild.Request{Status: sitebuild.StatusFailed}
 	}
 
-	slog.Info("site build triggered successfully", "project", projectName)
+	middleware.LoggerFromContext(ctx).Info("site build triggered successfully", "project", projectName)
 	return request
 }
 
@@ -341,7 +345,7 @@ func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface,
 func savePost(ctx context.Context, client DynamoDBClientInterface, tableName string, post, existing *domain.BlogPost, requestBuild bool) *events.APIGatewayProxyResponse {
 	av, err := attributevalue.MarshalMap(post)
 	if err != nil {
-		resp, _ := errorResponse(500, "failed to marshal post")
+		resp, _ := middleware.ServerError(ctx, "failed to marshal post", err)
 		return &resp
 	}
 
@@ -363,11 +367,11 @@ func savePost(ctx context.Context, client DynamoDBClientInterface, tableName str
 		_, err = client.PutItem(ctx, &dynamodb.PutItemInput{TableName: &tableName, Item: av, ConditionExpression: condition, ExpressionAttributeNames: names, ExpressionAttributeValues: values})
 	}
 	if poststore.IsConflict(err) {
-		resp, _ := errorResponse(409, "post or slug changed; reload before saving")
+		resp, _ := middleware.MessageResponse(409, "post or slug changed; reload before saving")
 		return &resp
 	}
 	if err != nil {
-		resp, _ := errorResponse(500, "failed to update post")
+		resp, _ := middleware.ServerError(ctx, "failed to update post", err)
 		return &resp
 	}
 
@@ -503,11 +507,6 @@ type validationError struct {
 
 func (e *validationError) Error() string {
 	return e.message
-}
-
-// errorResponse creates an error response with CORS headers
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
 }
 
 func main() {
