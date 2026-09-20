@@ -16,7 +16,7 @@ function setup(mobile = false) {
     counts: { '2026-09-16': 1 },
     years: [2026, 2024],
   };
-  document.body.innerHTML = `<section><script id="calendar-data" type="application/json">${JSON.stringify(data)}</script><div data-calendar-control hidden></div><select id="calendar-year"><option>2026</option><option>2024</option></select><span id="calendar-period"></span><button data-period="previous"></button><button data-period="next"></button><div class="calendar-weeks"></div><div class="calendar-fallback-mobile">SSR</div><p id="calendar-detail"></p></section>`;
+  document.body.innerHTML = `<section><script id="calendar-data" type="application/json">${JSON.stringify(data)}</script><div data-calendar-control hidden></div><select id="calendar-year"><option>2026</option><option>2024</option></select><span id="calendar-period"></span><button data-period="previous"></button><button data-period="next"></button><div class="calendar-weeks"></div><div class="calendar-fallback-mobile">SSR</div></section>`;
   const root = document.querySelector('section')!;
   const onSelect = vi.fn();
   const calendar = initPublicationCalendar(root, onSelect);
@@ -37,7 +37,7 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 describe('calendar controls', () => {
-  it('selects/toggles a date and exposes counts through focus and hover', () => {
+  it('selects/toggles a date and exposes counts through accessible labels', () => {
     const { root, button, onSelect } = setup();
     const day = button('2026-09-16');
     expect(day.tabIndex).toBe(0);
@@ -46,18 +46,13 @@ describe('calendar controls', () => {
       root.querySelector('[data-calendar-control]')!.hasAttribute('hidden')
     ).toBe(false);
     day.focus();
-    expect(root.querySelector('#calendar-detail')!.textContent).toContain(
-      '1件'
-    );
+    expect(day.getAttribute('aria-label')).toContain('1件');
     day.click();
     expect(onSelect).toHaveBeenLastCalledWith('2026-09-16');
     expect(day.getAttribute('aria-pressed')).toBe('true');
     day.click();
     expect(onSelect).toHaveBeenLastCalledWith('');
-    button('2026-09-15').dispatchEvent(new MouseEvent('mouseenter'));
-    expect(root.querySelector('#calendar-detail')!.textContent).toContain(
-      '0件'
-    );
+    expect(button('2026-09-15').title).toContain('0件');
     expect(root.querySelector('button[data-day="2026-09-21"]')).toBeNull();
   });
   it('has a single tab stop and moves by day/week with clamped boundaries', () => {
@@ -118,8 +113,6 @@ describe('calendar controls', () => {
     expect(year.value).toBe('2023');
     expect(button('2023-02-03').getAttribute('aria-pressed')).toBe('true');
     calendar.setDay('');
-    expect(root.querySelector('#calendar-detail')!.textContent).toContain(
-      '日付を選ぶ'
-    );
+    expect(button('2023-02-03').getAttribute('aria-pressed')).toBe('false');
   });
 });

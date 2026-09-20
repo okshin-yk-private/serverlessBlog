@@ -52,8 +52,8 @@ const Heading = variant === 'record' ? 'h3' : 'h2';
     }
     {
       variant !== 'record' && (
-        <a class="read-link" href={postHref} aria-label={`${post.title}を読む`}>
-          記事を読む <span aria-hidden="true">→</span>
+        <a class="read-link" href={postHref} aria-label={`Read: ${post.title}`}>
+          Read <span aria-hidden="true">→</span>
         </a>
       )
     }
