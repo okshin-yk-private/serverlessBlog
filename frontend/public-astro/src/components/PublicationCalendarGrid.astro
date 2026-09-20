@@ -1,0 +1,41 @@
+---
+import type { calendarWeeks } from '../lib/publicationCalendar';
+interface Props {
+  weeks: ReturnType<typeof calendarWeeks>;
+  mode: 'live' | 'fallback-mobile';
+}
+const { weeks, mode } = Astro.props;
+---
+
+<div
+  class:list={['calendar-weeks', `calendar-${mode}`]}
+  style={`--weeks: ${weeks.length}`}
+>
+  {
+    weeks.map((week) => (
+      <div class="calendar-week">
+        <span class="calendar-month">
+          {week
+            .find((day) => day?.day.endsWith('-01'))
+            ?.day.slice(5, 7)
+            .replace(/^0/, '')}
+          {week.some((day) => day?.day.endsWith('-01')) ? '月' : ''}
+        </span>
+        {week.map((day) => (
+          <span
+            class:list={[
+              'calendar-cell',
+              { 'calendar-padding': !day, 'calendar-future': day?.future },
+            ]}
+            data-level={day?.level}
+            title={
+              day
+                ? `${day.day}: ${day.future ? '未集計' : `${day.count}件`}`
+                : undefined
+            }
+          />
+        ))}
+      </div>
+    ))
+  }
+</div>

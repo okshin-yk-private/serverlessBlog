@@ -14,6 +14,7 @@ export interface SearchablePost {
   title: string;
   category: string;
   tags: string[];
+  publicationDay?: string | null;
 }
 
 /**

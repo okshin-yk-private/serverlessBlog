@@ -12,7 +12,8 @@ export class HomePage extends BasePage {
   // ページ要素のセレクター
   private readonly selectors = {
     articleList: '[data-testid="article-list"]',
-    articleCard: '[data-testid="article-card"]',
+    articleCard:
+      '[data-testid="article-card"], [data-testid="feature-article"]',
     articleTitle: '[data-testid="article-title"]',
     articleExcerpt: '[data-testid="article-excerpt"]',
     articleCategory: '[data-testid="article-category"]',

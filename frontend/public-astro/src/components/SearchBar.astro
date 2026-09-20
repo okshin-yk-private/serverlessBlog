@@ -2,8 +2,9 @@
 import type { SearchablePost } from '../lib/searchUtils';
 interface Props {
   posts: SearchablePost[];
+  asOfDay?: string;
 }
-const { posts } = Astro.props;
+const { posts, asOfDay } = Astro.props;
 const categories = [...new Set(posts.map((post) => post.category))].filter(
   Boolean
 );
@@ -11,10 +12,18 @@ const categories = [...new Set(posts.map((post) => post.category))].filter(
 const searchData = JSON.stringify(posts).replace(/</g, '\\u003c');
 ---
 
-<div id="archive-search" data-testid="search-container">
+<div
+  id="archive-search"
+  data-testid="search-container"
+  data-empty={posts.length === 0 ? 'true' : undefined}
+>
   <div class="archive-toolbar">
-    <h2 id="archive-title">これまでの記録</h2>
-    <div class="search-input-wrapper" data-search-control hidden>
+    <h2 id="archive-title" class="sr-only">記事一覧</h2>
+    <div
+      class="search-input-wrapper"
+      data-search-control
+      hidden={posts.length === 0}
+    >
       <label class="sr-only" for="search-input"
         >タイトル・カテゴリー・タグで記事を検索</label
       >
@@ -32,7 +41,7 @@ const searchData = JSON.stringify(posts).replace(/</g, '\\u003c');
       <input
         type="search"
         id="search-input"
-        placeholder="記事を検索"
+        placeholder="タイトル・カテゴリー・タグで検索"
         data-testid="search-input"
         aria-controls="article-records"
         autocomplete="off"
@@ -45,6 +54,27 @@ const searchData = JSON.stringify(posts).replace(/</g, '\\u003c');
         hidden>×</button
       >
     </div>
+    <label class="date-filter" data-search-control hidden={posts.length === 0}
+      >公開日
+      <input
+        type="date"
+        id="publication-date"
+        aria-controls="article-records"
+        max={asOfDay}
+        min="1000-01-01"
+      />
+    </label>
+  </div>
+  <div class="search-summary">
+    <p id="search-status" role="status" aria-live="polite" aria-atomic="true">
+      {posts.length}件の記事
+    </p>
+    <button
+      id="date-clear"
+      type="button"
+      hidden
+      aria-label="公開日の絞り込みを解除"></button>
+    <button id="filters-clear" type="button" hidden>すべての条件を解除</button>
   </div>
   {
     categories.length > 1 && (
@@ -53,7 +83,7 @@ const searchData = JSON.stringify(posts).replace(/</g, '\\u003c');
         role="group"
         aria-label="カテゴリーで絞り込み"
         data-search-control
-        hidden
+        hidden={posts.length === 0}
       >
         <button
           type="button"
@@ -76,14 +106,6 @@ const searchData = JSON.stringify(posts).replace(/</g, '\\u003c');
       </div>
     )
   }
-  <p
-    class="sr-only"
-    id="search-status"
-    role="status"
-    aria-live="polite"
-    aria-atomic="true"
-  >
-  </p>
   <p
     id="no-results-message"
     class="no-results-message"
@@ -111,6 +133,9 @@ const searchData = JSON.stringify(posts).replace(/</g, '\\u003c');
   [hidden] {
     display: none !important;
   }
+  #archive-search:not([data-ready]) [data-search-control] {
+    visibility: hidden;
+  }
   .archive-toolbar {
     display: flex;
     align-items: center;
@@ -126,8 +151,42 @@ const searchData = JSON.stringify(posts).replace(/</g, '\\u003c');
   }
   .search-input-wrapper {
     position: relative;
-    width: 290px;
-    flex-shrink: 0;
+    flex: 1;
+    min-width: 0;
+  }
+  .search-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    align-items: center;
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    margin: 12px 0;
+  }
+  .search-summary p {
+    margin: 0;
+  }
+  .search-summary button {
+    min-height: 44px;
+    background: transparent;
+    color: var(--color-primary);
+    border: 0;
+    text-decoration: underline;
+    cursor: pointer;
+    font: inherit;
+    padding: 4px;
+  }
+  .date-filter {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font: 0.85rem var(--font-display);
+    min-width: 0;
+  }
+  .date-filter input {
+    min-width: 0;
+    width: 160px;
+    padding: 10px;
   }
   .search-icon {
     position: absolute;
