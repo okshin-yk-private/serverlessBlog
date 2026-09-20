@@ -46,10 +46,10 @@ export function initArchiveSearch(controls: HTMLElement, records: HTMLElement) {
     });
     clear!.hidden = input!.value.length === 0;
     empty!.hidden = matches.size !== 0 || posts.length === 0;
-    status!.textContent = `${matches.size}件の記事${category ? `（${category}）` : ''}${selectedDay ? `・公開日 ${selectedDay.replaceAll('-', '.')}` : ''}`;
+    status!.textContent = `${matches.size} ${matches.size === 1 ? 'article' : 'articles'}${category ? ` (${category})` : ''}${selectedDay ? ` · Published ${selectedDay.replaceAll('-', '.')}` : ''}`;
     if (dateClear) {
       dateClear.hidden = !selectedDay;
-      dateClear.textContent = `公開日: ${selectedDay.replaceAll('-', '.')} ×`;
+      dateClear.textContent = `Published: ${selectedDay.replaceAll('-', '.')} ×`;
     }
     if (filtersClear)
       filtersClear.hidden = !selectedDay && !category && !input!.value;

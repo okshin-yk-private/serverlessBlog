@@ -62,7 +62,7 @@ describe('editorial home built against the local mock API', () => {
     ).toHaveLength(0);
     expect(
       document.querySelector('label[for="search-input"]')?.textContent
-    ).toContain('タイトル');
+    ).toContain('Search by title');
     expect(
       document.querySelector('#archive-search')?.hasAttribute('data-ready')
     ).toBe(false);

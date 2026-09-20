@@ -14,7 +14,7 @@ test.describe('Editorial archive', () => {
     await expect(category).toHaveAttribute('aria-pressed', 'true');
     await expect(rows).toHaveCount(1);
     await search.fill('astro'); // Tag search.
-    await expect(page.getByRole('status')).toHaveText('1件の記事（tech）');
+    await expect(page.getByRole('status')).toHaveText('1 article (tech)');
     await search.fill('日本語'); // Exists in another category, but is excluded.
     await expect(rows).toHaveCount(0);
     await expect(page.getByTestId('no-results-message')).toBeVisible();
@@ -23,10 +23,10 @@ test.describe('Editorial archive', () => {
     await expect(rows).toHaveCount(1);
     await search.fill('見つからない検索語');
     await expect(rows).toHaveCount(0);
-    await page.getByRole('button', { name: '検索をクリア' }).click();
+    await page.getByRole('button', { name: 'Clear search' }).click();
     await expect(search).toBeFocused();
     await expect(rows).toHaveCount(1);
-    await page.getByRole('button', { name: 'すべて', exact: true }).click();
+    await page.getByRole('button', { name: 'All', exact: true }).click();
     await expect(rows).toHaveCount(2);
     await search.fill('日本語タイトル');
     await expect(rows).toHaveCount(1);
@@ -42,7 +42,7 @@ test.describe('Editorial archive', () => {
     await expect(page.locator('#intro-title')).toHaveText('bone of my fallacy');
     await expect(page.getByRole('searchbox')).toHaveCount(0);
     await expect(page.getByTestId('feature-article')).toHaveCount(1);
-    await page.getByRole('link', { name: 'すべての記事を見る' }).click();
+    await page.getByRole('link', { name: 'All articles' }).click();
     await expect(page).toHaveURL(/\/articles\//);
     await expect(page.locator('main #intro-title')).toHaveCount(0);
     await expect(page.locator('nav a[aria-current="page"]')).toHaveText(
@@ -63,12 +63,12 @@ test.describe('Editorial archive', () => {
     await expect(rows).toHaveCount(0);
     await expect(date).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#publication-date')).toHaveValue('2024-01-02');
-    await page.getByRole('button', { name: '公開日の絞り込みを解除' }).click();
+    await page.getByRole('button', { name: 'Clear date filter' }).click();
     await expect(rows).toHaveCount(1);
     await expect(page.locator('#publication-date')).toBeFocused();
     await page.locator('#publication-date').fill('2024-01-02');
     await expect(rows).toHaveCount(0);
-    await page.getByRole('button', { name: 'すべての条件を解除' }).click();
+    await page.getByRole('button', { name: 'Clear filters' }).click();
     await expect(rows).toHaveCount(2);
     await expect(page.getByRole('searchbox')).toBeFocused();
     const first = page.locator('button[data-day="2024-01-01"]');

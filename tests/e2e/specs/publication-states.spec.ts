@@ -19,7 +19,9 @@ for (const count of [0, 1, 20]) {
       await page.setViewportSize({ width: 320, height: 1000 });
       await page.goto(`${base}/articles/`);
       await expect(page.locator('#article-records article')).toHaveCount(count);
-      await expect(page.getByRole('status')).toHaveText(`${count}件の記事`);
+      await expect(page.getByRole('status')).toHaveText(
+        `${count} ${count === 1 ? 'article' : 'articles'}`
+      );
       if (count === 0) {
         await expect(page.getByTestId('no-articles')).toBeVisible();
         await expect(page.getByRole('searchbox')).toBeHidden();
@@ -33,8 +35,8 @@ for (const count of [0, 1, 20]) {
         ).toHaveCount(count === 20 ? 19 : count);
         if (count === 20)
           await expect(
-            page.getByText('集計対象外：', { exact: false })
-          ).toContainText('公開日不明 1件');
+            page.locator('#article-records').getByText('公開日不明')
+          ).toHaveCount(1);
       }
       expect(
         await page.evaluate(

@@ -30,7 +30,9 @@ const { weeks, mode } = Astro.props;
             data-level={day?.level}
             title={
               day
-                ? `${day.day}: ${day.future ? '未集計' : `${day.count}件`}`
+                ? day.future
+                  ? day.day
+                  : `${day.day}: ${day.count}件`
                 : undefined
             }
           />
