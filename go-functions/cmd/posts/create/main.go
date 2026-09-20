@@ -12,7 +12,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
+	"errors"
 	"os"
 	"time"
 
@@ -77,19 +77,22 @@ var uuidGenerator = func() string {
 }
 
 // Handler handles POST /posts requests.
-//
-//nolint:gocyclo // validates auth, body, slug uniqueness, and triggers CodeBuild — branches add up but flow is linear.
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+//nolint:gocyclo // validates auth, body, slug uniqueness, and triggers CodeBuild — branches add up but flow is linear.
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Extract author ID from Cognito claims (authentication check)
 	authorID := auth.UserID(request)
 	if authorID == "" {
-		return errorResponse(401, "unauthorized")
+		return middleware.MessageResponse(401, "unauthorized")
 	}
 
 	// Parse request body
 	var req domain.CreatePostRequest
 	if err := json.Unmarshal([]byte(request.Body), &req); err != nil {
-		return errorResponse(400, "invalid request body")
+		return middleware.MessageResponse(400, "invalid request body")
 	}
 	if req.SaveMode == domain.SaveModeAutosave {
 		req.PublishStatus = nil
@@ -97,25 +100,25 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	// Validate required fields
 	if err := req.Validate(); err != nil {
-		return errorResponse(400, err.Error())
+		return middleware.MessageResponse(400, err.Error())
 	}
 
 	// Check for TABLE_NAME
 	tableName := os.Getenv("TABLE_NAME")
 	if tableName == "" {
-		return errorResponse(500, "server configuration error")
+		return middleware.ServerError(ctx, "server configuration error", errors.New("TABLE_NAME is not configured"))
 	}
 
 	// Convert Markdown to HTML
 	contentHTML, err := markdownConverter(req.ContentMarkdown)
 	if err != nil {
-		return errorResponse(500, "failed to convert markdown")
+		return middleware.ServerError(ctx, "failed to convert markdown", err)
 	}
 
 	// Get DynamoDB client
 	dynamoClient, err := dynamoClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		return middleware.ServerError(ctx, "server error", err)
 	}
 
 	// PR6: enforce slug uniqueness server-side. Slug regex was already
@@ -123,10 +126,10 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	if req.Slug != nil {
 		exists, slugErr := checkSlugExists(ctx, dynamoClient, tableName, *req.Slug)
 		if slugErr != nil {
-			return errorResponse(500, "failed to check slug uniqueness")
+			return middleware.ServerError(ctx, "failed to check slug uniqueness", slugErr)
 		}
 		if exists {
-			return errorResponse(409, "post with this slug already exists")
+			return middleware.MessageResponse(409, "post with this slug already exists")
 		}
 	}
 
@@ -175,7 +178,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// Marshal to DynamoDB attribute value
 	av, err := attributevalue.MarshalMap(post)
 	if err != nil {
-		return errorResponse(500, "failed to marshal post")
+		return middleware.ServerError(ctx, "failed to marshal post", err)
 	}
 
 	var siteBuildRequest *sitebuild.Request
@@ -192,10 +195,10 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		_, err = dynamoClient.PutItem(ctx, &dynamodb.PutItemInput{TableName: &tableName, Item: av, ConditionExpression: aws.String("attribute_not_exists(id)")})
 	}
 	if poststore.IsConflict(err) {
-		return errorResponse(409, "post with this slug already exists")
+		return middleware.MessageResponse(409, "post with this slug already exists")
 	}
 	if err != nil {
-		return errorResponse(500, "failed to create post")
+		return middleware.ServerError(ctx, "failed to create post", err)
 	}
 	if publishStatus == domain.PublishStatusPublished {
 		request := triggerSiteBuild(ctx, dynamoClient, tableName)
@@ -206,30 +209,25 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	return middleware.JSONResponse(201, postMutationResponse{BlogPost: post, SiteBuild: siteBuildRequest})
 }
 
-// errorResponse creates an error response with CORS headers
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
-}
-
 // triggerSiteBuild triggers the Astro SSG build via CodeBuild
 // Requirement 10.1: Trigger CodeBuild when post is published
 func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface, tableName string) sitebuild.Request {
 	projectName := buildtrigger.SanitizeProjectName(os.Getenv("CODEBUILD_PROJECT_NAME"))
 	if projectName == "" {
-		slog.Warn("CODEBUILD_PROJECT_NAME not set or invalid, skipping build trigger")
+		middleware.LoggerFromContext(ctx).Warn("CODEBUILD_PROJECT_NAME not set or invalid, skipping build trigger")
 		return sitebuild.CurrentRequest(ctx, dynamoClient, tableName)
 	}
 
 	client, err := codebuildClientGetter()
 	if err != nil {
-		slog.Error("failed to get CodeBuild client", "error", err)
+		middleware.LoggerFromContext(ctx).Error("failed to get CodeBuild client", "error", err)
 		return sitebuild.CurrentRequest(ctx, dynamoClient, tableName)
 	}
 
 	coordinator := sitebuild.NewCoordinator(dynamoClient, client, tableName, projectName)
 	request, err := coordinator.StartPending(ctx)
 	if err != nil {
-		slog.Error("failed to trigger site build", "error", err, "project", projectName)
+		middleware.LoggerFromContext(ctx).Error("failed to trigger site build", "error", err, "project", projectName)
 		state, stateErr := coordinator.GetState(ctx)
 		if stateErr == nil {
 			return sitebuild.RequestForState(state, state.DesiredRevision)
@@ -237,7 +235,7 @@ func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface,
 		return sitebuild.Request{Status: sitebuild.StatusFailed}
 	}
 
-	slog.Info("site build triggered successfully", "project", projectName)
+	middleware.LoggerFromContext(ctx).Info("site build triggered successfully", "project", projectName)
 	return request
 }
 

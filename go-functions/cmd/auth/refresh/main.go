@@ -35,32 +35,36 @@ var cognitoClientGetter = func() (CognitoClientInterface, error) {
 
 // Handler handles POST /auth/refresh requests
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Validate request body is present
 	if request.Body == "" {
-		return errorResponse(400, "request body is required")
+		return middleware.MessageResponse(400, "request body is required")
 	}
 
 	// Parse request body
 	var refreshReq domain.RefreshRequest
 	if err := json.Unmarshal([]byte(request.Body), &refreshReq); err != nil {
-		return errorResponse(400, "invalid request body")
+		return middleware.MessageResponse(400, "invalid request body")
 	}
 
 	// Validate request fields
 	if err := refreshReq.Validate(); err != nil {
-		return errorResponse(400, err.Error())
+		return middleware.MessageResponse(400, err.Error())
 	}
 
 	// Check for USER_POOL_CLIENT_ID
 	clientID := os.Getenv("USER_POOL_CLIENT_ID")
 	if clientID == "" {
-		return errorResponse(500, "server configuration error")
+		return middleware.ServerError(ctx, "server configuration error", errors.New("USER_POOL_CLIENT_ID is not configured"))
 	}
 
 	// Get Cognito client
 	cognitoClient, err := cognitoClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		return middleware.ServerError(ctx, "server error", err)
 	}
 
 	// Initiate token refresh with Cognito using REFRESH_TOKEN_AUTH flow
@@ -74,12 +78,12 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	authOutput, err := cognitoClient.InitiateAuth(ctx, authInput)
 	if err != nil {
-		return handleCognitoError(err)
+		return handleCognitoError(ctx, err)
 	}
 
 	// Validate authentication result
 	if authOutput.AuthenticationResult == nil {
-		return errorResponse(500, "authentication result not available")
+		return middleware.ServerError(ctx, "authentication result not available", errors.New("cognito returned no authentication result"))
 	}
 
 	// Build successful response
@@ -91,11 +95,6 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	}
 
 	return tokenResponseWithNoCache(200, tokenResp)
-}
-
-// errorResponse creates an error response with CORS headers
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
 }
 
 // tokenResponseWithNoCache creates a JSON response with Cache-Control: no-store header
@@ -122,15 +121,15 @@ func tokenResponseWithNoCache(statusCode int, body interface{}) (events.APIGatew
 }
 
 // handleCognitoError maps Cognito errors to appropriate HTTP responses
-func handleCognitoError(err error) (events.APIGatewayProxyResponse, error) {
+func handleCognitoError(ctx context.Context, err error) (events.APIGatewayProxyResponse, error) {
 	// Check for specific Cognito exceptions
 	var notAuthErr *types.NotAuthorizedException
 	if errors.As(err, &notAuthErr) {
-		return errorResponse(401, "invalid or expired refresh token")
+		return middleware.MessageResponse(401, "invalid or expired refresh token")
 	}
 
 	// Generic server error for other cases
-	return errorResponse(500, "token refresh failed")
+	return middleware.ServerError(ctx, "token refresh failed", err)
 }
 
 func main() {

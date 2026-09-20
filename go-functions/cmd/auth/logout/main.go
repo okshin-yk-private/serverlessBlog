@@ -34,26 +34,30 @@ var cognitoClientGetter = func() (CognitoClientInterface, error) {
 
 // Handler handles POST /auth/logout requests
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Validate request body is present
 	if request.Body == "" {
-		return errorResponse(400, "request body is required")
+		return middleware.MessageResponse(400, "request body is required")
 	}
 
 	// Parse request body
 	var logoutReq domain.LogoutRequest
 	if err := json.Unmarshal([]byte(request.Body), &logoutReq); err != nil {
-		return errorResponse(400, "invalid request body")
+		return middleware.MessageResponse(400, "invalid request body")
 	}
 
 	// Validate request fields
 	if err := logoutReq.Validate(); err != nil {
-		return errorResponse(400, err.Error())
+		return middleware.MessageResponse(400, err.Error())
 	}
 
 	// Get Cognito client
 	cognitoClient, err := cognitoClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		return middleware.ServerError(ctx, "server error", err)
 	}
 
 	// Execute global sign out with Cognito
@@ -63,7 +67,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	_, err = cognitoClient.GlobalSignOut(ctx, signOutInput)
 	if err != nil {
-		return handleCognitoError(err)
+		return handleCognitoError(ctx, err)
 	}
 
 	// Return success response
@@ -72,21 +76,16 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	})
 }
 
-// errorResponse creates an error response with CORS headers
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
-}
-
 // handleCognitoError maps Cognito errors to appropriate HTTP responses
-func handleCognitoError(err error) (events.APIGatewayProxyResponse, error) {
+func handleCognitoError(ctx context.Context, err error) (events.APIGatewayProxyResponse, error) {
 	// Check for specific Cognito exceptions
 	var notAuthErr *types.NotAuthorizedException
 	if errors.As(err, &notAuthErr) {
-		return errorResponse(401, "invalid or expired access token")
+		return middleware.MessageResponse(401, "invalid or expired access token")
 	}
 
 	// Generic server error for other cases
-	return errorResponse(500, "logout failed")
+	return middleware.ServerError(ctx, "logout failed", err)
 }
 
 func main() {

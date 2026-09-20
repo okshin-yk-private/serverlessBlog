@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"sort"
 	"strings"
@@ -43,16 +44,20 @@ var dynamoClientGetter = func() (DynamoDBClientInterface, error) {
 // Requirement 2.4: Return empty array with HTTP 200 when no categories exist
 // Requirement 2.5: Implement CORS headers
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Check for CATEGORIES_TABLE_NAME
 	tableName := os.Getenv("CATEGORIES_TABLE_NAME")
 	if tableName == "" {
-		return errorResponse(500, "server configuration error")
+		return middleware.ServerError(ctx, "server configuration error", errors.New("CATEGORIES_TABLE_NAME is not configured"))
 	}
 
 	// Get DynamoDB client
 	dynamoClient, err := dynamoClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		return middleware.ServerError(ctx, "server error", err)
 	}
 
 	// Collect all items using pagination
@@ -71,7 +76,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		// Execute scan
 		result, err := dynamoClient.Scan(ctx, scanInput)
 		if err != nil {
-			return errorResponse(500, "failed to retrieve categories")
+			return middleware.ServerError(ctx, "failed to retrieve categories", err)
 		}
 
 		// Append items from this page
@@ -149,12 +154,6 @@ func isSlugReservation(item map[string]types.AttributeValue) bool {
 		}
 	}
 	return false
-}
-
-// errorResponse creates an error response with CORS headers
-// Requirement 9.1: JSON error responses with message field
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
 }
 
 func main() {

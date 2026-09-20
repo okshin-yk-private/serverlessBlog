@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strconv"
 
@@ -18,7 +19,6 @@ import (
 
 	"serverless-blog/go-functions/internal/auth"
 	"serverless-blog/go-functions/internal/clients"
-	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/middleware"
 	"serverless-blog/go-functions/internal/sitebuild"
 )
@@ -45,34 +45,38 @@ type BuildStatusResponse struct {
 
 // Handler handles GET /admin/posts/{id}/build-status.
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	if userID := auth.UserID(request); userID == "" {
-		return errorResponse(401, "unauthorized")
+		return middleware.MessageResponse(401, "unauthorized")
 	}
 
 	if postID := request.PathParameters["id"]; postID == "" {
-		return errorResponse(400, "post ID is required")
+		return middleware.MessageResponse(400, "post ID is required")
 	}
 
 	tableName := os.Getenv("TABLE_NAME")
 	if tableName == "" {
-		return errorResponse(500, "server configuration error")
+		return middleware.ServerError(ctx, "server configuration error", errors.New("TABLE_NAME is not configured"))
 	}
 
 	client, err := dynamoClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		return middleware.ServerError(ctx, "server error", err)
 	}
 	coordinator := sitebuild.NewCoordinator(client, nil, tableName, "")
 	state, err := coordinator.GetState(ctx)
 	if err != nil {
-		return errorResponse(500, "failed to get build status")
+		return middleware.ServerError(ctx, "failed to get build status", err)
 	}
 
 	targetRevision := state.DesiredRevision
 	if raw := request.QueryStringParameters["targetRevision"]; raw != "" {
 		targetRevision, err = strconv.ParseInt(raw, 10, 64)
 		if err != nil || targetRevision <= 0 {
-			return errorResponse(400, "targetRevision must be a positive integer")
+			return middleware.MessageResponse(400, "targetRevision must be a positive integer")
 		}
 	}
 	requestState := sitebuild.RequestForState(state, targetRevision)
@@ -86,10 +90,6 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	}
 	addBuildProgress(ctx, state, &resp)
 	return middleware.JSONResponse(200, resp)
-}
-
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
 }
 
 func main() {

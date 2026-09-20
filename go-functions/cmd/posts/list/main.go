@@ -86,16 +86,20 @@ type ListPostsResponseBody struct {
 
 // Handler handles GET /posts requests
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Check for TABLE_NAME
 	tableName := os.Getenv("TABLE_NAME")
 	if tableName == "" {
-		return errorResponse(500, "server configuration error")
+		return middleware.ServerError(ctx, "server configuration error", errors.New("TABLE_NAME is not configured"))
 	}
 
 	// Get DynamoDB client
 	dynamoClient, err := dynamoClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		return middleware.ServerError(ctx, "server error", err)
 	}
 
 	// Parse query parameters
@@ -113,7 +117,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// Parse search query, rejecting one that exceeds the maximum length
 	searchQuery, err := sanitizeSearchQuery(queryParams["q"])
 	if err != nil {
-		return errorResponse(400, "search query is too long")
+		return middleware.MessageResponse(400, "search query is too long")
 	}
 
 	// Parse nextToken for pagination
@@ -132,7 +136,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 			var parseErr error
 			publishStatus, parseErr = parsePublishStatus(queryParams["publishStatus"])
 			if parseErr != nil {
-				return errorResponse(400, "invalid publishStatus value")
+				return middleware.MessageResponse(400, "invalid publishStatus value")
 			}
 		}
 	}
@@ -157,7 +161,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		var searchErr error
 		items, lastEvaluatedKey, searchErr = executeSearchQuery(ctx, dynamoClient, tableName, limit, category, publishStatus, searchLower, exclusiveStartKey)
 		if searchErr != nil {
-			return errorResponse(500, "failed to retrieve posts")
+			return middleware.ServerError(ctx, "failed to retrieve posts", searchErr)
 		}
 	} else {
 		// Build DynamoDB Query input
@@ -166,7 +170,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		// Execute query
 		result, err := dynamoClient.Query(ctx, queryInput)
 		if err != nil {
-			return errorResponse(500, "failed to retrieve posts")
+			return middleware.ServerError(ctx, "failed to retrieve posts", err)
 		}
 
 		// Process results - exclude contentMarkdown
@@ -191,7 +195,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	if isAuthenticated(request) {
 		count, err := executeCountQuery(ctx, dynamoClient, tableName, publishStatus)
 		if err != nil {
-			return errorResponse(500, "failed to retrieve posts")
+			return middleware.ServerError(ctx, "failed to retrieve posts", err)
 		}
 		response.Count = &count
 
@@ -584,11 +588,6 @@ func executeCountQuery(ctx context.Context, client DynamoDBClientInterface, tabl
 	}
 
 	return totalCount, nil
-}
-
-// errorResponse creates an error response with CORS headers
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
 }
 
 func main() {
