@@ -8,7 +8,8 @@
   --color-surface-elevated: #f2f4ec;
   --color-surface-muted: #ecefe5;
   --color-text: #454642;
-  --color-text-muted: #74766f;
+  /* Small text must exceed 4.5:1 on the warm light background. */
+  --color-text-muted: #696b63;
   --color-text-heading: #292a28;
   --color-text-on-primary: #ffffff;
   --color-border: #dedfd7;

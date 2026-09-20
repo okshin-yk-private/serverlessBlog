@@ -7,10 +7,10 @@
  * 既存のID URLも維持し、canonicalはslug URLへ統一する。
  */
 import Layout from '../../layouts/Layout.astro';
+import { publicationDate } from '../../lib/publicationCalendar';
 import { fetchAllPosts, type Post } from '../../lib/api';
 import {
   generateDescription,
-  formatPublishedDate,
   getFirstImage,
   getPostImageUrls,
 } from '../../lib/postDetailUtils';
@@ -37,7 +37,8 @@ interface Props {
 
 const { post } = Astro.props;
 const description = post.excerpt || generateDescription(post.contentHtml);
-const publishedDate = formatPublishedDate(post);
+const publication = publicationDate(post, new Date().toISOString());
+const publishedDate = publication.label;
 const firstImage = post.coverImageUrl || getFirstImage(post.imageUrls);
 const images = getPostImageUrls(post);
 
@@ -78,7 +79,7 @@ const jsonLdPost: JsonLdPost = {
         >
         <time
           class="date"
-          datetime={post.publishedAt ?? post.createdAt}
+          datetime={publication.day ? post.publishedAt : undefined}
           data-testid="post-date"
         >
           {publishedDate}
@@ -127,9 +128,9 @@ const jsonLdPost: JsonLdPost = {
       )
     }
 
-    {/* Back to Home Link */}
+    {/* Back to Articles Link */}
     <nav class="post-navigation">
-      <a href="/" class="back-link">
+      <a href="/articles/" class="back-link">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="20"
@@ -144,7 +145,7 @@ const jsonLdPost: JsonLdPost = {
           <path d="M19 12H5"></path>
           <path d="M12 19l-7-7 7-7"></path>
         </svg>
-        Back
+        記事一覧へ
       </a>
     </nav>
   </article>
@@ -154,7 +155,7 @@ const jsonLdPost: JsonLdPost = {
   .post-detail {
     max-width: 880px;
     margin: 0 auto;
-    padding: 96px 40px 120px;
+    padding: 56px 40px 96px;
   }
 
   .post-header {
@@ -240,9 +241,17 @@ const jsonLdPost: JsonLdPost = {
   }
 
   .post-content {
+    overflow-wrap: anywhere;
+    min-width: 0;
     font-size: 1.05rem;
     line-height: 2;
     color: var(--color-text);
+  }
+
+  .post-content :global(table) {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
   }
 
   /* Content HTML Styles */

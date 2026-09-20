@@ -1,0 +1,104 @@
+---
+import { getAboutPageContent, getSiteMetadata } from '../lib/staticPageUtils';
+const site = getSiteMetadata();
+const intro = getAboutPageContent()
+  .sections[0].content.split('\n\n')
+  .slice(1)
+  .join('\n\n');
+---
+
+<aside class="site-intro" aria-labelledby="intro-title">
+  <p class="intro-eyebrow">About this blog</p>
+  <h2 id="intro-title">{site.siteName}</h2>
+  <p class="intro-copy">{intro}</p>
+  <a class="intro-about" href="/about/"
+    >About <span aria-hidden="true">→</span></a
+  >
+  <div class="intro-author">
+    <p class="intro-name">{site.author.name}</p><p>{site.author.role}</p>
+    <ul>
+      {
+        site.socialLinks.map((link) => (
+          <li>
+            <a href={link.url} target="_blank" rel="noopener noreferrer">
+              {link.name}
+              <span aria-hidden="true"> ↗</span>
+              <span class="sr-only">（新しいタブで開く）</span>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</aside>
+<style>
+  .site-intro {
+    border-left: 1px solid var(--color-border);
+    padding-left: 36px;
+    min-width: 0;
+  }
+  .intro-eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--color-primary);
+    font: 0.75rem var(--font-display);
+    margin: 0 0 18px;
+  }
+  h2 {
+    font-size: 1.3rem;
+    margin: 0 0 14px;
+    letter-spacing: -0.02em;
+  }
+  .intro-copy {
+    white-space: pre-line;
+    font-size: 0.95rem;
+    line-height: 2;
+    margin: 0;
+  }
+  a {
+    color: var(--color-primary);
+    font-family: var(--font-display);
+    text-decoration: none;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  a:hover {
+    text-decoration: underline;
+    text-underline-offset: 5px;
+  }
+  .intro-about {
+    gap: 16px;
+    margin-top: 18px;
+  }
+  .intro-author {
+    border-top: 1px solid var(--color-border);
+    margin-top: 30px;
+    padding-top: 24px;
+  }
+  .intro-author p {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+  .intro-author .intro-name {
+    font: 700 1rem var(--font-display);
+    margin-bottom: 6px;
+    overflow-wrap: anywhere;
+  }
+  ul {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    padding: 0;
+    margin: 12px 0 0;
+  }
+  @media (max-width: 767px) {
+    .site-intro {
+      border-left: 0;
+      border-top: 1px solid var(--color-border);
+      padding: 28px 0 0;
+    }
+  }
+</style>

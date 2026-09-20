@@ -167,14 +167,17 @@ describe('CodeBuildトリガー連携テスト (Task 8.2)', () => {
       }
     });
 
-    it('should list all published posts on home page', () => {
-      const indexHtml = readFileSync(join(distDir, 'index.html'), 'utf-8');
+    it('should list all published posts on Articles', () => {
+      const indexHtml = readFileSync(
+        join(distDir, 'articles/index.html'),
+        'utf-8'
+      );
       const publishedPosts = mockPosts.filter(
         (p) => p.publishStatus === 'published'
       );
 
       // Either posts are shown or "no articles" message (if build was done without mock)
-      const hasPostList = indexHtml.includes('post-list-container');
+      const hasPostList = indexHtml.includes('article-records');
       const hasNoArticles =
         indexHtml.includes('no-articles') ||
         indexHtml.includes('記事がありません');
