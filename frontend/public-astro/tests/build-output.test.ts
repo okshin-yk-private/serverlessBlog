@@ -187,7 +187,7 @@ describe('Astro Build Output', () => {
   describe('Article List Page (Requirement 2.2)', () => {
     it('should include hero section with site title', () => {
       const indexHtml = readFileSync(join(distDir, 'index.html'), 'utf-8');
-      expect(indexHtml).toContain('hero-section');
+      expect(indexHtml).toContain('home-grid');
       expect(indexHtml).toContain('I am the bone of my fallacy');
     });
 
@@ -211,10 +211,13 @@ describe('Astro Build Output', () => {
       expect(indexHtml).toMatch(/<meta[^>]*name="description"/);
     });
 
-    it('should have post-list-container or no-articles for empty state', () => {
-      const indexHtml = readFileSync(join(distDir, 'index.html'), 'utf-8');
+    it('should have an Articles collection or an empty state', () => {
+      const indexHtml = readFileSync(
+        join(distDir, 'articles/index.html'),
+        'utf-8'
+      );
       // Either has posts or shows no-articles message
-      const hasPostList = indexHtml.includes('post-list-container');
+      const hasPostList = indexHtml.includes('article-records');
       const hasNoArticles =
         indexHtml.includes('no-articles') ||
         indexHtml.includes('記事がありません');

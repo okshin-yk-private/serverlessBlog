@@ -13,14 +13,28 @@ describe('editorial home built against the local mock API', () => {
     );
   });
 
-  it('features the newest article with one h1 and preserves every article in the archive', () => {
+  it('separates Home from the complete searchable Articles collection', () => {
     expect(document.querySelectorAll('h1')).toHaveLength(1);
     expect(
-      document.querySelector('[data-testid="feature-article"] h1')?.textContent
-    ).toBe('日本語タイトルの記事');
+      document.querySelectorAll('[data-testid="feature-article"]')
+    ).toHaveLength(1);
     expect(
-      document.querySelector('[data-testid="aside-article"] h2')?.textContent
-    ).toBe('テスト記事1');
+      document.querySelector('[data-testid="feature-article"] h2')?.textContent
+    ).toBe('日本語タイトルの記事');
+    expect(document.querySelector('#intro-title')).not.toBeNull();
+    expect(document.querySelector('#search-input')).toBeNull();
+    expect(
+      document.querySelector('a[aria-current="page"]')?.getAttribute('href')
+    ).toBe('/');
+    document.documentElement.innerHTML = readFileSync(
+      join(dist, 'articles/index.html'),
+      'utf8'
+    );
+    expect(document.querySelectorAll('h1')).toHaveLength(1);
+    expect(document.querySelector('#intro-title')).toBeNull();
+    expect(
+      document.querySelector('a[aria-current="page"]')?.getAttribute('href')
+    ).toBe('/articles/');
     const rows = [...document.querySelectorAll('#article-records article')];
     expect(rows.map((row) => row.getAttribute('data-post-id'))).toEqual([
       'post-2',
@@ -30,13 +44,19 @@ describe('editorial home built against the local mock API', () => {
       rows.map((row) => row.querySelector('h3 a')?.getAttribute('href'))
     ).toEqual(['/posts/post-2/', '/posts/post-1/']);
     expect(
-      document
-        .querySelector('[data-testid="feature-article"]')
-        ?.hasAttribute('data-post-id')
-    ).toBe(false);
+      document.querySelector('link[rel="canonical"]')?.getAttribute('href')
+    ).toBe('https://example.com/articles/');
+    const calendar = JSON.parse(
+      document.querySelector('#calendar-data')!.textContent!
+    );
+    expect(calendar.counts).toEqual({ '2024-01-01': 1, '2024-01-02': 1 });
   });
 
-  it('keeps the full archive available without JavaScript and gives search an accessible label', () => {
+  it('keeps every article available without JavaScript and labels search and dates', () => {
+    document.documentElement.innerHTML = readFileSync(
+      join(dist, 'articles/index.html'),
+      'utf8'
+    );
     expect(
       document.querySelectorAll('#article-records article[hidden]')
     ).toHaveLength(0);
@@ -44,12 +64,20 @@ describe('editorial home built against the local mock API', () => {
       document.querySelector('label[for="search-input"]')?.textContent
     ).toContain('タイトル');
     expect(
-      document.querySelectorAll('[data-search-control]:not([hidden])')
-    ).toHaveLength(0);
-    expect(document.querySelectorAll('[data-category]')).toHaveLength(3);
+      document.querySelector('#archive-search')?.hasAttribute('data-ready')
+    ).toBe(false);
     expect(
-      JSON.parse(document.querySelector('#search-data')!.textContent!)
-    ).toHaveLength(2);
+      document.querySelectorAll('.calendar-fallback-mobile .calendar-week')
+        .length
+    ).toBeGreaterThan(0);
+    expect(document.querySelectorAll('[data-category]')).toHaveLength(3);
+    const data = JSON.parse(
+      document.querySelector('#search-data')!.textContent!
+    );
+    expect(data).toHaveLength(2);
+    expect(
+      data.map((p: { publicationDay: string }) => p.publicationDay)
+    ).toEqual(['2024-01-02', '2024-01-01']);
   });
 
   it('emits self-hosted Japanese font chunks and their licenses', () => {

@@ -1,0 +1,76 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PostCard from '../components/PostCard.astro';
+import SearchBar from '../components/SearchBar.astro';
+import PublicationCalendar from '../components/PublicationCalendar.astro';
+import { fetchAllPosts } from '../lib/api';
+import {
+  publishedPosts,
+  publicationDate,
+  publicationCalendar,
+} from '../lib/publicationCalendar';
+// Fetch errors intentionally fail the build rather than publishing an empty calendar.
+const asOf = new Date().toISOString();
+const posts = publishedPosts(await fetchAllPosts(), asOf);
+const calendar = publicationCalendar(posts, asOf);
+const searchable = posts.map((post) => ({
+  id: post.id,
+  title: post.title,
+  category: post.category,
+  tags: post.tags || [],
+  publicationDay: publicationDate(post, asOf).day,
+}));
+---
+
+<Layout
+  title="Articles"
+  description="記事の一覧と検索。投稿カレンダーから公開日を選び、タイトル・カテゴリー・タグでこれまでの記録を探せます。"
+  canonicalUrl={new URL('/articles/', Astro.site ?? Astro.url).href}
+>
+  <main class="articles-journal" id="main-content">
+    <header class="articles-heading">
+      <h1>Articles</h1><p>これまでの記録</p>
+    </header>
+    <PublicationCalendar data={calendar} />
+    <section class="articles-records" aria-labelledby="archive-title">
+      <SearchBar posts={searchable} asOfDay={calendar.today} />
+      <div id="article-records" data-testid="article-list">
+        {posts.map((post) => <PostCard post={post} asOf={asOf} />)}
+      </div>
+      {
+        posts.length === 0 && (
+          <p class="no-articles" data-testid="no-articles">
+            記事がありません
+          </p>
+        )
+      }
+    </section>
+  </main>
+</Layout>
+<style>
+  .articles-journal {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 40px 40px 80px;
+  }
+  .articles-heading h1 {
+    font-size: clamp(2rem, 4vw, 2.75rem);
+    margin: 0;
+    line-height: 1.3;
+  }
+  .articles-heading p {
+    margin: 8px 0 0;
+    font-size: 1rem;
+  }
+  #article-records {
+    border-bottom: 1px solid var(--color-border);
+  }
+  .no-articles {
+    padding: 28px 0;
+  }
+  @media (max-width: 767px) {
+    .articles-journal {
+      padding: 28px 20px 48px;
+    }
+  }
+</style>

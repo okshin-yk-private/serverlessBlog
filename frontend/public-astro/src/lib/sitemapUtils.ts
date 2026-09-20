@@ -25,6 +25,7 @@ export interface SiteConfig {
 export function getStaticPagePaths(): string[] {
   return [
     '/', // ホームページ
+    '/articles/', // 記事一覧・検索
     '/about/', // Aboutページ
   ];
 }

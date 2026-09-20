@@ -11,6 +11,7 @@
  */
 
 import ThemeToggle from './ThemeToggle.astro';
+const path = Astro.url.pathname.replace(/\/$/, '') || '/';
 ---
 
 <header class="site-header">
@@ -29,8 +30,21 @@ import ThemeToggle from './ThemeToggle.astro';
       />
     </a>
     <nav class="site-nav" aria-label="Main navigation">
-      <a href="/" class="nav-link">Articles</a>
-      <a href="/about" class="nav-link">About</a>
+      <a
+        href="/"
+        class="nav-link"
+        aria-current={path === '/' ? 'page' : undefined}>Home</a
+      >
+      <a
+        href="/articles/"
+        class="nav-link"
+        aria-current={path === '/articles' ? 'page' : undefined}>Articles</a
+      >
+      <a
+        href="/about/"
+        class="nav-link"
+        aria-current={path === '/about' ? 'page' : undefined}>About</a
+      >
       <ThemeToggle />
       <a
         href="/admin/"
@@ -142,6 +156,12 @@ import ThemeToggle from './ThemeToggle.astro';
     position: relative;
   }
 
+  .nav-link[aria-current='page'] {
+    color: var(--color-text-heading);
+    border-bottom: 2px solid var(--color-primary);
+    border-radius: 0;
+  }
+
   .nav-link:hover {
     color: var(--color-text-heading);
     background: var(--color-primary-soft);
@@ -192,10 +212,31 @@ import ThemeToggle from './ThemeToggle.astro';
     }
 
     .admin-icon-link {
-      display: none;
+      display: flex;
     }
   }
 
+  @media (max-width: 600px) {
+    .header-container {
+      flex-direction: column;
+      align-items: stretch;
+      height: auto;
+      padding-block: 12px 4px;
+      gap: 8px;
+    }
+    .site-logo {
+      align-self: flex-start;
+    }
+    .site-nav {
+      justify-content: space-between;
+    }
+    .nav-link {
+      font-size: 0.8rem;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+    }
+  }
   @media (max-width: 480px) {
     .logo-image {
       height: 40px;

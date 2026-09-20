@@ -100,8 +100,8 @@ export function get404PageContent(): NotFoundPageContent {
     homeButtonText: 'ホームに戻る',
     suggestions: [
       {
-        text: 'トップページから記事を探す',
-        link: '/',
+        text: '記事一覧から記事を探す',
+        link: '/articles/',
       },
       {
         text: 'サイトについて知る',

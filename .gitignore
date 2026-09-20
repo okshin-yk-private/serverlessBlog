@@ -111,6 +111,7 @@ go-functions/coverage*.html
 
 # Playwright (outputDir / reporter outputs — see playwright*.config.ts)
 test-results/
+test-results-publication-fixtures/
 test-results-admin/
 playwright-report/
 playwright-report-admin/

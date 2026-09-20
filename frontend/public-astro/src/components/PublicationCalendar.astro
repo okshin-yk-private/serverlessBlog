@@ -1,0 +1,296 @@
+---
+import { calendarWeeks, type CalendarData } from '../lib/publicationCalendar';
+import PublicationCalendarGrid from './PublicationCalendarGrid.astro';
+interface Props {
+  data: CalendarData;
+}
+const { data } = Astro.props;
+const year = Number(data.today.slice(0, 4));
+const weeks = calendarWeeks(data, year);
+const quarter = Math.floor((Number(data.today.slice(5, 7)) - 1) / 3);
+---
+
+<section
+  class="publication-calendar"
+  id="publication-calendar"
+  aria-labelledby="calendar-title"
+>
+  <div class="calendar-heading">
+    <div>
+      <h2 id="calendar-title">投稿カレンダー</h2><p>
+        公開日ごとの記事数 <span>· 日本時間</span>
+      </p>
+    </div>
+    <label data-calendar-control
+      ><span class="sr-only">表示する年</span><select id="calendar-year"
+        >{
+          data.years.map((y) => (
+            <option value={y} selected={y === year}>
+              {y}年
+            </option>
+          ))
+        }</select
+      ></label
+    >
+  </div>
+  <div class="calendar-quarter" data-calendar-control>
+    <button type="button" data-period="previous" aria-label="前の3か月"
+      >←</button
+    >
+    <span id="calendar-period"></span>
+    <button type="button" data-period="next" aria-label="次の3か月">→</button>
+  </div>
+  <div
+    class="calendar-chart"
+    role="group"
+    aria-label="公開日カレンダー"
+    aria-describedby="calendar-help"
+  >
+    <div class="calendar-weekdays" aria-hidden="true">
+      <span></span>{
+        ['月', '火', '水', '木', '金', '土', '日'].map((day) => (
+          <span>{day}</span>
+        ))
+      }
+    </div>
+    <PublicationCalendarGrid weeks={weeks} mode="live" />
+    <PublicationCalendarGrid
+      weeks={calendarWeeks(data, year, quarter)}
+      mode="fallback-mobile"
+    />
+  </div>
+  <div class="calendar-caption">
+    <p>{data.today.replaceAll('-', '.')}時点</p><div
+      class="calendar-legend"
+      aria-label="記事数の凡例"
+    >
+      {
+        ['0', '1', '2', '3件以上'].map((label, level) => (
+          <span>
+            <i class="calendar-cell" data-level={level} />
+            {label}
+          </span>
+        ))
+      }<span><i class="calendar-cell calendar-future"></i>未集計</span>
+    </div>
+  </div>
+  <p id="calendar-detail" class="calendar-detail" data-calendar-control>
+    日付を選ぶと、その日の記事を表示します。
+  </p>
+  <p id="calendar-help" class="calendar-note">
+    現在公開中の記事を初回公開日で集計しています。<span
+      class="sr-only"
+      data-calendar-control
+      hidden
+      >日付指定でも絞り込めます。カレンダー内は矢印キーで移動、Enterで選択できます。</span
+    >
+  </p>
+  {
+    (data.unknown > 0 || data.review > 0) && (
+      <p class="calendar-note">
+        集計対象外：公開日不明 {data.unknown}件／公開日要確認 {data.review}
+        件（記事一覧には表示）
+      </p>
+    )
+  }
+  <script
+    is:inline
+    id="calendar-data"
+    type="application/json"
+    set:html={JSON.stringify(data).replace(/</g, '\\u003c')}
+  />
+</section>
+<style is:global>
+  .publication-calendar {
+    margin: 32px 0;
+    padding: 22px 0 18px;
+    border-block: 1px solid var(--color-border);
+    font-family: var(--font-display);
+  }
+  .publication-calendar [hidden] {
+    display: none !important;
+  }
+  /* Reserve space without overriding the browser's hidden semantics. */
+  .publication-calendar:not([data-ready]) [data-calendar-control] {
+    visibility: hidden;
+  }
+  .publication-calendar .calendar-fallback-mobile {
+    display: none;
+  }
+  .calendar-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+  .calendar-heading h2 {
+    margin: 0;
+    font-size: 1.25rem;
+  }
+  .calendar-heading p {
+    margin: 5px 0 0;
+    font-size: 0.85rem;
+  }
+  .publication-calendar select,
+  .calendar-quarter button {
+    min-height: 44px;
+    padding: 8px 12px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 4px;
+    font: inherit;
+  }
+  .calendar-chart {
+    display: flex;
+    gap: 12px;
+    margin-top: 18px;
+  }
+  .calendar-weekdays,
+  .calendar-week {
+    display: grid;
+    grid-template-rows: 22px repeat(7, 1fr);
+    gap: 4px;
+  }
+  .calendar-weekdays {
+    font-size: 0.65rem;
+    line-height: 14px;
+    flex: 0 0 12px;
+  }
+  .calendar-week {
+    /* Month labels may overflow, but must not widen the day's grid track. */
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+  .calendar-weeks {
+    display: grid;
+    grid-template-columns: repeat(var(--weeks), minmax(0, 1fr));
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+  }
+  .calendar-month {
+    font-size: 0.65rem;
+    white-space: nowrap;
+    overflow: visible;
+  }
+  .publication-calendar .calendar-cell {
+    display: block;
+    min-width: 0;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--color-text) 12%, var(--color-bg));
+  }
+  .publication-calendar .calendar-cell[data-level='1'] {
+    background: color-mix(in srgb, var(--color-primary) 30%, var(--color-bg));
+  }
+  .publication-calendar .calendar-cell[data-level='2'] {
+    background: color-mix(in srgb, var(--color-primary) 65%, var(--color-bg));
+  }
+  .publication-calendar .calendar-cell[data-level='3'] {
+    background: var(--color-primary);
+  }
+  .publication-calendar button.calendar-cell {
+    cursor: pointer;
+    scroll-margin-block: 160px 40px;
+  }
+  .publication-calendar .calendar-cell[aria-pressed='true'] {
+    outline: 2px solid var(--color-text-heading);
+    outline-offset: 1px;
+  }
+  .publication-calendar .calendar-cell:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+  .publication-calendar .calendar-padding {
+    visibility: hidden;
+  }
+  .publication-calendar .calendar-future {
+    background: transparent;
+    border: 1px dashed var(--color-border-strong);
+  }
+  .calendar-caption {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 18px;
+    font-size: 0.75rem;
+  }
+  .calendar-caption p {
+    margin: 0;
+  }
+  .calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .calendar-legend span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .calendar-legend .calendar-cell {
+    width: 12px;
+    height: 12px;
+  }
+  .calendar-detail {
+    min-height: 26px;
+    font-size: 0.85rem;
+    margin: 18px 0 0;
+    color: var(--color-primary);
+  }
+  .calendar-note {
+    font-size: 0.75rem;
+    margin: 10px 0 0;
+    line-height: 1.8;
+  }
+  .calendar-quarter {
+    display: none;
+  }
+  @media (max-width: 899px) {
+    .publication-calendar:not([data-ready]) .calendar-live {
+      display: none;
+    }
+    .publication-calendar .calendar-fallback-mobile {
+      display: grid;
+    }
+
+    .calendar-quarter {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 16px 0 0;
+      font-size: 0.85rem;
+    }
+    .calendar-quarter button {
+      width: 44px;
+      cursor: pointer;
+    }
+    .calendar-quarter button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    .calendar-heading {
+      align-items: start;
+    }
+    .calendar-heading p span {
+      white-space: nowrap;
+    }
+    .calendar-weekdays,
+    .calendar-week {
+      grid-template-rows: 22px repeat(7, 1fr);
+    }
+    .calendar-chart {
+      gap: 8px;
+    }
+    .calendar-weeks {
+      gap: 3px;
+    }
+  }
+</style>

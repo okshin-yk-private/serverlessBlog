@@ -3,17 +3,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initArchiveSearch } from './archiveSearch';
 
 const posts = [
-  { id: 'a', title: 'AWSの設計', category: '技術', tags: ['Lambda'] },
-  { id: 'b', title: 'AWSを学んだ日', category: '日常', tags: [] },
-  { id: 'c', title: '読書の記録', category: '日常', tags: ['本'] },
+  {
+    id: 'a',
+    title: 'AWSの設計',
+    category: '技術',
+    tags: ['Lambda'],
+    publicationDay: '2026-09-16',
+  },
+  {
+    id: 'b',
+    title: 'AWSを学んだ日',
+    category: '日常',
+    tags: [],
+    publicationDay: '2026-09-17',
+  },
+  {
+    id: 'c',
+    title: '読書の記録',
+    category: '日常',
+    tags: ['本'],
+    publicationDay: '2026-09-16',
+  },
 ];
 
 function setup() {
   document.body.innerHTML = `
-    <section data-testid="feature-article" data-post-id="a">主役</section>
     <div id="controls">
       <div data-search-control hidden><input id="search-input"></div>
-      <button id="search-clear" hidden>クリア</button>
+      <input type="date" id="publication-date" max="2026-09-20"><button id="date-clear" hidden></button><button id="filters-clear" hidden></button><button id="search-clear" hidden>クリア</button>
       <p id="search-status"></p><p id="no-results-message" hidden>検索結果がありません</p>
       <button data-category="" aria-pressed="true">すべて</button>
       <button data-category="技術" aria-pressed="false">技術</button>
@@ -48,7 +65,7 @@ describe('archive search interactions', () => {
     document.body.innerHTML = '';
   });
 
-  it('combines exact category selection with title/tag search, leaving the feature intact', () => {
+  it('combines exact category selection with title/tag search over every record', () => {
     const { select, search, visible, controls } = setup();
     search('aws');
     expect(visible()).toEqual(['a', 'b']);
@@ -61,10 +78,6 @@ describe('archive search interactions', () => {
     ).toBe('true');
     search('本');
     expect(visible()).toEqual(['c']);
-    expect(
-      document.querySelector<HTMLElement>('[data-testid="feature-article"]')!
-        .hidden
-    ).toBe(false);
   });
 
   it('announces zero results and restores the selected category when clearing a pending search', () => {
@@ -106,6 +119,35 @@ describe('archive search interactions', () => {
     expect(visible()).toEqual(['c']);
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(input.value).toBe('');
+    expect(visible()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('combines date, category and query, with independent and complete reset controls', () => {
+    const { controls, select, search, visible } = setup();
+    const date = controls.querySelector<HTMLInputElement>('#publication-date')!;
+    date.value = '2026-09-16';
+    date.dispatchEvent(new Event('change'));
+    expect(visible()).toEqual(['a', 'c']);
+    select('日常');
+    expect(visible()).toEqual(['c']);
+    search('AWS');
+    expect(visible()).toEqual([]);
+    controls.querySelector<HTMLButtonElement>('#date-clear')!.click();
+    expect(date.value).toBe('');
+    expect(document.activeElement).toBe(date);
+    expect(visible()).toEqual(['b']);
+    date.value = '2026-09-16';
+    date.dispatchEvent(new Event('change'));
+    controls.querySelector<HTMLButtonElement>('#filters-clear')!.click();
+    expect(visible()).toEqual(['a', 'b', 'c']);
+    expect(
+      controls.querySelector<HTMLButtonElement>('#filters-clear')!.hidden
+    ).toBe(true);
+    date.value = '2026-09-21';
+    date.dispatchEvent(new Event('change'));
+    expect(visible()).toEqual(['a', 'b', 'c']);
+    date.value = '';
+    date.dispatchEvent(new Event('change'));
     expect(visible()).toEqual(['a', 'b', 'c']);
   });
 

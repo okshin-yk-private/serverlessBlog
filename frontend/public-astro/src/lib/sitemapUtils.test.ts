@@ -34,7 +34,7 @@ describe('Sitemap Utils', () => {
 
     it('should return array with exactly 2 static pages', () => {
       const paths = getStaticPagePaths();
-      expect(paths).toHaveLength(2);
+      expect(paths).toHaveLength(3);
     });
   });
 
@@ -120,7 +120,7 @@ describe('Sitemap Utils', () => {
 
     it('should generate all URLs including static and post pages', () => {
       const urls = generateAllPageUrls('https://example.com', ['post-1']);
-      expect(urls).toHaveLength(3); // home, about, post-1
+      expect(urls).toHaveLength(4); // home, articles, about, post-1
     });
   });
 
