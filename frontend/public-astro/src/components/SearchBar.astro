@@ -14,18 +14,19 @@ const searchData = JSON.stringify(posts).replace(/</g, '\\u003c');
 
 <div
   id="archive-search"
+  lang="en"
   data-testid="search-container"
   data-empty={posts.length === 0 ? 'true' : undefined}
 >
   <div class="archive-toolbar">
-    <h2 id="archive-title" class="sr-only">記事一覧</h2>
+    <h2 id="archive-title" class="sr-only">Articles</h2>
     <div
       class="search-input-wrapper"
       data-search-control
       hidden={posts.length === 0}
     >
       <label class="sr-only" for="search-input"
-        >タイトル・カテゴリー・タグで記事を検索</label
+        >Search by title, category or tag</label
       >
       <svg
         class="search-icon"
@@ -41,7 +42,7 @@ const searchData = JSON.stringify(posts).replace(/</g, '\\u003c');
       <input
         type="search"
         id="search-input"
-        placeholder="タイトル・カテゴリー・タグで検索"
+        placeholder="Search articles…"
         data-testid="search-input"
         aria-controls="article-records"
         autocomplete="off"
@@ -49,15 +50,16 @@ const searchData = JSON.stringify(posts).replace(/</g, '\\u003c');
       <button
         type="button"
         id="search-clear"
-        aria-label="検索をクリア"
+        aria-label="Clear search"
         data-testid="search-clear"
         hidden>×</button
       >
     </div>
     <label class="date-filter" data-search-control hidden={posts.length === 0}
-      >公開日
+      >Published
       <input
         type="date"
+        lang="en"
         id="publication-date"
         aria-controls="article-records"
         max={asOfDay}
@@ -67,21 +69,19 @@ const searchData = JSON.stringify(posts).replace(/</g, '\\u003c');
   </div>
   <div class="search-summary">
     <p id="search-status" role="status" aria-live="polite" aria-atomic="true">
-      {posts.length}件の記事
+      {posts.length}
+      {posts.length === 1 ? 'article' : 'articles'}
     </p>
-    <button
-      id="date-clear"
-      type="button"
-      hidden
-      aria-label="公開日の絞り込みを解除"></button>
-    <button id="filters-clear" type="button" hidden>すべての条件を解除</button>
+    <button id="date-clear" type="button" hidden aria-label="Clear date filter"
+    ></button>
+    <button id="filters-clear" type="button" hidden>Clear filters</button>
   </div>
   {
     categories.length > 1 && (
       <div
         class="category-filters"
         role="group"
-        aria-label="カテゴリーで絞り込み"
+        aria-label="Filter by category"
         data-search-control
         hidden={posts.length === 0}
       >
@@ -91,7 +91,7 @@ const searchData = JSON.stringify(posts).replace(/</g, '\\u003c');
           aria-pressed="true"
           aria-controls="article-records"
         >
-          すべて
+          All
         </button>
         {categories.map((category) => (
           <button
@@ -112,7 +112,7 @@ const searchData = JSON.stringify(posts).replace(/</g, '\\u003c');
     data-testid="no-results-message"
     hidden
   >
-    検索結果がありません
+    No articles found
   </p>
   <script
     is:inline

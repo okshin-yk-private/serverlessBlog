@@ -89,7 +89,7 @@ describe('archive search interactions', () => {
       controls.querySelector<HTMLElement>('#no-results-message')!.hidden
     ).toBe(false);
     expect(controls.querySelector('#search-status')!.textContent).toBe(
-      '0件の記事（日常）'
+      '0 articles (日常)'
     );
     input.value = 'AWS';
     input.dispatchEvent(new Event('input'));

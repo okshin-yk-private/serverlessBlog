@@ -10,7 +10,6 @@ export function initPublicationCalendar(
   const grid = root.querySelector<HTMLElement>('.calendar-weeks')!;
   const select = root.querySelector<HTMLSelectElement>('#calendar-year')!;
   const period = root.querySelector<HTMLElement>('#calendar-period')!;
-  const detail = root.querySelector<HTMLElement>('#calendar-detail')!;
   const previous = root.querySelector<HTMLButtonElement>(
     '[data-period="previous"]'
   )!;
@@ -19,10 +18,6 @@ export function initPublicationCalendar(
   let year = Number(data.today.slice(0, 4));
   let quarter = Math.floor((Number(data.today.slice(5, 7)) - 1) / 3);
   let selected = '';
-
-  function describe(day: string) {
-    detail.textContent = `${day.replaceAll('-', '.')} · ${data.counts[day] ?? 0}件（公開記事全体）`;
-  }
 
   function render() {
     root.querySelector('.calendar-fallback-mobile')?.remove();
@@ -58,7 +53,9 @@ export function initPublicationCalendar(
         else {
           cell.dataset.level = String(day.level);
           cell.dataset.day = day.day;
-          const text = `${day.day.replaceAll('-', '.')} · ${day.future ? '未集計' : `${day.count}件`}`;
+          const text = day.future
+            ? day.day.replaceAll('-', '.')
+            : `${day.day.replaceAll('-', '.')} · ${day.count}件`;
           cell.title = text;
           cell.setAttribute('aria-label', text);
           if (day.future) {
@@ -78,16 +75,13 @@ export function initPublicationCalendar(
                   String(b.dataset.day === selected)
                 )
               );
-              describe(day.day);
               onSelect(selected);
             });
             button.addEventListener('focus', () => {
               buttons.forEach((b) => {
                 b.tabIndex = b === button ? 0 : -1;
               });
-              describe(day.day);
             });
-            button.addEventListener('mouseenter', () => describe(day.day));
             buttons.push(button);
           }
         }
@@ -124,7 +118,6 @@ export function initPublicationCalendar(
   select.addEventListener('change', () => {
     year = Number(select.value);
     selected = '';
-    detail.textContent = '日付を選ぶと、その日の記事を表示します。';
     render();
     onSelect('');
   });
@@ -156,8 +149,7 @@ export function initPublicationCalendar(
           option.textContent = `${year}年`;
           select.append(option);
         }
-        describe(day);
-      } else detail.textContent = '日付を選ぶと、その日の記事を表示します。';
+      }
       render();
     },
   };

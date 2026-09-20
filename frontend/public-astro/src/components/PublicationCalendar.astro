@@ -16,11 +16,7 @@ const quarter = Math.floor((Number(data.today.slice(5, 7)) - 1) / 3);
   aria-labelledby="calendar-title"
 >
   <div class="calendar-heading">
-    <div>
-      <h2 id="calendar-title">投稿カレンダー</h2><p>
-        公開日ごとの記事数 <span>· 日本時間</span>
-      </p>
-    </div>
+    <h2 id="calendar-title">History</h2>
     <label data-calendar-control
       ><span class="sr-only">表示する年</span><select id="calendar-year"
         >{
@@ -48,7 +44,7 @@ const quarter = Math.floor((Number(data.today.slice(5, 7)) - 1) / 3);
   >
     <div class="calendar-weekdays" aria-hidden="true">
       <span></span>{
-        ['月', '火', '水', '木', '金', '土', '日'].map((day) => (
+        ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
           <span>{day}</span>
         ))
       }
@@ -59,40 +55,21 @@ const quarter = Math.floor((Number(data.today.slice(5, 7)) - 1) / 3);
       mode="fallback-mobile"
     />
   </div>
-  <div class="calendar-caption">
-    <p>{data.today.replaceAll('-', '.')}時点</p><div
-      class="calendar-legend"
-      aria-label="記事数の凡例"
-    >
-      {
-        ['0', '1', '2', '3件以上'].map((label, level) => (
-          <span>
-            <i class="calendar-cell" data-level={level} />
-            {label}
-          </span>
-        ))
-      }<span><i class="calendar-cell calendar-future"></i>未集計</span>
-    </div>
+  <div
+    class="calendar-legend"
+    aria-label="記事数の凡例：薄い色ほど少なく、濃い色ほど多い"
+  >
+    <span>Less</span>
+    {
+      [0, 1, 2, 3].map((level) => (
+        <i class="calendar-cell" data-level={level} aria-hidden="true" />
+      ))
+    }
+    <span>More</span>
   </div>
-  <p id="calendar-detail" class="calendar-detail" data-calendar-control>
-    日付を選ぶと、その日の記事を表示します。
+  <p id="calendar-help" class="sr-only" data-calendar-control hidden>
+    日付指定でも絞り込めます。カレンダー内は矢印キーで移動、Enterで選択できます。
   </p>
-  <p id="calendar-help" class="calendar-note">
-    現在公開中の記事を初回公開日で集計しています。<span
-      class="sr-only"
-      data-calendar-control
-      hidden
-      >日付指定でも絞り込めます。カレンダー内は矢印キーで移動、Enterで選択できます。</span
-    >
-  </p>
-  {
-    (data.unknown > 0 || data.review > 0) && (
-      <p class="calendar-note">
-        集計対象外：公開日不明 {data.unknown}件／公開日要確認 {data.review}
-        件（記事一覧には表示）
-      </p>
-    )
-  }
   <script
     is:inline
     id="calendar-data"
@@ -127,10 +104,6 @@ const quarter = Math.floor((Number(data.today.slice(5, 7)) - 1) / 3);
     margin: 0;
     font-size: 1.25rem;
   }
-  .calendar-heading p {
-    margin: 5px 0 0;
-    font-size: 0.85rem;
-  }
   .publication-calendar select,
   .calendar-quarter button {
     min-height: 44px;
@@ -155,7 +128,7 @@ const quarter = Math.floor((Number(data.today.slice(5, 7)) - 1) / 3);
   .calendar-weekdays {
     font-size: 0.65rem;
     line-height: 14px;
-    flex: 0 0 12px;
+    flex: 0 0 3ch;
   }
   .calendar-week {
     /* Month labels may overflow, but must not widen the day's grid track. */
@@ -213,42 +186,17 @@ const quarter = Math.floor((Number(data.today.slice(5, 7)) - 1) / 3);
     background: transparent;
     border: 1px dashed var(--color-border-strong);
   }
-  .calendar-caption {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-top: 18px;
-    font-size: 0.75rem;
-  }
-  .calendar-caption p {
-    margin: 0;
-  }
   .calendar-legend {
     display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-  .calendar-legend span {
-    display: flex;
+    justify-content: flex-end;
     align-items: center;
     gap: 5px;
+    margin-top: 18px;
+    font-size: 0.75rem;
   }
   .calendar-legend .calendar-cell {
     width: 12px;
     height: 12px;
-  }
-  .calendar-detail {
-    min-height: 26px;
-    font-size: 0.85rem;
-    margin: 18px 0 0;
-    color: var(--color-primary);
-  }
-  .calendar-note {
-    font-size: 0.75rem;
-    margin: 10px 0 0;
-    line-height: 1.8;
   }
   .calendar-quarter {
     display: none;
@@ -278,9 +226,6 @@ const quarter = Math.floor((Number(data.today.slice(5, 7)) - 1) / 3);
     }
     .calendar-heading {
       align-items: start;
-    }
-    .calendar-heading p span {
-      white-space: nowrap;
     }
     .calendar-weekdays,
     .calendar-week {
