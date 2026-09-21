@@ -968,13 +968,16 @@ jobs:
             export SITE_VERIFY_BASIC_USER SITE_VERIFY_BASIC_PASSWORD
           fi
 
-          bun run cli.ts \
+          node --import tsx cli.ts \
             --bucket "${{ steps.config.outputs.bucket }}" \
             --kvs-arn "${{ steps.config.outputs.kvs_arn }}" \
             --dist "../../dist" \
             --region "${{ env.AWS_REGION }}" \
             --revision "$REVISION" \
             --site-url "${{ steps.config.outputs.public_url }}"
+
+          # Require observable publication even if the publisher exits prematurely.
+          node verify-public-manifest.mjs "${{ steps.config.outputs.public_url }}" "$REVISION"
 
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - START_TIME))
@@ -1095,13 +1098,16 @@ jobs:
           # Keep the build-start revision when publishing the artifact.
           REVISION="${{ needs.build-astro.outputs.revision }}"
 
-          bun run cli.ts \
+          node --import tsx cli.ts \
             --bucket "${{ steps.config.outputs.bucket }}" \
             --kvs-arn "${{ steps.config.outputs.kvs_arn }}" \
             --dist "../../dist" \
             --region "${{ env.AWS_REGION }}" \
             --revision "$REVISION" \
             --site-url "${{ steps.config.outputs.public_url }}"
+
+          # Require observable publication even if the publisher exits prematurely.
+          node verify-public-manifest.mjs "${{ steps.config.outputs.public_url }}" "$REVISION"
 
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - START_TIME))

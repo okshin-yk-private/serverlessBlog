@@ -19,6 +19,7 @@ import {
   AtomicDeployResult,
 } from './atomicDeploy';
 import * as path from 'node:path';
+import { runCli } from './runCli';
 
 const program = new Command();
 
@@ -138,4 +139,4 @@ program
     }
   });
 
-program.parse();
+await runCli(program);
