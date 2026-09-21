@@ -10,9 +10,23 @@ const preload = join(fixture, 'fetch.mjs');
 writeFileSync(
   preload,
   `
+import timers from 'node:timers';
+import { syncBuiltinESMExports } from 'node:module';
+// Advance only retry delays; the production watchdog remains a real timer.
+const realSetTimeout = timers.setTimeout;
+let now = Date.now();
+Date.now = () => now;
+timers.setTimeout = (callback, ms, ...args) => ms <= 2000
+  ? realSetTimeout(() => { now += ms; callback(...args); }, 0)
+  : realSetTimeout(callback, ms, ...args);
+syncBuiltinESMExports();
+let calls = 0;
+process.on('exit', () => console.log('fixtureCalls=' + calls));
 globalThis.fetch = async (url, options) => {
   if (String(url) !== 'https://site.test/release-manifest.json' || options.redirect !== 'error') throw Error('bad request');
-  const mode = process.env.FIXTURE_MODE;
+  calls++;
+  let mode = process.env.FIXTURE_MODE;
+  if (mode.startsWith('recover-')) mode = calls < 3 ? mode.slice(8) : 'success';
   if (mode === 'network') throw Error('Authorization: DO_NOT_LOG');
   const body = mode === 'malformed' ? '{' : JSON.stringify({
     schemaVersion: mode === 'schema' ? 2 : 1,
@@ -27,15 +41,18 @@ afterAll(() => rmSync(fixture, { recursive: true, force: true }));
 
 describe('independent public manifest gate', () => {
   test.each([
-    'success',
-    'missing',
-    'old',
-    'schema',
-    'empty',
-    'malformed',
-    'network',
-    'redirect',
-  ])('%s response', (mode) => {
+    ['success', ''],
+    ['missing', 'httpStatus:404'],
+    ['old', 'revisionMismatch'],
+    ['schema', 'invalidSchema'],
+    ['empty', 'invalidSchema'],
+    ['malformed', 'invalidJSON'],
+    ['network', 'requestFailed'],
+    ['redirect', 'httpStatus:302'],
+    ['recover-missing', 'httpStatus:404'],
+    ['recover-old', 'revisionMismatch'],
+    ['recover-network', 'requestFailed'],
+  ])('%s response', (mode, reason) => {
     const result = spawnSync(
       'node',
       [
@@ -56,11 +73,15 @@ describe('independent public manifest gate', () => {
         },
       }
     );
+    const succeeds = mode === 'success' || mode.startsWith('recover-');
     expect(result.error).toBeUndefined();
-    expect(result.status).toBe(mode === 'success' ? 0 : 1);
-    expect(result.stdout.includes('Public manifest confirmed')).toBe(
-      mode === 'success'
-    );
+    expect(result.status).toBe(succeeds ? 0 : 1);
+    expect(result.stdout.includes('Public manifest confirmed')).toBe(succeeds);
     expect(result.stderr).not.toContain('DO_NOT_LOG');
+    if (reason) expect(result.stderr).toContain(`reason=${reason}`);
+    expect(result.stdout).toContain(
+      `fixtureCalls=${mode === 'success' ? 1 : succeeds ? 3 : 45}`
+    );
+    if (!succeeds) expect(result.stderr).toContain('verification failed');
   });
 });
