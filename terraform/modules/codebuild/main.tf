@@ -85,6 +85,7 @@ phases:
         echo "Uploading and promoting $RELEASE_REVISION"
         cd "$CODEBUILD_SRC_DIR/scripts/deploy"
         bun run deploy -- --bucket "$DEPLOYMENT_BUCKET" --kvs-arn "$RELEASE_KVS_ARN" --dist "$CODEBUILD_SRC_DIR/frontend/public-astro/dist" --region "${var.aws_region}" --revision "$RELEASE_REVISION" --site-url "$SITE_URL"
+        node verify-public-manifest.mjs "$SITE_URL" "$RELEASE_REVISION"
       - echo "Atomic deployment completed successfully"
 
 cache:

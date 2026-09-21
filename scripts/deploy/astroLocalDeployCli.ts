@@ -22,6 +22,7 @@
 
 import { Command } from 'commander';
 import * as path from 'node:path';
+import { runCli } from './runCli';
 import {
   astroLocalDeploy,
   printDeploymentSummary,
@@ -102,4 +103,4 @@ program
     }
   });
 
-program.parse();
+await runCli(program);
