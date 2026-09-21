@@ -1,6 +1,7 @@
-import type { Editor } from '@tiptap/core';
-import { useCallback, useRef, type ChangeEvent } from 'react';
+import { getMarkRange, type Editor } from '@tiptap/core';
+import { useCallback, useRef, useState, type ChangeEvent } from 'react';
 import { ALLOWED_IMAGE_MIME_TYPES } from '../../utils/imageValidation';
+import { LinkDialog, type LinkValues } from './LinkDialog';
 
 interface TiptapToolbarProps {
   editor: Editor | null;
@@ -49,18 +50,106 @@ export function TiptapToolbar({
   disabled = false,
 }: TiptapToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [linkDraft, setLinkDraft] = useState<{
+    from: number;
+    to: number;
+    values: LinkValues;
+    existing: boolean;
+    title: string | null;
+  } | null>(null);
+  const [linkError, setLinkError] = useState('');
 
   const handleSetLink = useCallback(() => {
     if (!editor) return;
-    const previousUrl = editor.getAttributes('link').href as string | undefined;
-    const url = window.prompt('URL を入力してください', previousUrl ?? '');
-    if (url === null) return;
-    if (url === '') {
-      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    const selection = editor.state.selection;
+    if (
+      !selection.$from.sameParent(selection.$to) ||
+      !selection.$from.parent.isTextblock
+    ) {
+      setLinkError('リンクにする文字は、同じ段落内で選択してください。');
       return;
     }
-    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+    let { from, to } = selection;
+    const range = getMarkRange(selection.$from, editor.schema.marks.link);
+    if (range && to <= range.to) ({ from, to } = range);
+    let containsObject = false;
+    editor.state.doc.nodesBetween(from, to, (node) => {
+      if (node.isInline && !node.isText) containsObject = true;
+    });
+    if (containsObject) {
+      setLinkError(
+        '画像や改行を含めず、リンクにする文字だけを選択してください。'
+      );
+      return;
+    }
+    const attrs = editor.getAttributes('link');
+    setLinkError('');
+    setLinkDraft({
+      from,
+      to,
+      existing: !!attrs.href,
+      title: attrs.title ?? null,
+      values: {
+        text: editor.state.doc.textBetween(from, to),
+        href: attrs.href ?? '',
+        button: attrs.button === true,
+      },
+    });
   }, [editor]);
+
+  const closeLinkDialog = () => {
+    setLinkDraft(null);
+    editor?.commands.focus();
+  };
+
+  const applyLink = (values: LinkValues) => {
+    if (!editor?.isEditable || !linkDraft) return;
+    const { from, to, title } = linkDraft;
+    const chain = editor
+      .chain()
+      .focus()
+      .setTextSelection({ from, to })
+      .setMeta('preventAutolink', true);
+    if (from === to || values.text !== linkDraft.values.text) {
+      const position = editor.state.doc.resolve(from);
+      const marks = (position.nodeAfter?.marks ?? position.marks()).filter(
+        (mark) => mark.type.name !== 'link'
+      );
+      chain.insertContent({
+        type: 'text',
+        text: values.text,
+        marks: [
+          ...marks.map((mark) => mark.toJSON()),
+          {
+            type: 'link',
+            attrs: { href: values.href, button: values.button, title },
+          },
+        ],
+      });
+    } else {
+      // Preserve bold/italic and other marks when only the URL/style changes.
+      chain
+        .setLink({ href: values.href, title })
+        .updateAttributes('link', { button: values.button });
+    }
+    // Collapse before clearing stored marks, so the new link itself remains intact.
+    chain
+      .setTextSelection(from + values.text.length)
+      .unsetMark('link')
+      .run();
+    setLinkDraft(null);
+  };
+
+  const removeLink = () => {
+    if (!editor?.isEditable || !linkDraft) return;
+    editor
+      .chain()
+      .focus()
+      .setTextSelection({ from: linkDraft.from, to: linkDraft.to })
+      .unsetLink()
+      .run();
+    setLinkDraft(null);
+  };
 
   const handleImageButtonClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -94,173 +183,195 @@ export function TiptapToolbar({
   const isDisabled = disabled || !editor.isEditable;
 
   return (
-    <div
-      className="admin-editor-toolbar flex flex-wrap items-center gap-1 px-2 py-1"
-      data-testid="tiptap-toolbar"
-      role="toolbar"
-      aria-label="本文書式"
-    >
-      <ToolbarButton
-        onClick={() => editor.chain().focus().setParagraph().run()}
-        active={editor.isActive('paragraph')}
-        disabled={isDisabled}
-        testId="toolbar-paragraph"
-        ariaLabel="段落"
+    <>
+      <div
+        className="admin-editor-toolbar flex flex-wrap items-center gap-1 px-2 py-1"
+        data-testid="tiptap-toolbar"
+        role="toolbar"
+        aria-label="本文書式"
       >
-        P
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        active={editor.isActive('heading', { level: 2 })}
-        disabled={isDisabled}
-        testId="toolbar-h2"
-        ariaLabel="見出し2"
-      >
-        H2
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-        active={editor.isActive('heading', { level: 3 })}
-        disabled={isDisabled}
-        testId="toolbar-h3"
-        ariaLabel="見出し3"
-      >
-        H3
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()}
-        active={editor.isActive('heading', { level: 4 })}
-        disabled={isDisabled}
-        testId="toolbar-h4"
-        ariaLabel="見出し4"
-      >
-        H4
-      </ToolbarButton>
-      <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBold().run()}
-        active={editor.isActive('bold')}
-        disabled={isDisabled}
-        testId="toolbar-bold"
-        ariaLabel="太字"
-      >
-        <strong>B</strong>
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleItalic().run()}
-        active={editor.isActive('italic')}
-        disabled={isDisabled}
-        testId="toolbar-italic"
-        ariaLabel="斜体"
-      >
-        <em>I</em>
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleStrike().run()}
-        active={editor.isActive('strike')}
-        disabled={isDisabled}
-        testId="toolbar-strike"
-        ariaLabel="取り消し線"
-      >
-        <s>S</s>
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleCode().run()}
-        active={editor.isActive('code')}
-        disabled={isDisabled}
-        testId="toolbar-code"
-        ariaLabel="インラインコード"
-      >
-        {'<>'}
-      </ToolbarButton>
-      <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBulletList().run()}
-        active={editor.isActive('bulletList')}
-        disabled={isDisabled}
-        testId="toolbar-bullet-list"
-        ariaLabel="箇条書き"
-      >
-        •
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        active={editor.isActive('orderedList')}
-        disabled={isDisabled}
-        testId="toolbar-ordered-list"
-        ariaLabel="番号付きリスト"
-      >
-        1.
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBlockquote().run()}
-        active={editor.isActive('blockquote')}
-        disabled={isDisabled}
-        testId="toolbar-blockquote"
-        ariaLabel="引用"
-      >
-        &gt;
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-        active={editor.isActive('codeBlock')}
-        disabled={isDisabled}
-        testId="toolbar-code-block"
-        ariaLabel="コードブロック"
-      >
-        {'{}'}
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().setHorizontalRule().run()}
-        disabled={isDisabled}
-        testId="toolbar-hr"
-        ariaLabel="区切り線"
-      >
-        ―
-      </ToolbarButton>
-      <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
-      <ToolbarButton
-        onClick={handleSetLink}
-        active={editor.isActive('link')}
-        disabled={isDisabled}
-        testId="toolbar-link"
-        ariaLabel="リンク"
-      >
-        🔗
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={handleImageButtonClick}
-        disabled={isDisabled}
-        testId="toolbar-image-button"
-        ariaLabel="画像を挿入"
-      >
-        🖼
-      </ToolbarButton>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept={ALLOWED_IMAGE_MIME_TYPES.join(',')}
-        className="hidden"
-        data-testid="toolbar-image-input"
-        onChange={handleFileInputChange}
-      />
-      <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
-      <ToolbarButton
-        onClick={() => editor.chain().focus().undo().run()}
-        disabled={isDisabled || !editor.can().undo()}
-        testId="toolbar-undo"
-        ariaLabel="元に戻す"
-      >
-        ↶
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => editor.chain().focus().redo().run()}
-        disabled={isDisabled || !editor.can().redo()}
-        testId="toolbar-redo"
-        ariaLabel="やり直し"
-      >
-        ↷
-      </ToolbarButton>
-    </div>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().setParagraph().run()}
+          active={editor.isActive('paragraph')}
+          disabled={isDisabled}
+          testId="toolbar-paragraph"
+          ariaLabel="段落"
+        >
+          P
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() =>
+            editor.chain().focus().toggleHeading({ level: 2 }).run()
+          }
+          active={editor.isActive('heading', { level: 2 })}
+          disabled={isDisabled}
+          testId="toolbar-h2"
+          ariaLabel="見出し2"
+        >
+          H2
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() =>
+            editor.chain().focus().toggleHeading({ level: 3 }).run()
+          }
+          active={editor.isActive('heading', { level: 3 })}
+          disabled={isDisabled}
+          testId="toolbar-h3"
+          ariaLabel="見出し3"
+        >
+          H3
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() =>
+            editor.chain().focus().toggleHeading({ level: 4 }).run()
+          }
+          active={editor.isActive('heading', { level: 4 })}
+          disabled={isDisabled}
+          testId="toolbar-h4"
+          ariaLabel="見出し4"
+        >
+          H4
+        </ToolbarButton>
+        <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          active={editor.isActive('bold')}
+          disabled={isDisabled}
+          testId="toolbar-bold"
+          ariaLabel="太字"
+        >
+          <strong>B</strong>
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          active={editor.isActive('italic')}
+          disabled={isDisabled}
+          testId="toolbar-italic"
+          ariaLabel="斜体"
+        >
+          <em>I</em>
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+          active={editor.isActive('strike')}
+          disabled={isDisabled}
+          testId="toolbar-strike"
+          ariaLabel="取り消し線"
+        >
+          <s>S</s>
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleCode().run()}
+          active={editor.isActive('code')}
+          disabled={isDisabled}
+          testId="toolbar-code"
+          ariaLabel="インラインコード"
+        >
+          {'<>'}
+        </ToolbarButton>
+        <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          active={editor.isActive('bulletList')}
+          disabled={isDisabled}
+          testId="toolbar-bullet-list"
+          ariaLabel="箇条書き"
+        >
+          •
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          active={editor.isActive('orderedList')}
+          disabled={isDisabled}
+          testId="toolbar-ordered-list"
+          ariaLabel="番号付きリスト"
+        >
+          1.
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          active={editor.isActive('blockquote')}
+          disabled={isDisabled}
+          testId="toolbar-blockquote"
+          ariaLabel="引用"
+        >
+          &gt;
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          active={editor.isActive('codeBlock')}
+          disabled={isDisabled}
+          testId="toolbar-code-block"
+          ariaLabel="コードブロック"
+        >
+          {'{}'}
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().setHorizontalRule().run()}
+          disabled={isDisabled}
+          testId="toolbar-hr"
+          ariaLabel="区切り線"
+        >
+          ―
+        </ToolbarButton>
+        <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
+        <ToolbarButton
+          onClick={handleSetLink}
+          active={editor.isActive('link')}
+          disabled={isDisabled}
+          testId="toolbar-link"
+          ariaLabel="リンク"
+        >
+          🔗
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={handleImageButtonClick}
+          disabled={isDisabled}
+          testId="toolbar-image-button"
+          ariaLabel="画像を挿入"
+        >
+          🖼
+        </ToolbarButton>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ALLOWED_IMAGE_MIME_TYPES.join(',')}
+          className="hidden"
+          data-testid="toolbar-image-input"
+          onChange={handleFileInputChange}
+        />
+        <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
+        <ToolbarButton
+          onClick={() => editor.chain().focus().undo().run()}
+          disabled={isDisabled || !editor.can().undo()}
+          testId="toolbar-undo"
+          ariaLabel="元に戻す"
+        >
+          ↶
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().redo().run()}
+          disabled={isDisabled || !editor.can().redo()}
+          testId="toolbar-redo"
+          ariaLabel="やり直し"
+        >
+          ↷
+        </ToolbarButton>
+      </div>
+      {linkError && (
+        <p className="admin-link-error" role="alert">
+          {linkError}
+        </p>
+      )}
+      {linkDraft && !isDisabled && (
+        <LinkDialog
+          initial={linkDraft.values}
+          existing={linkDraft.existing}
+          onApply={applyLink}
+          onCancel={closeLinkDialog}
+          onRemove={removeLink}
+        />
+      )}
+    </>
   );
 }

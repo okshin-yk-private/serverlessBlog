@@ -104,10 +104,8 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
       initialData?.contentMarkdown || ''
     );
     const [editorMode, setEditorMode] = useState<'edit' | 'preview'>('edit');
-    // PR8: Preview tab renders Tiptap's HTML output directly so the admin sees
-    // exactly the markup that gets persisted. Previously this used
-    // react-markdown which produced subtly different HTML than the
-    // Goldmark-rendered server output.
+    // Preview uses Tiptap HTML. Saved/public HTML is generated separately by
+    // goldmark and the server sanitizer; shared article styles align presentation.
     const [previewHtml, setPreviewHtml] = useState('');
 
     // PR6: metadata fields managed alongside title/body. The MetadataSidebar

@@ -1086,3 +1086,64 @@ body .post-content :is(h1, h2, h3, h4, h5, h6, strong) {
     flex-basis: 100%;
   }
 }
+
+.admin-link-dialog {
+  width: min(520px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.admin-link-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.admin-link-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+}
+
+.admin-link-dialog-content h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.admin-link-dialog-content label {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.admin-link-dialog-content .admin-input {
+  width: 100%;
+  min-width: 0;
+  font-size: 1rem;
+}
+
+.admin-link-preview {
+  padding: 8px 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-link-text-preview {
+  color: var(--color-link);
+  text-decoration: underline;
+}
+
+.admin-link-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.admin-link-error {
+  color: var(--color-danger);
+  font-size: 0.875rem;
+  padding: 4px 0;
+}

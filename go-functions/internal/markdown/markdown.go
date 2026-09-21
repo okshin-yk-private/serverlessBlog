@@ -8,6 +8,7 @@ import (
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer/html"
+	"github.com/yuin/goldmark/util"
 
 	"serverless-blog/go-functions/internal/sanitizer"
 )
@@ -19,6 +20,7 @@ var md = goldmark.New(
 	),
 	goldmark.WithParserOptions(
 		parser.WithAutoHeadingID(),
+		parser.WithASTTransformers(util.Prioritized(linkButtonTransformer{}, 100)),
 	),
 	goldmark.WithRendererOptions(
 		html.WithHardWraps(),
