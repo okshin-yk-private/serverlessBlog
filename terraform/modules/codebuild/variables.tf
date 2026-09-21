@@ -92,3 +92,9 @@ variable "tags" {
   default     = {}
   description = "Additional tags for resources"
 }
+
+variable "verify_basic_auth" {
+  type        = bool
+  default     = false
+  description = "Read existing SSM Basic Auth parameters for public release verification. Parameters must match CloudFront authentication."
+}

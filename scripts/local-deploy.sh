@@ -1069,6 +1069,14 @@ build_and_deploy_astro() {
         return 1
     fi
 
+    local public_url
+    public_url=$(fetch_ssm "/serverless-blog/$env/cdn/public-url" false) || return 1
+    if [[ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$public_url/")" == "401" ]]; then
+        SITE_VERIFY_BASIC_USER=$(fetch_ssm "/serverless-blog/$env/basic-auth/username" true) || return 1
+        SITE_VERIFY_BASIC_PASSWORD=$(fetch_ssm "/serverless-blog/$env/basic-auth/password" true) || return 1
+        export SITE_VERIFY_BASIC_USER SITE_VERIFY_BASIC_PASSWORD
+    fi
+
     # Deploy using atomic deployment script (Requirement 9.2)
     log_info "Deploying to S3 using atomic deployment..."
     log_verbose "Bucket: $bucket_name"
@@ -1089,7 +1097,8 @@ build_and_deploy_astro() {
         "--project-root" "$PROJECT_ROOT"
         "--bucket" "$bucket_name"
         "--kvs-arn" "$release_kvs_arn"
-        "--revision" "r$(date +%s)-local"
+        "--revision" "r${astro_start_time}-local"
+        "--site-url" "$public_url"
         "--api-url" "$api_url"
         "--region" "$region"
         "--astro-path" "$ASTRO_PROJECT_PATH"

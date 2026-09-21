@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 // Execute the actual deployed Terraform heredoc, not a duplicate routing model.
-function routingHandler(name: string) {
+function routingHandler(name: string, get = async () => 'r200-current') {
   const tf = readFileSync(
     new URL('../../terraform/modules/cdn/main.tf', import.meta.url),
     'utf8'
@@ -18,7 +18,7 @@ function routingHandler(name: string) {
       'test:password'
     );
   return new Function('kvs', `${code}; return handler;`)({
-    get: async () => 'r200-current',
+    get,
   });
 }
 
@@ -36,6 +36,43 @@ describe.each(['public_ssg', 'public_combined'])(
       expect((await handler(request('/posts/example/'))).uri).toBe(
         '/releases/r200-current/posts/example/index.html'
       );
+    });
+    test.each([
+      ['/', '/index.html'],
+      ['/posts/a', '/posts/a/index.html'],
+      ['/posts/a/', '/posts/a/index.html'],
+      ['/sitemap-index.xml', '/sitemap-index.xml'],
+      ['/rss.xml', '/rss.xml'],
+      ['/robots.txt', '/robots.txt'],
+      ['/favicon.svg', '/favicon.svg'],
+      ['/404.html', '/404.html'],
+    ])('versions public path %s', async (uri, suffix) => {
+      expect((await routingHandler(name)(request(uri))).uri).toBe(
+        '/releases/r200-current' + suffix
+      );
+    });
+    test.each([
+      '/_astro/app.hash.js',
+      '/api',
+      '/api/posts',
+      '/admin',
+      '/admin/',
+      '/images/a.png',
+    ])('preserves separate behavior %s', async (uri) => {
+      expect((await routingHandler(name)(request(uri))).uri).toBe(uri);
+    });
+    test('never falls back to legacy root content on KVS failure or invalid pointer', async () => {
+      for (const get of [
+        async () => '../bad',
+        async () => {
+          throw new Error('unavailable');
+        },
+      ]) {
+        expect(await routingHandler(name, get)(request('/'))).toMatchObject({
+          statusCode: 503,
+          headers: { 'cache-control': { value: 'no-store' } },
+        });
+      }
     });
     test.each([
       '/releases',

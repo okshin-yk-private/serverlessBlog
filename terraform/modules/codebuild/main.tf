@@ -72,16 +72,19 @@ phases:
   post_build:
     commands:
       - |
+        set -e
+        test "$CODEBUILD_BUILD_SUCCEEDING" = "1" || exit 1
+        [[ "$CODEBUILD_START_TIME" =~ ^[0-9]+$ ]] || exit 1
         RELEASE_SUFFIX="$${CODEBUILD_RESOLVED_SOURCE_VERSION:0:12}"
         if [ -z "$RELEASE_SUFFIX" ]; then
           RELEASE_SUFFIX="manual"
         fi
-        # Epoch-seconds sequence keeps promotion monotonic across every
-        # deployer sharing the KVS (GitHub Actions deploys, local-deploy.sh).
-        RELEASE_REVISION="r$(date +%s)-$${RELEASE_SUFFIX}"
+        # Use build start, not finish: a slow old build must not outrank a newer build.
+        # All deployers share epoch seconds; equal seconds fail closed.
+        RELEASE_REVISION="r$((CODEBUILD_START_TIME / 1000))-$${RELEASE_SUFFIX}-$${CODEBUILD_BUILD_NUMBER}"
         echo "Uploading and promoting $RELEASE_REVISION"
         cd "$CODEBUILD_SRC_DIR/scripts/deploy"
-        bun run deploy -- --bucket "$DEPLOYMENT_BUCKET" --kvs-arn "$RELEASE_KVS_ARN" --dist "$CODEBUILD_SRC_DIR/frontend/public-astro/dist" --region "${var.aws_region}" --revision "$RELEASE_REVISION"
+        bun run deploy -- --bucket "$DEPLOYMENT_BUCKET" --kvs-arn "$RELEASE_KVS_ARN" --dist "$CODEBUILD_SRC_DIR/frontend/public-astro/dist" --region "${var.aws_region}" --revision "$RELEASE_REVISION" --site-url "$SITE_URL"
       - echo "Atomic deployment completed successfully"
 
 cache:
@@ -213,6 +216,18 @@ resource "aws_codebuild_project" "astro_build" {
     type                        = "ARM_CONTAINER"
     image_pull_credentials_type = "CODEBUILD"
 
+    dynamic "environment_variable" {
+      for_each = var.verify_basic_auth ? {
+        SITE_VERIFY_BASIC_USER     = "/serverless-blog/${var.environment}/basic-auth/username"
+        SITE_VERIFY_BASIC_PASSWORD = "/serverless-blog/${var.environment}/basic-auth/password"
+      } : {}
+      content {
+        name  = environment_variable.key
+        value = environment_variable.value
+        type  = "PARAMETER_STORE"
+      }
+    }
+
     # Environment variables
     environment_variable {
       name  = "API_URL"
@@ -280,7 +295,8 @@ resource "aws_codebuild_project" "astro_build" {
   depends_on = [
     aws_iam_role_policy.codebuild_logs,
     aws_iam_role_policy.codebuild_s3,
-    aws_iam_role_policy.codebuild_release_kvs
+    aws_iam_role_policy.codebuild_release_kvs,
+    aws_iam_role_policy.codebuild_verification_auth
   ]
 }
 
@@ -298,3 +314,23 @@ resource "aws_ssm_parameter" "codebuild_project_name" {
 
   tags = local.common_tags
 }
+
+# Only the existing Basic Auth parameters used by the public verification probe.
+resource "aws_iam_role_policy" "codebuild_verification_auth" {
+  count = var.verify_basic_auth ? 1 : 0
+  name  = "public-verification-auth"
+  role  = aws_iam_role.codebuild.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = ["ssm:GetParameters"]
+      Resource = [
+        "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/serverless-blog/${var.environment}/basic-auth/username",
+        "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/serverless-blog/${var.environment}/basic-auth/password"
+      ]
+    }]
+  })
+}
+
+data "aws_caller_identity" "current" {}

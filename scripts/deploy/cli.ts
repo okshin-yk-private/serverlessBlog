@@ -5,15 +5,16 @@
  * Task 5.1: S3原子的デプロイ CLI Entry Point
  *
  * Usage:
- *   bun run deploy -- --bucket my-bucket --kvs-arn arn:aws:cloudfront::123:key-value-store/id --dist ./dist --revision r42-abc1234
+ *   bun run deploy -- --bucket my-bucket --kvs-arn arn:aws:cloudfront::123:key-value-store/id --dist ./dist --revision r42-abc1234 --site-url https://blog.example.com
  *
  * Requirements:
- * - 6.1-6.8: S3 atomic deployment with staging, versioning, and cleanup
+ * Immutable release verification, conditional promotion, and guarded rollback.
  */
 
 import { Command } from 'commander';
 import {
   atomicDeploy,
+  rollbackRelease,
   AtomicDeployConfig,
   AtomicDeployResult,
 } from './atomicDeploy';
@@ -30,6 +31,15 @@ program
   .requiredOption('-p, --dist <path>', 'Path to dist directory', './dist')
   .option('-r, --region <region>', 'AWS region', 'ap-northeast-1')
   .option('--revision <revision>', 'Monotonic release revision')
+  .option(
+    '--site-url <url>',
+    'HTTPS public origin for post-promotion verification'
+  )
+  .option('--rollback', 'Restore a verified retained revision', false)
+  .option(
+    '--expected-active <revision>',
+    'Required current revision for rollback'
+  )
   .option('--dry-run', 'Show what would be done without making changes', false)
   .action(async (options) => {
     const config: AtomicDeployConfig = {
@@ -39,6 +49,16 @@ program
       region: options.region,
       revision: options.revision,
       dryRun: options.dryRun,
+      publicVerification: options.siteUrl
+        ? {
+            siteUrl: options.siteUrl,
+            authorization:
+              process.env.SITE_VERIFY_BASIC_USER &&
+              process.env.SITE_VERIFY_BASIC_PASSWORD
+                ? `Basic ${Buffer.from(`${process.env.SITE_VERIFY_BASIC_USER}:${process.env.SITE_VERIFY_BASIC_PASSWORD}`).toString('base64')}`
+                : undefined,
+          }
+        : undefined,
     };
 
     console.log('');
@@ -55,6 +75,30 @@ program
     console.log('');
 
     try {
+      if (!options.siteUrl && !options.dryRun)
+        throw new Error(
+          '--site-url is required for deployment and rollback verification'
+        );
+      if (options.rollback) {
+        if (!options.revision || !options.expectedActive) {
+          throw new Error(
+            '--rollback requires --revision and --expected-active'
+          );
+        }
+        await rollbackRelease({
+          ...config,
+          revision: options.revision,
+          expectedActiveRevision: options.expectedActive,
+        });
+        console.log(
+          options.dryRun
+            ? 'Rollback verified; pointer unchanged.'
+            : 'Rollback and public verification completed.'
+        );
+        return;
+      }
+      if (options.expectedActive)
+        throw new Error('--expected-active requires --rollback');
       const result: AtomicDeployResult = await atomicDeploy(config);
 
       console.log('');

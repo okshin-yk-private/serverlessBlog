@@ -525,3 +525,55 @@ run "buildspec_uses_atomic_kvs_promotion" {
     error_message = "Release promotion must not require a broad invalidation"
   }
 }
+
+run "public_verification_auth_is_explicit_and_scoped" {
+  command = plan
+  variables {
+    environment             = "dev"
+    public_site_bucket_name = "test-site"
+    public_site_bucket_arn  = "arn:aws:s3:::test-site"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.test/api"
+    verify_basic_auth       = true
+  }
+  override_data {
+    target = data.aws_caller_identity.current
+    values = { account_id = "123456789012" }
+  }
+  assert {
+    condition = toset([
+      for variable in aws_codebuild_project.astro_build.environment[0].environment_variable : variable.value
+      if variable.type == "PARAMETER_STORE"
+      ]) == toset([
+      "/serverless-blog/dev/basic-auth/username",
+      "/serverless-blog/dev/basic-auth/password"
+    ])
+    error_message = "CodeBuild must reference exactly the existing Basic Auth parameters, not plaintext credentials"
+  }
+  assert {
+    condition = jsondecode(aws_iam_role_policy.codebuild_verification_auth[0].policy).Statement[0] == {
+      Effect = "Allow"
+      Action = ["ssm:GetParameters"]
+      Resource = [
+        "arn:aws:ssm:ap-northeast-1:123456789012:parameter/serverless-blog/dev/basic-auth/username",
+        "arn:aws:ssm:ap-northeast-1:123456789012:parameter/serverless-blog/dev/basic-auth/password"
+      ]
+    }
+    error_message = "Verification auth permissions must be limited to GetParameters on two exact ARNs"
+  }
+}
+
+run "anonymous_verification_has_no_parameter_permissions" {
+  command = plan
+  variables {
+    environment             = "prd"
+    public_site_bucket_name = "test-site"
+    public_site_bucket_arn  = "arn:aws:s3:::test-site"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.test/api"
+  }
+  assert {
+    condition     = length(aws_iam_role_policy.codebuild_verification_auth) == 0
+    error_message = "Anonymous public verification must not grant SSM reads"
+  }
+}

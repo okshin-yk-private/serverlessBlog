@@ -764,6 +764,8 @@ jobs:
     name: Build Astro SSG
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      revision: ${{ steps.revision.outputs.value }}
     # SSG build must run AFTER infrastructure is deployed because it fetches posts from the API
     needs: [detect-changes, deploy-infrastructure-dev, deploy-infrastructure-prd]
     environment: ${{ needs.detect-changes.outputs.github-env }}
@@ -776,6 +778,10 @@ jobs:
       - name: Checkout code
         # Pin to specific commit SHA for security (Requirement 9.8)
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Allocate public release revision before building
+        id: revision
+        run: echo "value=r$(date +%s)-${GITHUB_SHA::12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS credentials (OIDC)
         # OIDC authentication for temporary credentials (Requirement 9.4)
@@ -916,6 +922,8 @@ jobs:
           KVS_ARN=$(aws ssm get-parameter --name "/serverless-blog/dev/cdn/release-kvs-arn" --query "Parameter.Value" --output text)
           echo "kvs_arn=$KVS_ARN" >> $GITHUB_OUTPUT
 
+          PUBLIC_URL=$(aws ssm get-parameter --name "/serverless-blog/dev/cdn/public-url" --query "Parameter.Value" --output text)
+          echo "public_url=$PUBLIC_URL" >> "$GITHUB_OUTPUT"
           echo "✓ Retrieved deployment config from SSM"
 
       - name: Download Astro build artifact
@@ -949,16 +957,24 @@ jobs:
           # Timer start for Requirement 9.11 (5 min limit)
           START_TIME=$(date +%s)
 
-          # Epoch-seconds revision keeps promotion monotonic across every
-          # deployer sharing the KVS (CodeBuild rebuilds, local-deploy.sh).
-          REVISION="r${START_TIME}-${GITHUB_SHA::12}"
+          # Keep the build-start revision when publishing the artifact.
+          REVISION="${{ needs.build-astro.outputs.revision }}"
+
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "${{ steps.config.outputs.public_url }}/")" = "401" ]; then
+            SITE_VERIFY_BASIC_USER=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --with-decryption --query "Parameter.Value" --output text)
+            SITE_VERIFY_BASIC_PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --query "Parameter.Value" --output text)
+            echo "::add-mask::$SITE_VERIFY_BASIC_USER"
+            echo "::add-mask::$SITE_VERIFY_BASIC_PASSWORD"
+            export SITE_VERIFY_BASIC_USER SITE_VERIFY_BASIC_PASSWORD
+          fi
 
           bun run cli.ts \
             --bucket "${{ steps.config.outputs.bucket }}" \
             --kvs-arn "${{ steps.config.outputs.kvs_arn }}" \
             --dist "../../dist" \
             --region "${{ env.AWS_REGION }}" \
-            --revision "$REVISION"
+            --revision "$REVISION" \
+            --site-url "${{ steps.config.outputs.public_url }}"
 
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - START_TIME))
@@ -1041,6 +1057,8 @@ jobs:
           KVS_ARN=$(aws ssm get-parameter --name "/serverless-blog/prd/cdn/release-kvs-arn" --query "Parameter.Value" --output text)
           echo "kvs_arn=$KVS_ARN" >> $GITHUB_OUTPUT
 
+          PUBLIC_URL=$(aws ssm get-parameter --name "/serverless-blog/prd/cdn/public-url" --query "Parameter.Value" --output text)
+          echo "public_url=$PUBLIC_URL" >> "$GITHUB_OUTPUT"
           echo "✓ Retrieved deployment config from SSM"
 
       - name: Download Astro build artifact
@@ -1074,16 +1092,16 @@ jobs:
           # Timer start for Requirement 9.11 (5 min limit)
           START_TIME=$(date +%s)
 
-          # Epoch-seconds revision keeps promotion monotonic across every
-          # deployer sharing the KVS (CodeBuild rebuilds, local-deploy.sh).
-          REVISION="r${START_TIME}-${GITHUB_SHA::12}"
+          # Keep the build-start revision when publishing the artifact.
+          REVISION="${{ needs.build-astro.outputs.revision }}"
 
           bun run cli.ts \
             --bucket "${{ steps.config.outputs.bucket }}" \
             --kvs-arn "${{ steps.config.outputs.kvs_arn }}" \
             --dist "../../dist" \
             --region "${{ env.AWS_REGION }}" \
-            --revision "$REVISION"
+            --revision "$REVISION" \
+            --site-url "${{ steps.config.outputs.public_url }}"
 
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - START_TIME))

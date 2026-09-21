@@ -9,6 +9,7 @@
  *     --project-root /path/to/project \
  *     --bucket my-bucket \
  *     --kvs-arn arn:aws:cloudfront::123:key-value-store/id \
+ *     --site-url https://blog.example.com \
  *     --api-url https://api.example.com
  *
  * Requirements:
@@ -40,6 +41,10 @@ program
   .option('-r, --region <region>', 'AWS region', 'ap-northeast-1')
   .option('--revision <revision>', 'Monotonic release revision')
   .option(
+    '--site-url <url>',
+    'HTTPS public origin for post-promotion verification'
+  )
+  .option(
     '--astro-path <path>',
     'Path to Astro project (relative to project root)',
     'frontend/public-astro'
@@ -52,6 +57,12 @@ program
       bucketName: options.bucket,
       keyValueStoreArn: options.kvsArn,
       revision: options.revision,
+      siteUrl: options.siteUrl,
+      verificationAuthorization:
+        process.env.SITE_VERIFY_BASIC_USER &&
+        process.env.SITE_VERIFY_BASIC_PASSWORD
+          ? `Basic ${Buffer.from(`${process.env.SITE_VERIFY_BASIC_USER}:${process.env.SITE_VERIFY_BASIC_PASSWORD}`).toString('base64')}`
+          : undefined,
       region: options.region,
       apiUrl: options.apiUrl,
       astroProjectPath: options.astroPath,
