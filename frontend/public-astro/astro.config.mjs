@@ -8,6 +8,7 @@ import tailwindcss from '@tailwindcss/vite';
 // OGP / RSS URLs to production (Issue #463). Local dev keeps the fallback.
 const isCI =
   !!process.env.CODEBUILD_BUILD_ID || process.env.GITHUB_ACTIONS === 'true';
+const siteUrl = new URL(process.env.SITE_URL || 'https://example.com');
 
 // The check must run on `astro build` only. Doing it at module scope fired on
 // every config load — including `astro check`, which broke type checking in CI.
@@ -38,7 +39,22 @@ export default defineConfig({
   },
 
   // Site URL for sitemap and canonical URLs
-  site: process.env.SITE_URL || 'https://example.com',
+  site: siteUrl.href,
+
+  // Only explicitly marked article links are prefetched; retain normal MPA navigation.
+  prefetch: { prefetchAll: false, defaultStrategy: 'hover' },
+
+  // Uploaded images are public under /images/. Never allow arbitrary external hosts.
+  image: {
+    remotePatterns: [
+      {
+        protocol: siteUrl.protocol.slice(0, -1),
+        hostname: siteUrl.hostname,
+        port: siteUrl.port,
+        pathname: '/images/**',
+      },
+    ],
+  },
 
   // Integrations
   integrations: [

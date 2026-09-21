@@ -38,7 +38,7 @@ const Heading = variant === 'record' ? 'h3' : 'h2';
   </div>
   <div class="post-body">
     <Heading class="post-title" data-testid="article-title"
-      ><a href={postHref}>{post.title}</a></Heading
+      ><a href={postHref} data-astro-prefetch="hover">{post.title}</a></Heading
     >
     <p class="excerpt" data-testid="article-excerpt">{excerpt}</p>
     {
@@ -52,7 +52,12 @@ const Heading = variant === 'record' ? 'h3' : 'h2';
     }
     {
       variant !== 'record' && (
-        <a class="read-link" href={postHref} aria-label={`Read: ${post.title}`}>
+        <a
+          class="read-link"
+          href={postHref}
+          data-astro-prefetch="hover"
+          aria-label={`Read: ${post.title}`}
+        >
           Read <span aria-hidden="true">→</span>
         </a>
       )

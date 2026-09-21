@@ -41,7 +41,9 @@ export const mockPosts: MockPost[] = [
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-01T00:00:00Z',
     publishedAt: '2024-01-01T00:00:00Z',
-    imageUrls: ['https://example.com/images/test1.jpg'],
+    // Keep the general fixture outside SITE_URL so builds never fetch the internet.
+    // post-images-build.test.ts serves real images from an isolated local origin.
+    imageUrls: ['https://images.example.invalid/test1.jpg'],
   },
   {
     id: 'post-2',
