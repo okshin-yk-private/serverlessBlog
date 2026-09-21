@@ -1,0 +1,57 @@
+---
+import { Image, imageConfig, inferRemoteSize } from 'astro:assets';
+import { postImageWidths, resolvePostImageSource } from '../lib/postImage';
+
+interface Props {
+  src: string;
+  alt: string;
+  hero?: boolean;
+}
+
+const { src, alt, hero = false } = Astro.props;
+const source = resolvePostImageSource(src, Astro.site);
+let dimensions: Awaited<ReturnType<typeof inferRemoteSize>> | undefined;
+if (source) {
+  try {
+    // Pass the same allowlist to the probe so redirects are checked as well.
+    dimensions = await inferRemoteSize(source, imageConfig);
+  } catch {
+    // A missing legacy upload must not prevent unrelated articles from publishing.
+    console.warn(
+      `[post-image] Could not read image dimensions; keeping original: ${source}`
+    );
+  }
+}
+const widths = dimensions ? postImageWidths(dimensions.width, hero) : [];
+const width = widths[widths.length - 1];
+const height = dimensions
+  ? Math.round((width * dimensions.height) / dimensions.width)
+  : undefined;
+const fallbackSizes =
+  '(max-width: 768px) calc(100vw - 40px), (max-width: 880px) calc(100vw - 80px), 800px';
+---
+
+{
+  source && dimensions ? (
+    <Image
+      src={source}
+      alt={alt}
+      width={width}
+      height={height!}
+      widths={widths}
+      sizes={hero ? fallbackSizes : `auto, ${fallbackSizes}`}
+      format="webp"
+      loading={hero ? 'eager' : 'lazy'}
+      fetchpriority={hero ? 'high' : undefined}
+      decoding="async"
+    />
+  ) : (
+    <img
+      src={src}
+      alt={alt}
+      loading={hero ? 'eager' : 'lazy'}
+      fetchpriority={hero ? 'high' : undefined}
+      decoding="async"
+    />
+  )
+}
