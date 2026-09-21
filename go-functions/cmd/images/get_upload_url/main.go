@@ -12,6 +12,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -52,27 +53,31 @@ var uuidGenerator = func() string {
 
 // Handler handles POST /images/upload-url requests
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Extract user ID from Cognito claims (authentication check)
 	userID := extractUserID(request)
 	if userID == "" {
-		return errorResponse(401, "unauthorized")
+		return middleware.MessageResponse(401, "unauthorized")
 	}
 
 	// Parse request body
 	var req domain.GetUploadURLRequest
 	if err := json.Unmarshal([]byte(request.Body), &req); err != nil {
-		return errorResponse(400, "invalid request body")
+		return middleware.MessageResponse(400, "invalid request body")
 	}
 
 	// Validate required fields and file type
 	if err := req.Validate(); err != nil {
-		return errorResponse(400, err.Error())
+		return middleware.MessageResponse(400, err.Error())
 	}
 
 	// Check for BUCKET_NAME environment variable
 	bucketName := os.Getenv("BUCKET_NAME")
 	if bucketName == "" {
-		return errorResponse(500, "server configuration error")
+		return middleware.ServerError(ctx, "server configuration error", errors.New("BUCKET_NAME is not configured"))
 	}
 
 	// Get CloudFront domain (optional)
@@ -81,7 +86,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// Get presign client
 	presignClient, err := presignClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		return middleware.ServerError(ctx, "server error", err)
 	}
 
 	// Generate S3 key: {userId}/{uuid}.{extension}
@@ -98,7 +103,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		opts.Expires = presignExpiration
 	})
 	if err != nil {
-		return errorResponse(500, "failed to generate upload URL")
+		return middleware.ServerError(ctx, "failed to generate upload URL", err)
 	}
 
 	// Generate image URL (CloudFront or direct S3)
@@ -169,11 +174,6 @@ func generateImageURL(cloudFrontDomain, bucketName, key string) string {
 		return fmt.Sprintf("%s/images/%s", cloudFrontDomain, key)
 	}
 	return fmt.Sprintf("https://%s.s3.amazonaws.com/%s", bucketName, key)
-}
-
-// errorResponse creates an error response with CORS headers
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
 }
 
 func main() {

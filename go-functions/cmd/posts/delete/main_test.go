@@ -655,6 +655,53 @@ func TestHandler_S3DeleteObjectsError(t *testing.T) {
 	}
 }
 
+// Partial S3 failure must be diagnosable without changing committed deletion.
+func TestHandler_PartialImageDeletionLogsCauseAndKeepsSuccess(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+	readLogs := captureLogs(t)
+	existingPost := createTestPostWithImages()
+	existingPost.PublishStatus = domain.PublishStatusDraft
+	av := marshalPost(t, existingPost)
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) {
+		return &MockDynamoDBClient{
+			GetItemFunc: func(context.Context, *dynamodb.GetItemInput, ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+				return &dynamodb.GetItemOutput{Item: av}, nil
+			},
+			DeleteItemFunc: func(context.Context, *dynamodb.DeleteItemInput, ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+				return &dynamodb.DeleteItemOutput{}, nil
+			},
+		}, nil
+	}
+	code, key, message := "AccessDenied", "private-object-key", "private-service-message"
+	s3ClientGetter = func() (S3ClientInterface, error) {
+		return &MockS3Client{
+			DeleteObjectsFunc: func(context.Context, *s3.DeleteObjectsInput, ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error) {
+				return &s3.DeleteObjectsOutput{Errors: []s3types.Error{{Code: &code, Key: &key, Message: &message}}}, nil
+			},
+		}, nil
+	}
+	request := createAuthenticatedRequest(testPostID)
+	request.RequestContext.RequestID = "partial-cleanup"
+	response, err := Handler(context.Background(), request)
+	if err != nil || response.StatusCode != 204 {
+		t.Fatalf("deletion was committed: %+v, %v", response, err)
+	}
+	entries := readLogs()
+	if len(entries) != 3 || entries[0]["error"] != "S3 DeleteObjects: 1 objects failed (first code: AccessDenied)" || entries[1]["level"] != "WARN" || entries[2]["statusCode"] != float64(204) {
+		t.Fatalf("missing partial failure diagnosis: %+v", entries)
+	}
+	for _, entry := range entries {
+		if entry["requestId"] != "partial-cleanup" {
+			t.Fatalf("missing correlation: %+v", entry)
+		}
+		raw, _ := json.Marshal(entry)
+		if strings.Contains(string(raw), key) || strings.Contains(string(raw), message) {
+			t.Fatalf("S3 response details leaked: %s", raw)
+		}
+	}
+}
+
 // TestHandler_CORSHeaders tests that CORS headers are present in the response
 func TestHandler_CORSHeaders(t *testing.T) {
 	cleanup := setupTest(t)
@@ -1254,12 +1301,20 @@ func TestHandler_ImageCleanupWarningIsSingleJSONEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Count(string(raw), "\n") != 1 {
-		t.Fatalf("expected one log event, got %q", raw)
-	}
 	var event map[string]any
-	if err := json.Unmarshal(raw, &event); err != nil {
-		t.Fatalf("invalid JSON log: %v", err)
+	warnings := 0
+	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatalf("invalid JSON log (possible forged event): %v", err)
+		}
+		if entry["msg"] == "post deleted but image cleanup failed" {
+			event = entry
+			warnings++
+		}
+	}
+	if warnings != 1 {
+		t.Fatalf("expected one cleanup warning, got %d: %s", warnings, raw)
 	}
 	escapedID, ok := event["postId"].(string)
 	if !ok || strings.ContainsAny(escapedID, "\r\n\t\x00") || event["level"] != "WARN" {

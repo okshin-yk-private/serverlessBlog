@@ -14,8 +14,8 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"os"
 	"strings"
@@ -23,6 +23,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -69,28 +70,32 @@ var codebuildClientGetter = clients.GetCodeBuild
 
 // Handler handles DELETE /posts/:id requests
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Validate authentication first
 	userID := auth.UserID(request)
 	if userID == "" {
-		return errorResponse(401, "unauthorized")
+		return middleware.MessageResponse(401, "unauthorized")
 	}
 
 	// Validate post ID from path parameters
 	postID := request.PathParameters["id"]
 	if postID == "" {
-		return errorResponse(400, "post ID is required")
+		return middleware.MessageResponse(400, "post ID is required")
 	}
 
 	// Check for TABLE_NAME
 	tableName := os.Getenv("TABLE_NAME")
 	if tableName == "" {
-		return errorResponse(500, "server configuration error")
+		return middleware.ServerError(ctx, "server configuration error", errors.New("TABLE_NAME is not configured"))
 	}
 
 	// Get DynamoDB client
 	dynamoClient, err := dynamoClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		return middleware.ServerError(ctx, "server error", err)
 	}
 
 	// Get existing post from DynamoDB
@@ -104,32 +109,32 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	result, err := dynamoClient.GetItem(ctx, getInput)
 	if err != nil {
-		return errorResponse(500, "failed to retrieve post")
+		return middleware.ServerError(ctx, "failed to retrieve post", err)
 	}
 
 	// Check if item was found
 	if len(result.Item) == 0 {
-		return errorResponse(404, "post not found")
+		return middleware.MessageResponse(404, "post not found")
 	}
 
 	// Unmarshal the existing post
 	var existingPost domain.BlogPost
 	if unmarshalErr := attributevalue.UnmarshalMap(result.Item, &existingPost); unmarshalErr != nil {
-		return errorResponse(500, "failed to parse post data")
+		return middleware.ServerError(ctx, "failed to parse post data", unmarshalErr)
 	}
 
 	// Security: Verify ownership - only the author can delete their post
 	if existingPost.AuthorID != userID {
-		return errorResponse(403, "forbidden: you can only delete your own posts")
+		return middleware.MessageResponse(403, "forbidden: you can only delete your own posts")
 	}
 
 	isPublished := existingPost.PublishStatus == domain.PublishStatusPublished
 	err = deletePostRecord(ctx, dynamoClient, tableName, existingPost)
 	if poststore.IsConflict(err) {
-		return errorResponse(409, "post changed; reload before deleting")
+		return middleware.MessageResponse(409, "post changed; reload before deleting")
 	}
 	if err != nil {
-		return errorResponse(500, "failed to delete post")
+		return middleware.ServerError(ctx, "failed to delete post", err)
 	}
 
 	// Trigger site rebuild if the deleted post was published
@@ -144,7 +149,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		// Preserve normal IDs, but escape control characters even when a log viewer
 		// extracts the JSON field as plain text. Quoting keeps the input reversible.
 		quotedPostID := fmt.Sprintf("%q", postID)
-		middleware.NewLoggerFromContext(ctx).Warn("post deleted but image cleanup failed", "postId", quotedPostID[1:len(quotedPostID)-1], "response", cleanupErr.Body)
+		middleware.LoggerFromContext(ctx).Warn("post deleted but image cleanup failed", "postId", quotedPostID[1:len(quotedPostID)-1], "statusCode", cleanupErr.StatusCode)
 	}
 
 	// Return 204 No Content
@@ -185,14 +190,14 @@ func deletePostImages(ctx context.Context, post domain.BlogPost) *events.APIGate
 	// Check for BUCKET_NAME
 	bucketName := os.Getenv("BUCKET_NAME")
 	if bucketName == "" {
-		resp, _ := errorResponse(500, "server configuration error")
+		resp, _ := middleware.ServerError(ctx, "server configuration error", errors.New("BUCKET_NAME is not configured"))
 		return &resp
 	}
 
 	// Get S3 client
 	s3Client, s3Err := s3ClientGetter()
 	if s3Err != nil {
-		resp, _ := errorResponse(500, "server error")
+		resp, _ := middleware.ServerError(ctx, "server error", s3Err)
 		return &resp
 	}
 
@@ -222,8 +227,13 @@ func deletePostImages(ctx context.Context, post domain.BlogPost) *events.APIGate
 		}
 
 		result, s3DeleteErr := s3Client.DeleteObjects(ctx, s3DeleteInput)
-		if s3DeleteErr != nil || (result != nil && len(result.Errors) > 0) {
-			resp, _ := errorResponse(500, "failed to delete images")
+		if s3DeleteErr == nil && result != nil && len(result.Errors) > 0 {
+			// Keep object keys and service messages out of logs; retain the code
+			// and count needed to diagnose partial DeleteObjects failures.
+			s3DeleteErr = fmt.Errorf("S3 DeleteObjects: %d objects failed (first code: %s)", len(result.Errors), aws.ToString(result.Errors[0].Code))
+		}
+		if s3DeleteErr != nil {
+			resp, _ := middleware.ServerError(ctx, "failed to delete images", s3DeleteErr)
 			return &resp
 		}
 	}
@@ -236,23 +246,23 @@ func deletePostImages(ctx context.Context, post domain.BlogPost) *events.APIGate
 func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface, tableName string) {
 	projectName := buildtrigger.SanitizeProjectName(os.Getenv("CODEBUILD_PROJECT_NAME"))
 	if projectName == "" {
-		slog.Warn("CODEBUILD_PROJECT_NAME not set or invalid, skipping build trigger")
+		middleware.LoggerFromContext(ctx).Warn("CODEBUILD_PROJECT_NAME not set or invalid, skipping build trigger")
 		return
 	}
 
 	client, err := codebuildClientGetter()
 	if err != nil {
-		slog.Error("failed to get CodeBuild client", "error", err)
+		middleware.LoggerFromContext(ctx).Error("failed to get CodeBuild client", "error", err)
 		return
 	}
 
 	coordinator := sitebuild.NewCoordinator(dynamoClient, client, tableName, projectName)
 	if _, err := coordinator.StartPending(ctx); err != nil {
-		slog.Error("failed to trigger site build", "error", err, "project", projectName)
+		middleware.LoggerFromContext(ctx).Error("failed to trigger site build", "error", err, "project", projectName)
 		return
 	}
 
-	slog.Info("site build triggered successfully", "project", projectName)
+	middleware.LoggerFromContext(ctx).Info("site build triggered successfully", "project", projectName)
 }
 
 // extractS3KeyFromURL extracts the S3 key from a full URL
@@ -266,11 +276,6 @@ func extractS3KeyFromURL(imageURL string) string {
 
 	// Remove leading slash from path
 	return strings.TrimPrefix(parsedURL.Path, "/")
-}
-
-// errorResponse creates an error response with CORS headers
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
 }
 
 // boolPtr returns a pointer to a bool

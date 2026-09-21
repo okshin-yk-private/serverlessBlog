@@ -13,6 +13,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"time"
 
@@ -54,42 +55,45 @@ var timeNow = func() string {
 // Handler handles PUT /admin/categories/{id} requests
 // Requirement 4.1: Update category and return 200
 // Requirement 4.2: Require Cognito authorization
-//
-//nolint:gocyclo // Handler validates multiple fields which increases complexity
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+//nolint:gocyclo // Handler validates multiple fields which increases complexity
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Requirement 4.2: Check authentication
 	authorID := auth.UserID(request)
 	if authorID == "" {
-		return errorResponse(401, "unauthorized")
+		return middleware.MessageResponse(401, "unauthorized")
 	}
 
 	// Categories are site-wide, so being signed in is not enough to change
 	// them: the caller has to be in the admin group.
 	if !auth.IsAdmin(request) {
-		return errorResponse(403, "forbidden")
+		return middleware.MessageResponse(403, "forbidden")
 	}
 
 	// Validate category ID from path parameters
 	categoryID := request.PathParameters["id"]
 	if categoryID == "" {
-		return errorResponse(400, "category ID is required")
+		return middleware.MessageResponse(400, "category ID is required")
 	}
 
 	// Parse request body
 	var req domain.UpdateCategoryRequest
 	if err := json.Unmarshal([]byte(request.Body), &req); err != nil {
-		return errorResponse(400, "invalid request body")
+		return middleware.MessageResponse(400, "invalid request body")
 	}
 
 	// Validate request
 	if err := req.Validate(); err != nil {
-		return errorResponse(400, err.Error())
+		return middleware.MessageResponse(400, err.Error())
 	}
 
 	// Check for CATEGORIES_TABLE_NAME
 	tableName := os.Getenv("CATEGORIES_TABLE_NAME")
 	if tableName == "" {
-		return errorResponse(500, "server configuration error")
+		return middleware.ServerError(ctx, "server configuration error", errors.New("CATEGORIES_TABLE_NAME is not configured"))
 	}
 
 	// Get posts table name
@@ -113,16 +117,16 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// Get DynamoDB client
 	dynamoClient, err := dynamoClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		return middleware.ServerError(ctx, "server error", err)
 	}
 
 	// Requirement 4.3: Get existing category
 	existingCategory, err := getExistingCategory(ctx, dynamoClient, tableName, categoryID)
 	if err != nil {
-		return errorResponse(500, "failed to retrieve category")
+		return middleware.ServerError(ctx, "failed to retrieve category", err)
 	}
 	if existingCategory == nil {
-		return errorResponse(404, "category not found")
+		return middleware.MessageResponse(404, "category not found")
 	}
 
 	// Check if slug is being changed
@@ -132,10 +136,10 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	if slugChanged {
 		slugExists, err := checkSlugExistsForOther(ctx, dynamoClient, tableName, slugIndexName, *req.Slug, categoryID)
 		if err != nil {
-			return errorResponse(500, "failed to check slug uniqueness")
+			return middleware.ServerError(ctx, "failed to check slug uniqueness", err)
 		}
 		if slugExists {
-			return errorResponse(409, "category with this slug already exists")
+			return middleware.MessageResponse(409, "category with this slug already exists")
 		}
 	}
 
@@ -152,7 +156,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	// Save updated category to DynamoDB
 	if err := saveCategory(ctx, dynamoClient, tableName, updatedCategory); err != nil {
-		return errorResponse(500, "failed to update category")
+		return middleware.ServerError(ctx, "failed to update category", err)
 	}
 
 	return middleware.JSONResponse(200, updatedCategory)
@@ -271,13 +275,13 @@ func updateCategoryWithPosts(ctx context.Context, client DynamoDBClientInterface
 	// Find the IDs of all posts referencing the old slug
 	postIDs, err := getPostsByCategory(ctx, client, postsTableName, categoryIndexName, oldSlug)
 	if err != nil {
-		return errorResponse(500, "failed to query posts")
+		return middleware.ServerError(ctx, "failed to query posts", err)
 	}
 
 	// Marshal category for updates
 	categoryAV, err := attributevalue.MarshalMap(category)
 	if err != nil {
-		return errorResponse(500, "failed to marshal category")
+		return middleware.ServerError(ctx, "failed to marshal category", err)
 	}
 
 	// Build slug reservation items for transaction
@@ -323,7 +327,7 @@ func updateCategoryWithPosts(ctx context.Context, client DynamoDBClientInterface
 
 		_, err = client.TransactWriteItems(ctx, transactInput)
 		if err != nil {
-			return errorResponse(500, "failed to update category")
+			return middleware.ServerError(ctx, "failed to update category", err)
 		}
 
 		return middleware.JSONResponse(200, category)
@@ -417,7 +421,7 @@ func updateCategoryWithPosts(ctx context.Context, client DynamoDBClientInterface
 
 		_, err = client.TransactWriteItems(ctx, transactInput)
 		if err != nil {
-			return errorResponse(500, "failed to update category and posts")
+			return middleware.ServerError(ctx, "failed to update category and posts", err)
 		}
 
 		processedPosts = end
@@ -483,12 +487,6 @@ func getPostsByCategory(ctx context.Context, client DynamoDBClientInterface, tab
 	}
 
 	return postIDs, nil
-}
-
-// errorResponse creates an error response with CORS headers
-// Requirement 9.1: JSON error responses with message field
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
 }
 
 func main() {

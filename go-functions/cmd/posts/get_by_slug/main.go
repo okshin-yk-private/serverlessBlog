@@ -13,6 +13,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -48,19 +49,23 @@ func slugIndexName() string {
 
 // Handler handles GET /posts/by-slug/{slug} (public).
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	slug := request.PathParameters["slug"]
 	if slug == "" {
-		return errorResponse(400, "slug is required")
+		return middleware.MessageResponse(400, "slug is required")
 	}
 
 	tableName := os.Getenv("TABLE_NAME")
 	if tableName == "" {
-		return errorResponse(500, "server configuration error")
+		return middleware.ServerError(ctx, "server configuration error", errors.New("TABLE_NAME is not configured"))
 	}
 
 	dynamoClient, err := dynamoClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		return middleware.ServerError(ctx, "server error", err)
 	}
 
 	out, err := dynamoClient.Query(ctx, &dynamodb.QueryInput{
@@ -73,29 +78,24 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		Limit: aws.Int32(1),
 	})
 	if err != nil {
-		return errorResponse(500, "failed to retrieve post")
+		return middleware.ServerError(ctx, "failed to retrieve post", err)
 	}
 
 	if out.Count == 0 || len(out.Items) == 0 {
-		return errorResponse(404, "post not found")
+		return middleware.MessageResponse(404, "post not found")
 	}
 
 	var post domain.BlogPost
 	if err := attributevalue.UnmarshalMap(out.Items[0], &post); err != nil {
-		return errorResponse(500, "failed to parse post data")
+		return middleware.ServerError(ctx, "failed to parse post data", err)
 	}
 
 	// Hide drafts from the public endpoint.
 	if post.PublishStatus != domain.PublishStatusPublished {
-		return errorResponse(404, "post not found")
+		return middleware.MessageResponse(404, "post not found")
 	}
 
 	return middleware.PublicJSONResponse(200, post)
-}
-
-// errorResponse creates an error response with CORS headers.
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
 }
 
 func main() {

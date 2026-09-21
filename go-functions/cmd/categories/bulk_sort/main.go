@@ -11,6 +11,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"strconv"
 	"time"
@@ -53,45 +54,49 @@ var timeNow = func() string {
 // Requirement 4B.1: Update all categories' sortOrder and return 200
 // Requirement 4B.2: Require Cognito authorization
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Requirement 4B.2: Check authentication
 	authorID := auth.UserID(request)
 	if authorID == "" {
-		return errorResponse(401, "unauthorized")
+		return middleware.MessageResponse(401, "unauthorized")
 	}
 
 	// Categories are site-wide, so being signed in is not enough to change
 	// them: the caller has to be in the admin group.
 	if !auth.IsAdmin(request) {
-		return errorResponse(403, "forbidden")
+		return middleware.MessageResponse(403, "forbidden")
 	}
 
 	// Parse request body
 	var req domain.UpdateSortOrderRequest
 	if err := json.Unmarshal([]byte(request.Body), &req); err != nil {
-		return errorResponse(400, "invalid request body")
+		return middleware.MessageResponse(400, "invalid request body")
 	}
 
 	// Validate request
 	if err := req.Validate(); err != nil {
-		return errorResponse(400, err.Error())
+		return middleware.MessageResponse(400, err.Error())
 	}
 
 	// Check for CATEGORIES_TABLE_NAME
 	tableName := os.Getenv("CATEGORIES_TABLE_NAME")
 	if tableName == "" {
-		return errorResponse(500, "server configuration error")
+		return middleware.ServerError(ctx, "server configuration error", errors.New("CATEGORIES_TABLE_NAME is not configured"))
 	}
 
 	// Get DynamoDB client
 	dynamoClient, err := dynamoClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		return middleware.ServerError(ctx, "server error", err)
 	}
 
 	// Requirement 4B.3: Verify all category IDs exist
 	existingCategories, invalidIDs, err := verifyCategories(ctx, dynamoClient, tableName, req.Orders)
 	if err != nil {
-		return errorResponse(500, "failed to verify categories")
+		return middleware.ServerError(ctx, "failed to verify categories", err)
 	}
 
 	if len(invalidIDs) > 0 {
@@ -117,7 +122,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	// Requirement 4B.5: Perform atomic bulk update using TransactWriteItems
 	if err := bulkUpdateCategories(ctx, dynamoClient, tableName, updatedCategories); err != nil {
-		return errorResponse(500, "failed to update categories")
+		return middleware.ServerError(ctx, "failed to update categories", err)
 	}
 
 	return middleware.JSONResponse(200, updatedCategories)
@@ -211,12 +216,6 @@ func bulkUpdateCategories(ctx context.Context, client DynamoDBClientInterface, t
 // intToString converts an integer to a string for DynamoDB number attribute
 func intToString(n int) string {
 	return strconv.Itoa(n)
-}
-
-// errorResponse creates an error response with CORS headers
-// Requirement 9.1: JSON error responses with message field
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
 }
 
 // invalidIDsResponse creates an error response with invalid IDs list

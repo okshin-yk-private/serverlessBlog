@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 
@@ -46,28 +47,32 @@ var dynamoClientGetter = func() (DynamoDBClientInterface, error) {
 // Requirement 5.1: Delete category and return 204 No Content
 // Requirement 5.2: Require Cognito authorization
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return middleware.HandleRequest(ctx, request, handleRequest)
+}
+
+func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Requirement 5.2: Check authentication
 	authorID := auth.UserID(request)
 	if authorID == "" {
-		return errorResponse(401, "unauthorized")
+		return middleware.MessageResponse(401, "unauthorized")
 	}
 
 	// Categories are site-wide, so being signed in is not enough to change
 	// them: the caller has to be in the admin group.
 	if !auth.IsAdmin(request) {
-		return errorResponse(403, "forbidden")
+		return middleware.MessageResponse(403, "forbidden")
 	}
 
 	// Validate category ID from path parameters
 	categoryID := request.PathParameters["id"]
 	if categoryID == "" {
-		return errorResponse(400, "category ID is required")
+		return middleware.MessageResponse(400, "category ID is required")
 	}
 
 	// Check for CATEGORIES_TABLE_NAME
 	tableName := os.Getenv("CATEGORIES_TABLE_NAME")
 	if tableName == "" {
-		return errorResponse(500, "server configuration error")
+		return middleware.ServerError(ctx, "server configuration error", errors.New("CATEGORIES_TABLE_NAME is not configured"))
 	}
 
 	// Get posts table name
@@ -85,30 +90,30 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	// Get DynamoDB client
 	dynamoClient, err := dynamoClientGetter()
 	if err != nil {
-		return errorResponse(500, "server error")
+		return middleware.ServerError(ctx, "server error", err)
 	}
 
 	// Requirement 5.3: Get existing category
 	existingCategory, err := getExistingCategory(ctx, dynamoClient, tableName, categoryID)
 	if err != nil {
-		return errorResponse(500, "failed to retrieve category")
+		return middleware.ServerError(ctx, "failed to retrieve category", err)
 	}
 	if existingCategory == nil {
-		return errorResponse(404, "category not found")
+		return middleware.MessageResponse(404, "category not found")
 	}
 
 	// Requirement 5.4, 5.5: Check if category is in use by posts
 	inUse, err := isCategoryInUse(ctx, dynamoClient, postsTableName, categoryIndexName, existingCategory.Slug)
 	if err != nil {
-		return errorResponse(500, "failed to check category usage")
+		return middleware.ServerError(ctx, "failed to check category usage", err)
 	}
 	if inUse {
-		return errorResponse(409, "category is in use by posts")
+		return middleware.MessageResponse(409, "category is in use by posts")
 	}
 
 	// Requirement 5.1: Delete the category and its SLUG_RESERVATION
 	if err := deleteCategory(ctx, dynamoClient, tableName, categoryID, existingCategory.Slug); err != nil {
-		return errorResponse(500, "failed to delete category")
+		return middleware.ServerError(ctx, "failed to delete category", err)
 	}
 
 	// Return 204 No Content
@@ -196,12 +201,6 @@ func deleteCategory(ctx context.Context, client DynamoDBClientInterface, tableNa
 
 	_, err := client.TransactWriteItems(ctx, transactInput)
 	return err
-}
-
-// errorResponse creates an error response with CORS headers
-// Requirement 9.1: JSON error responses with message field
-func errorResponse(statusCode int, message string) (events.APIGatewayProxyResponse, error) {
-	return middleware.JSONResponse(statusCode, domain.ErrorResponse{Message: message})
 }
 
 // noContentResponse creates a 204 No Content response with CORS headers
