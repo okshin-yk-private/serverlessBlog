@@ -7,7 +7,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      include: ['atomicDeploy.ts'],
+      include: ['atomicDeploy.ts', 'publicVerification.ts'],
       exclude: ['cli.ts', '**/*.test.ts'],
       thresholds: {
         // Lower thresholds for deployment script since AWS SDK calls are mocked

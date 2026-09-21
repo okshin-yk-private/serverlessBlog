@@ -5,6 +5,11 @@
 # Mock provider for testing without AWS credentials
 mock_provider "aws" {}
 
+override_data {
+  target = data.aws_caller_identity.edge
+  values = { account_id = "123456789012" }
+}
+
 run "public_release_kvs_routing" {
   command = plan
 
@@ -423,7 +428,7 @@ run "default_root_object" {
   }
 }
 
-# Test 16: Verify SSG error response (404 -> 404 /404.html)
+# Test 16: Verify release-specific 404 handling
 # Requirement 7.10, 15.3: Custom 404.html for S3 404 responses
 run "ssg_404_error_response" {
   command = plan
@@ -441,13 +446,26 @@ run "ssg_404_error_response" {
     aws_region                              = "ap-northeast-1"
   }
 
-  # Verify 404 error response is configured for SSG (serves custom 404.html)
+  # A fixed custom error page must not overwrite the origin-response Lambda body.
+  assert {
+    condition     = aws_lambda_function.public_404.region == "us-east-1" && aws_lambda_function.public_404.publish && length(aws_lambda_function.public_404.architectures) == 1 && contains(aws_lambda_function.public_404.architectures, "x86_64")
+    error_message = "Lambda@Edge must publish an x86_64 version in us-east-1"
+  }
+  assert {
+    condition     = length(aws_cloudfront_distribution.main.default_cache_behavior[0].lambda_function_association) == 1
+    error_message = "Public origin responses must use the release-aware 404 Lambda"
+  }
+  assert {
+    condition     = jsondecode(aws_iam_role_policy.public_404.policy).Statement[0].Resource == "arn:aws:s3:::test-public-site-bucket/releases/*/404.html"
+    error_message = "The edge function must read only release-specific 404 pages"
+  }
+
   assert {
     condition = anytrue([
       for err in aws_cloudfront_distribution.main.custom_error_response :
-      err.error_code == 404 && err.response_code == 404 && err.response_page_path == "/404.html"
+      err.error_code == 404 && err.response_page_path == null && err.response_code == null && err.error_caching_min_ttl == 0
     ])
-    error_message = "Distribution must have custom error response for 404 -> 404 /404.html"
+    error_message = "Distribution must retain 404 status without an unversioned custom error page"
   }
   assert {
     condition = alltrue([

@@ -6,6 +6,7 @@
  * both the old and new release remain usable while the KVS update propagates.
  */
 import {
+  GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -18,11 +19,29 @@ import {
 } from '@aws-sdk/client-cloudfront-keyvaluestore';
 import { SignatureV4a } from '@aws-sdk/signature-v4a';
 import * as fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import * as path from 'node:path';
 import { lookup as mimeLookup } from 'mime-types';
+import {
+  validateSiteUrl,
+  verifyPublicRelease,
+  type PublicVerificationConfig,
+} from './publicVerification';
 
 const MAX_SIZE_BYTES = 50 * 1024 * 1024;
 const ACTIVE_REVISION_KEY = 'activeRevision';
+const HIGH_WATER_REVISION_KEY = 'highestPromotedRevision';
+export const MANIFEST_PATH = 'release-manifest.json';
+export const RELEASE_PLAN_PATH = 'release-plan.json';
+export const REQUIRED_FILES = [
+  'index.html',
+  '404.html',
+  'about/index.html',
+  'rss.xml',
+  'robots.txt',
+  'sitemap-index.xml',
+  'sitemap-0.xml',
+] as const;
 const MAX_PROMOTION_ATTEMPTS = 3;
 const UPLOAD_CONCURRENCY = 8;
 const RELEASE_PATTERN = /^r\d+(?:-[a-z0-9][a-z0-9._-]*)?$/;
@@ -36,6 +55,8 @@ export enum DeployErrorCode {
   RELEASE_CONFLICT = 'RELEASE_CONFLICT',
   STALE_RELEASE = 'STALE_RELEASE',
   KVS_PROMOTION_FAILED = 'KVS_PROMOTION_FAILED',
+  ROLLBACK_CONFLICT = 'ROLLBACK_CONFLICT',
+  PUBLIC_VERIFICATION_FAILED = 'PUBLIC_VERIFICATION_FAILED',
 }
 
 export class DeployError extends Error {
@@ -48,7 +69,7 @@ export class DeployError extends Error {
   }
 }
 
-interface CommandClient {
+export interface CommandClient {
   send(command: object): Promise<unknown>;
 }
 
@@ -69,9 +90,10 @@ export interface AtomicDeployConfig {
   keyValueStoreArn: string;
   distPath: string;
   region: string;
-  /** Monotonic release name. CodeBuild uses r{CODEBUILD_BUILD_NUMBER}-{sha}. */
+  /** Release name with an epoch-seconds sequence shared by all deployers. */
   revision?: string;
   dryRun?: boolean;
+  publicVerification?: PublicVerificationConfig;
   /** Test seam. Production callers must not set this. */
   clients?: {
     s3: CommandClient;
@@ -101,9 +123,11 @@ export interface SizeValidationResult {
 }
 
 interface FileEntry {
-  localPath: string;
+  localPath?: string;
+  body?: Buffer;
   relativePath: string;
   sizeBytes: number;
+  sha256: string;
 }
 
 export function generateBuildId(): string {
@@ -116,7 +140,11 @@ export function generateBuildId(): string {
 }
 
 export function validateRevision(revision: string): boolean {
-  return RELEASE_PATTERN.test(revision) && revision.length <= 128;
+  return (
+    RELEASE_PATTERN.test(revision) &&
+    revision.length <= 128 &&
+    getRevisionSequence(revision) !== undefined
+  );
 }
 
 export function getVersionPrefix(revision: string): string {
@@ -146,7 +174,7 @@ export function isStaleRevision(candidate: string, current?: string): boolean {
   return (
     candidateSequence !== undefined &&
     currentSequence !== undefined &&
-    candidateSequence < currentSequence
+    candidateSequence <= currentSequence
   );
 }
 
@@ -185,7 +213,8 @@ export function getCacheControl(filename: string): string {
   if (
     filename.endsWith('.html') ||
     filename.endsWith('.xml') ||
-    filename === 'robots.txt'
+    filename === 'robots.txt' ||
+    filename === MANIFEST_PATH
   ) {
     return 'public,max-age=0,must-revalidate';
   }
@@ -206,11 +235,18 @@ async function listFiles(dirPath: string, basePath = ''): Promise<FileEntry[]> {
     if (entry.isDirectory()) {
       files.push(...(await listFiles(localPath, relativePath)));
     } else if (entry.isFile()) {
+      const body = await fs.promises.readFile(localPath);
       files.push({
         localPath,
         relativePath,
-        sizeBytes: (await fs.promises.stat(localPath)).size,
+        sizeBytes: body.length,
+        sha256: digest(body),
       });
+    } else {
+      throw new DeployError(
+        DeployErrorCode.RELEASE_VERIFICATION_FAILED,
+        `Unsupported distribution entry: ${relativePath}`
+      );
     }
   }
   return files;
@@ -225,18 +261,109 @@ function isNotFound(error: unknown): boolean {
   );
 }
 
-async function headObjectSize(
+export function digest(body: Uint8Array): string {
+  return createHash('sha256').update(body).digest('base64');
+}
+
+export interface ReleaseManifest {
+  schemaVersion: 1;
+  revision: string;
+  files: { path: string; sizeBytes: number; sha256: string }[];
+}
+
+function validateRequiredFiles(
+  files: { relativePath: string; sizeBytes: number }[]
+): void {
+  for (const required of REQUIRED_FILES) {
+    if (
+      !files.some(
+        (file) => file.relativePath === required && file.sizeBytes > 0
+      )
+    ) {
+      throw new DeployError(
+        DeployErrorCode.RELEASE_VERIFICATION_FAILED,
+        `Missing or empty required file: ${required}`
+      );
+    }
+  }
+  if (
+    files.find((file) => file.relativePath === '404.html')!.sizeBytes >
+    900 * 1024
+  ) {
+    throw new DeployError(
+      DeployErrorCode.RELEASE_VERIFICATION_FAILED,
+      '404.html exceeds the Lambda@Edge response budget (900 KiB plus headers)'
+    );
+  }
+}
+
+function createManifest(revision: string, files: FileEntry[]): FileEntry {
+  validateRequiredFiles(files);
+  if (
+    files.some((file) =>
+      [MANIFEST_PATH, RELEASE_PLAN_PATH].includes(file.relativePath)
+    )
+  ) {
+    throw new DeployError(
+      DeployErrorCode.RELEASE_CONFLICT,
+      `Release metadata paths are reserved for deployment`
+    );
+  }
+  const manifest: ReleaseManifest = {
+    schemaVersion: 1,
+    revision,
+    files: files
+      .map((file) => ({
+        path: file.relativePath,
+        sizeBytes: file.sizeBytes,
+        sha256: file.sha256,
+      }))
+      .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)),
+  };
+  const body = Buffer.from(JSON.stringify(manifest) + '\n');
+  return {
+    relativePath: MANIFEST_PATH,
+    body,
+    sizeBytes: body.length,
+    sha256: digest(body),
+  };
+}
+
+async function verifyObject(
   client: CommandClient,
   bucketName: string,
-  key: string
-): Promise<number | undefined> {
+  key: string,
+  expected: { sizeBytes: number; sha256: string }
+): Promise<'missing' | 'match' | 'mismatch'> {
   try {
     const response = (await client.send(
-      new HeadObjectCommand({ Bucket: bucketName, Key: key })
-    )) as { ContentLength?: number };
-    return response.ContentLength;
+      new HeadObjectCommand({
+        Bucket: bucketName,
+        Key: key,
+        ChecksumMode: 'ENABLED',
+      })
+    )) as { ContentLength?: number; ChecksumSHA256?: string; ETag?: string };
+    if (response.ContentLength !== expected.sizeBytes) return 'mismatch';
+    if (response.ChecksumSHA256) {
+      return response.ChecksumSHA256 === expected.sha256 ? 'match' : 'mismatch';
+    }
+    // Legacy deployments did not persist SHA-256. Verify their bytes without
+    // overwriting an immutable object. ETag is a concurrency guard, not a hash.
+    const object = (await client.send(
+      new GetObjectCommand({
+        Bucket: bucketName,
+        Key: key,
+        IfMatch: response.ETag,
+      })
+    )) as { Body?: { transformToByteArray(): Promise<Uint8Array> } };
+    if (!object.Body) return 'mismatch';
+    const body = await object.Body.transformToByteArray();
+    return body.length === expected.sizeBytes &&
+      digest(body) === expected.sha256
+      ? 'match'
+      : 'mismatch';
   } catch (error) {
-    if (isNotFound(error)) return undefined;
+    if (isNotFound(error)) return 'missing';
     throw error;
   }
 }
@@ -258,28 +385,42 @@ async function uploadAndVerifyFiles(
       return;
     }
 
-    const existingSize = await headObjectSize(client, config.bucketName, key);
-    if (existingSize !== undefined) {
-      if (existingSize === file.sizeBytes) return;
+    const existing = await verifyObject(client, config.bucketName, key, file);
+    if (existing !== 'missing') {
+      if (existing === 'match') return;
       throw new DeployError(
         DeployErrorCode.RELEASE_CONFLICT,
-        `Existing object has different size: s3://${config.bucketName}/${key}`
+        `Existing object has different content: s3://${config.bucketName}/${key}`
       );
     }
 
-    await client.send(
-      new PutObjectCommand({
-        Bucket: config.bucketName,
-        Key: key,
-        Body: await fs.promises.readFile(file.localPath),
-        CacheControl: getCacheControl(file.relativePath),
-        ContentType: getContentType(file.relativePath),
-        IfNoneMatch: '*',
-      })
-    );
-
-    const uploadedSize = await headObjectSize(client, config.bucketName, key);
-    if (uploadedSize !== file.sizeBytes) {
+    const body = file.body ?? (await fs.promises.readFile(file.localPath!));
+    if (body.length !== file.sizeBytes || digest(body) !== file.sha256) {
+      throw new DeployError(
+        DeployErrorCode.RELEASE_VERIFICATION_FAILED,
+        `Distribution changed during deployment: ${file.relativePath}`
+      );
+    }
+    try {
+      await client.send(
+        new PutObjectCommand({
+          Bucket: config.bucketName,
+          Key: key,
+          Body: body,
+          ChecksumSHA256: file.sha256,
+          CacheControl: getCacheControl(file.relativePath),
+          ContentType: getContentType(file.relativePath),
+          IfNoneMatch: '*',
+        })
+      );
+    } catch (error) {
+      // A concurrent release may upload the same shared asset. Accept only
+      // identical bytes after the conditional write loses that race.
+      if (!(error instanceof Error) || error.name !== 'PreconditionFailed')
+        throw error;
+    }
+    const uploaded = await verifyObject(client, config.bucketName, key, file);
+    if (uploaded !== 'match') {
       throw new DeployError(
         DeployErrorCode.RELEASE_VERIFICATION_FAILED,
         `Uploaded object verification failed: s3://${config.bucketName}/${key}`
@@ -339,15 +480,16 @@ async function timedDeploymentPhase<T>(
   }
 }
 
-async function getActiveRevision(
+async function getRevisionKey(
   client: CommandClient,
-  keyValueStoreArn: string
+  keyValueStoreArn: string,
+  key: string = ACTIVE_REVISION_KEY
 ): Promise<string | undefined> {
   try {
     const response = (await client.send(
       new GetKeyCommand({
         KvsARN: keyValueStoreArn,
-        Key: ACTIVE_REVISION_KEY,
+        Key: key,
       })
     )) as { Value?: string };
     return response.Value;
@@ -374,11 +516,30 @@ export async function promoteRelease(
       : ((await client.send(
           new DescribeKeyValueStoreCommand({ KvsARN: keyValueStoreArn })
         )) as { ETag?: string });
-    previousRevision = await getActiveRevision(client, keyValueStoreArn);
-    if (isStaleRevision(revision, previousRevision)) {
+    previousRevision = await getRevisionKey(client, keyValueStoreArn);
+    const highWater = await getRevisionKey(
+      client,
+      keyValueStoreArn,
+      HIGH_WATER_REVISION_KEY
+    );
+    if (
+      !validateRevision(revision) ||
+      (previousRevision && !validateRevision(previousRevision)) ||
+      (highWater && !validateRevision(highWater))
+    ) {
+      throw new DeployError(
+        DeployErrorCode.INVALID_REVISION,
+        'Invalid KVS release state or candidate'
+      );
+    }
+    if (
+      isStaleRevision(revision, previousRevision) ||
+      isStaleRevision(revision, highWater) ||
+      (highWater === revision && previousRevision !== revision)
+    ) {
       throw new DeployError(
         DeployErrorCode.STALE_RELEASE,
-        `Refusing to replace newer active release ${previousRevision} with ${revision}`
+        `Refusing out-of-order release ${revision} (active=${previousRevision ?? 'unset'}, highest=${highWater ?? 'unset'})`
       );
     }
     if (previousRevision === revision) {
@@ -403,7 +564,10 @@ export async function promoteRelease(
         new UpdateKeysCommand({
           KvsARN: keyValueStoreArn,
           IfMatch: description.ETag,
-          Puts: [{ Key: ACTIVE_REVISION_KEY, Value: revision }],
+          Puts: [
+            { Key: ACTIVE_REVISION_KEY, Value: revision },
+            { Key: HIGH_WATER_REVISION_KEY, Value: revision },
+          ],
         })
       );
       return { previousRevision, promoted: true };
@@ -436,6 +600,8 @@ export async function atomicDeploy(
     } satisfies AtomicDeployConfig['clients']);
 
   try {
+    if (config.publicVerification)
+      validateSiteUrl(config.publicVerification.siteUrl);
     if (!validateRevision(revision)) {
       throw new DeployError(
         DeployErrorCode.INVALID_REVISION,
@@ -460,13 +626,31 @@ export async function atomicDeploy(
     }
 
     const files = await listFiles(config.distPath);
+    const manifest = createManifest(revision, files);
     console.log(
       `Uploading ${files.length} files to ${getVersionPrefix(revision)} (shared assets remain under _astro/)`
     );
     try {
-      await timedDeploymentPhase('upload-and-verify', revision, () =>
-        uploadAndVerifyFiles(clients.s3, config, revision, files, dryRun)
-      );
+      await timedDeploymentPhase('upload-and-verify', revision, async () => {
+        // Claim the revision with its complete immutable file list before writing
+        // content. Concurrent publishers cannot add different files to this prefix.
+        await uploadAndVerifyFiles(
+          clients.s3,
+          config,
+          revision,
+          [{ ...manifest, relativePath: RELEASE_PLAN_PATH }],
+          dryRun
+        );
+        await uploadAndVerifyFiles(clients.s3, config, revision, files, dryRun);
+        // Persist the immutable completion record only after every entry verifies.
+        await uploadAndVerifyFiles(
+          clients.s3,
+          config,
+          revision,
+          [manifest],
+          dryRun
+        );
+      });
     } catch (error) {
       if (error instanceof DeployError) throw error;
       throw new DeployError(
@@ -487,6 +671,28 @@ export async function atomicDeploy(
         DeployErrorCode.KVS_PROMOTION_FAILED,
         `KVS promotion failed: ${error instanceof Error ? error.message : String(error)}`
       );
+    }
+
+    if (config.publicVerification && !dryRun) {
+      try {
+        await verifyPublicRelease(
+          config.publicVerification,
+          JSON.parse(manifest.body!.toString('utf8'))
+        );
+      } catch {
+        return {
+          success: false,
+          buildId: revision,
+          previousRevision: promotion.previousRevision,
+          promoted: promotion.promoted,
+          durationMs: Date.now() - startTime,
+          error: {
+            code: DeployErrorCode.PUBLIC_VERIFICATION_FAILED,
+            message:
+              'Public verification failed after pointer promotion; inspect activeRevision before guarded rollback',
+          },
+        };
+      }
     }
 
     return {
@@ -513,5 +719,183 @@ export async function atomicDeploy(
       durationMs: Date.now() - startTime,
       error: { code: deployError.code, message: deployError.message },
     };
+  }
+}
+
+/** Verify a retained release before changing the pointer; never re-upload it. */
+export async function verifyRetainedRelease(
+  client: CommandClient,
+  bucketName: string,
+  revision: string
+): Promise<ReleaseManifest> {
+  if (!validateRevision(revision)) {
+    throw new DeployError(
+      DeployErrorCode.INVALID_REVISION,
+      'Invalid rollback revision'
+    );
+  }
+  const response = (await client.send(
+    new GetObjectCommand({
+      Bucket: bucketName,
+      Key: getDeploymentKey(MANIFEST_PATH, revision),
+    })
+  )) as { Body?: { transformToByteArray(): Promise<Uint8Array> } };
+  if (!response.Body) {
+    throw new DeployError(
+      DeployErrorCode.RELEASE_VERIFICATION_FAILED,
+      'Missing release manifest'
+    );
+  }
+  const body = await response.Body.transformToByteArray();
+  let manifest: ReleaseManifest;
+  try {
+    manifest = JSON.parse(Buffer.from(body).toString('utf8'));
+    if (
+      manifest.schemaVersion !== 1 ||
+      manifest.revision !== revision ||
+      !Array.isArray(manifest.files) ||
+      manifest.files.length === 0
+    )
+      throw new Error();
+    const seen = new Set<string>();
+    let total = 0;
+    for (const file of manifest.files) {
+      if (
+        typeof file.path !== 'string' ||
+        [MANIFEST_PATH, RELEASE_PLAN_PATH].includes(file.path) ||
+        file.path.startsWith('/') ||
+        file.path.includes('\\') ||
+        file.path
+          .split('/')
+          .some((part) => !part || part === '.' || part === '..') ||
+        seen.has(file.path) ||
+        !Number.isSafeInteger(file.sizeBytes) ||
+        file.sizeBytes < 0 ||
+        typeof file.sha256 !== 'string' ||
+        !/^[A-Za-z0-9+/]{43}=$/.test(file.sha256)
+      )
+        throw new Error();
+      seen.add(file.path);
+      total += file.sizeBytes;
+    }
+    if (!validateDirectorySize(total).valid) throw new Error();
+    validateRequiredFiles(
+      manifest.files.map((file) => ({ ...file, relativePath: file.path }))
+    );
+  } catch {
+    throw new DeployError(
+      DeployErrorCode.RELEASE_VERIFICATION_FAILED,
+      'Invalid release manifest'
+    );
+  }
+  // Sequential verification keeps recovery requests bounded and easy to audit.
+  for (const file of manifest.files) {
+    if (
+      (await verifyObject(
+        client,
+        bucketName,
+        getDeploymentKey(file.path, revision),
+        file
+      )) !== 'match'
+    ) {
+      throw new DeployError(
+        DeployErrorCode.RELEASE_VERIFICATION_FAILED,
+        `Retained release verification failed: ${file.path}`
+      );
+    }
+  }
+  return manifest;
+}
+
+export interface RollbackConfig {
+  bucketName: string;
+  keyValueStoreArn: string;
+  region: string;
+  revision: string;
+  expectedActiveRevision: string;
+  dryRun?: boolean;
+  clients?: AtomicDeployConfig['clients'];
+  publicVerification?: PublicVerificationConfig;
+}
+
+/** Explicit recovery operation. A newer publisher must never be rolled back. */
+export async function rollbackRelease(config: RollbackConfig): Promise<void> {
+  if (
+    !validateRevision(config.expectedActiveRevision) ||
+    !validateRevision(config.revision) ||
+    getRevisionSequence(config.revision)! >=
+      getRevisionSequence(config.expectedActiveRevision)!
+  ) {
+    throw new DeployError(
+      DeployErrorCode.INVALID_REVISION,
+      'Rollback requires an older target and a valid expected active revision'
+    );
+  }
+  if (config.publicVerification)
+    validateSiteUrl(config.publicVerification.siteUrl);
+  const clients = config.clients ?? {
+    s3: new S3Client({ region: config.region }),
+    kvs: createKeyValueStoreClient(),
+  };
+  const manifest = await verifyRetainedRelease(
+    clients.s3,
+    config.bucketName,
+    config.revision
+  );
+  for (let attempt = 1; attempt <= MAX_PROMOTION_ATTEMPTS; attempt++) {
+    const description = (await clients.kvs.send(
+      new DescribeKeyValueStoreCommand({
+        KvsARN: config.keyValueStoreArn,
+      })
+    )) as { ETag?: string };
+    const active = await getRevisionKey(clients.kvs, config.keyValueStoreArn);
+    const highWater = await getRevisionKey(
+      clients.kvs,
+      config.keyValueStoreArn,
+      HIGH_WATER_REVISION_KEY
+    );
+    if (active !== config.expectedActiveRevision) {
+      throw new DeployError(
+        DeployErrorCode.ROLLBACK_CONFLICT,
+        'Active revision changed; refusing rollback'
+      );
+    }
+    if ((highWater && !validateRevision(highWater)) || !description.ETag) {
+      throw new DeployError(
+        DeployErrorCode.KVS_PROMOTION_FAILED,
+        'Invalid KVS rollback state'
+      );
+    }
+    if (config.dryRun) return;
+    try {
+      await clients.kvs.send(
+        new UpdateKeysCommand({
+          KvsARN: config.keyValueStoreArn,
+          IfMatch: description.ETag,
+          Puts: [
+            { Key: ACTIVE_REVISION_KEY, Value: config.revision },
+            // Preserve ordering even when rolling back a pre-manifest publisher.
+            {
+              Key: HIGH_WATER_REVISION_KEY,
+              Value:
+                highWater &&
+                getRevisionSequence(highWater)! > getRevisionSequence(active)!
+                  ? highWater
+                  : active,
+            },
+          ],
+        })
+      );
+      if (config.publicVerification)
+        await verifyPublicRelease(config.publicVerification, manifest);
+      return;
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        error.name !== 'ConflictException' ||
+        attempt === MAX_PROMOTION_ATTEMPTS
+      )
+        throw error;
+    }
   }
 }

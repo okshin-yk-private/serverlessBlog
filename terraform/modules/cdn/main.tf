@@ -336,8 +336,8 @@ resource "aws_cloudfront_key_value_store" "public_release" {
 }
 
 # CloudFront Function for public SSG routing and release selection.
-# A missing/invalid key deliberately falls back to the legacy bucket root so
-# Terraform can be applied safely before the first KVS-aware deployment.
+# A missing, invalid, or unreadable key returns 503 with no-store; it never
+# serves legacy bucket-root content. New environments return 503 until first publication.
 resource "aws_cloudfront_function" "public_ssg" {
   name    = "PublicSsgFunction-${var.environment}"
   runtime = "cloudfront-js-2.0"
@@ -407,12 +407,13 @@ async function handler(event) {
     var revision = await kvs.get('activeRevision');
     if (/^r\d+(?:-[a-z0-9][a-z0-9._-]*)?$/.test(revision)) {
       request.uri = '/releases/' + revision + request.uri;
+      return request;
     }
   } catch (error) {
-    // Migration-safe fallback: serve the pre-KVS root layout.
+    // An unavailable pointer must not expose unverified legacy root content.
   }
-
-  return request;
+  return { statusCode: 503, statusDescription: 'Service Unavailable',
+    headers: { 'cache-control': { value: 'no-store' } } };
 }
 EOF
 }
@@ -502,12 +503,13 @@ async function handler(event) {
     var revision = await kvs.get('activeRevision');
     if (/^r\d+(?:-[a-z0-9][a-z0-9._-]*)?$/.test(revision)) {
       request.uri = '/releases/' + revision + request.uri;
+      return request;
     }
   } catch (error) {
-    // Migration-safe fallback: serve the pre-KVS root layout.
+    // An unavailable pointer must not expose unverified legacy root content.
   }
-
-  return request;
+  return { statusCode: 503, statusDescription: 'Service Unavailable',
+    headers: { 'cache-control': { value: 'no-store' } } };
 }
 EOF
 
@@ -575,6 +577,12 @@ resource "aws_cloudfront_distribution" "main" {
     compress                   = true
     cache_policy_id            = aws_cloudfront_cache_policy.html_pages.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
+
+    lambda_function_association {
+      event_type   = "origin-response"
+      lambda_arn   = aws_lambda_function.public_404.qualified_arn
+      include_body = false
+    }
 
     # Use combined function (auth + SSG) for dev, SSG-only for production
     function_association {
@@ -689,15 +697,11 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
-  # Custom error response for SSG 404 page
-  # Requirement 7.10, 15.3: Serve custom 404.html for S3 404 responses
-  # Note: CloudFront Function rewrites paths to index.html, but if the file
-  # doesn't exist in S3, this error response serves the custom 404 page.
+  # The origin-response Lambda supplies the release-specific body. A fixed
+  # response_page_path here would replace it with an unversioned error page.
   custom_error_response {
     error_code            = 404
-    response_code         = 404
-    response_page_path    = "/404.html"
-    error_caching_min_ttl = 60
+    error_caching_min_ttl = 0
   }
 
   # Restrictions (no geo restrictions)

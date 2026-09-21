@@ -348,6 +348,7 @@ module "codebuild" {
   release_kvs_arn         = module.cdn.release_kvs_arn
   aws_region              = var.aws_region
   api_url                 = module.cdn.api_base_url
+  verify_basic_auth       = nonsensitive(var.basic_auth_username != "" && var.basic_auth_password != "")
   site_url                = var.enable_custom_domain ? "https://${var.domain_name}" : "https://${module.cdn.distribution_domain_name}"
 
   # GitHub source configuration for Astro SSG builds
