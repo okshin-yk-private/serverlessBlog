@@ -7,6 +7,7 @@
  * 既存のID URLも維持し、canonicalはslug URLへ統一する。
  */
 import Layout from '../../layouts/Layout.astro';
+import PostImage from '../../components/PostImage.astro';
 import { publicationDate } from '../../lib/publicationCalendar';
 import { fetchAllPosts, type Post } from '../../lib/api';
 import {
@@ -101,7 +102,7 @@ const jsonLdPost: JsonLdPost = {
     {
       firstImage && (
         <div class="hero-image">
-          <img src={firstImage} alt={post.title} loading="eager" />
+          <PostImage src={firstImage} alt={post.title} hero />
         </div>
       )
     }
@@ -118,10 +119,9 @@ const jsonLdPost: JsonLdPost = {
       images.length > 1 && (
         <div class="image-gallery">
           {images.slice(1).map((imageUrl, index) => (
-            <img
+            <PostImage
               src={imageUrl}
               alt={`${post.title} - Image ${index + 2}`}
-              loading="lazy"
             />
           ))}
         </div>
@@ -130,7 +130,7 @@ const jsonLdPost: JsonLdPost = {
 
     {/* Back to Articles Link */}
     <nav class="post-navigation">
-      <a href="/articles/" class="back-link">
+      <a href="/articles/" class="back-link" data-astro-prefetch="hover">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="20"
@@ -234,7 +234,7 @@ const jsonLdPost: JsonLdPost = {
     box-shadow: var(--shadow-card);
   }
 
-  .hero-image img {
+  .hero-image :global(img) {
     width: 100%;
     height: auto;
     display: block;
@@ -356,7 +356,7 @@ const jsonLdPost: JsonLdPost = {
     margin-top: 32px;
   }
 
-  .image-gallery img {
+  .image-gallery :global(img) {
     width: 100%;
     height: auto;
     border-radius: 8px;

@@ -62,8 +62,9 @@ jobs:
                 checksums="trivy_${version}_checksums.txt" ;;
             esac
             url="https://github.com/${project}/releases/download/v${version}"
-            curl --fail --silent --show-error --location "$url/$archive" -o "$archive"
-            curl --fail --silent --show-error --location "$url/$checksums" -o "$checksums"
+            # Retry transient release-host errors, then fail closed if unavailable.
+            curl --fail --silent --show-error --location --retry 4 --retry-delay 2 --retry-max-time 120 --connect-timeout 15 --max-time 60 "$url/$archive" -o "$archive"
+            curl --fail --silent --show-error --location --retry 4 --retry-delay 2 --retry-max-time 120 --connect-timeout 15 --max-time 60 "$url/$checksums" -o "$checksums"
             awk -v file="$archive" '$2 == file { print }' "$checksums" > "$tool.sha256"
             test "$(wc -l < "$tool.sha256")" -eq 1
             sha256sum --check "$tool.sha256"
