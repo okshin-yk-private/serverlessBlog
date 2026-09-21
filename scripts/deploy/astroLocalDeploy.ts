@@ -16,6 +16,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import {
   atomicDeploy,
+  generateBuildId,
   AtomicDeployConfig,
   AtomicDeployResult,
 } from './atomicDeploy';
@@ -61,6 +62,8 @@ export class AstroDeployError extends Error {
 export interface AstroLocalDeployConfig {
   /** Project root directory */
   projectRoot: string;
+  siteUrl?: string;
+  verificationAuthorization?: string;
   /** S3 bucket name for deployment */
   bucketName: string;
   /** CloudFront KeyValueStore ARN used for the active release pointer */
@@ -212,7 +215,8 @@ export async function installDependencies(
 export async function buildAstroProject(
   projectPath: string,
   apiUrl: string,
-  verbose: boolean = false
+  verbose: boolean = false,
+  siteUrl?: string
 ): Promise<BuildResult> {
   const startTime = Date.now();
 
@@ -222,6 +226,7 @@ export async function buildAstroProject(
       PUBLIC_API_URL: apiUrl,
       API_URL: apiUrl,
       NODE_ENV: 'production',
+      ...(siteUrl ? { SITE_URL: siteUrl } : {}),
     };
 
     const options = {
@@ -356,6 +361,10 @@ export async function astroLocalDeploy(
   config: AstroLocalDeployConfig
 ): Promise<AstroLocalDeployResult> {
   const startTime = Date.now();
+  const revision = config.revision ?? generateBuildId();
+  if (!config.siteUrl && !config.dryRun) {
+    throw new Error('siteUrl is required for public release verification');
+  }
   const verbose = config.verbose ?? false;
   const dryRun = config.dryRun ?? false;
 
@@ -400,7 +409,8 @@ export async function astroLocalDeploy(
   const buildResult = await buildAstroProject(
     astroProjectPath,
     config.apiUrl,
-    verbose
+    verbose,
+    config.siteUrl
   );
 
   if (!buildResult.success) {
@@ -438,7 +448,13 @@ export async function astroLocalDeploy(
     keyValueStoreArn: config.keyValueStoreArn,
     distPath,
     region: config.region,
-    revision: config.revision,
+    revision,
+    publicVerification: config.siteUrl
+      ? {
+          siteUrl: config.siteUrl,
+          authorization: config.verificationAuthorization,
+        }
+      : undefined,
     dryRun,
   };
 

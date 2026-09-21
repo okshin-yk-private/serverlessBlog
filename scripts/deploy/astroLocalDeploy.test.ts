@@ -55,6 +55,7 @@ const mockedExecSync = mockExecSync as Mock;
 // Mock atomicDeploy
 vi.mock('./atomicDeploy', () => ({
   atomicDeploy: vi.fn(),
+  generateBuildId: vi.fn(() => 'r20-generated'),
 }));
 
 // Mock CloudFront client
@@ -478,6 +479,7 @@ describe('astroLocalDeploy', () => {
     const mockProjectRoot = '/mock/project';
     const mockConfig: AstroLocalDeployConfig = {
       projectRoot: mockProjectRoot,
+      siteUrl: 'https://site.example.test',
       bucketName: 'test-bucket',
       keyValueStoreArn: 'arn:aws:cloudfront::123:key-value-store/test',
       distributionId: 'E1234567890',

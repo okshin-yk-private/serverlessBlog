@@ -1,0 +1,37 @@
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+
+// Lambda@Edge has no environment variables. Terraform embeds deployment config.
+const bucket = ${bucket_json};
+const s3 = new S3Client({ region: ${region_json}, maxAttempts: 2 });
+const maxBodyBytes = 900 * 1024;
+
+export const handler = async (event) => {
+  const { request, response } = event.Records[0].cf;
+  const match = request.uri.match(/^\/releases\/(r\d+(?:-[a-z0-9][a-z0-9._-]*)?)\//);
+  if (response.status !== '404' || !match || !['GET', 'HEAD'].includes(request.method)) {
+    return response;
+  }
+  try {
+    const object = await s3.send(new GetObjectCommand({
+      Bucket: bucket,
+      // Use the original request's release; never re-read a changing KVS pointer.
+      Key: 'releases/' + match[1] + '/404.html',
+    }));
+    if (!object.Body || !object.ContentLength || object.ContentLength > maxBodyBytes) {
+      throw new Error('Invalid 404 body size');
+    }
+    const html = await object.Body.transformToString('utf-8');
+    if (Buffer.byteLength(html, 'utf8') > maxBodyBytes) throw new Error('Oversized 404 body');
+    const headers = { ...response.headers };
+    for (const name of ['content-length', 'content-encoding', 'etag', 'last-modified', 'content-range']) {
+      delete headers[name];
+    }
+    headers['content-type'] = [{ key: 'Content-Type', value: 'text/html; charset=utf-8' }];
+    headers['cache-control'] = [{ key: 'Cache-Control', value: 'public,max-age=0,must-revalidate' }];
+    return { ...response, headers, body: request.method === 'HEAD' ? '' : html, bodyEncoding: 'text' };
+  } catch {
+    // Preserve the original error, including read-only headers, on recovery failure.
+    console.error('public_404_read_failed', { revision: match[1] });
+    return response;
+  }
+};
