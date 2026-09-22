@@ -282,13 +282,13 @@ const jsonLdPost: JsonLdPost = {
     margin-bottom: 1.5rem;
   }
 
-  .post-content :global(a) {
+  .post-content :global(a:not(.article-link-button)) {
     color: var(--color-link);
     text-decoration: underline;
     transition: color 0.2s ease;
   }
 
-  .post-content :global(a:hover) {
+  .post-content :global(a:not(.article-link-button):hover) {
     color: var(--color-link-hover);
   }
 

@@ -9,7 +9,6 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
-import Text from '@tiptap/extension-text';
 import { Heading } from '@tiptap/extension-heading';
 import { Bold } from '@tiptap/extension-bold';
 import { Italic } from '@tiptap/extension-italic';
@@ -20,12 +19,13 @@ import { Blockquote } from '@tiptap/extension-blockquote';
 import { CodeBlock } from '@tiptap/extension-code-block';
 import { HorizontalRule } from '@tiptap/extension-horizontal-rule';
 import { HardBreak } from '@tiptap/extension-hard-break';
-import { Link } from '@tiptap/extension-link';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { Typography } from '@tiptap/extension-typography';
 import { History } from '@tiptap/extension-history';
 import { Markdown } from 'tiptap-markdown';
 import { TiptapToolbar } from './TiptapToolbar';
+import { ArticleLink } from './extensions/ArticleLink';
+import { ArticleText } from './extensions/ArticleText';
 import {
   UploadImage,
   type UploadFn,
@@ -56,7 +56,7 @@ const buildExtensions = (
 ) => [
   Document,
   Paragraph,
-  Text,
+  ArticleText,
   Heading.configure({ levels: [2, 3, 4] }),
   Bold,
   Italic,
@@ -69,7 +69,7 @@ const buildExtensions = (
   CodeBlock,
   HorizontalRule,
   HardBreak,
-  Link.configure({ openOnClick: false, autolink: true }),
+  ArticleLink,
   UploadImage.configure({ uploadFn, onError }),
   Placeholder.configure({ placeholder }),
   Typography,

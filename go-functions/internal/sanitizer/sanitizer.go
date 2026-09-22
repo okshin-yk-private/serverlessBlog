@@ -10,6 +10,7 @@
 package sanitizer
 
 import (
+	"regexp"
 	"sync"
 
 	"github.com/microcosm-cc/bluemonday"
@@ -39,6 +40,8 @@ func getPolicy() *bluemonday.Policy {
 		// Requirement 16.3: <a> tag with href validation
 		// Only allow http, https, and relative URLs
 		policy.AllowAttrs("href").OnElements("a")
+		// Only the link-button presentation emitted by our Markdown extension.
+		policy.AllowAttrs("class").Matching(regexp.MustCompile(`^article-link-button$`)).OnElements("a")
 		policy.AllowRelativeURLs(true)
 		policy.AllowURLSchemes("http", "https")
 		policy.RequireNoFollowOnLinks(true)

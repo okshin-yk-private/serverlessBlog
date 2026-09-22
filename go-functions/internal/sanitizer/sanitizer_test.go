@@ -586,3 +586,14 @@ func BenchmarkSanitize_LargeContent(b *testing.B) {
 		Sanitize(input)
 	}
 }
+
+func TestSanitize_LinkButtonClass(t *testing.T) {
+	for _, class := range []string{"article-link-button extra", "not-article-link-button", "article-link-button-suffix"} {
+		result := Sanitize(`<a href="https://example.com" class="` + class + `">link</a>`)
+		assert.NotContains(t, result, "class=")
+	}
+	result := Sanitize(`<a href="https://example.com" class="article-link-button" onclick="alert(1)" style="position:fixed">link</a>`)
+	assert.Contains(t, result, `class="article-link-button"`)
+	assert.NotContains(t, result, "onclick")
+	assert.NotContains(t, result, "style=")
+}
