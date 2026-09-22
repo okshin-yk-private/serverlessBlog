@@ -28,6 +28,23 @@ const requireSiteUrl = {
   },
 };
 
+// Content sync during check/sync is type-only; build/dev load a fresh snapshot.
+/** @type {import('astro').AstroIntegration} */
+const contentPhase = {
+  name: 'public-content-phase',
+  hooks: {
+    'astro:config:setup': ({ command, updateConfig }) => {
+      updateConfig({
+        vite: {
+          define: {
+            'import.meta.env.BLOG_CONTENT_PHASE': JSON.stringify(command),
+          },
+        },
+      });
+    },
+  },
+};
+
 // https://astro.build/config
 export default defineConfig({
   // SSG (Static Site Generation) mode - generates static HTML files
@@ -58,6 +75,7 @@ export default defineConfig({
 
   // Integrations
   integrations: [
+    contentPhase,
     // Fail a CI/CodeBuild build that forgot SITE_URL (Issue #463)
     requireSiteUrl,
     // Sitemap generation
