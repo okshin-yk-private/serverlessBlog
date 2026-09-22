@@ -1,0 +1,65 @@
+[
+  {
+    "name": "ordinary Amazon link",
+    "markdown": "[Amazonで商品を見る](https://www.amazon.co.jp/dp/B000000001)",
+    "text": "Amazonで商品を見る",
+    "href": "https://www.amazon.co.jp/dp/B000000001",
+    "button": false
+  },
+  {
+    "name": "Amazon button keeps query parameters",
+    "markdown": "[Amazonで商品を見る](https://www.amazon.co.jp/dp/B000000001?tag=example&ref=article){.link-button}",
+    "text": "Amazonで商品を見る",
+    "href": "https://www.amazon.co.jp/dp/B000000001?tag=example&ref=article",
+    "button": true
+  },
+  {
+    "name": "price comparison button",
+    "markdown": "[価格.comで価格を比較する](https://kakaku.com/item/K0000000001/){.link-button}",
+    "text": "価格.comで価格を比較する",
+    "href": "https://kakaku.com/item/K0000000001/",
+    "button": true
+  },
+  {
+    "name": "relative button",
+    "markdown": "[関連記事](/posts/example#details){.link-button}",
+    "text": "関連記事",
+    "href": "/posts/example#details",
+    "button": true
+  },
+  {
+    "name": "formatted label",
+    "markdown": "[**仕様**を確認](https://example.com/product){.link-button}",
+    "text": "仕様を確認",
+    "href": "https://example.com/product",
+    "button": true
+  },
+  {
+    "name": "URL label uses autolink serialization",
+    "markdown": "<https://example.com/product>{.link-button}",
+    "text": "https://example.com/product",
+    "href": "https://example.com/product",
+    "button": true
+  },
+  {
+    "name": "title and parentheses",
+    "markdown": "[詳細](https://example.com/a(b) \"製品の詳細\"){.link-button}",
+    "text": "詳細",
+    "href": "https://example.com/a(b)",
+    "button": true
+  },
+  {
+    "name": "escaped marker is literal",
+    "markdown": "[詳細](https://example.com)\\{.link-button}",
+    "text": "詳細",
+    "href": "https://example.com",
+    "button": false
+  },
+  {
+    "name": "spaced marker is literal",
+    "markdown": "[詳細](https://example.com) {.link-button}",
+    "text": "詳細",
+    "href": "https://example.com",
+    "button": false
+  }
+]
