@@ -2,10 +2,13 @@
 import Layout from '../layouts/Layout.astro';
 import PostCard from '../components/PostCard.astro';
 import SiteIntro from '../components/SiteIntro.astro';
-import { fetchAllPosts } from '../lib/api';
+import { getCollection } from 'astro:content';
 import { publishedPosts } from '../lib/publicationCalendar';
 const asOf = new Date().toISOString();
-const posts = publishedPosts(await fetchAllPosts(), asOf);
+const posts = publishedPosts(
+  (await getCollection('posts')).map((entry) => entry.data),
+  asOf
+);
 const [latest] = posts;
 ---
 

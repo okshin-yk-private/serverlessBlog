@@ -9,7 +9,8 @@
 import Layout from '../../layouts/Layout.astro';
 import PostImage from '../../components/PostImage.astro';
 import { publicationDate } from '../../lib/publicationCalendar';
-import { fetchAllPosts, type Post } from '../../lib/api';
+import { getCollection } from 'astro:content';
+import type { Post } from '../../lib/api';
 import {
   generateDescription,
   getFirstImage,
@@ -27,7 +28,7 @@ import { getPostPathSegment, getPostStaticPaths } from '../../lib/postUtils';
  * (以前は [id].astro が id ベースの配信を担っていたが、そのファイルは削除済み。)
  */
 export async function getStaticPaths() {
-  const posts = await fetchAllPosts();
+  const posts = (await getCollection('posts')).map((entry) => entry.data);
 
   return getPostStaticPaths(posts);
 }

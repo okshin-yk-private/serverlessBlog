@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import PostCard from '../components/PostCard.astro';
 import SearchBar from '../components/SearchBar.astro';
 import PublicationCalendar from '../components/PublicationCalendar.astro';
-import { fetchAllPosts } from '../lib/api';
+import { getCollection } from 'astro:content';
 import {
   publishedPosts,
   publicationDate,
@@ -11,7 +11,10 @@ import {
 } from '../lib/publicationCalendar';
 // Fetch errors intentionally fail the build rather than publishing an empty calendar.
 const asOf = new Date().toISOString();
-const posts = publishedPosts(await fetchAllPosts(), asOf);
+const posts = publishedPosts(
+  (await getCollection('posts')).map((entry) => entry.data),
+  asOf
+);
 const calendar = publicationCalendar(posts, asOf);
 const searchable = posts.map((post) => ({
   id: post.id,

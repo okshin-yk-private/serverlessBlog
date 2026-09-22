@@ -12,7 +12,7 @@
 
 import rss from '@astrojs/rss';
 import type { APIContext } from 'astro';
-import { fetchAllPosts, type Post } from '../lib/api';
+import { getCollection } from 'astro:content';
 import { postsToRSSItems, escapeXml } from '../lib/rssUtils';
 
 /**
@@ -26,15 +26,7 @@ export async function GET(context: APIContext) {
   const siteName = 'Serverless Blog';
 
   // 全公開記事を取得
-  let posts: Post[];
-  try {
-    posts = await fetchAllPosts();
-  } catch (error) {
-    // ビルド時にAPIが利用できない場合は空のフィードを返す
-    // (本番環境では適切にエラーハンドリングされる)
-    console.warn('Failed to fetch posts for RSS feed:', error);
-    posts = [];
-  }
+  const posts = (await getCollection('posts')).map((entry) => entry.data);
 
   // 記事をRSSアイテムに変換（最新20件）
   const rssItems = postsToRSSItems(posts, siteUrl);
