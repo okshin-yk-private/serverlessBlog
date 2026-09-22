@@ -15,6 +15,10 @@ out/
 *.d.ts
 # Exception: TypeScript declaration files committed under src/ are intentional
 !frontend/admin/src/**/*.d.ts
+!frontend/public-astro/src/**/*.d.ts
+
+# Astro generated types and content cache
+frontend/public-astro/.astro/
 
 # TypeScript cache
 *.tsbuildinfo

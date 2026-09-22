@@ -12,34 +12,8 @@
  * - 2.10: 1000件までの記事を処理
  */
 
-/**
- * 記事の型定義
- */
-export interface Post {
-  id: string;
-  title: string;
-  contentHtml: string;
-  category: string;
-  tags: string[];
-  publishStatus: 'draft' | 'published';
-  authorId: string;
-  createdAt: string;
-  updatedAt: string;
-  publishedAt?: string;
-  imageUrls?: string[];
-  slug?: string;
-  excerpt?: string;
-  coverImageUrl?: string;
-}
-
-/**
- * 記事一覧レスポンスの型定義
- */
-export interface PostListResponse {
-  items: Post[];
-  count: number;
-  nextToken?: string;
-}
+import { postListSchema, type Post } from './postSchema';
+export type { Post, PostListResponse } from './postSchema';
 
 /**
  * 最大リトライ回数
@@ -133,21 +107,29 @@ export async function fetchAllPosts(): Promise<Post[]> {
   const apiUrl = getApiUrl();
   const allPosts: Post[] = [];
   let nextToken: string | undefined;
+  const seenTokens = new Set<string>();
 
   do {
     const url = nextToken
-      ? `${apiUrl}/posts?publishStatus=published&nextToken=${nextToken}`
+      ? `${apiUrl}/posts?publishStatus=published&nextToken=${encodeURIComponent(nextToken)}`
       : `${apiUrl}/posts?publishStatus=published`;
 
-    const response = await fetchWithRetry<PostListResponse>(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const response = postListSchema.parse(
+      await fetchWithRetry<unknown>(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+    );
 
     allPosts.push(...response.items);
     nextToken = response.nextToken;
+    if (nextToken) {
+      if (seenTokens.has(nextToken))
+        throw new Error('Repeated pagination token');
+      seenTokens.add(nextToken);
+    }
   } while (nextToken);
 
   return allPosts;
