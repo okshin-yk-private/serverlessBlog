@@ -16,6 +16,16 @@ locals {
   codebuild_project_name = "${var.project_name}-astro-build-${var.environment}"
   iam_role_name          = "${var.project_name}-codebuild-astro-role-${var.environment}"
 
+  # Bun for the build (Issue #675). This build can overwrite the public site
+  # and promote its release, so it installs a pinned release asset verified
+  # against a pinned SHA256 instead of piping the bun.sh installer into bash.
+  # GitHub release assets can be replaced by their maintainers, so the version
+  # alone is not enough. Keep the version in step with the default in
+  # .github/actions/setup-bun-deps/action.yml, and when bumping it take the
+  # hash from the release's SHASUMS256.txt.
+  bun_version              = "1.3.11"
+  bun_linux_aarch64_sha256 = "d13944da12a53ecc74bf6a720bd1d04c4555c038dfe422365356a7be47691fdf"
+
   # Common tags
   common_tags = merge(
     {
@@ -49,11 +59,23 @@ phases:
       # 旧エイリアスで、nodejs 22 に対応済みのためイメージ変更は不要。
       nodejs: 22
     commands:
-      - echo "Installing Bun..."
-      - curl -fsSL https://bun.sh/install | bash
+      - echo "Installing Bun ${local.bun_version}..."
+      # Subshell keeps set -eu from leaking into later commands.
+      - |
+        (
+          set -eu
+          BUN_TMP="$(mktemp -d)"
+          curl -fsSL --proto '=https' --tlsv1.2 -o "$BUN_TMP/bun-linux-aarch64.zip" \
+            "https://github.com/oven-sh/bun/releases/download/bun-v${local.bun_version}/bun-linux-aarch64.zip"
+          printf '%s  %s\n' "${local.bun_linux_aarch64_sha256}" "$BUN_TMP/bun-linux-aarch64.zip" | sha256sum -c -
+          unzip -q "$BUN_TMP/bun-linux-aarch64.zip" -d "$BUN_TMP"
+          mkdir -p "$HOME/.bun/bin"
+          install -m 0755 "$BUN_TMP/bun-linux-aarch64/bun" "$HOME/.bun/bin/bun"
+          rm -rf "$BUN_TMP"
+        )
       - export BUN_INSTALL="$HOME/.bun"
       - export PATH="$BUN_INSTALL/bin:$PATH"
-      - bun --version
+      - test "$(bun --version)" = "${local.bun_version}"
       - echo "Working directory is $CODEBUILD_SRC_DIR"
   pre_build:
     commands:
