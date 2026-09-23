@@ -75,6 +75,9 @@ the impact cannot be bounded; it does not include E2E or Terraform verification.
   issue gets its own worktree: `git worktree add .claude/worktrees/<name> -b <branch> origin/develop`.
   Leave the main checkout on whatever branch it is on, and remove the worktree after the
   PR merges (`git worktree remove <path>`).
+- Run `bun install --frozen-lockfile` at the root of a new worktree before the first commit.
+  husky's hooks directory (`.husky/_`) only exists after it, and without it git runs no
+  pre-commit checks and prints nothing.
 
 ## Language
 
