@@ -1,0 +1,1986 @@
+{
+  "source_commit": "357fbc8a3541163317575ffaa5be28451d2058be",
+  "scope": "PRD/DEV referenced modules, environment resources, and bootstrap. Static resource blocks; includes conditional definitions, not deployed instance counts. data sources and nested blocks are not independent resources.",
+  "resource_blocks": [
+    {
+      "source": "terraform/bootstrap/main.tf",
+      "line": 19,
+      "resource": "aws_s3_bucket.terraform_state",
+      "diagram_cell": "ops-s3"
+    },
+    {
+      "source": "terraform/bootstrap/main.tf",
+      "line": 28,
+      "resource": "aws_s3_bucket_versioning.terraform_state",
+      "diagram_cell": "ops-s3"
+    },
+    {
+      "source": "terraform/bootstrap/main.tf",
+      "line": 37,
+      "resource": "aws_s3_bucket_server_side_encryption_configuration.terraform_state",
+      "diagram_cell": "ops-s3"
+    },
+    {
+      "source": "terraform/bootstrap/main.tf",
+      "line": 47,
+      "resource": "aws_s3_bucket_public_access_block.terraform_state",
+      "diagram_cell": "ops-s3"
+    },
+    {
+      "source": "terraform/environments/dev/main.tf",
+      "line": 212,
+      "resource": "aws_s3_bucket_policy.images_cloudfront",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/environments/dev/main.tf",
+      "line": 238,
+      "resource": "aws_s3_bucket_policy.public_site_cloudfront",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/environments/dev/main.tf",
+      "line": 276,
+      "resource": "aws_s3_bucket_policy.admin_site_cloudfront",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/environments/dev/main.tf",
+      "line": 437,
+      "resource": "aws_route53_record.cloudfront_apex",
+      "diagram_cell": "6"
+    },
+    {
+      "source": "terraform/environments/dev/main.tf",
+      "line": 453,
+      "resource": "aws_route53_record.cloudfront_apex_ipv6",
+      "diagram_cell": "6"
+    },
+    {
+      "source": "terraform/environments/prd/main.tf",
+      "line": 222,
+      "resource": "aws_s3_bucket_policy.images_cloudfront",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/environments/prd/main.tf",
+      "line": 248,
+      "resource": "aws_s3_bucket_policy.public_site_cloudfront",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/environments/prd/main.tf",
+      "line": 286,
+      "resource": "aws_s3_bucket_policy.admin_site_cloudfront",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/environments/prd/main.tf",
+      "line": 388,
+      "resource": "cloudflare_dns_record.apex",
+      "diagram_cell": "dns"
+    },
+    {
+      "source": "terraform/environments/prd/main.tf",
+      "line": 402,
+      "resource": "cloudflare_dns_record.www",
+      "diagram_cell": "dns"
+    },
+    {
+      "source": "terraform/modules/acm/main.tf",
+      "line": 5,
+      "resource": "aws_acm_certificate.main",
+      "diagram_cell": "acm"
+    },
+    {
+      "source": "terraform/modules/acm/main.tf",
+      "line": 26,
+      "resource": "aws_acm_certificate_validation.main",
+      "diagram_cell": "acm"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 18,
+      "resource": "aws_api_gateway_rest_api.main",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 39,
+      "resource": "aws_api_gateway_authorizer.cognito",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 53,
+      "resource": "aws_api_gateway_request_validator.main",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 66,
+      "resource": "aws_api_gateway_resource.admin",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 74,
+      "resource": "aws_api_gateway_resource.posts",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 82,
+      "resource": "aws_api_gateway_resource.posts_id",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 90,
+      "resource": "aws_api_gateway_resource.posts_by_slug",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 97,
+      "resource": "aws_api_gateway_resource.posts_by_slug_value",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 105,
+      "resource": "aws_api_gateway_resource.admin_posts",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 113,
+      "resource": "aws_api_gateway_resource.admin_posts_id",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 121,
+      "resource": "aws_api_gateway_resource.admin_posts_id_build_status",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 129,
+      "resource": "aws_api_gateway_resource.admin_images",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 137,
+      "resource": "aws_api_gateway_resource.admin_images_upload_url",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 145,
+      "resource": "aws_api_gateway_resource.admin_images_key",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 153,
+      "resource": "aws_api_gateway_resource.admin_auth",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 161,
+      "resource": "aws_api_gateway_resource.admin_auth_login",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 169,
+      "resource": "aws_api_gateway_resource.admin_auth_logout",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 177,
+      "resource": "aws_api_gateway_resource.admin_auth_refresh",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 188,
+      "resource": "aws_api_gateway_method.admin_posts_post",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 196,
+      "resource": "aws_api_gateway_integration.admin_posts_post",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 206,
+      "resource": "aws_api_gateway_method.admin_posts_get",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 214,
+      "resource": "aws_api_gateway_integration.admin_posts_get",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 224,
+      "resource": "aws_api_gateway_method.admin_posts_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 231,
+      "resource": "aws_api_gateway_integration.admin_posts_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 242,
+      "resource": "aws_api_gateway_method_response.admin_posts_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 259,
+      "resource": "aws_api_gateway_integration_response.admin_posts_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 273,
+      "resource": "aws_api_gateway_method.admin_posts_id_get",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 285,
+      "resource": "aws_api_gateway_integration.admin_posts_id_get",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 295,
+      "resource": "aws_api_gateway_method.admin_posts_id_put",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 307,
+      "resource": "aws_api_gateway_integration.admin_posts_id_put",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 317,
+      "resource": "aws_api_gateway_method.admin_posts_id_delete",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 329,
+      "resource": "aws_api_gateway_integration.admin_posts_id_delete",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 339,
+      "resource": "aws_api_gateway_method.admin_posts_id_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 346,
+      "resource": "aws_api_gateway_integration.admin_posts_id_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 357,
+      "resource": "aws_api_gateway_method_response.admin_posts_id_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 374,
+      "resource": "aws_api_gateway_integration_response.admin_posts_id_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 388,
+      "resource": "aws_api_gateway_method.admin_posts_id_build_status_get",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 401,
+      "resource": "aws_api_gateway_integration.admin_posts_id_build_status_get",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 411,
+      "resource": "aws_api_gateway_method.admin_posts_id_build_status_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 419,
+      "resource": "aws_api_gateway_integration.admin_posts_id_build_status_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 430,
+      "resource": "aws_api_gateway_method_response.admin_posts_id_build_status_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 447,
+      "resource": "aws_api_gateway_integration_response.admin_posts_id_build_status_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 461,
+      "resource": "aws_api_gateway_method.admin_images_upload_url_post",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 469,
+      "resource": "aws_api_gateway_integration.admin_images_upload_url_post",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 479,
+      "resource": "aws_api_gateway_method.admin_images_upload_url_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 486,
+      "resource": "aws_api_gateway_integration.admin_images_upload_url_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 497,
+      "resource": "aws_api_gateway_method_response.admin_images_upload_url_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 514,
+      "resource": "aws_api_gateway_integration_response.admin_images_upload_url_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 528,
+      "resource": "aws_api_gateway_method.admin_images_key_delete",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 540,
+      "resource": "aws_api_gateway_integration.admin_images_key_delete",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 550,
+      "resource": "aws_api_gateway_method.admin_images_key_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 557,
+      "resource": "aws_api_gateway_integration.admin_images_key_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 568,
+      "resource": "aws_api_gateway_method_response.admin_images_key_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 585,
+      "resource": "aws_api_gateway_integration_response.admin_images_key_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 599,
+      "resource": "aws_api_gateway_method.admin_auth_login_post",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 606,
+      "resource": "aws_api_gateway_integration.admin_auth_login_post",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 616,
+      "resource": "aws_api_gateway_method.admin_auth_login_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 623,
+      "resource": "aws_api_gateway_integration.admin_auth_login_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 634,
+      "resource": "aws_api_gateway_method_response.admin_auth_login_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 651,
+      "resource": "aws_api_gateway_integration_response.admin_auth_login_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 665,
+      "resource": "aws_api_gateway_method.admin_auth_logout_post",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 673,
+      "resource": "aws_api_gateway_integration.admin_auth_logout_post",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 683,
+      "resource": "aws_api_gateway_method.admin_auth_logout_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 690,
+      "resource": "aws_api_gateway_integration.admin_auth_logout_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 701,
+      "resource": "aws_api_gateway_method_response.admin_auth_logout_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 718,
+      "resource": "aws_api_gateway_integration_response.admin_auth_logout_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 732,
+      "resource": "aws_api_gateway_method.admin_auth_refresh_post",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 739,
+      "resource": "aws_api_gateway_integration.admin_auth_refresh_post",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 749,
+      "resource": "aws_api_gateway_method.admin_auth_refresh_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 756,
+      "resource": "aws_api_gateway_integration.admin_auth_refresh_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 767,
+      "resource": "aws_api_gateway_method_response.admin_auth_refresh_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 784,
+      "resource": "aws_api_gateway_integration_response.admin_auth_refresh_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 798,
+      "resource": "aws_api_gateway_method.posts_get",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 805,
+      "resource": "aws_api_gateway_integration.posts_get",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 815,
+      "resource": "aws_api_gateway_method.posts_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 822,
+      "resource": "aws_api_gateway_integration.posts_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 833,
+      "resource": "aws_api_gateway_method_response.posts_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 850,
+      "resource": "aws_api_gateway_integration_response.posts_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 864,
+      "resource": "aws_api_gateway_method.posts_id_get",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 875,
+      "resource": "aws_api_gateway_integration.posts_id_get",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 885,
+      "resource": "aws_api_gateway_method.posts_id_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 892,
+      "resource": "aws_api_gateway_integration.posts_id_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 903,
+      "resource": "aws_api_gateway_method_response.posts_id_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 920,
+      "resource": "aws_api_gateway_integration_response.posts_id_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 934,
+      "resource": "aws_api_gateway_method.posts_by_slug_value_get",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 946,
+      "resource": "aws_api_gateway_integration.posts_by_slug_value_get",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 956,
+      "resource": "aws_api_gateway_method.posts_by_slug_value_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 964,
+      "resource": "aws_api_gateway_integration.posts_by_slug_value_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 975,
+      "resource": "aws_api_gateway_method_response.posts_by_slug_value_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 992,
+      "resource": "aws_api_gateway_integration_response.posts_by_slug_value_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1012,
+      "resource": "aws_api_gateway_resource.categories",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1022,
+      "resource": "aws_api_gateway_method.categories_get",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1029,
+      "resource": "aws_api_gateway_integration.categories_get",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1040,
+      "resource": "aws_api_gateway_method.categories_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1047,
+      "resource": "aws_api_gateway_integration.categories_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1058,
+      "resource": "aws_api_gateway_method_response.categories_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1075,
+      "resource": "aws_api_gateway_integration_response.categories_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1095,
+      "resource": "aws_api_gateway_resource.admin_categories",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1104,
+      "resource": "aws_api_gateway_method.admin_categories_post",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1112,
+      "resource": "aws_api_gateway_integration.admin_categories_post",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1122,
+      "resource": "aws_api_gateway_method.admin_categories_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1129,
+      "resource": "aws_api_gateway_integration.admin_categories_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1140,
+      "resource": "aws_api_gateway_method_response.admin_categories_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1157,
+      "resource": "aws_api_gateway_integration_response.admin_categories_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1177,
+      "resource": "aws_api_gateway_resource.admin_categories_id",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1186,
+      "resource": "aws_api_gateway_method.admin_categories_id_put",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1198,
+      "resource": "aws_api_gateway_integration.admin_categories_id_put",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1210,
+      "resource": "aws_api_gateway_method.admin_categories_id_delete",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1222,
+      "resource": "aws_api_gateway_integration.admin_categories_id_delete",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1232,
+      "resource": "aws_api_gateway_method.admin_categories_id_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1239,
+      "resource": "aws_api_gateway_integration.admin_categories_id_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1250,
+      "resource": "aws_api_gateway_method_response.admin_categories_id_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1267,
+      "resource": "aws_api_gateway_integration_response.admin_categories_id_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1287,
+      "resource": "aws_api_gateway_resource.admin_categories_sort",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1296,
+      "resource": "aws_api_gateway_method.admin_categories_sort_patch",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1304,
+      "resource": "aws_api_gateway_integration.admin_categories_sort_patch",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1314,
+      "resource": "aws_api_gateway_method.admin_categories_sort_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1321,
+      "resource": "aws_api_gateway_integration.admin_categories_sort_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1332,
+      "resource": "aws_api_gateway_method_response.admin_categories_sort_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1349,
+      "resource": "aws_api_gateway_integration_response.admin_categories_sort_options",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1368,
+      "resource": "aws_api_gateway_gateway_response.default_4xx",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1385,
+      "resource": "aws_api_gateway_gateway_response.default_5xx",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1408,
+      "resource": "aws_cloudwatch_log_group.api_access_logs",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1423,
+      "resource": "aws_api_gateway_deployment.main",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1536,
+      "resource": "aws_api_gateway_stage.main",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1580,
+      "resource": "aws_api_gateway_method_settings.all",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1598,
+      "resource": "aws_iam_role.api_gateway_cloudwatch",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1619,
+      "resource": "aws_iam_role_policy_attachment.api_gateway_cloudwatch",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1626,
+      "resource": "aws_api_gateway_account.main",
+      "diagram_cell": "api"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1635,
+      "resource": "aws_lambda_permission.create_post",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1643,
+      "resource": "aws_lambda_permission.list_posts",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1651,
+      "resource": "aws_lambda_permission.get_post",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1659,
+      "resource": "aws_lambda_permission.get_public_post",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1667,
+      "resource": "aws_lambda_permission.update_post",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1675,
+      "resource": "aws_lambda_permission.delete_post",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1683,
+      "resource": "aws_lambda_permission.build_status_post",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1691,
+      "resource": "aws_lambda_permission.get_post_by_slug",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1699,
+      "resource": "aws_lambda_permission.login",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1707,
+      "resource": "aws_lambda_permission.logout",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1715,
+      "resource": "aws_lambda_permission.refresh",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1723,
+      "resource": "aws_lambda_permission.get_upload_url",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1731,
+      "resource": "aws_lambda_permission.delete_image",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1743,
+      "resource": "aws_lambda_permission.list_categories",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1751,
+      "resource": "aws_lambda_permission.create_category",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1759,
+      "resource": "aws_lambda_permission.update_category",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1767,
+      "resource": "aws_lambda_permission.update_categories_sort_order",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/api/main.tf",
+      "line": 1775,
+      "resource": "aws_lambda_permission.delete_category",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/auth/e2e_test_user.tf",
+      "line": 13,
+      "resource": "random_password.e2e_admin",
+      "diagram_cell": "cognito"
+    },
+    {
+      "source": "terraform/modules/auth/e2e_test_user.tf",
+      "line": 27,
+      "resource": "aws_cognito_user.e2e_admin",
+      "diagram_cell": "cognito"
+    },
+    {
+      "source": "terraform/modules/auth/e2e_test_user.tf",
+      "line": 56,
+      "resource": "aws_cognito_user_in_group.e2e_admin",
+      "diagram_cell": "cognito"
+    },
+    {
+      "source": "terraform/modules/auth/e2e_test_user.tf",
+      "line": 66,
+      "resource": "aws_ssm_parameter.e2e_admin_email",
+      "diagram_cell": "ssm"
+    },
+    {
+      "source": "terraform/modules/auth/e2e_test_user.tf",
+      "line": 78,
+      "resource": "aws_ssm_parameter.e2e_admin_password",
+      "diagram_cell": "ssm"
+    },
+    {
+      "source": "terraform/modules/auth/main.tf",
+      "line": 14,
+      "resource": "aws_cognito_user_pool.main",
+      "diagram_cell": "cognito"
+    },
+    {
+      "source": "terraform/modules/auth/main.tf",
+      "line": 62,
+      "resource": "aws_cognito_user_pool_client.main",
+      "diagram_cell": "cognito"
+    },
+    {
+      "source": "terraform/modules/auth/main.tf",
+      "line": 112,
+      "resource": "aws_ssm_parameter.user_pool_id",
+      "diagram_cell": "ssm"
+    },
+    {
+      "source": "terraform/modules/auth/main.tf",
+      "line": 122,
+      "resource": "aws_ssm_parameter.user_pool_client_id",
+      "diagram_cell": "ssm"
+    },
+    {
+      "source": "terraform/modules/auth/main.tf",
+      "line": 142,
+      "resource": "aws_cognito_user_group.admin",
+      "diagram_cell": "cognito"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 16,
+      "resource": "aws_cloudfront_origin_access_control.s3_oac",
+      "diagram_cell": "cf"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 26,
+      "resource": "aws_cloudfront_cache_policy.images",
+      "diagram_cell": "cf"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 50,
+      "resource": "aws_cloudfront_cache_policy.astro_assets",
+      "diagram_cell": "cf"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 74,
+      "resource": "aws_cloudfront_cache_policy.html_pages",
+      "diagram_cell": "cf"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 97,
+      "resource": "aws_cloudfront_origin_request_policy.api",
+      "diagram_cell": "cf"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 119,
+      "resource": "aws_cloudfront_function.basic_auth",
+      "diagram_cell": "fn"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 159,
+      "resource": "aws_cloudfront_function.public_spa",
+      "diagram_cell": "fn"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 195,
+      "resource": "aws_cloudfront_function.image_path",
+      "diagram_cell": "fn"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 221,
+      "resource": "aws_cloudfront_function.admin_combined",
+      "diagram_cell": "fn"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 272,
+      "resource": "aws_cloudfront_function.admin_spa",
+      "diagram_cell": "fn"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 308,
+      "resource": "aws_cloudfront_function.api_path",
+      "diagram_cell": "fn"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 333,
+      "resource": "aws_cloudfront_key_value_store.public_release",
+      "diagram_cell": "kvs"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 341,
+      "resource": "aws_cloudfront_function.public_ssg",
+      "diagram_cell": "fn"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 422,
+      "resource": "aws_cloudfront_function.public_combined",
+      "diagram_cell": "fn"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 521,
+      "resource": "aws_cloudfront_response_headers_policy.security_headers",
+      "diagram_cell": "cf"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 558,
+      "resource": "aws_cloudfront_distribution.main",
+      "diagram_cell": "cf"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 733,
+      "resource": "aws_ssm_parameter.api_endpoint",
+      "diagram_cell": "ssm"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 750,
+      "resource": "aws_ssm_parameter.distribution_id",
+      "diagram_cell": "ssm"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 767,
+      "resource": "aws_ssm_parameter.release_kvs_arn",
+      "diagram_cell": "ssm"
+    },
+    {
+      "source": "terraform/modules/cdn/main.tf",
+      "line": 784,
+      "resource": "aws_ssm_parameter.public_url",
+      "diagram_cell": "ssm"
+    },
+    {
+      "source": "terraform/modules/codebuild/main.tf",
+      "line": 98,
+      "resource": "aws_cloudwatch_log_group.codebuild",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/codebuild/main.tf",
+      "line": 110,
+      "resource": "aws_iam_role.codebuild",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/codebuild/main.tf",
+      "line": 130,
+      "resource": "aws_iam_role_policy.codebuild_logs",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/codebuild/main.tf",
+      "line": 154,
+      "resource": "aws_iam_role_policy.codebuild_s3",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/codebuild/main.tf",
+      "line": 178,
+      "resource": "aws_iam_role_policy.codebuild_release_kvs",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/codebuild/main.tf",
+      "line": 203,
+      "resource": "aws_codebuild_project.astro_build",
+      "diagram_cell": "build"
+    },
+    {
+      "source": "terraform/modules/codebuild/main.tf",
+      "line": 292,
+      "resource": "aws_ssm_parameter.codebuild_project_name",
+      "diagram_cell": "ssm"
+    },
+    {
+      "source": "terraform/modules/database/main.tf",
+      "line": 9,
+      "resource": "aws_dynamodb_table.blog_posts",
+      "diagram_cell": "ddb"
+    },
+    {
+      "source": "terraform/modules/database/main.tf",
+      "line": 124,
+      "resource": "aws_dynamodb_table.categories",
+      "diagram_cell": "ddb"
+    },
+    {
+      "source": "terraform/modules/dns-cloudflare/main.tf",
+      "line": 32,
+      "resource": "cloudflare_dns_record.apex",
+      "diagram_cell": "dns"
+    },
+    {
+      "source": "terraform/modules/dns-cloudflare/main.tf",
+      "line": 46,
+      "resource": "cloudflare_dns_record.www",
+      "diagram_cell": "dns"
+    },
+    {
+      "source": "terraform/modules/dns-cloudflare/main.tf",
+      "line": 62,
+      "resource": "cloudflare_dns_record.subdomain_ns",
+      "diagram_cell": "dns"
+    },
+    {
+      "source": "terraform/modules/dns-cloudflare/main.tf",
+      "line": 75,
+      "resource": "cloudflare_dns_record.acm_validation",
+      "diagram_cell": "dns"
+    },
+    {
+      "source": "terraform/modules/dns-route53/main.tf",
+      "line": 6,
+      "resource": "aws_route53_zone.subdomain",
+      "diagram_cell": "6"
+    },
+    {
+      "source": "terraform/modules/dns-route53/main.tf",
+      "line": 31,
+      "resource": "aws_route53_record.acm_validation",
+      "diagram_cell": "6"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 48,
+      "resource": "aws_iam_role.lambda_posts_read",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 54,
+      "resource": "aws_iam_role_policy_attachment.lambda_posts_read_basic_execution",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 59,
+      "resource": "aws_iam_role_policy_attachment.lambda_posts_read_xray",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 65,
+      "resource": "aws_iam_role_policy.lambda_posts_read_dynamodb",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 102,
+      "resource": "aws_iam_role.lambda_posts_write",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 108,
+      "resource": "aws_iam_role_policy_attachment.lambda_posts_write_basic_execution",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 113,
+      "resource": "aws_iam_role_policy_attachment.lambda_posts_write_xray",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 120,
+      "resource": "aws_iam_role_policy.lambda_posts_write_dynamodb",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 147,
+      "resource": "aws_iam_role_policy.lambda_posts_write_s3_cascade",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 169,
+      "resource": "aws_iam_role_policy.lambda_posts_write_codebuild",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 196,
+      "resource": "aws_iam_role.lambda_posts_build_status",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 202,
+      "resource": "aws_iam_role_policy_attachment.lambda_posts_build_status_basic_execution",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 207,
+      "resource": "aws_iam_role_policy_attachment.lambda_posts_build_status_xray",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 213,
+      "resource": "aws_iam_role_policy.lambda_posts_build_status_dynamodb",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 230,
+      "resource": "aws_iam_role_policy.lambda_posts_build_status_codebuild",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 250,
+      "resource": "aws_iam_role.lambda_posts_build_reconciler",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 256,
+      "resource": "aws_iam_role_policy_attachment.lambda_posts_build_reconciler_basic_execution",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 261,
+      "resource": "aws_iam_role_policy_attachment.lambda_posts_build_reconciler_xray",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 267,
+      "resource": "aws_iam_role_policy.lambda_posts_build_reconciler_dynamodb",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 281,
+      "resource": "aws_iam_role_policy.lambda_posts_build_reconciler_codebuild",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 314,
+      "resource": "aws_iam_role.lambda_auth",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 321,
+      "resource": "aws_iam_role_policy_attachment.lambda_auth_basic_execution",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 327,
+      "resource": "aws_iam_role_policy_attachment.lambda_auth_xray",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 334,
+      "resource": "aws_iam_role_policy.lambda_auth_cognito",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 363,
+      "resource": "aws_iam_role.lambda_images",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 370,
+      "resource": "aws_iam_role_policy_attachment.lambda_images_basic_execution",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 376,
+      "resource": "aws_iam_role_policy_attachment.lambda_images_xray",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 383,
+      "resource": "aws_iam_role_policy.lambda_images_s3",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 411,
+      "resource": "aws_iam_role.lambda_categories_read",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 417,
+      "resource": "aws_iam_role_policy_attachment.lambda_categories_read_basic_execution",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 422,
+      "resource": "aws_iam_role_policy_attachment.lambda_categories_read_xray",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 428,
+      "resource": "aws_iam_role_policy.lambda_categories_read_dynamodb",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 478,
+      "resource": "aws_iam_role.lambda_categories_write",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 484,
+      "resource": "aws_iam_role_policy_attachment.lambda_categories_write_basic_execution",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 489,
+      "resource": "aws_iam_role_policy_attachment.lambda_categories_write_xray",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/iam.tf",
+      "line": 496,
+      "resource": "aws_iam_role_policy.lambda_categories_write_dynamodb",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 156,
+      "resource": "aws_cloudwatch_log_group.create_post",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 162,
+      "resource": "aws_cloudwatch_log_group.get_post",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 168,
+      "resource": "aws_cloudwatch_log_group.get_public_post",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 174,
+      "resource": "aws_cloudwatch_log_group.list_posts",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 180,
+      "resource": "aws_cloudwatch_log_group.update_post",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 186,
+      "resource": "aws_cloudwatch_log_group.delete_post",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 192,
+      "resource": "aws_cloudwatch_log_group.build_status_post",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 198,
+      "resource": "aws_cloudwatch_log_group.reconcile_build_post",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 204,
+      "resource": "aws_cloudwatch_log_group.get_post_by_slug",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 210,
+      "resource": "aws_cloudwatch_log_group.login",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 216,
+      "resource": "aws_cloudwatch_log_group.logout",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 222,
+      "resource": "aws_cloudwatch_log_group.refresh",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 228,
+      "resource": "aws_cloudwatch_log_group.get_upload_url",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 234,
+      "resource": "aws_cloudwatch_log_group.delete_image",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 350,
+      "resource": "aws_lambda_function.create_post",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 380,
+      "resource": "aws_lambda_function.get_post",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 408,
+      "resource": "aws_lambda_function.get_public_post",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 436,
+      "resource": "aws_lambda_function.list_posts",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 465,
+      "resource": "aws_lambda_function.update_post",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 496,
+      "resource": "aws_lambda_function.delete_post",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 528,
+      "resource": "aws_lambda_function.build_status_post",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 557,
+      "resource": "aws_lambda_function.reconcile_build_post",
+      "diagram_cell": "reconcile"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 589,
+      "resource": "aws_lambda_function.get_post_by_slug",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 621,
+      "resource": "aws_lambda_function.login",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 649,
+      "resource": "aws_lambda_function.logout",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 677,
+      "resource": "aws_lambda_function.refresh",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 709,
+      "resource": "aws_lambda_function.get_upload_url",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 737,
+      "resource": "aws_lambda_function.delete_image",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 768,
+      "resource": "aws_cloudwatch_log_group.list_categories",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 783,
+      "resource": "aws_lambda_function.list_categories",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 815,
+      "resource": "aws_cloudwatch_log_group.create_category",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 831,
+      "resource": "aws_lambda_function.create_category",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 863,
+      "resource": "aws_cloudwatch_log_group.update_category",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 878,
+      "resource": "aws_lambda_function.update_category",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 912,
+      "resource": "aws_cloudwatch_log_group.update_categories_sort_order",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 927,
+      "resource": "aws_lambda_function.update_categories_sort_order",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 959,
+      "resource": "aws_cloudwatch_log_group.delete_category",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/lambda/main.tf",
+      "line": 974,
+      "resource": "aws_lambda_function.delete_category",
+      "diagram_cell": "api-lambda"
+    },
+    {
+      "source": "terraform/modules/lambda/sitebuild_events.tf",
+      "line": 3,
+      "resource": "aws_sqs_queue.sitebuild_reconcile_dlq",
+      "diagram_cell": "dlq"
+    },
+    {
+      "source": "terraform/modules/lambda/sitebuild_events.tf",
+      "line": 11,
+      "resource": "aws_cloudwatch_event_rule.codebuild_state_change",
+      "diagram_cell": "events"
+    },
+    {
+      "source": "terraform/modules/lambda/sitebuild_events.tf",
+      "line": 25,
+      "resource": "aws_cloudwatch_event_target.sitebuild_reconciler",
+      "diagram_cell": "events"
+    },
+    {
+      "source": "terraform/modules/lambda/sitebuild_events.tf",
+      "line": 59,
+      "resource": "aws_sqs_queue_policy.sitebuild_reconcile_dlq",
+      "diagram_cell": "dlq"
+    },
+    {
+      "source": "terraform/modules/lambda/sitebuild_events.tf",
+      "line": 65,
+      "resource": "aws_lambda_permission.sitebuild_reconcile_eventbridge",
+      "diagram_cell": "reconcile"
+    },
+    {
+      "source": "terraform/modules/lambda/sitebuild_events.tf",
+      "line": 74,
+      "resource": "aws_iam_role.sitebuild_reconcile_scheduler",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/sitebuild_events.tf",
+      "line": 88,
+      "resource": "aws_iam_role_policy.sitebuild_reconcile_scheduler",
+      "diagram_cell": "iam"
+    },
+    {
+      "source": "terraform/modules/lambda/sitebuild_events.tf",
+      "line": 102,
+      "resource": "aws_scheduler_schedule.sitebuild_reconcile",
+      "diagram_cell": "scheduler"
+    },
+    {
+      "source": "terraform/modules/monitoring/main.tf",
+      "line": 18,
+      "resource": "aws_sns_topic.alarms",
+      "diagram_cell": "sns"
+    },
+    {
+      "source": "terraform/modules/monitoring/main.tf",
+      "line": 29,
+      "resource": "aws_sns_topic_policy.alarms_ssl",
+      "diagram_cell": "sns"
+    },
+    {
+      "source": "terraform/modules/monitoring/main.tf",
+      "line": 55,
+      "resource": "aws_sns_topic_subscription.email",
+      "diagram_cell": "sns"
+    },
+    {
+      "source": "terraform/modules/monitoring/main.tf",
+      "line": 69,
+      "resource": "aws_cloudwatch_metric_alarm.lambda_errors_all",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/monitoring/main.tf",
+      "line": 102,
+      "resource": "aws_cloudwatch_metric_alarm.lambda_duration_all",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/monitoring/main.tf",
+      "line": 135,
+      "resource": "aws_cloudwatch_metric_alarm.lambda_throttles_all",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/monitoring/main.tf",
+      "line": 172,
+      "resource": "aws_cloudwatch_metric_alarm.dynamodb_read_throttles",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/monitoring/main.tf",
+      "line": 196,
+      "resource": "aws_cloudwatch_metric_alarm.dynamodb_write_throttles",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/monitoring/main.tf",
+      "line": 224,
+      "resource": "aws_cloudwatch_metric_alarm.api_4xx_errors",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/monitoring/main.tf",
+      "line": 249,
+      "resource": "aws_cloudwatch_metric_alarm.api_5xx_errors",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/monitoring/main.tf",
+      "line": 274,
+      "resource": "aws_cloudwatch_metric_alarm.api_latency",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/monitoring/main.tf",
+      "line": 302,
+      "resource": "aws_cloudwatch_dashboard.main",
+      "diagram_cell": "cw"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 32,
+      "resource": "aws_s3_bucket.access_logs",
+      "diagram_cell": "ops-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 52,
+      "resource": "aws_s3_bucket_server_side_encryption_configuration.access_logs",
+      "diagram_cell": "ops-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 63,
+      "resource": "aws_s3_bucket_public_access_block.access_logs",
+      "diagram_cell": "ops-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 73,
+      "resource": "aws_s3_bucket_lifecycle_configuration.access_logs",
+      "diagram_cell": "ops-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 103,
+      "resource": "aws_s3_bucket.images",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 120,
+      "resource": "aws_s3_bucket_versioning.images",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 130,
+      "resource": "aws_s3_bucket_server_side_encryption_configuration.images",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 141,
+      "resource": "aws_s3_bucket_public_access_block.images",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 151,
+      "resource": "aws_s3_bucket_lifecycle_configuration.images",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 186,
+      "resource": "aws_s3_bucket_cors_configuration.images",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 198,
+      "resource": "aws_s3_bucket_logging.images",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 207,
+      "resource": "aws_s3_bucket_policy.images",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 237,
+      "resource": "aws_s3_bucket.public_site",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 254,
+      "resource": "aws_s3_bucket_versioning.public_site",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 264,
+      "resource": "aws_s3_bucket_server_side_encryption_configuration.public_site",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 275,
+      "resource": "aws_s3_bucket_public_access_block.public_site",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 285,
+      "resource": "aws_s3_bucket_lifecycle_configuration.public_site",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 316,
+      "resource": "aws_s3_bucket_logging.public_site",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 325,
+      "resource": "aws_s3_bucket_policy.public_site",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 367,
+      "resource": "aws_s3_bucket.admin_site",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 385,
+      "resource": "aws_s3_bucket_server_side_encryption_configuration.admin_site",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 396,
+      "resource": "aws_s3_bucket_public_access_block.admin_site",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 406,
+      "resource": "aws_s3_bucket_versioning.admin_site",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 415,
+      "resource": "aws_s3_bucket_lifecycle_configuration.admin_site",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 440,
+      "resource": "aws_s3_bucket_logging.admin_site",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 449,
+      "resource": "aws_s3_bucket_policy.admin_site",
+      "diagram_cell": "app-s3"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 478,
+      "resource": "aws_ssm_parameter.public_site_bucket_name",
+      "diagram_cell": "ssm"
+    },
+    {
+      "source": "terraform/modules/storage/main.tf",
+      "line": 488,
+      "resource": "aws_ssm_parameter.admin_site_bucket_name",
+      "diagram_cell": "ssm"
+    }
+  ]
+}

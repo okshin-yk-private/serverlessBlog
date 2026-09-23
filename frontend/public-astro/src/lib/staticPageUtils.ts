@@ -59,7 +59,7 @@ export function getSiteMetadata(): SiteMetadata {
     author: {
       name: 'okimoto(yokichi)',
       role: 'Cloud Engineer',
-      bio: 'つくば市 / 2025 Japan All AWS Certifications Engineers / JAWS-UG 茨城運営 / INTJ / 自作キーボード / ルビコン塾',
+      bio: '都内企業でAWSを触っています。 つくば市 / 2026 AWS Community Builder（Dev Tools）/ JAWS-UG茨城 運営 / INTJ / 自作キーボード / HR/HM / NBA',
     },
     socialLinks: [
       { name: 'X', url: 'https://x.com/WfallGo' },
@@ -81,7 +81,7 @@ export function getAboutPageContent(): AboutPageContent {
       {
         heading: 'About This Blog',
         content:
-          'Welcome to Bone of my fallacy.\n\nこのサイトの内容は個人の感想です。\n何かを代表したり正しさを担保するものでは全くありません。',
+          'Welcome to Bone of my fallacy.\n\nこのサイトの内容は個人の意見です。\n何かを代表したり正しさを担保するものでは全くありません。',
       },
     ],
   };

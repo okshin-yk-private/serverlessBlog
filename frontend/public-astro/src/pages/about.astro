@@ -11,6 +11,7 @@
  * - 14.1, 14.2: 日本語対応
  */
 import Layout from '../layouts/Layout.astro';
+import architectureDiagram from '../assets/blog-architecture.svg?url';
 import { getAboutPageContent, getSiteMetadata } from '../lib/staticPageUtils';
 
 const aboutContent = getAboutPageContent();
@@ -119,6 +120,45 @@ const siteMetadata = getSiteMetadata();
         </section>
       </div>
     </div>
+
+    <section class="architecture-section" aria-labelledby="architecture-title">
+      <h2 class="section-title" id="architecture-title">Architecture</h2>
+      <p class="architecture-description">
+        このブログはAWSのサーバーレス構成で運用しています。公開サイトはAstroで静的に生成し、S3とCloudFrontで配信しています。
+        記事を更新するとCodeBuildでサイトを再生成し、公開するバージョンを切り替えます。
+      </p>
+      <figure class="architecture-figure">
+        <a
+          href={architectureDiagram}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="architecture-image-link"
+          aria-label="AWS構成図を原寸で開く（新しいタブ）"
+        >
+          <img
+            src={architectureDiagram}
+            alt="ブログのAWS構成図。CloudFrontとS3による配信、API Gateway・Lambda・DynamoDBによる記事管理、CodeBuildによる公開、認証と監視の構成。"
+            width="1641"
+            height="1404"
+            loading="lazy"
+            decoding="async"
+          />
+        </a>
+        <figcaption>
+          <span
+            >本番環境を中心とした構成です。リソースは用途ごとにまとめて表示しています。</span
+          >
+          <a
+            href={architectureDiagram}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View full-size diagram <span aria-hidden="true">↗</span>
+            <span class="sr-only">（新しいタブで開く）</span>
+          </a>
+        </figcaption>
+      </figure>
+    </section>
 
     <nav class="navigation" aria-label="ホームへ">
       <a href="/" class="back-link">
@@ -270,6 +310,52 @@ const siteMetadata = getSiteMetadata();
     flex-shrink: 0;
     color: var(--color-primary);
   }
+  .architecture-section {
+    margin-top: 56px;
+    padding-top: 32px;
+    border-top: 1px solid var(--color-border);
+  }
+  .architecture-description {
+    max-width: 72ch;
+    margin: 0 0 28px;
+    color: var(--color-text);
+    font-size: 1rem;
+    line-height: 2;
+  }
+  .architecture-figure {
+    margin: 0;
+  }
+  .architecture-image-link {
+    display: block;
+    border: 1px solid var(--color-border);
+    background: #fff;
+    color-scheme: only light;
+  }
+  .architecture-image-link img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .architecture-figure figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px 24px;
+    margin-top: 16px;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    line-height: 1.8;
+  }
+  .architecture-figure figcaption a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    color: var(--color-link);
+    font-family: var(--font-display);
+    text-underline-offset: 0.25em;
+  }
   .navigation {
     margin-top: 56px;
     padding-top: 24px;
@@ -332,6 +418,10 @@ const siteMetadata = getSiteMetadata();
     .section-content .story-lead {
       font-size: 1.6rem;
       margin-bottom: 24px;
+    }
+    .architecture-section {
+      margin-top: 36px;
+      padding-top: 28px;
     }
     .navigation {
       margin-top: 36px;
