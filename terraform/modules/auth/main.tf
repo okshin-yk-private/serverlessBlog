@@ -27,7 +27,8 @@ resource "aws_cognito_user_pool" "main" {
     }
   }
   # FactorConfiguration is not supported by the provider yet. Every deployment
-  # must run scripts/configure_passkey_mfa.py after apply and verify its readback.
+  # must use scripts/deploy_passkey_infrastructure.sh to set it before planning
+  # and verify that apply preserves it.
 
 
   # Requirement 4.1: Email-based sign-in
