@@ -32,6 +32,8 @@ runs:
     # must be exported to $GITHUB_ENV here for subsequent steps in the
     # calling job to see it (this mirrors what the removed job-level `env:`
     # block used to provide).
+    # zizmor github-env is reviewed and accepted (#694): the value is the fixed
+    # workspace path, with no input from the triggering event.
     - name: Export TF_PLUGIN_CACHE_DIR
       shell: bash
-      run: echo "TF_PLUGIN_CACHE_DIR=${{ github.workspace }}/.terraform.d/plugin-cache" >> $GITHUB_ENV
+      run: echo "TF_PLUGIN_CACHE_DIR=${GITHUB_WORKSPACE}/.terraform.d/plugin-cache" >> "$GITHUB_ENV" # zizmor: ignore[github-env]

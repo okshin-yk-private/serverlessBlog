@@ -1,6 +1,9 @@
 name: Dependabot Auto Merge
 
-on:
+# zizmor dangerous-triggers is reviewed and accepted (#694): the job runs only for
+# same-repository PRs, checks out the trusted develop branch (scripts/ci only,
+# no persisted credentials) and never executes PR code, artifacts or caches.
+on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: [CI, Security Scan, Dependency Update Security]
     types: [completed]

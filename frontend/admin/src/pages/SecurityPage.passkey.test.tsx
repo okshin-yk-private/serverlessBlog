@@ -71,6 +71,26 @@ it('never reports successful MFA enablement when that API fails after registrati
   expect(screen.queryByText(/パスキーのMFA利用を有効/)).not.toBeInTheDocument();
   expect(security.listPasskeys).toHaveBeenCalledTimes(2);
 });
+it('retries MFA enablement for an existing passkey without registering another', async () => {
+  vi.mocked(security.listPasskeys).mockResolvedValue([
+    {
+      credentialId: 'registered-key',
+      friendlyCredentialName: '1Password',
+    } as security.Passkey,
+  ]);
+  const user = userEvent.setup();
+  render(<SecurityPage />);
+  await user.click(
+    await screen.findByRole('button', {
+      name: '登録済みパスキーの利用を有効にする',
+    })
+  );
+  expect(auth.associateWebAuthnCredential).not.toHaveBeenCalled();
+  expect(security.enablePasskeyMfa).toHaveBeenCalledTimes(1);
+  expect(
+    await screen.findByText(/パスキーのMFA利用を有効/)
+  ).toBeInTheDocument();
+});
 it('deletes credentials only after confirmation, without turning off TOTP', async () => {
   const key = {
     credentialId: 'key-1',
