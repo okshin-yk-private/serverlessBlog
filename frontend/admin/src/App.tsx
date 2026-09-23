@@ -6,6 +6,7 @@ import {
 } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext.tsx';
 import { AuthGuard } from './components/AuthGuard';
+import SecurityPage from './pages/SecurityPage';
 import LoginPage from './pages/LoginPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
@@ -23,6 +24,14 @@ function App() {
     <Router basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
       <AuthProvider>
         <Routes>
+          <Route
+            path="/security"
+            element={
+              <AuthGuard>
+                <SecurityPage />
+              </AuthGuard>
+            }
+          />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route

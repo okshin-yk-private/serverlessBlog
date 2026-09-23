@@ -92,6 +92,12 @@ const AdminHeader: React.FC = () => {
             <Link to="/posts/new" className="admin-nav-link admin-nav-new">
               + New
             </Link>
+            <Link
+              to="/security"
+              className={`admin-nav-link ${isActive('/security') ? 'active' : ''}`}
+            >
+              Security
+            </Link>
             <ThemeToggle />
             <button onClick={handleLogout} className="admin-logout-btn">
               Logout
