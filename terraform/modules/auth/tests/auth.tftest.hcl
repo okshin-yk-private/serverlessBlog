@@ -582,3 +582,22 @@ run "e2e_user_forbidden_in_prd" {
     aws_cognito_user.e2e_admin,
   ]
 }
+
+run "passkey_mfa_prerequisites" {
+  command = plan
+  variables {
+    user_pool_name           = "test-blog-user-pool"
+    environment              = "prd"
+    mfa_configuration        = "ON"
+    enable_passkeys          = true
+    passkey_relying_party_id = "boneofmyfallacy.net"
+  }
+  assert {
+    condition     = aws_cognito_user_pool.main.user_pool_tier == "ESSENTIALS" && aws_cognito_user_pool.main.web_authn_configuration[0].user_verification == "required"
+    error_message = "Passkeys need Essentials and required user verification."
+  }
+  assert {
+    condition     = contains(aws_cognito_user_pool.main.sign_in_policy[0].allowed_first_auth_factors, "WEB_AUTHN") && contains(aws_cognito_user_pool_client.main.explicit_auth_flows, "ALLOW_USER_AUTH")
+    error_message = "Passkey sign-in must be enabled on both pool and client."
+  }
+}

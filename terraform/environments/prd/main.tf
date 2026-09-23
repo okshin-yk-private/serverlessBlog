@@ -36,10 +36,12 @@ module "database" {
 module "auth" {
   source = "../../modules/auth"
 
-  user_pool_name          = "${var.project_name}-${var.environment}"
-  environment             = var.environment
-  mfa_configuration       = "OPTIONAL"
-  password_minimum_length = 12
+  user_pool_name           = "${var.project_name}-${var.environment}"
+  environment              = var.environment
+  mfa_configuration        = "ON"
+  enable_passkeys          = var.enable_passkeys
+  passkey_relying_party_id = var.domain_name
+  password_minimum_length  = 12
 
   tags = local.common_tags
 }

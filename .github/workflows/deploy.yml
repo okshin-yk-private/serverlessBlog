@@ -26,6 +26,8 @@ on:
       - 'bunfig.toml'
       - 'tsconfig*.json'
       - 'scripts/deploy/**'
+      - 'scripts/configure_passkey_mfa.py'
+      - 'scripts/deploy_passkey_infrastructure.sh'
       - 'scripts/ci/detect-changes.sh'
       - '.github/workflows/deploy.yml'
       - 'tests/e2e/**'
@@ -440,17 +442,15 @@ jobs:
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           terraform init -backend-config="bucket=terraform-state-${ACCOUNT_ID}"
 
-      # Plan is run on PR by ci.yml's terraform-plan-dev job. We skip the
-      # explicit plan step here to avoid duplication. `terraform apply
-      # -auto-approve` will internally re-plan against current state and
-      # apply atomically; the plan summary still appears in the apply log.
+      # Bootstrap WebAuthn MFA, then make a fresh plan and reject MFA overwrites.
+      # The API bootstrap is separately verified; it is not represented in a PR plan.
       - name: Terraform Apply
         working-directory: terraform/environments/dev
         run: |
           echo "========================================="
           echo "Deploying to DEV Environment"
           echo "========================================="
-          terraform apply -auto-approve
+          bash ../../../scripts/deploy_passkey_infrastructure.sh dev
           echo "✓ DEV deployment complete"
 
       - name: Get Outputs
@@ -537,17 +537,15 @@ jobs:
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           terraform init -backend-config="bucket=terraform-state-${ACCOUNT_ID}"
 
-      # Plan is run on PR by ci.yml's terraform-plan-prd job. We skip the
-      # explicit plan step here to avoid duplication. `terraform apply
-      # -auto-approve` will internally re-plan against current state and
-      # apply atomically; the plan summary still appears in the apply log.
+      # Bootstrap WebAuthn MFA, then make a fresh plan and reject MFA overwrites.
+      # The API bootstrap is separately verified; it is not represented in a PR plan.
       - name: Terraform Apply
         working-directory: terraform/environments/prd
         run: |
           echo "========================================="
           echo "⚠️  Deploying to PRODUCTION Environment"
           echo "========================================="
-          terraform apply -auto-approve
+          bash ../../../scripts/deploy_passkey_infrastructure.sh prd
           echo "✓ PRODUCTION deployment complete"
 
       - name: Get Outputs
@@ -599,6 +597,8 @@ jobs:
           CLIENT_ID=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/cognito/user-pool-client-id" --query "Parameter.Value" --output text)
           echo "user_pool_id=$POOL_ID" >> $GITHUB_OUTPUT
           echo "client_id=$CLIENT_ID" >> $GITHUB_OUTPUT
+          AUTH_CONFIG=$(python3 scripts/configure_passkey_mfa.py --environment "${{ needs.detect-changes.outputs.target-env }}" --check-only)
+          echo "mfa_required=$(echo "$AUTH_CONFIG" | jq -r .mfa_required)" >> $GITHUB_OUTPUT
 
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -626,6 +626,8 @@ jobs:
           NODE_ENV: production
           VITE_COGNITO_USER_POOL_ID: ${{ steps.cognito.outputs.user_pool_id }}
           VITE_COGNITO_USER_POOL_CLIENT_ID: ${{ steps.cognito.outputs.client_id }}
+          VITE_ENABLE_PASSKEY: "true"
+          VITE_MFA_REQUIRED: ${{ steps.cognito.outputs.mfa_required }}
           VITE_API_URL: "/api"
           VITE_CLOUDFRONT_URL: ${{ steps.cloudfront.outputs.url }}
 

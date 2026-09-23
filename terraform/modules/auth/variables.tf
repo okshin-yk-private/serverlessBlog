@@ -56,3 +56,19 @@ variable "e2e_test_user_email" {
     error_message = "e2e_test_user_email must be a valid email address."
   }
 }
+
+variable "enable_passkeys" {
+  type        = bool
+  default     = false
+  description = "Enable user-verified WebAuthn on the Essentials tier; requires post-apply MFA completion."
+}
+
+variable "passkey_relying_party_id" {
+  type        = string
+  default     = ""
+  description = "Exact admin hostname (without scheme/path), isolated for each environment."
+  validation {
+    condition     = !var.enable_passkeys || can(regex("^[a-z0-9][a-z0-9.-]+[a-z0-9]$", var.passkey_relying_party_id))
+    error_message = "Passkeys require a valid relying-party hostname."
+  }
+}
