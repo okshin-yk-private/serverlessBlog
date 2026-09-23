@@ -325,3 +325,6 @@ frontend/public-astro/lighthouse-results/
 
 # Local WebAuthn browser fixtures
 test-results-passkeys/
+
+# Python bytecode from scripts/ci tests
+__pycache__/
