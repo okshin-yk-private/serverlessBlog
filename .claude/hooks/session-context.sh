@@ -119,8 +119,23 @@ if [ -n "$others" ]; then
   fi
 fi
 
+# husky points core.hooksPath at a directory `bun install` creates (.husky/_). A
+# fresh worktree lacks it until then, and git silently runs no hooks at all.
+hooks_path=$(git config --get core.hooksPath 2>/dev/null)
+hooks_missing=false
+if [ -n "$hooks_path" ]; then
+  case $hooks_path in
+    /*) hooks_dir=$hooks_path ;;
+    *) hooks_dir="$top/$hooks_path" ;;
+  esac
+  [ -d "$hooks_dir" ] || hooks_missing=true
+fi
+
 if [ "$behind_base" -gt 0 ] 2>/dev/null; then
   echo "WARNING: HEAD is $behind_base commits behind origin/$base. Before reviewing code or filing issues, read origin/$base (docs/ai-shared-rules.md, 'Checkout freshness and worktrees')."
+fi
+if $hooks_missing; then
+  echo "WARNING: git hooks directory $hooks_path does not exist in this checkout, so commits run no pre-commit checks. Run 'bun install --frozen-lockfile' at the repository root first."
 fi
 if $is_main; then
   echo "NOTE: the main checkout may be shared with other sessions. Do the work in a worktree instead of switching branches here."

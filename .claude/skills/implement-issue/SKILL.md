@@ -40,7 +40,7 @@ git worktree add .claude/worktrees/issue-<N> -b fix/issue-<N> origin/develop
 ```
 
 - 同じ Issue の作業ブランチが既にあれば、それを使う worktree を作る（`git worktree add .claude/worktrees/issue-<N> fix/issue-<N>`）
-- worktree では依存が未導入のため、検証の前に対象パッケージで `bun install --frozen-lockfile` を実行する
+- worktree には依存も husky のフック（`.husky/_`）も無い。作成直後にルートで `bun install --frozen-lockfile` を実行する（実行しないとコミット時のチェックが警告なしで一切実行されない）。検証の前に、対象パッケージでも同様に実行する
 
 ### 2. 対象コードの確認
 

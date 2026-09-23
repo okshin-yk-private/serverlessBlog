@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
@@ -134,6 +135,20 @@ describe('session-context hook', () => {
     });
   });
 
+  test('warns when the configured hooks directory is missing', () => {
+    withRepos(({ clone, env, git }) => {
+      git(clone, 'config', 'core.hooksPath', '.husky/_');
+      const missing = runHook(sessionHook, { cwd: clone }, env);
+      expect(missing.status).toBe(0);
+      expect(missing.stdout).toContain(
+        'WARNING: git hooks directory .husky/_ does not exist'
+      );
+      mkdirSync(join(clone, '.husky/_'), { recursive: true });
+      const present = runHook(sessionHook, { cwd: clone }, env);
+      expect(present.stdout).not.toContain('git hooks directory');
+    });
+  });
+
   test('outside a git repository it prints nothing and exits 0', () => {
     withRepos(({ root, env }) => {
       const result = runHook(sessionHook, { cwd: root }, env);
@@ -248,6 +263,9 @@ describe('harness wiring', () => {
     );
     expect(read('.claude/skills/implement-issue/SKILL.md')).toContain(
       'git worktree add .claude/worktrees/issue-<N>'
+    );
+    expect(rules).toContain(
+      'Run `bun install --frozen-lockfile` at the root of a new worktree'
     );
     expect(read('.claude/skills/create-pr/SKILL.md')).toContain(
       'git worktree add .claude/worktrees/<name>'
