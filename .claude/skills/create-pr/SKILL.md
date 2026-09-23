@@ -21,6 +21,9 @@ mergeやデプロイの承認にはならない。
 - 依頼に対応する既存の作業ブランチがあれば継続使用する。新規作成時は
   `origin/develop` 起点とし、指定名、または `fix/issue-<N>` / `feat/issue-<N>`
   など変更内容に合う名前を使う。
+- ブランチの作成・切り替えは worktree で行い
+  （`git worktree add .claude/worktrees/<name> -b <branch> origin/develop`）、
+  メインのチェックアウトのブランチは変えない。他のセッションが使っている場合がある。
 - 未コミット変更や別作業のコミットがある状態で、機械的にcheckoutしない。
   必要なら隔離したworktreeに承認範囲の差分を移し、元の変更を保持する。
   reset、clean、無関係な変更のstash、force-pushで状態を合わせない。
