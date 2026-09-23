@@ -213,9 +213,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     response: MockSignInResponse,
     email: string
   ): Promise<LoginResult> => {
-    if ('token' in response) {
-      saveAuthToken(response.token);
-      setUser(response.user);
+    if ('token' in response || response.step === 'done') {
+      // Persist only a locally generated, non-secret fixture in MSW mode.
+      // Challenge responses (including setup secrets) never enter token storage.
+      const { createMockJWT } =
+        await import('../../../../tests/e2e/mocks/mockSession');
+      saveAuthToken(createMockJWT());
+      setUser({ id: 'user-123', email });
       resetChallenge();
       return { success: true, requiresNewPassword: false };
     }

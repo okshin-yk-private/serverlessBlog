@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { AuthProvider } from './AuthContext';
 import { useAuth } from '../hooks/useAuth';
 import * as auth from 'aws-amplify/auth';
+import * as mockApi from '../api/auth';
 import { getAuthToken, removeAuthToken } from '../utils/auth';
 
 vi.mock('aws-amplify/auth', () => ({
@@ -12,6 +13,11 @@ vi.mock('aws-amplify/auth', () => ({
   fetchAuthSession: vi.fn(),
   confirmSignIn: vi.fn(),
 }));
+vi.mock('../api/auth', () => ({
+  loginAPI: vi.fn(),
+  confirmMockSignIn: vi.fn(),
+}));
+afterEach(() => vi.unstubAllEnvs());
 const done = { isSignedIn: true, nextStep: { signInStep: 'DONE' as const } };
 const challenge = {
   isSignedIn: false,
@@ -131,4 +137,24 @@ describe('TOTP sign-in transitions', () => {
     expect(result.current.pendingEmail).toBeNull();
     expect(auth.signOut).toHaveBeenCalled();
   });
+});
+
+it('never persists data returned by the mock challenge endpoint', async () => {
+  vi.stubEnv('VITE_ENABLE_MSW_MOCK', 'true');
+  vi.mocked(mockApi.loginAPI).mockResolvedValue({ step: 'code' });
+  // Even an unexpected token field from the mock endpoint must not be saved.
+  vi.mocked(mockApi.confirmMockSignIn).mockResolvedValue({
+    step: 'done',
+    token: 'remote-value-must-not-be-stored',
+  } as Awaited<ReturnType<typeof mockApi.confirmMockSignIn>>);
+  const result = await mount();
+  await act(async () => {
+    await result.current.login('totp@example.com', 'testpassword');
+  });
+  await act(async () => {
+    await result.current.confirmTotp('123456');
+  });
+  expect(result.current.isAuthenticated).toBe(true);
+  expect(getAuthToken()).not.toBe('remote-value-must-not-be-stored');
+  expect(getAuthToken()?.split('.')[2]).toBe('mock-signature');
 });

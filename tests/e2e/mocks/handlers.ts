@@ -16,6 +16,7 @@
  */
 
 import { http, HttpResponse } from 'msw';
+import { createMockJWT } from './mockSession';
 import {
   mockPosts,
   createMockPost,
@@ -40,23 +41,6 @@ const createSiteBuildRequest = () => ({
   targetRevision: nextSiteBuildRevision++,
   status: 'queued' as const,
 });
-
-/**
- * モックJWTトークンを生成（有効期限付き）
- */
-const createMockJWT = (): string => {
-  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const exp = Math.floor(Date.now() / 1000) + 3600; // 1時間後に有効期限
-  const payload = btoa(
-    JSON.stringify({
-      sub: 'user-123',
-      email: 'admin@example.com',
-      exp,
-    })
-  );
-  const signature = 'mock-signature';
-  return `${header}.${payload}.${signature}`;
-};
 
 /**
  * 認証トークンを検証するヘルパー関数
@@ -328,10 +312,7 @@ export const handlers = [
       body.challenge === 'totp' &&
       body.challengeResponse === '123456'
     ) {
-      return HttpResponse.json({
-        token: createMockJWT(),
-        user: { id: 'user-123', email: body.email },
-      });
+      return HttpResponse.json({ step: 'done' });
     }
     return HttpResponse.json({ message: 'Invalid code' }, { status: 401 });
   }),

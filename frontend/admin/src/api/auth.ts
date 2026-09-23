@@ -14,16 +14,18 @@ export interface LoginResponse {
   };
 }
 
-export type MockSignInResponse =
-  | LoginResponse
+export type MockChallengeResponse =
+  | { step: 'done' }
   | { step: 'code' | 'password' }
   | { step: 'setup'; sharedSecret: string; setupUri: string };
+
+export type MockSignInResponse = LoginResponse | MockChallengeResponse;
 
 export async function confirmMockSignIn(
   email: string,
   challengeResponse: string,
   challenge: 'password' | 'totp'
-): Promise<MockSignInResponse> {
+): Promise<MockChallengeResponse> {
   if (import.meta.env.VITE_ENABLE_MSW_MOCK !== 'true')
     throw new Error('Mock authentication is disabled');
   const response = await fetch(`${API_URL}/auth/confirm`, {
