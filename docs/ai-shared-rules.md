@@ -51,6 +51,20 @@ the impact cannot be bounded; it does not include E2E or Terraform verification.
 - Never commit secrets. Triage Code Scanning alerts via the GitHub Security tab —
   see `docs/SECURITY_SCANNING.md`.
 
+## Checkout freshness and worktrees
+
+- Before reviewing code, investigating a bug or filing an issue, run `git fetch origin`
+  and check `git rev-list --left-right --count HEAD...origin/develop`. If HEAD is behind,
+  base findings on `origin/develop` (read files with `git show origin/develop:<path>` or
+  work in a fresh worktree), not on the local checkout. A review once ran 108 commits
+  behind and reported four problems that were already fixed.
+- Before filing an issue, confirm the cited code still exists on `origin/develop` and
+  search existing issues, closed ones included: `gh issue list --state all --search "<keywords>"`.
+- Several sessions may share the main checkout. Agents do not switch branches there; each
+  issue gets its own worktree: `git worktree add .claude/worktrees/<name> -b <branch> origin/develop`.
+  Leave the main checkout on whatever branch it is on, and remove the worktree after the
+  PR merges (`git worktree remove <path>`).
+
 ## Language
 
 Think in English, respond to the user in Japanese. Markdown written into project
