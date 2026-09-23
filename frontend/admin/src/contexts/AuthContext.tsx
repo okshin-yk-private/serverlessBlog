@@ -10,6 +10,7 @@ import {
   getCurrentUser,
   fetchAuthSession,
   confirmSignIn,
+  type SignInOutput,
 } from 'aws-amplify/auth';
 import {
   getAuthToken,
@@ -18,7 +19,11 @@ import {
   isTokenExpired,
   migrateFromLocalStorage,
 } from '../utils/auth';
-import { loginAPI } from '../api/auth';
+import {
+  loginAPI,
+  confirmMockSignIn,
+  type MockSignInResponse,
+} from '../api/auth';
 import { AUTH_SESSION_EXPIRED_EVENT } from '../api/client';
 
 /**
@@ -38,7 +43,11 @@ interface User {
 export interface LoginResult {
   success: boolean;
   requiresNewPassword: boolean;
+  requiresTotp?: boolean;
 }
+
+export type TotpChallenge =
+  { kind: 'code' } | { kind: 'setup'; sharedSecret: string; setupUri: string };
 
 /**
  * AuthContextの型定義
@@ -50,7 +59,9 @@ export interface AuthContextType {
   requiresNewPassword: boolean;
   pendingEmail: string | null;
   login: (email: string, password: string) => Promise<LoginResult>;
-  confirmNewPassword: (newPassword: string) => Promise<void>;
+  confirmNewPassword: (newPassword: string) => Promise<LoginResult>;
+  totpChallenge: TotpChallenge | null;
+  confirmTotp: (code: string) => Promise<LoginResult>;
   cancelNewPassword: () => void;
   logout: () => Promise<void>;
 }
@@ -76,6 +87,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [requiresNewPassword, setRequiresNewPassword] = useState(false);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+
+  const [totpChallenge, setTotpChallenge] = useState<TotpChallenge | null>(
+    null
+  );
 
   // 初期化時に既存のセッションをチェック
   useEffect(() => {
@@ -143,100 +158,163 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const resetChallenge = () => {
+    setRequiresNewPassword(false);
+    setTotpChallenge(null);
+    setPendingEmail(null);
+  };
+
+  // signIn and confirmSignIn can both return another challenge.
+  const handleSignInResult = async (
+    result: SignInOutput,
+    email: string
+  ): Promise<LoginResult> => {
+    if (result.isSignedIn) {
+      await completeSignIn(email);
+      resetChallenge();
+      return { success: true, requiresNewPassword: false };
+    }
+    const step = result.nextStep;
+    setRequiresNewPassword(false);
+    setTotpChallenge(null);
+    setPendingEmail(email);
+    switch (step.signInStep) {
+      case 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED':
+        setRequiresNewPassword(true);
+        return { success: true, requiresNewPassword: true };
+      case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE':
+        setTotpChallenge({ kind: 'code' });
+        return {
+          success: true,
+          requiresNewPassword: false,
+          requiresTotp: true,
+        };
+      case 'CONTINUE_SIGN_IN_WITH_TOTP_SETUP':
+        setTotpChallenge({
+          kind: 'setup',
+          sharedSecret: step.totpSetupDetails.sharedSecret,
+          setupUri: step.totpSetupDetails
+            .getSetupUri('Bone of my fallacy', email)
+            .toString(),
+        });
+        return {
+          success: true,
+          requiresNewPassword: false,
+          requiresTotp: true,
+        };
+      default:
+        resetChallenge();
+        throw new Error('ログインに失敗しました');
+    }
+  };
+
+  // MSW-only responses enter the same challenge state machine as Amplify.
+  const handleMockResult = async (
+    response: MockSignInResponse,
+    email: string
+  ): Promise<LoginResult> => {
+    if ('token' in response || response.step === 'done') {
+      // Persist only a locally generated, non-secret fixture in MSW mode.
+      // Challenge responses (including setup secrets) never enter token storage.
+      const { createMockJWT } =
+        await import('../../../../tests/e2e/mocks/mockSession');
+      saveAuthToken(createMockJWT());
+      setUser({ id: 'user-123', email });
+      resetChallenge();
+      return { success: true, requiresNewPassword: false };
+    }
+    if (response.step === 'setup') {
+      return handleSignInResult(
+        {
+          isSignedIn: false,
+          nextStep: {
+            signInStep: 'CONTINUE_SIGN_IN_WITH_TOTP_SETUP',
+            totpSetupDetails: {
+              sharedSecret: response.sharedSecret,
+              getSetupUri: () => new URL(response.setupUri),
+            },
+          },
+        },
+        email
+      );
+    }
+    return handleSignInResult(
+      {
+        isSignedIn: false,
+        nextStep:
+          response.step === 'password'
+            ? {
+                signInStep: 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED',
+                missingAttributes: [],
+              }
+            : { signInStep: 'CONFIRM_SIGN_IN_WITH_TOTP_CODE' },
+      },
+      email
+    );
+  };
+
   const login = async (
     email: string,
     password: string
   ): Promise<LoginResult> => {
-    try {
-      // E2Eテスト時はMSWモックを使用
-      if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
-        // APIを呼び出してMSWがレスポンスを返すようにする
-        const response = await loginAPI(email, password);
-        saveAuthToken(response.token);
-        setUser(response.user);
-        return { success: true, requiresNewPassword: false };
-      }
-
-      // 既存のセッションがある場合はサインアウトしてからサインイン
-      try {
-        const currentUser = await getCurrentUser();
-        if (currentUser) {
-          await signOut();
-        }
-      } catch {
-        // ユーザーがいない場合は無視
-      }
-
-      // Cognitoでサインイン
-      const signInResult = await signIn({ username: email, password });
-
-      // 初回ログイン時のパスワード変更が必要な場合
-      if (
-        signInResult.nextStep?.signInStep ===
-        'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED'
-      ) {
-        // 新パスワード必要状態を設定
-        setRequiresNewPassword(true);
-        setPendingEmail(email);
-        return { success: true, requiresNewPassword: true };
-      }
-
-      if (!signInResult.isSignedIn) {
-        throw new Error('ログインに失敗しました');
-      }
-
-      // セッション情報を取得してログイン完了
-      await completeSignIn(email);
-      return { success: true, requiresNewPassword: false };
-    } catch (error) {
-      console.error('ログインに失敗しました:', error);
-      throw error;
+    resetChallenge();
+    removeAuthToken();
+    setUser(null);
+    if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
+      return handleMockResult(await loginAPI(email, password), email);
     }
+    try {
+      if (await getCurrentUser()) await signOut();
+    } catch {
+      // No existing session.
+    }
+    return handleSignInResult(
+      await signIn({ username: email, password }),
+      email
+    );
   };
 
-  const confirmNewPassword = async (newPassword: string) => {
-    try {
-      // E2Eテスト時はモック動作
-      if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        setRequiresNewPassword(false);
-        setUser({
-          id: 'test-user-id',
-          email: pendingEmail || 'admin@example.com',
-        });
-        saveAuthToken('mock-token-after-password-change');
-        setPendingEmail(null);
-        return;
-      }
-
-      // Cognitoで新パスワードを確認
-      const confirmResult = await confirmSignIn({
-        challengeResponse: newPassword,
-      });
-
-      if (!confirmResult.isSignedIn) {
-        throw new Error('パスワード変更に失敗しました');
-      }
-
-      // セッション情報を取得してログイン完了
-      await completeSignIn(pendingEmail || '');
-
-      // 状態をリセット
-      setRequiresNewPassword(false);
-      setPendingEmail(null);
-    } catch (error) {
-      console.error('パスワード変更に失敗しました:', error);
-      throw error;
+  const confirmNewPassword = async (
+    newPassword: string
+  ): Promise<LoginResult> => {
+    if (!requiresNewPassword || !pendingEmail)
+      throw new Error('ログインからやり直してください。');
+    if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
+      return handleMockResult(
+        await confirmMockSignIn(pendingEmail, newPassword, 'password'),
+        pendingEmail
+      );
     }
+    return handleSignInResult(
+      await confirmSignIn({ challengeResponse: newPassword }),
+      pendingEmail
+    );
+  };
+
+  const confirmTotp = async (code: string): Promise<LoginResult> => {
+    if (!totpChallenge || !pendingEmail)
+      throw new Error('ログインからやり直してください。');
+    if (!/^[0-9]{6}$/.test(code))
+      throw new Error('6桁の認証コードを入力してください。');
+    if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
+      return handleMockResult(
+        await confirmMockSignIn(pendingEmail, code, 'totp'),
+        pendingEmail
+      );
+    }
+    return handleSignInResult(
+      await confirmSignIn({ challengeResponse: code }),
+      pendingEmail
+    );
   };
 
   const cancelNewPassword = () => {
-    setRequiresNewPassword(false);
-    setPendingEmail(null);
-    // サインイン状態をクリア
-    signOut().catch(() => {
-      // エラーは無視
-    });
+    resetChallenge();
+    removeAuthToken();
+    setUser(null);
+    if (import.meta.env.VITE_ENABLE_MSW_MOCK !== 'true') {
+      signOut().catch(() => {});
+    }
   };
 
   const completeSignIn = async (email: string) => {
@@ -244,6 +322,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const session = await fetchAuthSession();
     const idToken = session.tokens?.idToken?.toString();
 
+    if (!idToken)
+      throw new Error(
+        '認証セッションを取得できませんでした。ログインからやり直してください。'
+      );
     if (idToken) {
       // トークンを保存
       saveAuthToken(idToken);
@@ -284,6 +366,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     requiresNewPassword,
     pendingEmail,
+    totpChallenge,
+    confirmTotp,
     login,
     confirmNewPassword,
     cancelNewPassword,

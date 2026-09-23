@@ -526,6 +526,42 @@ run "buildspec_uses_atomic_kvs_promotion" {
   }
 }
 
+# Issue #675: this build can write the public site bucket and promote the KVS
+# release, so the Bun it runs must be a pinned, checksum-verified binary rather
+# than whatever the bun.sh installer serves at build time.
+run "buildspec_installs_pinned_verified_bun" {
+  command = plan
+
+  variables {
+    project_name            = "serverless-blog"
+    environment             = "dev"
+    public_site_bucket_name = "serverless-blog-public-site-dev-123456789012"
+    public_site_bucket_arn  = "arn:aws:s3:::serverless-blog-public-site-dev-123456789012"
+    release_kvs_arn         = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    api_url                 = "https://example.cloudfront.net/api"
+  }
+
+  assert {
+    condition     = !strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "bun.sh/install")
+    error_message = "BuildSpec must not pipe the unpinned bun.sh installer into bash"
+  }
+
+  assert {
+    condition     = strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "https://github.com/oven-sh/bun/releases/download/bun-v1.3.11/bun-linux-aarch64.zip")
+    error_message = "BuildSpec must download the pinned Bun release asset"
+  }
+
+  assert {
+    condition     = strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "d13944da12a53ecc74bf6a720bd1d04c4555c038dfe422365356a7be47691fdf") && strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "sha256sum -c")
+    error_message = "BuildSpec must verify the Bun archive against a pinned SHA256"
+  }
+
+  assert {
+    condition     = strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "test \"$(bun --version)\" = \"1.3.11\"")
+    error_message = "BuildSpec must fail when the installed Bun is not the pinned version"
+  }
+}
+
 run "public_verification_auth_is_explicit_and_scoped" {
   command = plan
   variables {

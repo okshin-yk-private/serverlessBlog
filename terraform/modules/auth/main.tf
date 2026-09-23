@@ -35,7 +35,7 @@ resource "aws_cognito_user_pool" "main" {
     temporary_password_validity_days = 7
   }
 
-  # Requirement 4.5: MFA configuration (OPTIONAL by default, ON for production)
+  # Requirement 4.5: MFA configuration (OPTIONAL until the admin TOTP UI is deployed and existing administrators are enrolled)
   mfa_configuration = var.mfa_configuration
 
   # Software token MFA configuration (required when MFA is OPTIONAL or ON)

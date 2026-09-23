@@ -8,7 +8,7 @@
 1. 記事の公開状態に影響する保存・削除と同じDynamoDBトランザクションで、サイト全体の `desiredRevision` を進める。
 2. Coordinatorが空いているビルド枠を取得し、CodeBuildを開始する。実行中の追加保存は保持し、完了後に最新の要求をまとめて次のビルドへ送る。
 3. CodeBuildが設定されたブランチ（DEV: `develop`、PRD: `main`）を取得する。
-4. Bun、Astroと配置スクリプトの依存を準備し、`astro check && astro build` を実行する。
+4. Bun、Astroと配置スクリプトの依存を準備し、`astro check && astro build` を実行する。Bunはバージョンを固定したGitHub Releasesのアセットを、モジュールに固定したSHA256で検証してから導入する。検証に失敗するとビルドは失敗する（Issue #675）。バージョンを上げる時は `.github/actions/setup-bun-deps/action.yml` の既定値と、`terraform/modules/codebuild/main.tf` のバージョン・SHA256を同時に更新する。
 5. 全共有アセットを配置・検証してから、リリース固有のページを配置・検証する。
 6. 全ファイルの検証が成功した場合だけ、CloudFront KeyValueStoreの `activeRevision` を条件付き更新する。
 7. CodeBuildの状態変更イベントでCoordinatorが完了状態を記録し、後続要求を処理する。EventBridge Schedulerの5分周期の照合は、通知を逃した場合などの復旧経路である。
