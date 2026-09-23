@@ -36,9 +36,11 @@ module "database" {
 module "auth" {
   source = "../../modules/auth"
 
-  user_pool_name          = "${var.project_name}-${var.environment}"
-  environment             = var.environment
-  mfa_configuration       = "OPTIONAL"
+  user_pool_name = "${var.project_name}-${var.environment}"
+  environment    = var.environment
+  # Enable only after the TOTP UI is deployed to PRD and all existing admins
+  # have enrolled and verified a fresh TOTP sign-in (Issue #677).
+  mfa_configuration       = "ON"
   password_minimum_length = 12
 
   tags = local.common_tags
