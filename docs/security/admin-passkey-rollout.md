@@ -33,15 +33,25 @@ GetUser の公開仕様には WebAuthnMfaSettings.Enabled の読み戻しがな�
 
 ## 適用順序と Terraform の管理外設定
 
-**PR #687 の本番 TOTP 必須化・再ログイン確認を先に完了する。** 本変更も本番 HCL の
-`ON` を維持するが、現在の本番が `OPTIONAL` の場合、移行スクリプトは AWS 設定変更前に停止する。
-これは初回 MFA 必須化とパスキー移行を一度に進めないための条件。
+**本番 TOTP UI の公開、既存管理者の登録と新規 TOTP ログイン確認を先に完了する。**
+ユーザーが承認した本番 MFA 必須化を、パスキー移行の前段で実行する。
+本番 HCL の `ON` は #689 で既に取り込まれているため、重複する #687 のマージは不要。
+旧スクリプトは「本番が既に ON」を要求するだけで初回適用経路がなく、
+[本番 deploy 35832425373](https://github.com/okshin-yk-private/serverlessBlog/actions/runs/35832425373/job/107088013738)
+が設定変更前に停止した。以下の初回フェーズで解消する。
 
 AWS Provider は `FactorConfiguration` に未対応であり、この項目は Terraform plan に
 現れない。Provider の MFA 更新がこの項目を欠落させる可能性があるため、通常の
 `terraform apply` だけで導入を完了したとは扱わない。デプロイは次の順序で実行する。
 
-1. DEV では、既存プールが参照する旧 CDK の SMS 送信用 IAM ロールを先に復元する。
+1. PRD では `--require-production-mfa` を実行する。既に `ON` なら読み取りのみで終了。
+   `OPTIONAL` の場合は、SMS ロールがあれば同一 ARN の実在、`admin` グループの全ページ、
+   各有効管理者の `CONFIRMED`・TOTP 有効・TOTP 優先を読み取り確認する。
+   対象管理者が0人、未登録者、未知の MFA 設定、TOTP 無効、MFA `OFF` は変更前に停止する。
+   設定を再読込して変更がないことを確認し、既存 SMS/TOTP/Email/WebAuthn を保持したまま
+   `SetUserPoolMfaConfig` で `MfaConfiguration` だけを `ON` にする。全設定の読み戻しが
+   一致しない場合はパスキー移行へ進まない。利用者の MFA 選択や資格情報は変更しない。
+   DEV では、既存プールが参照する旧 CDK の SMS 送信用 IAM ロールを先に復元する。
    対象を IAM ロールと inline policy の2リソースに限定した plan を作成し、作成または
    変更なしだけを許可する。プール更新・既存ロールの編集・削除・置換は拒否する。
    その後、既存プールの tier を読み取り、必要な場合のみ、`enable_passkeys=false` の plan で
@@ -58,8 +68,16 @@ AWS Provider は `FactorConfiguration` に未対応であり、この項目は T
 実装: `scripts/deploy_passkey_infrastructure.sh` と `scripts/configure_passkey_mfa.py`。
 CLI は新フィールドに対応した AWS CLI v2 が必要（ローカル 2.36.23 のモデルで確認）。
 SSM の対象環境 pool/client ID、Cognito Describe/Get/SetUserPoolMfaConfig 権限が必要。
+PRD の初回必須化には ListUsersInGroup / AdminGetUser と、既存 SMS ロールがある場合の
+IAM GetRole 権限も必要。ユーザー名・メールアドレス・API の生レスポンスはログに出さない。
 SSO・リージョン・環境を切り替えて検証失敗を回避したり、本番 MFA を任意に下げたりしない。
 RP ID が既存値と異なる場合も停止し、資格情報を無効にする変更を自動適用しない。
+
+本番での読み取り専用の事前確認は、対象アカウントの認証状態を確認したうえで
+`python3 scripts/configure_passkey_mfa.py --environment prd --check-production-mfa-readiness`
+を使う。CLI による登録状態の確認は、実際の TOTP 再ログイン試験の代わりにはならない。
+初回の `ON` 化も Terraform plan 外の API 設定である。後続のパスキー移行が失敗しても
+MFA を `OPTIONAL` に戻さず、既存のパスワード＋TOTP ログインを維持した状態で原因を確認する。
 
 ### DEV の SMS ロール復元
 

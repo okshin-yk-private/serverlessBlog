@@ -10,7 +10,7 @@ import unittest
 
 
 class DeploymentOrderTest(unittest.TestCase):
-    def run_deploy(self, environment='dev', unsafe=False):
+    def run_deploy(self, environment='dev', unsafe=False, fail_bootstrap=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / 'scripts').mkdir()
@@ -24,6 +24,8 @@ kind = Path(sys.argv[0]).name
 with open(os.environ['CALL_LOG'], 'a') as log:
     log.write(json.dumps([kind, *args]) + '\\n')
 if kind == 'python3':
+    if '--require-production-mfa' in args and os.environ['FAIL_MFA_BOOTSTRAP'] == 'true':
+        sys.exit(1)
     if '--check-plan' in args or '--check-sms-recovery-plan' in args:
         sys.exit(subprocess.call([os.environ['REAL_PYTHON'], *args]))
     print('false' if '--inspect-tier' in args else '{}')
@@ -45,7 +47,8 @@ elif 'show' in args:
             log = root / 'calls.jsonl'
             result = subprocess.run(['bash', str(root / 'scripts/deploy_passkey_infrastructure.sh'), environment],
                 env={**os.environ, 'PATH': f'{root / "bin"}{os.pathsep}{os.environ["PATH"]}',
-                     'REAL_PYTHON': sys.executable, 'CALL_LOG': str(log), 'UNSAFE_PLAN': str(unsafe).lower()},
+                     'REAL_PYTHON': sys.executable, 'CALL_LOG': str(log), 'UNSAFE_PLAN': str(unsafe).lower(),
+                     'FAIL_MFA_BOOTSTRAP': str(fail_bootstrap).lower()},
                 capture_output=True, text=True)
             return result, [json.loads(line) for line in log.read_text().splitlines()]
 
@@ -71,6 +74,15 @@ elif 'show' in args:
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(any('sms-recovery' in ' '.join(call) for call in calls))
         self.assertEqual(sum(call[0] == 'terraform' and 'apply' in call for call in calls), 1)
+        bootstrap = next(i for i, call in enumerate(calls) if '--require-production-mfa' in call)
+        inspect = next(i for i, call in enumerate(calls) if '--inspect-tier' in call)
+        self.assertLess(bootstrap, inspect)
+
+    def test_production_bootstrap_failure_stops_before_terraform_and_passkeys(self):
+        result, calls = self.run_deploy(environment='prd', fail_bootstrap=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(len(calls), 1)
+        self.assertIn('--require-production-mfa', calls[0])
 
 
 if __name__ == '__main__':

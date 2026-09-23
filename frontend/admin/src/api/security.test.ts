@@ -4,6 +4,7 @@ import * as auth from 'aws-amplify/auth';
 import { listPasskeys, enablePasskeyMfa, disableTotp } from './security';
 vi.mock('aws-amplify/auth', () => ({
   fetchAuthSession: vi.fn(),
+  fetchMFAPreference: vi.fn(),
   listWebAuthnCredentials: vi.fn(),
 }));
 vi.mock('aws-amplify', () => ({ Amplify: { getConfig: vi.fn() } }));
@@ -11,6 +12,10 @@ const fetchMock = vi.fn();
 beforeEach(() => {
   vi.resetAllMocks();
   vi.stubGlobal('fetch', fetchMock);
+  vi.mocked(auth.fetchMFAPreference).mockResolvedValue({
+    enabled: ['TOTP'],
+    preferred: 'TOTP',
+  });
   vi.mocked(Amplify.getConfig).mockReturnValue({
     Auth: {
       Cognito: {
@@ -38,7 +43,42 @@ it('uses access token and accepts an empty success body without logging tokens',
   expect(JSON.parse(options.body)).toEqual({
     AccessToken: 'test-access',
     WebAuthnMfaSettings: { Enabled: true },
+    SoftwareTokenMfaSettings: { Enabled: true, PreferredMfa: true },
   });
+});
+it('includes the existing recovery factor when enabling WebAuthn MFA', async () => {
+  fetchMock.mockImplementation(async (_url, options) => {
+    const request = JSON.parse(options.body);
+    // Production Cognito rejects a WebAuthn-only preference update even when
+    // the user already has TOTP enabled.
+    return request.SoftwareTokenMfaSettings?.Enabled === true
+      ? new Response('', { status: 200 })
+      : new Response(
+          JSON.stringify({
+            __type: 'InvalidParameterException',
+            message:
+              'WebAuthn MFA requires enabling an additional MFA setting.',
+          }),
+          { status: 400 }
+        );
+  });
+  await expect(enablePasskeyMfa()).resolves.toBeUndefined();
+});
+it('preserves a non-TOTP preferred factor', async () => {
+  vi.mocked(auth.fetchMFAPreference).mockResolvedValue({
+    enabled: ['TOTP', 'SMS'],
+    preferred: 'SMS',
+  });
+  fetchMock.mockResolvedValue(new Response('', { status: 200 }));
+  await enablePasskeyMfa();
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+    SoftwareTokenMfaSettings: { Enabled: true, PreferredMfa: false },
+  });
+});
+it('does not enable a recovery factor that is no longer enabled', async () => {
+  vi.mocked(auth.fetchMFAPreference).mockResolvedValue({ enabled: [] });
+  await expect(enablePasskeyMfa()).rejects.toThrow('認証アプリ');
+  expect(fetchMock).not.toHaveBeenCalled();
 });
 it('does not expose the AWS response or token in errors', async () => {
   fetchMock.mockResolvedValue(

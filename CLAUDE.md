@@ -29,3 +29,9 @@ rules even when using a skill.
 `.claude/hooks/lint-edited-file.sh` runs on every `Edit`/`Write` of a `.ts`/`.tsx` file:
 it applies `eslint --fix` and reports back only what it could not fix. Commit-time
 checks (terraform fmt/validate/trivy, per-component tests) live in `.husky/pre-commit`.
+
+`.claude/hooks/session-context.sh` runs at session start: it fetches `origin/develop`
+(10 s timeout, never blocks) and adds the checkout kind, branch, distance from
+`origin/develop` and the other worktrees to the context. Act on its WARNING lines.
+`.claude/hooks/guard-main-checkout.sh` asks for confirmation before `git switch`,
+`git checkout <ref>` or `gh pr checkout` in the main checkout (see the worktree rule above).

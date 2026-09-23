@@ -345,7 +345,7 @@ jobs:
             bun-audit-*.json
             govulncheck.txt
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 3
 
   # =======================================
   # Job: Summary (fails on missing or failed scanners/uploads)
