@@ -13,6 +13,7 @@ import time
 
 RP_IDS = {'dev': 'dev.boneofmyfallacy.net', 'prd': 'boneofmyfallacy.net'}
 FACTOR = 'MULTI_FACTOR_WITH_USER_VERIFICATION'
+MFA_CONFIG_FIELDS = {'MfaConfiguration', 'SoftwareTokenMfaConfiguration', 'SmsMfaConfiguration', 'EmailMfaConfiguration', 'WebAuthnConfiguration'}
 
 
 class AwsCliError(RuntimeError):
@@ -25,7 +26,7 @@ class AwsCliError(RuntimeError):
 def aws(service, operation, payload):
     try:
         result = subprocess.run(
-            ['aws', service, operation, '--cli-input-json', json.dumps(payload), '--output', 'json', '--no-cli-pager'],
+            ['aws', service, operation, '--cli-input-json', json.dumps(payload), '--output', 'json', '--no-cli-pager', '--no-paginate'],
             check=True, capture_output=True, text=True,
         )
     except subprocess.CalledProcessError as exc:
@@ -35,13 +36,76 @@ def aws(service, operation, payload):
     return json.loads(result.stdout) if result.stdout.strip() else {}
 
 
+def verify_admin_totp(pool):
+    """Check every enabled admin before changing the pool-wide MFA policy."""
+    next_token, seen_tokens, seen_users = None, set(), set()
+    checked = 0
+    while True:
+        request = {'UserPoolId': pool, 'GroupName': 'admin', 'Limit': 60}
+        if next_token:
+            request['NextToken'] = next_token
+        page = aws('cognito-idp', 'list-users-in-group', request)
+        for member in page.get('Users', []):
+            username = member.get('Username')
+            if not username or username in seen_users:
+                raise RuntimeError('Invalid or repeated admin membership; refusing MFA policy change.')
+            seen_users.add(username)
+            user = aws('cognito-idp', 'admin-get-user', {'UserPoolId': pool, 'Username': username})
+            if user.get('Enabled') is False:
+                continue
+            if user.get('Enabled') is not True or user.get('UserStatus') != 'CONFIRMED' or 'SOFTWARE_TOKEN_MFA' not in user.get('UserMFASettingList', []) or user.get('PreferredMfaSetting') != 'SOFTWARE_TOKEN_MFA':
+                raise RuntimeError('Every enabled admin must be CONFIRMED with TOTP enabled and preferred before requiring production MFA. Complete Security setup and verify a fresh TOTP login.')
+            checked += 1
+        next_token = page.get('NextToken')
+        if not next_token:
+            break
+        if next_token in seen_tokens:
+            raise RuntimeError('Repeated admin pagination token; refusing MFA policy change.')
+        seen_tokens.add(next_token)
+    if not checked:
+        raise RuntimeError('At least one enabled admin with verified TOTP settings is required before production MFA bootstrap.')
+    return checked
+
+
+def require_production_mfa(environment, check_only=False):
+    """Perform the approved one-time OPTIONAL -> ON transition before passkeys."""
+    if environment != 'prd':
+        raise RuntimeError('Initial required-MFA bootstrap is restricted to PRD.')
+    pool = aws('ssm', 'get-parameter', {'Name': '/serverless-blog/prd/cognito/user-pool-id'})['Parameter']['Value']
+    current = aws('cognito-idp', 'get-user-pool-mfa-config', {'UserPoolId': pool})
+    if set(current) - MFA_CONFIG_FIELDS:
+        raise RuntimeError('Unrecognized MFA fields; refusing to overwrite configuration.')
+    if current.get('MfaConfiguration') not in ('ON', 'OPTIONAL') or current.get('SoftwareTokenMfaConfiguration', {}).get('Enabled') is not True:
+        raise RuntimeError('Production bootstrap requires existing OPTIONAL/ON MFA and enabled TOTP recovery.')
+    if current['MfaConfiguration'] == 'ON':
+        return {'mfa_required': True, 'needs_update': False}
+    if current.get('WebAuthnConfiguration', {}).get('RelyingPartyId') not in (None, RP_IDS['prd']):
+        raise RuntimeError('Existing RP ID differs; refusing production MFA bootstrap.')
+    sms_role = current.get('SmsMfaConfiguration', {}).get('SmsConfiguration', {}).get('SnsCallerArn')
+    if sms_role:
+        role = aws('iam', 'get-role', {'RoleName': sms_role.rsplit('/', 1)[-1]})['Role']
+        if role.get('Arn') != sms_role:
+            raise RuntimeError('Production SMS role does not match the existing pool configuration.')
+    checked = verify_admin_totp(pool)
+    if check_only:
+        return {'mfa_required': False, 'needs_update': True, 'checked_admins': checked}
+    # Detect settings changed while checking users instead of overwriting them.
+    if aws('cognito-idp', 'get-user-pool-mfa-config', {'UserPoolId': pool}) != current:
+        raise RuntimeError('MFA settings changed during readiness checks; refusing to overwrite them.')
+    expected = {**current, 'MfaConfiguration': 'ON'}
+    aws('cognito-idp', 'set-user-pool-mfa-config', {**expected, 'UserPoolId': pool})
+    if aws('cognito-idp', 'get-user-pool-mfa-config', {'UserPoolId': pool}) != expected:
+        raise RuntimeError('Production required-MFA readback did not match; stopping before passkey activation.')
+    return {'mfa_required': True, 'needs_update': False, 'checked_admins': checked}
+
+
 def configure(environment, check_only=False):
     if environment not in RP_IDS:
         raise ValueError('Unknown environment')
     pool = aws('ssm', 'get-parameter', {'Name': f'/serverless-blog/{environment}/cognito/user-pool-id'})['Parameter']['Value']
     current = aws('cognito-idp', 'get-user-pool-mfa-config', {'UserPoolId': pool})
     if environment == 'prd' and current.get('MfaConfiguration') != 'ON':
-        raise RuntimeError('Production MFA must be required first (PR #687 rollout gate).')
+        raise RuntimeError('Production MFA must be required first. Run the production required-MFA bootstrap before passkey activation.')
     if current.get('MfaConfiguration') not in ('ON', 'OPTIONAL') or not current.get('SoftwareTokenMfaConfiguration', {}).get('Enabled'):
         raise RuntimeError('TOTP recovery must remain enabled.')
     webauthn = current.get('WebAuthnConfiguration', {})
@@ -50,8 +114,7 @@ def configure(environment, check_only=False):
     desired = {**webauthn, 'RelyingPartyId': RP_IDS[environment], 'UserVerification': 'required', 'FactorConfiguration': FACTOR}
     if not check_only:
         # Reject unknown fields instead of silently dropping future API settings.
-        allowed = {'MfaConfiguration', 'SoftwareTokenMfaConfiguration', 'SmsMfaConfiguration', 'EmailMfaConfiguration', 'WebAuthnConfiguration'}
-        if set(current) - allowed:
+        if set(current) - MFA_CONFIG_FIELDS:
             raise RuntimeError('Unrecognized MFA fields; refusing to overwrite configuration.')
         # The deployment restores the missing DEV SMS role before this call.
         # Preserve every existing MFA setting and require exact full readback.
@@ -118,7 +181,7 @@ def inspect_tier(environment):
     pool = aws('ssm', 'get-parameter', {'Name': f'/serverless-blog/{environment}/cognito/user-pool-id'})['Parameter']['Value']
     current = aws('cognito-idp', 'describe-user-pool', {'UserPoolId': pool})['UserPool']
     if environment == 'prd' and current.get('MfaConfiguration') != 'ON':
-        raise RuntimeError('Production MFA must already be ON. Deploy PR #687 before passkey activation.')
+        raise RuntimeError('Production MFA must already be ON. Run the production required-MFA bootstrap before passkey activation.')
     needs_upgrade = current.get('UserPoolTier', 'LITE') == 'LITE'
     if needs_upgrade and 'WEB_AUTHN' in current.get('Policies', {}).get('SignInPolicy', {}).get('AllowedFirstAuthFactors', []):
         raise RuntimeError('Unexpected existing WebAuthn policy; refusing bootstrap.')
@@ -142,9 +205,13 @@ if __name__ == '__main__':
     modes.add_argument('--inspect-tier', action='store_true')
     modes.add_argument('--check-plan', action='store_true')
     modes.add_argument('--check-sms-recovery-plan', action='store_true')
+    modes.add_argument('--require-production-mfa', action='store_true')
+    modes.add_argument('--check-production-mfa-readiness', action='store_true')
     args = parser.parse_args()
     try:
-        if args.check_sms_recovery_plan:
+        if args.require_production_mfa or args.check_production_mfa_readiness:
+            print(json.dumps(require_production_mfa(args.environment, args.check_production_mfa_readiness)))
+        elif args.check_sms_recovery_plan:
             if args.environment != 'dev':
                 raise RuntimeError('Legacy SMS role recovery is configured for DEV only.')
             check_sms_recovery_plan(json.load(sys.stdin))
