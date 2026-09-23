@@ -18,6 +18,7 @@ import {
   type BlogPostingJsonLd,
   type WebSiteJsonLd,
 } from '../lib/jsonLdUtils';
+import { serializeJsonForHtml } from '../lib/serializeJsonForHtml';
 
 export interface Props {
   /** Type of JSON-LD schema to generate */
@@ -53,7 +54,7 @@ if (type === 'BlogPosting' && post) {
     <script
       is:inline
       type="application/ld+json"
-      set:html={JSON.stringify(jsonLd).replace(/</g, '\\u003c')}
+      set:html={serializeJsonForHtml(jsonLd)}
     />
   )
 }
