@@ -23,6 +23,11 @@ if [ "$TARGET_ENV" = dev ]; then
   terraform -chdir="$TF_DIR" show -json "$PLAN_DIR/sms-recovery" | python3 "$HELPER" --environment "$TARGET_ENV" --check-sms-recovery-plan
   terraform -chdir="$TF_DIR" apply -auto-approve "$PLAN_DIR/sms-recovery"
 fi
+if [ "$TARGET_ENV" = prd ]; then
+  # Bootstrap only OPTIONAL -> ON after verifying every enabled admin's TOTP.
+  # This readback must succeed before tier upgrades or passkey configuration.
+  python3 "$HELPER" --environment prd --require-production-mfa
+fi
 NEEDS_UPGRADE=$(python3 "$HELPER" --environment "$TARGET_ENV" --inspect-tier)
 if [ "$NEEDS_UPGRADE" = true ]; then
   # Upgrade the tier before any WebAuthn setting, without exposing sign-in yet.
