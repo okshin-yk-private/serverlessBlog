@@ -63,8 +63,9 @@ concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
 
+# Read-only by default; only jobs that assume the AWS role request id-token
+# (#694, zizmor excessive-permissions).
 permissions:
-  id-token: write
   contents: read
 
 env:
@@ -97,17 +98,17 @@ jobs:
       - name: Detect changed paths
         id: changes
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" == "workflow_dispatch" ]; then
             # Manual dispatch - check components input
-            if [ "${{ github.event.inputs.components }}" == "all" ]; then
+            if [ "$COMPONENTS" == "all" ]; then
               echo "infrastructure=true" >> $GITHUB_OUTPUT
               echo "frontend=true" >> $GITHUB_OUTPUT
               echo "astro=true" >> $GITHUB_OUTPUT
-            elif [ "${{ github.event.inputs.components }}" == "infrastructure" ]; then
+            elif [ "$COMPONENTS" == "infrastructure" ]; then
               echo "infrastructure=true" >> $GITHUB_OUTPUT
               echo "frontend=false" >> $GITHUB_OUTPUT
               echo "astro=false" >> $GITHUB_OUTPUT
-            elif [ "${{ github.event.inputs.components }}" == "astro" ]; then
+            elif [ "$COMPONENTS" == "astro" ]; then
               echo "infrastructure=false" >> $GITHUB_OUTPUT
               echo "frontend=false" >> $GITHUB_OUTPUT
               echo "astro=true" >> $GITHUB_OUTPUT
@@ -128,15 +129,20 @@ jobs:
             done <<< "$FLAGS"
           fi
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          COMPONENTS: ${{ github.event.inputs.components }}
           BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.sha }}
 
       - name: Determine target environment
         id: env
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ENVIRONMENT: ${{ github.event.inputs.environment }}
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            TARGET_ENV="${{ github.event.inputs.environment }}"
-          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          if [ "$EVENT_NAME" == "workflow_dispatch" ]; then
+            TARGET_ENV="$INPUT_ENVIRONMENT"
+          elif [ "$GITHUB_REF" == "refs/heads/main" ]; then
             TARGET_ENV="prd"
           else
             TARGET_ENV="dev"
@@ -372,6 +378,9 @@ jobs:
   # Deploy Infrastructure (DEV)
   # =======================================
   deploy-infrastructure-dev:
+    permissions:
+      contents: read
+      id-token: write # AWS OIDC authentication
     name: Deploy Infrastructure (DEV)
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -473,6 +482,9 @@ jobs:
   # Deploy Infrastructure (PRD) - Requires Approval
   # =======================================
   deploy-infrastructure-prd:
+    permissions:
+      contents: read
+      id-token: write # AWS OIDC authentication
     name: Deploy Infrastructure (PRD)
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -569,6 +581,9 @@ jobs:
   # Public site is now handled by Astro SSG (build-astro job)
   # =======================================
   build-frontend-admin:
+    permissions:
+      contents: read
+      id-token: write # AWS OIDC authentication
     name: Build Frontend (Admin)
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -652,6 +667,9 @@ jobs:
   # Public site is deployed by deploy-astro-dev job
   # =======================================
   deploy-admin-dev:
+    permissions:
+      contents: read
+      id-token: write # AWS OIDC authentication
     name: Deploy Admin (DEV)
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -707,6 +725,9 @@ jobs:
   # Public site is deployed by deploy-astro-prd job
   # =======================================
   deploy-admin-prd:
+    permissions:
+      contents: read
+      id-token: write # AWS OIDC authentication
     name: Deploy Admin (PRD)
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -763,6 +784,9 @@ jobs:
   # Requirements: 9.3, 9.4, 9.7, 9.8, 9.10
   # =======================================
   build-astro:
+    permissions:
+      contents: read
+      id-token: write # AWS OIDC authentication
     name: Build Astro SSG
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -885,6 +909,9 @@ jobs:
   # Task 5.3: Requirements 9.3, 9.4, 9.7, 9.8, 9.9, 9.11
   # =======================================
   deploy-astro-dev:
+    permissions:
+      contents: read
+      id-token: write # AWS OIDC authentication
     name: Deploy Astro SSG (DEV)
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -1022,6 +1049,9 @@ jobs:
   # Task 5.3: Requirements 9.3, 9.4, 9.7, 9.8, 9.9, 9.11
   # =======================================
   deploy-astro-prd:
+    permissions:
+      contents: read
+      id-token: write # AWS OIDC authentication
     name: Deploy Astro SSG (PRD)
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -1152,6 +1182,9 @@ jobs:
   # Runs real environment E2E tests against deployed DEV site
   # =======================================
   post-deploy-e2e-dev:
+    permissions:
+      contents: read
+      id-token: write # AWS OIDC authentication
     name: Post-Deploy E2E Tests (DEV)
     runs-on: ubuntu-latest
     timeout-minutes: 20

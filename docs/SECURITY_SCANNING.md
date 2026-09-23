@@ -14,6 +14,7 @@ is not proof that the other dependency trees or deployed versions are safe.
 | Bun audit 1.3.11 | Root, admin, public-astro, deploy scripts; all dependencies | Warning plus JSON artifact | Missing/malformed reports and command errors block | `dependency-audit-*` artifact |
 | govulncheck 1.8.0 | Go call paths, including standard library | Exit 3 produces a warning and report | Other nonzero exits block | `govulncheck.txt` artifact |
 | Checkov | Terraform-labeled PRs after fmt succeeds | `soft_fail: true` | Existing CI policy | `checkov-terraform` |
+| zizmor 1.30.1 | `.github/` workflows, actions, Dependabot config | High fails; all findings visible | Blocking | Code scanning `zizmor` |
 | Local gitleaks / Trivy config | Commit secrets / changed Terraform | Blocking per pre-commit config | Blocking | Local output |
 | Dependabot | Scheduled package version updates | PRs | Check updater logs | Dependency graph / PRs |
 
@@ -68,6 +69,18 @@ exact-value-shape conditions over directory-wide exclusions. `.gitleaks.toml`
 only adds exceptions for 21 historical CDK archive hashes and five literally
 truncated Rust JWT fixtures. A different value, key, or path is not exempt.
 The historical Basic authentication alert **#424 remains detectable**.
+
+Terraform scanner exceptions (`terraform/.trivyignore`, the `skip-check` list in
+`terraform/.checkov.yaml`) also need a `Review-by: YYYY-MM-DD` line in the comment
+block above the ID; inline `#trivy:ignore:` / `#checkov:skip=` need a reason.
+`scripts/ci/verify_security_exceptions.py` enforces this on every PR and warns about
+an overdue date; the nightly workflow fails until the reason is re-checked and the
+date moved forward (#694). A reason that no longer holds is fixed or the exception
+removed, not re-dated.
+
+zizmor findings are fixed in the workflow where possible. An accepted finding gets an
+inline `# zizmor: ignore[<audit>]` next to a comment explaining why it is safe; see
+`dependabot-auto-merge.yml` and `setup-terraform-cached/action.yml`.
 
 Never dismiss a credential as a false positive just because it was removed from
 current files. Rotation/revocation and propagation to the actual verifier must
