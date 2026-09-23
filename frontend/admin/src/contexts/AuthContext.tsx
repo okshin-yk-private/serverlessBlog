@@ -1,6 +1,7 @@
 import React, {
   createContext,
   useState,
+  useRef,
   useEffect,
   type ReactNode,
 } from 'react';
@@ -59,6 +60,7 @@ export interface AuthContextType {
   requiresNewPassword: boolean;
   pendingEmail: string | null;
   login: (email: string, password: string) => Promise<LoginResult>;
+  loginWithPasskey: (email: string) => Promise<LoginResult>;
   confirmNewPassword: (newPassword: string) => Promise<LoginResult>;
   totpChallenge: TotpChallenge | null;
   confirmTotp: (code: string) => Promise<LoginResult>;
@@ -83,6 +85,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const signInPending = useRef(false);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [requiresNewPassword, setRequiresNewPassword] = useState(false);
@@ -253,26 +256,59 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     );
   };
 
-  const login = async (
+  // A ref also blocks submissions that arrive before React rerenders.
+  const startLogin = async (
     email: string,
-    password: string
+    password?: string
   ): Promise<LoginResult> => {
-    resetChallenge();
-    removeAuthToken();
-    setUser(null);
-    if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
-      return handleMockResult(await loginAPI(email, password), email);
-    }
+    if (signInPending.current) throw new Error('ログイン処理中です。');
+    signInPending.current = true;
     try {
-      if (await getCurrentUser()) await signOut();
-    } catch {
-      // No existing session.
+      resetChallenge();
+      removeAuthToken();
+      setUser(null);
+      if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
+        if (password === undefined)
+          throw new Error('パスワードでログインしてください。');
+        return await handleMockResult(await loginAPI(email, password), email);
+      }
+      try {
+        if (await getCurrentUser()) await signOut();
+      } catch {
+        // No existing session.
+      }
+      let result = await signIn(
+        password === undefined
+          ? {
+              username: email,
+              options: {
+                authFlowType: 'USER_AUTH',
+                preferredChallenge: 'WEB_AUTHN',
+              },
+            }
+          : { username: email, password }
+      );
+      if (
+        password === undefined &&
+        result.nextStep.signInStep ===
+          'CONTINUE_SIGN_IN_WITH_FIRST_FACTOR_SELECTION'
+      ) {
+        if (!result.nextStep.availableChallenges?.includes('WEB_AUTHN')) {
+          throw new Error(
+            '利用できるパスキーがありません。パスワードでログインしてください。'
+          );
+        }
+        result = await confirmSignIn({ challengeResponse: 'WEB_AUTHN' });
+      }
+      return await handleSignInResult(result, email);
+    } finally {
+      signInPending.current = false;
     }
-    return handleSignInResult(
-      await signIn({ username: email, password }),
-      email
-    );
   };
+
+  const login = (email: string, password: string) =>
+    startLogin(email, password);
+  const loginWithPasskey = (email: string) => startLogin(email);
 
   const confirmNewPassword = async (
     newPassword: string
@@ -369,6 +405,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     totpChallenge,
     confirmTotp,
     login,
+    loginWithPasskey,
     confirmNewPassword,
     cancelNewPassword,
     logout,

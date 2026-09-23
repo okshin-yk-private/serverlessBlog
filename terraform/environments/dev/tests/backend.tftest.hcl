@@ -26,6 +26,16 @@ variables {
   enable_custom_domain = false
 }
 
+override_data {
+  target = data.aws_caller_identity.current
+  values = { account_id = "881302602065" }
+}
+
+override_data {
+  target = data.aws_ssm_parameter.legacy_cognito_pool_id
+  values = { value = "ap-northeast-1_GWhOM3BpU" }
+}
+
 # override_resource blocks below mirror every `import` block in
 # ../import.tf. This root module is mid CDK->Terraform migration and
 # imports ~30 pre-existing resources (modules.database/auth/storage/api/cdn).
@@ -385,5 +395,32 @@ run "test_alarm_email_can_be_set" {
   assert {
     condition     = var.alarm_email == "test@example.com"
     error_message = "alarm_email should accept a valid email"
+  }
+}
+
+run "legacy_sms_recovery_is_restricted_to_existing_dev_pool" {
+  command = plan
+
+  assert {
+    condition     = aws_iam_role.legacy_cognito_sms.name == "ServerlessBlogAuthStack-BlogUserPoolsmsRole9F911302-JN1F0gtm6p5d"
+    error_message = "Restore the exact legacy role name to preserve the pool's SMS role ARN."
+  }
+
+  assert {
+    condition = (
+      jsondecode(aws_iam_role.legacy_cognito_sms.assume_role_policy).Statement[0].Principal.Service == "cognito-idp.amazonaws.com" &&
+      jsondecode(aws_iam_role.legacy_cognito_sms.assume_role_policy).Statement[0].Condition.StringEquals["sts:ExternalId"] == "ServerlessBlogAuthStackBlogUserPoolCB25D22E" &&
+      jsondecode(aws_iam_role.legacy_cognito_sms.assume_role_policy).Statement[0].Condition.StringEquals["aws:SourceAccount"] == "881302602065" &&
+      jsondecode(aws_iam_role.legacy_cognito_sms.assume_role_policy).Statement[0].Condition.ArnEquals["aws:SourceArn"] == "arn:aws:cognito-idp:ap-northeast-1:881302602065:userpool/ap-northeast-1_GWhOM3BpU"
+    )
+    error_message = "Only the existing DEV Cognito pool with its current ExternalId may assume the SMS role."
+  }
+
+  assert {
+    condition = (
+      jsondecode(aws_iam_role_policy.legacy_cognito_sms.policy).Statement[0].Action == "sns:Publish" &&
+      jsondecode(aws_iam_role_policy.legacy_cognito_sms.policy).Statement[0].Condition.StringEquals["aws:RequestedRegion"] == "ap-northeast-1"
+    )
+    error_message = "SMS recovery must only grant SNS publish in the configured region."
   }
 }

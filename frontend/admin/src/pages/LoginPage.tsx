@@ -21,6 +21,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const {
     login,
+    loginWithPasskey,
     totpChallenge,
     confirmTotp,
     requiresNewPassword,
@@ -68,6 +69,20 @@ const LoginPage = () => {
           'ログインに失敗しました。メールアドレスとパスワードを確認してください。'
         : 'ログインに失敗しました。メールアドレスとパスワードを確認してください。';
       setError(errorMessage);
+    }
+  };
+
+  const handlePasskeyLogin = async (email: string) => {
+    setError(null);
+    try {
+      const result = await loginWithPasskey(email);
+      if (!result.requiresNewPassword && !result.requiresTotp) {
+        navigate(consumeRedirectPath() ?? '/dashboard', { replace: true });
+      }
+    } catch {
+      setError(
+        'パスキーでの認証が完了しませんでした。再試行するか、パスワードでログインしてください。'
+      );
     }
   };
 
@@ -497,6 +512,11 @@ const LoginPage = () => {
             ) : (
               <LoginForm
                 onLogin={handleLogin}
+                onPasskeyLogin={
+                  import.meta.env.VITE_ENABLE_PASSKEY === 'true'
+                    ? handlePasskeyLogin
+                    : undefined
+                }
                 error={error || undefined}
                 onForgotPassword={handleForgotPassword}
               />

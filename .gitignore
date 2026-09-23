@@ -322,3 +322,6 @@ go-functions/bin/
 
 # Local Lighthouse HTML/JSON reports
 frontend/public-astro/lighthouse-results/
+
+# Local WebAuthn browser fixtures
+test-results-passkeys/

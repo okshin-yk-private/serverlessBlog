@@ -12,7 +12,24 @@ locals {
 # Cognito User Pool
 # Requirements: 4.1 (email sign-in), 4.2 (password policy), 4.4 (email verification), 4.5 (MFA)
 resource "aws_cognito_user_pool" "main" {
-  name = var.user_pool_name
+  name           = var.user_pool_name
+  user_pool_tier = "ESSENTIALS"
+
+  dynamic "sign_in_policy" {
+    for_each = var.enable_passkeys ? [1] : []
+    content { allowed_first_auth_factors = ["PASSWORD", "WEB_AUTHN"] }
+  }
+  dynamic "web_authn_configuration" {
+    for_each = var.enable_passkeys ? [1] : []
+    content {
+      relying_party_id  = var.passkey_relying_party_id
+      user_verification = "required"
+    }
+  }
+  # FactorConfiguration is not supported by the provider yet. Every deployment
+  # must use scripts/deploy_passkey_infrastructure.sh to set it before planning
+  # and verify that apply preserves it.
+
 
   # Requirement 4.1: Email-based sign-in
   username_attributes = ["email"]
@@ -68,11 +85,11 @@ resource "aws_cognito_user_pool_client" "main" {
   # The CDK-created client does not have a secret (ClientSecret is not returned by API)
 
   # Requirement 4.3: Auth flows
-  explicit_auth_flows = [
+  explicit_auth_flows = concat([
     "ALLOW_USER_PASSWORD_AUTH",
     "ALLOW_USER_SRP_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH"
-  ]
+  ], var.enable_passkeys ? ["ALLOW_USER_AUTH"] : [])
 
   # Token validity settings (matching CDK configuration)
   access_token_validity  = 60    # 1 hour in minutes
