@@ -152,10 +152,9 @@ describe('security aggregate fails closed', () => {
     '      - name: Require successful scanners and uploads'
   );
   const success = Object.fromEntries(
-    ['TARGETS', 'GITLEAKS', 'CODEQL', 'TRIVY', 'AUDIT'].map((name) => [
-      `${name}_RESULT`,
-      'success',
-    ])
+    ['TARGETS', 'GITLEAKS', 'CODEQL', 'TRIVY', 'ZIZMOR', 'AUDIT'].map(
+      (name) => [`${name}_RESULT`, 'success']
+    )
   );
   test('all scanners and uploads must succeed', () => {
     fixture((directory) => {
