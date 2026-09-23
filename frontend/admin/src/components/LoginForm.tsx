@@ -1,4 +1,4 @@
-import React, { useState, type FormEvent } from 'react';
+import React, { useRef, useState, type FormEvent } from 'react';
 import { validateEmail, validatePassword } from '../utils/auth';
 import { Button } from './Button';
 
@@ -8,15 +8,21 @@ interface LoginFormProps {
     password: string;
     rememberMe?: boolean;
   }) => Promise<void>;
+  onPasskeyLogin?: (email: string) => Promise<void>;
   error?: string;
   onForgotPassword?: () => void;
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({
   onLogin,
+  onPasskeyLogin,
   error,
   onForgotPassword,
 }) => {
+  const submitting = useRef(false);
+  const [method, setMethod] = useState<'passkey' | 'password'>(
+    onPasskeyLogin ? 'passkey' : 'password'
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -26,10 +32,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (submitting.current) return;
 
     // バリデーション
     const emailValidation = validateEmail(email);
-    const passwordValidation = validatePassword(password);
+    const passwordValidation =
+      method === 'password' ? validatePassword(password) : null;
 
     setEmailError(emailValidation);
     setPasswordError(passwordValidation);
@@ -40,12 +48,15 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     }
 
     // ログイン処理
+    submitting.current = true;
     setIsSubmitting(true);
     try {
-      await onLogin({ email, password, rememberMe });
+      if (method === 'passkey' && onPasskeyLogin) await onPasskeyLogin(email);
+      else await onLogin({ email, password, rememberMe });
     } catch {
       // エラーはLoginPageで処理される
     } finally {
+      submitting.current = false;
       setIsSubmitting(false);
     }
   };
@@ -89,6 +100,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           id="email"
           data-testid="email-input"
           type="email"
+          name="username"
+          autoComplete="username"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className={`admin-form-input ${emailError ? 'admin-form-input-error' : ''}`}
@@ -97,7 +110,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       </div>
 
       {/* パスワード */}
-      <div>
+      <div hidden={method !== 'password'}>
         <label htmlFor="password" className="admin-form-label">
           パスワード
         </label>
@@ -105,6 +118,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           id="password"
           data-testid="password-input"
           type="password"
+          name="password"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className={`admin-form-input ${passwordError ? 'admin-form-input-error' : ''}`}
@@ -144,8 +159,26 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         disabled={isSubmitting}
         data-testid="login-button"
       >
-        {isSubmitting ? 'ログイン中...' : 'ログイン'}
+        {isSubmitting
+          ? 'ログイン中...'
+          : method === 'passkey'
+            ? 'パスキーでログイン'
+            : 'ログイン'}
       </Button>
+      {onPasskeyLogin && (
+        <button
+          type="button"
+          disabled={isSubmitting}
+          className="login-form-link"
+          onClick={() => {
+            setMethod(method === 'passkey' ? 'password' : 'passkey');
+            setPassword('');
+            setPasswordError(null);
+          }}
+        >
+          {method === 'passkey' ? 'パスワードでログインする' : 'パスキーを使う'}
+        </button>
+      )}
     </form>
   );
 };

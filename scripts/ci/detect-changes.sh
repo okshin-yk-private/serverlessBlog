@@ -29,6 +29,7 @@ INFRASTRUCTURE=false
 DEPLOY_SCRIPTS=false
 while IFS= read -r -d '' CHANGED_PATH; do
   case "$CHANGED_PATH" in
+    scripts/configure_passkey_mfa.py|scripts/deploy_passkey_infrastructure.sh) INFRASTRUCTURE=true; ADMIN=true ;;
     terraform/*|go-functions/*) INFRASTRUCTURE=true ;;
     frontend/public-astro/*) ASTRO=true ;;
     frontend/admin/*) ADMIN=true ;;
@@ -40,7 +41,7 @@ while IFS= read -r -d '' CHANGED_PATH; do
     case "$CHANGED_PATH" in
       playwright.config.ts|tests/e2e/specs/home.spec.ts|tests/e2e/specs/article.spec.ts|tests/e2e/specs/editorial.spec.ts)
         ASTRO=true ;;
-      playwright.admin.config.ts|tests/e2e/specs/admin-*)
+      playwright.admin.config.ts|playwright.passkey.config.ts|tests/e2e/passkeys/*|tests/e2e/specs/admin-*)
         ADMIN=true ;;
       tests/e2e/*|playwright.aws.config.ts|.github/workflows/ci.yml|.github/actions/setup-bun-deps/*|scripts/ci/*|tests/config/*|.prettierrc*|.prettierignore)
         ASTRO=true; ADMIN=true ;;

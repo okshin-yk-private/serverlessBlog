@@ -39,6 +39,12 @@ beforeEach(() => {
 describe('optional MFA enrollment', () => {
   it('verifies the authenticator before enabling TOTP and removes the setup key', async () => {
     const user = userEvent.setup();
+    vi.mocked(auth.updateMFAPreference).mockImplementation(async () => {
+      vi.mocked(auth.fetchMFAPreference).mockResolvedValue({
+        enabled: ['TOTP'],
+        preferred: 'TOTP',
+      });
+    });
     render(<SecurityPage />);
     await user.click(
       await screen.findByRole('button', { name: '認証アプリを登録する' })
@@ -82,4 +88,26 @@ describe('optional MFA enrollment', () => {
     ).not.toBeInTheDocument();
     expect(auth.setUpTOTP).not.toHaveBeenCalled();
   });
+});
+
+it('retains confirmed enrollment and reports a readback failure in the parent page', async () => {
+  const user = userEvent.setup();
+  vi.mocked(auth.updateMFAPreference).mockImplementation(async () => {
+    vi.mocked(auth.fetchMFAPreference).mockRejectedValue(
+      new Error('Readback failed')
+    );
+  });
+  render(<SecurityPage />);
+  await user.click(
+    await screen.findByRole('button', { name: '認証アプリを登録する' })
+  );
+  await user.type(await screen.findByLabelText('認証コード'), '123456');
+  await user.click(screen.getByRole('button', { name: '認証する' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    '登録は完了しましたが'
+  );
+  expect(screen.queryByTestId('totp-secret')).not.toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: '認証アプリをOFFにする' })
+  ).toBeDisabled();
 });

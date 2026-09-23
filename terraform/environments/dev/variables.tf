@@ -75,3 +75,9 @@ variable "cloudflare_api_token" {
   sensitive   = true
   default     = ""
 }
+
+variable "enable_passkeys" {
+  type        = bool
+  default     = true
+  description = "Enable passkey sign-in after the WebAuthn MFA bootstrap; false only for initial tier preparation."
+}

@@ -38,10 +38,12 @@ module "auth" {
   source = "../../modules/auth"
 
   # Note: CDK created user pool as "serverless-blog-user-pool"
-  user_pool_name          = "${var.project_name}-user-pool"
-  environment             = var.environment
-  mfa_configuration       = "OPTIONAL"
-  password_minimum_length = 12
+  user_pool_name           = "${var.project_name}-user-pool"
+  environment              = var.environment
+  mfa_configuration        = "OPTIONAL"
+  enable_passkeys          = var.enable_passkeys
+  passkey_relying_party_id = var.domain_name
+  password_minimum_length  = 12
 
   # post-deploy の admin E2E がログインに使うテストユーザー (Issue #520)。
   # 認証情報は SSM SecureString 経由で CI に渡る。

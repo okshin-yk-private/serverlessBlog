@@ -44,6 +44,10 @@ export class AdminLoginPage extends BasePage {
    * パスワードを入力
    */
   async enterPassword(password: string): Promise<void> {
+    const passwordMode = this.page.getByRole('button', {
+      name: 'パスワードでログインする',
+    });
+    if (await passwordMode.isVisible()) await passwordMode.click();
     await this.fill(this.selectors.passwordInput, password);
   }
 
