@@ -30,6 +30,18 @@ Issueの **本文（body）とコメント（comments）の両方** から以下
 
 **重要**: コメントには質問事項への回答や追加の要件・方針変更が含まれていることがある。コメントの内容がIssue本文と矛盾する場合は、より新しいコメントの内容を優先する。
 
+### 1.5. 作業場所の準備
+
+メインのチェックアウトは他のセッションと共有されている場合があるため、ブランチを切り替えない。Issue ごとに `origin/develop` 起点の worktree を作り、以降の作業はすべてその中で行う（`docs/ai-shared-rules.md`）。
+
+```bash
+git fetch origin
+git worktree add .claude/worktrees/issue-<N> -b fix/issue-<N> origin/develop
+```
+
+- 同じ Issue の作業ブランチが既にあれば、それを使う worktree を作る（`git worktree add .claude/worktrees/issue-<N> fix/issue-<N>`）
+- worktree では依存が未導入のため、検証の前に対象パッケージで `bun install --frozen-lockfile` を実行する
+
 ### 2. 対象コードの確認
 
 Issueの「対象ファイル」に記載されたファイルを全て Read ツールで読み込み、現状のコードを理解する。
