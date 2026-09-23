@@ -24,6 +24,18 @@ disable-model-invocation: true
 
 要望に関連するコードを徹底的に調査する。
 
+#### 2-0. 調査基準の確認（最初に必ず行う）
+
+ローカルのチェックアウトが古いまま調査すると、上流で解消済みの問題を報告してしまう。
+
+```bash
+git fetch origin
+git rev-list --left-right --count HEAD...origin/develop   # 「ahead behind」
+```
+
+- behind が 0 でなければ、`origin/develop` を基準に読む（`git show origin/develop:<path>`、または `git worktree add` した新しい worktree で読む）
+- Issue に載せるファイルパス・行番号・スニペットは `origin/develop` のものにする
+
 #### 2a. 関連ファイルの特定
 - Grep / Glob ツールで関連するキーワード・ファイルを検索する
 - CLAUDE.md にアーキテクチャやディレクトリ構成の記載があれば参照し、調査の起点にする
@@ -47,6 +59,15 @@ disable-model-invocation: true
 - 影響範囲（他機能への副作用がないか）
 
 ### 4. Issue作成
+
+作成前に、同じ問題を扱う Issue がないか **クローズ済みも含めて** 検索する。
+
+```bash
+gh issue list --state all --search "<キーワード>" --limit 20
+```
+
+- 未解決の重複があれば新規作成せず、その Issue へのコメントで補足する
+- クローズ済みで既に解消されていれば作成しない。部分的に残る場合は、残る範囲だけを新しい Issue にし、元の Issue 番号を「備考」に書く
 
 以下のテンプレートで `gh issue create` を実行する。本文はHEREDOCで渡す。
 
