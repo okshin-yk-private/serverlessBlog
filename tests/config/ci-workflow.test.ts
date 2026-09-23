@@ -23,6 +23,7 @@ function runGate(overrides: Record<string, string> = {}) {
 describe('CI aggregate executes the workflow shell', () => {
   test('waits for both mandatory setup jobs and excludes cancelled workflows', () => {
     expect(finalJob).toContain('      - verify-go-toolchain');
+    expect(finalJob).toContain('      - verify-config-guards');
     expect(finalJob).toContain('      - setup-labels');
     expect(finalJob).toContain('if: ${{ !cancelled() }}');
     expect(runGate()).toBe(0);
@@ -31,6 +32,7 @@ describe('CI aggregate executes the workflow shell', () => {
   for (const job of [
     'setup-labels',
     'verify-go-toolchain',
+    'verify-config-guards',
     'lint',
     'typecheck',
   ]) {

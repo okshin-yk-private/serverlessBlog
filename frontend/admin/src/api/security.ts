@@ -1,5 +1,9 @@
 import { Amplify } from 'aws-amplify';
-import { fetchAuthSession, listWebAuthnCredentials } from 'aws-amplify/auth';
+import {
+  fetchAuthSession,
+  fetchMFAPreference,
+  listWebAuthnCredentials,
+} from 'aws-amplify/auth';
 
 export type Passkey = Awaited<
   ReturnType<typeof listWebAuthnCredentials>
@@ -61,8 +65,21 @@ async function setMfaPreference(
   }
 }
 
-export const enablePasskeyMfa = () =>
-  setMfaPreference({ WebAuthnMfaSettings: { Enabled: true } });
+export async function enablePasskeyMfa(): Promise<void> {
+  const preference = await fetchMFAPreference();
+  if (!preference.enabled?.includes('TOTP')) {
+    throw new Error('認証アプリを有効にしてから再試行してください。');
+  }
+  // Cognito requires an additional enabled factor in this same request, even
+  // when TOTP is already enabled. Preserve the user's current MFA preference.
+  await setMfaPreference({
+    WebAuthnMfaSettings: { Enabled: true },
+    SoftwareTokenMfaSettings: {
+      Enabled: true,
+      PreferredMfa: preference.preferred === 'TOTP',
+    },
+  });
+}
 export const disableTotp = () =>
   setMfaPreference({
     WebAuthnMfaSettings: { Enabled: false },
