@@ -13,7 +13,7 @@ test('passkey deployment preserves required MFA and verifies the actual AWS conf
         '-s',
         'scripts',
         '-p',
-        'test_configure_passkey_mfa.py',
+        'test_*passkey*.py',
       ],
       { stdio: 'pipe' }
     )

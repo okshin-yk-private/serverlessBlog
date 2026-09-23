@@ -6,18 +6,32 @@ updates can reset unrelated settings). No credentials or user data are printed.
 """
 import argparse
 import json
+import re
 import subprocess
 import sys
+import time
 
 RP_IDS = {'dev': 'dev.boneofmyfallacy.net', 'prd': 'boneofmyfallacy.net'}
 FACTOR = 'MULTI_FACTOR_WITH_USER_VERIFICATION'
 
 
+class AwsCliError(RuntimeError):
+    def __init__(self, service, operation, returncode, error_code):
+        self.error_code = error_code
+        reason = error_code or 'Check AWS CLI version, session and permissions'
+        super().__init__(f'AWS CLI {service} {operation} failed (exit {returncode}): {reason}.')
+
+
 def aws(service, operation, payload):
-    result = subprocess.run(
-        ['aws', service, operation, '--cli-input-json', json.dumps(payload), '--output', 'json', '--no-cli-pager'],
-        check=True, capture_output=True, text=True,
-    )
+    try:
+        result = subprocess.run(
+            ['aws', service, operation, '--cli-input-json', json.dumps(payload), '--output', 'json', '--no-cli-pager'],
+            check=True, capture_output=True, text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        # Surface the AWS error code, never raw stderr or the JSON request.
+        match = re.search(r'An error occurred \(([A-Za-z][A-Za-z0-9]{0,127})\) when calling ', exc.stderr or '')
+        raise AwsCliError(service, operation, exc.returncode, match.group(1) if match else None) from None
     return json.loads(result.stdout) if result.stdout.strip() else {}
 
 
@@ -35,12 +49,23 @@ def configure(environment, check_only=False):
         raise RuntimeError('Existing RP ID differs; refusing to invalidate existing passkeys.')
     desired = {**webauthn, 'RelyingPartyId': RP_IDS[environment], 'UserVerification': 'required', 'FactorConfiguration': FACTOR}
     if not check_only:
-        # Get/SetUserPoolMfaConfig share these settings. Reject unknown fields
-        # instead of silently dropping them during a future AWS API extension.
+        # Reject unknown fields instead of silently dropping future API settings.
         allowed = {'MfaConfiguration', 'SoftwareTokenMfaConfiguration', 'SmsMfaConfiguration', 'EmailMfaConfiguration', 'WebAuthnConfiguration'}
         if set(current) - allowed:
             raise RuntimeError('Unrecognized MFA fields; refusing to overwrite configuration.')
-        aws('cognito-idp', 'set-user-pool-mfa-config', {**current, 'UserPoolId': pool, 'WebAuthnConfiguration': desired})
+        # The deployment restores the missing DEV SMS role before this call.
+        # Preserve every existing MFA setting and require exact full readback.
+        for attempt in range(6):
+            try:
+                aws('cognito-idp', 'set-user-pool-mfa-config', {**current, 'UserPoolId': pool, 'WebAuthnConfiguration': desired})
+                break
+            except AwsCliError as exc:
+                # Newly recreated IAM roles/policies can take time to propagate.
+                # Only retry the two SMS dependency errors in DEV, at most 31s.
+                if environment != 'dev' or exc.error_code not in ('InvalidSmsRoleTrustRelationshipException', 'InvalidSmsRoleAccessPolicyException') or attempt == 5:
+                    raise
+                print(f'Waiting for DEV SMS role propagation ({attempt + 1}/5).', file=sys.stderr)
+                time.sleep(2 ** attempt)
         actual = aws('cognito-idp', 'get-user-pool-mfa-config', {'UserPoolId': pool})
     else:
         actual = current
@@ -73,6 +98,22 @@ def check_plan(plan):
         raise RuntimeError('Terraform would overwrite MFA configuration without FactorConfiguration; refusing apply.')
 
 
+def check_sms_recovery_plan(plan):
+    expected = {'aws_iam_role.legacy_cognito_sms', 'aws_iam_role_policy.legacy_cognito_sms'}
+    seen = set()
+    for resource in plan.get('resource_changes', []):
+        change = resource['change']
+        actions = change.get('actions', [])
+        if resource.get('mode') == 'data' and actions in (['read'], ['no-op']):
+            continue
+        address = resource.get('address')
+        if address not in expected or actions not in (['create'], ['no-op']):
+            raise RuntimeError('SMS recovery may only create the two missing DEV IAM resources; refusing apply.')
+        seen.add(address)
+    if seen != expected:
+        raise RuntimeError('Expected both DEV SMS recovery IAM resources in the targeted plan.')
+
+
 def inspect_tier(environment):
     pool = aws('ssm', 'get-parameter', {'Name': f'/serverless-blog/{environment}/cognito/user-pool-id'})['Parameter']['Value']
     current = aws('cognito-idp', 'describe-user-pool', {'UserPoolId': pool})['UserPool']
@@ -100,9 +141,14 @@ if __name__ == '__main__':
     modes.add_argument('--check-only', action='store_true')
     modes.add_argument('--inspect-tier', action='store_true')
     modes.add_argument('--check-plan', action='store_true')
+    modes.add_argument('--check-sms-recovery-plan', action='store_true')
     args = parser.parse_args()
     try:
-        if args.check_plan:
+        if args.check_sms_recovery_plan:
+            if args.environment != 'dev':
+                raise RuntimeError('Legacy SMS role recovery is configured for DEV only.')
+            check_sms_recovery_plan(json.load(sys.stdin))
+        elif args.check_plan:
             check_plan(json.load(sys.stdin))
         elif args.inspect_tier:
             print('true' if inspect_tier(args.environment) else 'false')
@@ -111,5 +157,5 @@ if __name__ == '__main__':
             if args.check_only:
                 check_sign_in(args.environment)
             print(json.dumps(result))
-    except subprocess.CalledProcessError as exc:
-        raise SystemExit(f'AWS CLI operation failed ({exc.returncode}). Check CLI WebAuthn MFA support, AWS session and permissions.') from None
+    except RuntimeError as exc:
+        raise SystemExit(str(exc)) from None

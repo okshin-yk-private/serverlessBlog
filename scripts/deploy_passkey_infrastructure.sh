@@ -14,6 +14,15 @@ apply_checked_plan() {
   terraform -chdir="$TF_DIR" show -json "$PLAN_DIR/plan" | python3 "$HELPER" --environment "$TARGET_ENV" --check-plan
   terraform -chdir="$TF_DIR" apply -auto-approve "$PLAN_DIR/plan"
 }
+if [ "$TARGET_ENV" = dev ]; then
+  # Restore the imported pool's missing IAM prerequisite before either Cognito
+  # API writes or UpdateUserPool. The gate rejects pool changes and IAM edits.
+  terraform -chdir="$TF_DIR" plan \
+    -target=aws_iam_role.legacy_cognito_sms \
+    -target=aws_iam_role_policy.legacy_cognito_sms -out="$PLAN_DIR/sms-recovery"
+  terraform -chdir="$TF_DIR" show -json "$PLAN_DIR/sms-recovery" | python3 "$HELPER" --environment "$TARGET_ENV" --check-sms-recovery-plan
+  terraform -chdir="$TF_DIR" apply -auto-approve "$PLAN_DIR/sms-recovery"
+fi
 NEEDS_UPGRADE=$(python3 "$HELPER" --environment "$TARGET_ENV" --inspect-tier)
 if [ "$NEEDS_UPGRADE" = true ]; then
   # Upgrade the tier before any WebAuthn setting, without exposing sign-in yet.
