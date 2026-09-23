@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { TotpForm } from '../components/TotpForm';
 import { LoginForm } from '../components/LoginForm';
 import { useAuth } from '../hooks/useAuth';
 import { validatePassword, consumeRedirectPath } from '../utils/auth';
@@ -20,6 +21,8 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const {
     login,
+    totpChallenge,
+    confirmTotp,
     requiresNewPassword,
     pendingEmail,
     confirmNewPassword,
@@ -46,7 +49,7 @@ const LoginPage = () => {
       const result = await login(credentials.email, credentials.password);
 
       // 新パスワードが必要な場合は遷移しない（LoginPageが新パスワード設定画面を表示）
-      if (!result.requiresNewPassword) {
+      if (!result.requiresNewPassword && !result.requiresTotp) {
         // AuthGuard が保存した遷移元（セッション失効時など）があればそこへ戻る
         navigate(consumeRedirectPath() ?? '/dashboard', { replace: true });
       }
@@ -94,8 +97,12 @@ const LoginPage = () => {
 
     setIsSubmitting(true);
     try {
-      await confirmNewPassword(newPassword);
-      navigate(consumeRedirectPath() ?? '/dashboard', { replace: true });
+      const result = await confirmNewPassword(newPassword);
+      setNewPassword('');
+      setConfirmPassword('');
+      if (!result.requiresNewPassword && !result.requiresTotp) {
+        navigate(consumeRedirectPath() ?? '/dashboard', { replace: true });
+      }
     } catch (err) {
       console.error('パスワード変更エラー:', err);
       if (isErrorWithMessage(err)) {
@@ -462,13 +469,38 @@ const LoginPage = () => {
               </Link>
               <span className="login-badge">Admin</span>
             </div>
-            <h1 className="login-title">管理画面ログイン</h1>
-            <p className="login-subtitle">アカウント情報を入力してください</p>
-            <LoginForm
-              onLogin={handleLogin}
-              error={error || undefined}
-              onForgotPassword={handleForgotPassword}
-            />
+            <h1 className="login-title">
+              {totpChallenge
+                ? totpChallenge.kind === 'setup'
+                  ? '認証アプリを登録'
+                  : '二要素認証'
+                : '管理画面ログイン'}
+            </h1>
+            <p className="login-subtitle">
+              {totpChallenge
+                ? '認証アプリのコードでログインを完了してください'
+                : 'アカウント情報を入力してください'}
+            </p>
+            {totpChallenge ? (
+              <TotpForm
+                challenge={totpChallenge}
+                onCancel={handleCancelNewPassword}
+                onConfirm={async (code) => {
+                  const result = await confirmTotp(code);
+                  if (!result.requiresNewPassword && !result.requiresTotp) {
+                    navigate(consumeRedirectPath() ?? '/dashboard', {
+                      replace: true,
+                    });
+                  }
+                }}
+              />
+            ) : (
+              <LoginForm
+                onLogin={handleLogin}
+                error={error || undefined}
+                onForgotPassword={handleForgotPassword}
+              />
+            )}
           </div>
         </div>
       </div>

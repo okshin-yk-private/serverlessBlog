@@ -272,6 +272,19 @@ export const handlers = [
   http.post('/auth/login', async ({ request }) => {
     const body = (await request.json()) as { email: string; password: string };
 
+    if (body.password === 'testpassword') {
+      if (body.email === 'totp@example.com')
+        return HttpResponse.json({ step: 'code' });
+      if (body.email === 'totp-setup@example.com')
+        return HttpResponse.json({
+          step: 'setup',
+          sharedSecret: 'JBSWY3DPEHPK3PXP',
+          setupUri: 'otpauth://totp/Test?secret=JBSWY3DPEHPK3PXP&issuer=Test',
+        });
+      if (body.email === 'new-password-totp@example.com')
+        return HttpResponse.json({ step: 'password' });
+    }
+
     // テスト用の認証情報をチェック（レート制限削除）
     if (
       body.email === 'admin@example.com' &&
@@ -291,6 +304,36 @@ export const handlers = [
       { message: 'ログインに失敗しました' },
       { status: 401 }
     );
+  }),
+
+  // Test-only TOTP fixtures; these are never production authentication endpoints.
+  http.post('/auth/confirm', async ({ request }) => {
+    const body = (await request.json()) as {
+      email: string;
+      challenge: string;
+      challengeResponse: string;
+    };
+    if (
+      body.email === 'new-password-totp@example.com' &&
+      body.challenge === 'password'
+    ) {
+      return HttpResponse.json({ step: 'code' });
+    }
+    if (
+      [
+        'totp@example.com',
+        'totp-setup@example.com',
+        'new-password-totp@example.com',
+      ].includes(body.email) &&
+      body.challenge === 'totp' &&
+      body.challengeResponse === '123456'
+    ) {
+      return HttpResponse.json({
+        token: createMockJWT(),
+        user: { id: 'user-123', email: body.email },
+      });
+    }
+    return HttpResponse.json({ message: 'Invalid code' }, { status: 401 });
   }),
 
   // 管理画面: ログアウト

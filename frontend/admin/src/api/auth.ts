@@ -14,6 +14,28 @@ export interface LoginResponse {
   };
 }
 
+export type MockSignInResponse =
+  | LoginResponse
+  | { step: 'code' | 'password' }
+  | { step: 'setup'; sharedSecret: string; setupUri: string };
+
+export async function confirmMockSignIn(
+  email: string,
+  challengeResponse: string,
+  challenge: 'password' | 'totp'
+): Promise<MockSignInResponse> {
+  if (import.meta.env.VITE_ENABLE_MSW_MOCK !== 'true')
+    throw new Error('Mock authentication is disabled');
+  const response = await fetch(`${API_URL}/auth/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, challengeResponse, challenge }),
+  });
+  if (!response.ok)
+    throw new Error('認証コードを確認して、もう一度入力してください。');
+  return response.json();
+}
+
 export interface APIError {
   message: string;
   statusCode?: number;
@@ -25,7 +47,7 @@ export interface APIError {
 export async function loginAPI(
   email: string,
   password: string
-): Promise<LoginResponse> {
+): Promise<MockSignInResponse> {
   try {
     const response = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
