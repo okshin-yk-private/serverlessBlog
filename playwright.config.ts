@@ -18,7 +18,7 @@ export default defineConfig({
   testDir: './tests/e2e',
 
   // 管理画面テストを除外（別の設定ファイルで実行）
-  testIgnore: '**/admin-*.spec.ts',
+  testIgnore: ['**/admin-*.spec.ts', '**/passkeys/**'],
 
   // グローバルセットアップ・ティアダウン
   globalSetup: './tests/e2e/global-setup.ts',

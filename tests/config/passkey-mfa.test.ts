@@ -32,3 +32,30 @@ test('both deployments use staged MFA migration and frontend builds require read
     'configure_passkey_mfa.py --environment "${{ needs.detect-changes.outputs.target-env }}" --check-only'
   );
 });
+
+test('only the dedicated Playwright configuration collects passkey fixtures', () => {
+  for (const config of [
+    'playwright.config.ts',
+    'playwright.admin.config.ts',
+    'playwright.aws.config.ts',
+  ]) {
+    const output = execFileSync(
+      'bunx',
+      ['playwright', 'test', '--config=' + config, '--list', '--reporter=list'],
+      { encoding: 'utf8' }
+    );
+    expect(output).not.toContain('passkeys/passkey.spec.ts');
+  }
+  const dedicated = execFileSync(
+    'bunx',
+    [
+      'playwright',
+      'test',
+      '--config=playwright.passkey.config.ts',
+      '--list',
+      '--reporter=list',
+    ],
+    { encoding: 'utf8' }
+  );
+  expect(dedicated).toContain('virtual authenticator');
+}, 30000);

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { AdminLoginPage } from '../pages/AdminLoginPage';
 import { generateKeyPairSync } from 'node:crypto';
 
 const credentialId = Buffer.from('test-passkey').toString('base64');
@@ -224,5 +225,29 @@ test('unavailable passkey keeps the user logged out and offers password fallback
   );
   await expect(page).toHaveURL(/\/login$/);
   await page.getByRole('button', { name: 'パスワードでログインする' }).click();
+  await expect(page.getByLabel('パスワード', { exact: true })).toBeVisible();
+});
+
+test('post-deploy password smoke helper selects the password fallback', async ({
+  page,
+}) => {
+  await page.route(
+    'https://cognito-idp.ap-northeast-1.amazonaws.com/**',
+    async (route) => {
+      expect(route.request().postDataJSON().AuthFlow).toBe('USER_SRP_AUTH');
+      await route.fulfill({
+        status: 400,
+        contentType: 'application/x-amz-json-1.1',
+        body: JSON.stringify({
+          __type: 'NotAuthorizedException',
+          message: 'Incorrect username or password.',
+        }),
+      });
+    }
+  );
+  await page.goto('/login');
+  const loginPage = new AdminLoginPage(page);
+  await loginPage.login('admin@example.com', 'TestPassword123!');
+  await expect(page.getByTestId('error-message')).toBeVisible();
   await expect(page.getByLabel('パスワード', { exact: true })).toBeVisible();
 });
