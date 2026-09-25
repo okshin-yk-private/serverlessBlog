@@ -52,7 +52,8 @@ resource "aws_cognito_user_pool" "main" {
     temporary_password_validity_days = 7
   }
 
-  # Requirement 4.5: MFA configuration (OPTIONAL until the admin TOTP UI is deployed and existing administrators are enrolled)
+  # Requirement 4.5: MFA configuration. prd uses ON (TOTP required); dev stays OPTIONAL for the E2E test user.
+  # The OPTIONAL-to-ON transition in prd runs outside Terraform via scripts/configure_passkey_mfa.py.
   mfa_configuration = var.mfa_configuration
 
   # Software token MFA configuration (required when MFA is OPTIONAL or ON)
