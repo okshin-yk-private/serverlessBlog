@@ -178,94 +178,23 @@ updates:
       include: "scope"
 
   # ============================================================
-  # Terraform modules (first half) — Thursday
+  # Terraform modules — Thursday
   # ============================================================
+  # All modules pin the same providers, so one entry with group-by: dependency-name
+  # opens a single PR per dependency across every module instead of one PR per
+  # directory. develop requires up-to-date branches, so each extra PR meant another
+  # update-branch + CI cycle (#716). group-by covers version updates only.
   - package-ecosystem: "terraform"
-    directory: "/terraform/modules/acm"
+    directories:
+      - "/terraform/modules/*"
     schedule: { interval: "weekly", day: "thursday", time: "03:00", timezone: "Asia/Tokyo" }
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
     labels: ["dependencies", "terraform"]
     commit-message: { prefix: "chore(deps)", include: "scope" }
-
-  - package-ecosystem: "terraform"
-    directory: "/terraform/modules/agentcore"
-    schedule: { interval: "weekly", day: "thursday", time: "04:00", timezone: "Asia/Tokyo" }
-    open-pull-requests-limit: 3
-    labels: ["dependencies", "terraform"]
-    commit-message: { prefix: "chore(deps)", include: "scope" }
-
-  - package-ecosystem: "terraform"
-    directory: "/terraform/modules/api"
-    schedule: { interval: "weekly", day: "thursday", time: "05:00", timezone: "Asia/Tokyo" }
-    open-pull-requests-limit: 3
-    labels: ["dependencies", "terraform"]
-    commit-message: { prefix: "chore(deps)", include: "scope" }
-
-  - package-ecosystem: "terraform"
-    directory: "/terraform/modules/auth"
-    schedule: { interval: "weekly", day: "thursday", time: "06:00", timezone: "Asia/Tokyo" }
-    open-pull-requests-limit: 3
-    labels: ["dependencies", "terraform"]
-    commit-message: { prefix: "chore(deps)", include: "scope" }
-
-  - package-ecosystem: "terraform"
-    directory: "/terraform/modules/cdn"
-    schedule: { interval: "weekly", day: "thursday", time: "07:00", timezone: "Asia/Tokyo" }
-    open-pull-requests-limit: 3
-    labels: ["dependencies", "terraform"]
-    commit-message: { prefix: "chore(deps)", include: "scope" }
-
-  - package-ecosystem: "terraform"
-    directory: "/terraform/modules/codebuild"
-    schedule: { interval: "weekly", day: "thursday", time: "08:00", timezone: "Asia/Tokyo" }
-    open-pull-requests-limit: 3
-    labels: ["dependencies", "terraform"]
-    commit-message: { prefix: "chore(deps)", include: "scope" }
-
-  # ============================================================
-  # Terraform modules (second half) — Friday
-  # ============================================================
-  - package-ecosystem: "terraform"
-    directory: "/terraform/modules/database"
-    schedule: { interval: "weekly", day: "friday", time: "03:00", timezone: "Asia/Tokyo" }
-    open-pull-requests-limit: 3
-    labels: ["dependencies", "terraform"]
-    commit-message: { prefix: "chore(deps)", include: "scope" }
-
-  - package-ecosystem: "terraform"
-    directory: "/terraform/modules/dns-cloudflare"
-    schedule: { interval: "weekly", day: "friday", time: "04:00", timezone: "Asia/Tokyo" }
-    open-pull-requests-limit: 3
-    labels: ["dependencies", "terraform"]
-    commit-message: { prefix: "chore(deps)", include: "scope" }
-
-  - package-ecosystem: "terraform"
-    directory: "/terraform/modules/dns-route53"
-    schedule: { interval: "weekly", day: "friday", time: "05:00", timezone: "Asia/Tokyo" }
-    open-pull-requests-limit: 3
-    labels: ["dependencies", "terraform"]
-    commit-message: { prefix: "chore(deps)", include: "scope" }
-
-  - package-ecosystem: "terraform"
-    directory: "/terraform/modules/lambda"
-    schedule: { interval: "weekly", day: "friday", time: "06:00", timezone: "Asia/Tokyo" }
-    open-pull-requests-limit: 3
-    labels: ["dependencies", "terraform"]
-    commit-message: { prefix: "chore(deps)", include: "scope" }
-
-  - package-ecosystem: "terraform"
-    directory: "/terraform/modules/monitoring"
-    schedule: { interval: "weekly", day: "friday", time: "07:00", timezone: "Asia/Tokyo" }
-    open-pull-requests-limit: 3
-    labels: ["dependencies", "terraform"]
-    commit-message: { prefix: "chore(deps)", include: "scope" }
-
-  - package-ecosystem: "terraform"
-    directory: "/terraform/modules/storage"
-    schedule: { interval: "weekly", day: "friday", time: "08:00", timezone: "Asia/Tokyo" }
-    open-pull-requests-limit: 3
-    labels: ["dependencies", "terraform"]
-    commit-message: { prefix: "chore(deps)", include: "scope" }
+    groups:
+      terraform-modules:
+        patterns: ["*"]
+        group-by: dependency-name
 
   # ============================================================
   # GitHub Actions (workflows + composite actions) — Saturday

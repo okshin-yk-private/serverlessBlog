@@ -37,10 +37,11 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# Workflow default is read-only; jobs that write request it themselves (#694,
+# zizmor excessive-permissions): setup-labels (labeler) and the plan jobs
+# (AWS OIDC + plan comment).
 permissions:
   contents: read
-  pull-requests: write # Required for actions/labeler to add labels
-  id-token: write # Required for AWS OIDC authentication
 
 env:
   TERRAFORM_VERSION: '1.14.0'
@@ -57,12 +58,32 @@ jobs:
       - name: Verify version sources
         run: scripts/ci/verify-go-toolchain.sh
 
+  # Issue #694: keep pinned tool versions in step and scanner exceptions reviewed.
+  verify-config-guards:
+    name: Verify Bun Pins and Security Exceptions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Verify Bun version sources and the CodeBuild checksum
+        run: scripts/ci/verify-bun-version.sh --online
+
+      - name: Verify scanner exceptions are justified and have a review date
+        run: python3 scripts/ci/verify_security_exceptions.py
+
   # =======================================
   # Job 0: Setup Labels (Auto-label + Check)
   # =======================================
   setup-labels:
     name: Auto-label and Get Labels
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # actions/labeler adds labels
     timeout-minutes: 10
     outputs:
       pr-number: ${{ steps.get-pr.outputs.pr-number }}
@@ -756,7 +777,7 @@ jobs:
 
       - name: Run Checkov Security Scan
         id: checkov
-        uses: bridgecrewio/checkov-action@a8664e3a0549367977f0cda990a34311835c87c0 # v12.3123.0
+        uses: bridgecrewio/checkov-action@444c9db6fa75e2d9c19ebf1fde7322089be9009e # v12.3125.0
         with:
           directory: terraform
           config_file: terraform/.checkov.yaml
@@ -783,7 +804,7 @@ jobs:
         # Code Scanning API rate limit can fail this step when many Dependabot PRs
         # run concurrently. SARIF visibility is best-effort, so don't fail the job.
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
           sarif_file: results.sarif
           category: checkov-terraform
@@ -822,8 +843,10 @@ jobs:
 
       - name: Determine terraform test targets
         id: targets
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          TARGETS=$(bash scripts/ci/terraform-test-targets.sh --changed "origin/${{ github.base_ref }}" --json)
+          TARGETS=$(bash scripts/ci/terraform-test-targets.sh --changed "origin/${BASE_REF}" --json)
           echo "targets=$TARGETS" >> $GITHUB_OUTPUT
           echo "Targets: $TARGETS"
           if [ -z "$TARGETS" ] || [ "$TARGETS" = "[]" ]; then
@@ -874,6 +897,10 @@ jobs:
   terraform-plan-dev:
     name: Terraform Plan (DEV)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # AWS OIDC authentication
+      pull-requests: write # plan result comment
     timeout-minutes: 20
     needs: [setup-labels, terraform-validate-dev, terraform-merge-artifacts]
     environment: dev
@@ -990,6 +1017,10 @@ jobs:
   terraform-plan-prd:
     name: Terraform Plan (PRD)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # AWS OIDC authentication
+      pull-requests: write # plan result comment
     timeout-minutes: 20
     needs: [setup-labels, terraform-validate-prd, terraform-merge-artifacts]
     environment: prod
@@ -1475,6 +1506,7 @@ jobs:
     timeout-minutes: 10
     needs:
       - verify-go-toolchain
+      - verify-config-guards
       - setup-labels
       - lint
       - typecheck
@@ -1569,6 +1601,7 @@ jobs:
 
           check_required "Label Setup" "${{ needs.setup-labels.result }}"
           check_required "Go Toolchain" "${{ needs.verify-go-toolchain.result }}"
+          check_required "Config Guards" "${{ needs.verify-config-guards.result }}"
           check_required "Lint" "${{ needs.lint.result }}"
           check_required "Type Check" "${{ needs.typecheck.result }}"
           check_required "Go Lint" "${{ needs.go-lint.result }}" "${{ needs.setup-labels.outputs.has-go == 'true' }}"

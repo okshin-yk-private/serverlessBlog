@@ -112,7 +112,7 @@ jobs:
 
       - name: Upload gitleaks SARIF to Code Scanning
         if: always() && hashFiles('gitleaks.sarif') != ''
-        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
           sarif_file: gitleaks.sarif
           ref: ${{ matrix.target.ref }}
@@ -156,14 +156,14 @@ jobs:
           cache-dependency-path: go-functions/go.sum
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.language == 'go' && 'autobuild' || 'none' }}
           queries: security-and-quality
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
           ref: ${{ matrix.target.ref }}
           sha: ${{ matrix.target.sha }}
@@ -212,7 +212,7 @@ jobs:
 
       - name: Upload Trivy SARIF to Code Scanning
         if: always() && hashFiles('trivy-fs.sarif') != ''
-        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
           sarif_file: trivy-fs.sarif
           ref: ${{ matrix.target.ref }}
@@ -226,6 +226,49 @@ jobs:
           name: trivy-fs-sarif-${{ matrix.target.name }}
           path: trivy-fs.sarif
           retention-days: 3
+
+  # Issue #694: static analysis of the workflows themselves. Every finding goes
+  # to Code Scanning; high severity fails the job. Medium and below (mostly
+  # artipacked and dependabot-cooldown) are visible there for follow-up.
+  zizmor:
+    name: zizmor (GitHub Actions)
+    needs: scan-targets
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.scan-targets.outputs.targets) }}
+    timeout-minutes: 10
+    env:
+      ZIZMOR_VERSION: '1.30.1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ matrix.target.sha }}
+          persist-credentials: false
+
+      - name: Run zizmor (all findings as SARIF)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: pipx run --spec "zizmor==${ZIZMOR_VERSION}" zizmor --format sarif --no-exit-codes .github/ > zizmor.sarif
+
+      - name: Verify SARIF was generated
+        run: test -s zizmor.sarif
+
+      - name: Upload zizmor SARIF to Code Scanning
+        if: always() && hashFiles('zizmor.sarif') != ''
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          sarif_file: zizmor.sarif
+          ref: ${{ matrix.target.ref }}
+          sha: ${{ matrix.target.sha }}
+          category: zizmor
+
+      - name: Fail on high-severity findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: pipx run --spec "zizmor==${ZIZMOR_VERSION}" zizmor --min-severity high --format github .github/
 
   dependency-audit:
     name: Bun and Go dependency audit
@@ -311,7 +354,7 @@ jobs:
     name: Security Scan Summary
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [scan-targets, gitleaks, codeql, trivy-fs, dependency-audit]
+    needs: [scan-targets, gitleaks, codeql, trivy-fs, zizmor, dependency-audit]
     if: always()
     steps:
       - name: Render summary
@@ -324,9 +367,10 @@ jobs:
             echo "| Gitleaks (secrets) | ${{ needs.gitleaks.result }} |"
             echo "| CodeQL | ${{ needs.codeql.result }} |"
             echo "| Trivy (fs) | ${{ needs.trivy-fs.result }} |"
+            echo "| zizmor (workflows) | ${{ needs.zizmor.result }} |"
             echo "| Bun / Go audit | ${{ needs.dependency-audit.result }} |"
             echo ""
-            echo "Findings appear in **Security → Code scanning** under the categories: \`gitleaks\`, \`/language:go\`, \`/language:javascript-typescript\`, \`trivy-fs\`."
+            echo "Findings appear in **Security → Code scanning** under the categories: \`gitleaks\`, \`/language:go\`, \`/language:javascript-typescript\`, \`trivy-fs\`, \`zizmor\`."
             echo ""
             echo "Phase 1 stance is visibility-first; see \`docs/SECURITY_SCANNING.md\` for the hard-fail roadmap."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -338,7 +382,8 @@ jobs:
           GITLEAKS_RESULT: ${{ needs.gitleaks.result }}
           CODEQL_RESULT: ${{ needs.codeql.result }}
           TRIVY_RESULT: ${{ needs.trivy-fs.result }}
+          ZIZMOR_RESULT: ${{ needs.zizmor.result }}
         run: |
-          for result in "$TARGETS_RESULT" "$GITLEAKS_RESULT" "$CODEQL_RESULT" "$TRIVY_RESULT" "$AUDIT_RESULT"; do
+          for result in "$TARGETS_RESULT" "$GITLEAKS_RESULT" "$CODEQL_RESULT" "$TRIVY_RESULT" "$ZIZMOR_RESULT" "$AUDIT_RESULT"; do
             test "$result" = success || exit 1
           done

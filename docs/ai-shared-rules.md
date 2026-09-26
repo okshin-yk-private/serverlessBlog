@@ -16,6 +16,7 @@ here — edit this file, not the copies.
 | E2E | `bun run test:e2e` / `bun run test:e2e:admin` |
 | Terraform | `cd terraform/environments/dev && terraform validate` |
 | Secret scan | `pre-commit run gitleaks --all-files` |
+| Local tool check | `bun run doctor` |
 
 Choose checks using [ai-verification.md](ai-verification.md). Run the affected
 checks, fix failures caused by the requested change, and rerun those checks without
@@ -26,6 +27,16 @@ the impact cannot be bounded; it does not include E2E or Terraform verification.
 ## Environment quirks
 
 - Use `bun`, not `npx`, for Node packages and scripts.
+- `bun run verify` first runs `deps:sync` (`bun install --frozen-lockfile` in the four
+  packages), so stale `node_modules` after pulling no longer surface as missing-module
+  errors. `bun run doctor` checks tool presence and the Bun/Go/Terraform versions CI uses.
+- Agents run with `STRICT_LOCAL_CHECKS=1` (`.claude/settings.json`, `scripts/run-codex.sh`):
+  a commit fails instead of silently skipping terraform validate / trivy / gitleaks when
+  neither `pre-commit` nor `uvx` is available. Do not unset it to get a commit through.
+- Every `.terraform.lock.hcl` records `h1:` hashes for `linux_amd64` (CI) and `darwin_arm64`
+  (local), so `terraform init` on either does not rewrite it; Dependabot keeps the platforms
+  it finds. For a new provider or lock directory run
+  `terraform providers lock -platform=linux_amd64 -platform=darwin_arm64`.
 - There is no root `test` script. Unit tests live per package: `frontend/admin`,
   `frontend/public-astro` (vitest), `scripts/deploy`, `tests/config` (bun test),
   and `go-functions` (`make test`).
@@ -64,6 +75,9 @@ the impact cannot be bounded; it does not include E2E or Terraform verification.
   issue gets its own worktree: `git worktree add .claude/worktrees/<name> -b <branch> origin/develop`.
   Leave the main checkout on whatever branch it is on, and remove the worktree after the
   PR merges (`git worktree remove <path>`).
+- Run `bun install --frozen-lockfile` at the root of a new worktree before the first commit.
+  husky's hooks directory (`.husky/_`) only exists after it, and without it git runs no
+  pre-commit checks and prints nothing.
 
 ## Language
 

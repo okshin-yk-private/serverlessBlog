@@ -48,6 +48,7 @@ skip-check:
   # logging bucket adds complexity without significant security benefit for
   # this use case. CloudTrail provides sufficient audit trail for S3 operations.
   # Mitigation: CloudTrail enabled for all S3 API calls
+  # Review-by: 2027-03-31
   - CKV_AWS_18
 
   # CKV_AWS_144: Ensure that S3 bucket has cross-region replication enabled
@@ -56,6 +57,7 @@ skip-check:
   # IAM roles, and additional storage and transfer costs without matching the
   # recovery objectives of this low-traffic personal blog.
   # Mitigation: S3 regional durability and versioning on mutable content buckets
+  # Review-by: 2027-03-31
   - CKV_AWS_144
 
   # CKV_AWS_145: Ensure that S3 buckets are encrypted with a customer-managed KMS key
@@ -63,6 +65,7 @@ skip-check:
   # for non-sensitive blog assets and access logs. Customer-managed KMS keys add
   # recurring cost and key lifecycle dependencies without a compliance requirement.
   # Mitigation: Server-side encryption is enabled on every bucket
+  # Review-by: 2027-03-31
   - CKV_AWS_145
 
   # CKV2_AWS_62: Ensure S3 bucket has event notifications enabled
@@ -70,6 +73,7 @@ skip-check:
   # buckets (public-site, admin-site, images). Adding SNS/Lambda triggers
   # for every object change adds unnecessary cost and complexity.
   # Mitigation: CloudWatch metrics monitor bucket operations
+  # Review-by: 2027-03-31
   - CKV2_AWS_62
 
   # CKV2_AWS_61: Ensure that S3 bucket has lifecycle configuration enabled
@@ -77,6 +81,7 @@ skip-check:
   # specific buckets (images bucket for version cleanup). Static site buckets
   # retain all versions for rollback capability.
   # Mitigation: Manual cleanup procedures documented; monitoring in place
+  # Review-by: 2027-03-31
   - CKV2_AWS_61
 
   # --------------------------------------
@@ -92,6 +97,7 @@ skip-check:
   # protection for blog post data. CMK adds key management overhead and
   # cost without additional security benefit for non-PII data.
   # Mitigation: Server-side encryption enabled with AWS-managed keys
+  # Review-by: 2027-03-31
   - CKV_AWS_119
 
   # --------------------------------------
@@ -103,6 +109,7 @@ skip-check:
   # benefit from DLQs. Failed requests return errors to clients immediately.
   # Adding DLQ for sync functions adds cost without improving reliability.
   # Mitigation: CloudWatch alarms monitor error rates; API Gateway logs failures
+  # Review-by: 2027-03-31
   - CKV_AWS_116
 
   # CKV_AWS_173: Ensure Lambda environment variables are encrypted
@@ -110,6 +117,7 @@ skip-check:
   # (table names, bucket names, CloudFront domains). No secrets are stored in
   # environment variables. Secrets would use AWS Secrets Manager.
   # Mitigation: Sensitive values use Secrets Manager; env vars marked non-sensitive
+  # Review-by: 2027-03-31
   - CKV_AWS_173
 
   # CKV_AWS_115: Ensure AWS Lambda function is configured for ReservedConcurrentExecutions
@@ -120,6 +128,7 @@ skip-check:
   # (module.monitoring.aws_cloudwatch_metric_alarm.lambda_throttles_all).
   # Budget-based cost control (aws_budgets_*) is NOT implemented in this
   # repository; it is tracked as separate future work, not a mitigation here.
+  # Review-by: 2027-03-31
   - CKV_AWS_115
 
   # CKV_AWS_272: Ensure Lambda function code signing is enabled
@@ -127,6 +136,7 @@ skip-check:
   # blog. Lambda code is built and deployed through trusted CI/CD pipeline
   # with OIDC authentication. Code integrity is verified at commit time.
   # Mitigation: GitHub branch protection; OIDC-authenticated deployments
+  # Review-by: 2027-03-31
   - CKV_AWS_272
 
   # CKV_AWS_117: Ensure that AWS Lambda function is configured inside a VPC
@@ -136,6 +146,7 @@ skip-check:
   # VPC would add NAT Gateway cost (~$65/mo per AZ), increase cold start
   # latency, and provide no security benefit for this architecture.
   # Mitigation: IAM least-privilege policies; service-level access controls
+  # Review-by: 2027-03-31
   - CKV_AWS_117
 
   # --------------------------------------
@@ -147,6 +158,7 @@ skip-check:
   # Lambda functions provide consistent sub-100ms responses. Caching would
   # add complexity for minimal performance benefit.
   # Mitigation: CloudFront provides edge caching for static content
+  # Review-by: 2027-03-31
   - CKV_AWS_225
 
   # CKV_AWS_76: Ensure API Gateway has Access Logging enabled
@@ -160,12 +172,14 @@ skip-check:
   # Justification: API Gateway is accessed only through CloudFront distribution
   # which handles TLS termination. Direct API Gateway access is not exposed.
   # Mitigation: CloudFront enforces HTTPS; API Gateway endpoint is internal
+  # Review-by: 2027-03-31
   - CKV2_AWS_51
 
   # CKV2_AWS_29: Ensure AWS API Gateway public endpoint is disabled
   # Justification: API Gateway must be publicly accessible for CloudFront
   # integration. Access control is enforced through Cognito authorizers.
   # Mitigation: Cognito authorizers protect sensitive endpoints
+  # Review-by: 2027-03-31
   - CKV2_AWS_29
 
   # --------------------------------------
@@ -178,6 +192,7 @@ skip-check:
   # certificate where AWS manages TLS settings (minimum_protocol_version is ignored).
   # Modern browsers negotiate TLS 1.2+ by default; dev is protected by Basic Auth.
   # Mitigation: Production enforces TLS 1.2; dev access restricted via Basic Auth
+  # Review-by: 2027-03-31
   - CKV_AWS_174
 
   # CKV_AWS_86: Ensure CloudFront distribution has WAF enabled
@@ -185,6 +200,7 @@ skip-check:
   # is handled at CloudFront level. No sensitive financial or PII data.
   # Phase 2 consideration for production hardening.
   # Mitigation: CloudFront geo-restrictions; rate limiting; monitoring
+  # Review-by: 2027-03-31
   - CKV_AWS_86
 
   # CKV_AWS_68: Ensure CloudFront logging is enabled
@@ -192,21 +208,24 @@ skip-check:
   # CloudWatch metrics provide sufficient visibility for traffic patterns.
   # Access logging will be enabled in production (Phase 3).
   # Mitigation: CloudWatch metrics; CloudTrail API logging
+  # Review-by: 2027-03-31
   - CKV_AWS_68
 
   # CKV2_AWS_42: Ensure CloudFront distribution uses response headers policy
-  # Note: Implemented. aws_cloudfront_response_headers_policy.security_headers
+  # Justification: Implemented. aws_cloudfront_response_headers_policy.security_headers
   # (terraform/modules/cdn/main.tf:466-497) configures HSTS, CSP, frame-options
   # and referrer-policy headers, and is attached via response_headers_policy_id
   # on every cache behavior of the distribution. Skip is retained only for
   # compatibility with checkov versions that still evaluate this check ID
   # (the ID is no longer present in the currently pinned checkov release).
+  # Review-by: 2027-03-31
   - CKV2_AWS_42
 
   # CKV2_AWS_47: Ensure CloudFront distributions associate with origin access identity
   # Justification: We use Origin Access Control (OAC) instead of OAI.
   # OAC is the newer, recommended approach by AWS.
   # This is a false positive; OAC is properly configured.
+  # Review-by: 2027-03-31
   - CKV2_AWS_47
 
   # --------------------------------------
@@ -223,6 +242,7 @@ skip-check:
   # For this blog's admin authentication volume, standard security is sufficient.
   # Phase 3 consideration for enhanced threat protection.
   # Mitigation: Strong password policy; MFA optional; account lockout
+  # Review-by: 2027-03-31
   - CKV_AWS_264
 
   # --------------------------------------
@@ -233,6 +253,7 @@ skip-check:
   # Justification: Log group encryption with CMK adds key management overhead.
   # Log data does not contain sensitive PII. Default encryption is sufficient.
   # Mitigation: IAM policies restrict log access; log retention configured
+  # Review-by: 2027-03-31
   - CKV_AWS_158
 
   # --------------------------------------
@@ -244,10 +265,12 @@ skip-check:
   # Version constraints (e.g., ~> 6.0) provide stability while allowing patches.
   # Commit hashes would prevent automatic security updates.
   # Mitigation: Renovate/Dependabot monitors version updates
+  # Review-by: 2027-03-31
   - CKV_TF_1
 
   # CKV_TF_2: Ensure Terraform module sources use git tag
   # Justification: Same as CKV_TF_1 - version pinning over commit hashes.
+  # Review-by: 2027-03-31
   - CKV_TF_2
 
   # --------------------------------------
@@ -259,12 +282,14 @@ skip-check:
   # Cross-region origin failover adds cost and complexity without matching
   # business requirement for this non-critical content site.
   # Mitigation: S3 versioning enabled; monitoring and alerts configured
+  # Review-by: 2027-03-31
   - CKV_AWS_310
 
   # CKV_AWS_374: Ensure CloudFront distribution has geo restrictions configured
   # Justification: Public blog intended for global accessibility. No regulatory
   # requirement for geo-blocking. Content is not region-specific.
   # Mitigation: CloudFront rate limiting; WAF consideration for production
+  # Review-by: 2027-03-31
   - CKV_AWS_374
 
   # --------------------------------------
@@ -276,6 +301,7 @@ skip-check:
   # Lambda functions provide consistent sub-100ms responses. Adding API Gateway
   # caching would duplicate CloudFront caching with minimal benefit.
   # Mitigation: CloudFront edge caching; Lambda performance monitoring
+  # Review-by: 2027-03-31
   - CKV_AWS_120
 
   # CKV_AWS_59: Ensure API methods do not have public access
@@ -286,6 +312,7 @@ skip-check:
   # - OPTIONS methods - CORS preflight requests
   # Protected admin endpoints use Cognito authorizers.
   # Mitigation: Cognito protects sensitive endpoints; CloudFront rate limiting
+  # Review-by: 2027-03-31
   - CKV_AWS_59
 
   # CKV2_AWS_53: Ensure AWS API gateway request is validated
@@ -299,6 +326,7 @@ skip-check:
   # gateway level.
   # Mitigation: Lambda-level schema validation; Cognito authorizer on
   # mutating admin endpoints; CloudFront rate limiting.
+  # Review-by: 2027-03-31
   - CKV2_AWS_53
 
   # --------------------------------------
@@ -310,6 +338,7 @@ skip-check:
   # No compliance requirement for 1-year retention. Extended retention adds
   # storage costs without proportional benefit for blog application.
   # Mitigation: CloudTrail for audit trail; metrics for long-term trends
+  # Review-by: 2027-03-31
   - CKV_AWS_338
 
   # Note: CKV2_AWS_23 (Route53 A Record has Attached Resource) was skipped here

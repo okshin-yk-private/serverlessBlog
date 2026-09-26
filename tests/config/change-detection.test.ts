@@ -221,6 +221,15 @@ describe('workflow wiring', () => {
     expect(detectionJob).toContain(
       'bash scripts/ci/detect-changes.sh deploy "$BEFORE_SHA" "$AFTER_SHA"'
     );
+    // Dispatch inputs reach the shell as environment variables, never through
+    // template expansion inside `run:` (#694, zizmor template-injection).
+    expect(detectionJob).toContain('EVENT_NAME: ${{ github.event_name }}');
+    expect(detectionJob).toContain(
+      'COMPONENTS: ${{ github.event.inputs.components }}'
+    );
+    expect(detectionJob.split('        env:')[0]).not.toContain(
+      '${{ github.event.inputs.'
+    );
     expect(detectionJob).not.toContain('HEAD~1');
     for (const path of [
       'frontend/**',
@@ -245,12 +254,15 @@ describe('workflow wiring', () => {
       const output = join(directory, 'output');
       const script = detectionJob
         .split('        id: changes\n        run: |\n')[1]
-        .split('        env:')[0]
-        .replaceAll('${{ github.event_name }}', 'workflow_dispatch')
-        .replaceAll('${{ github.event.inputs.components }}', component);
+        .split('        env:')[0];
       const result = spawnSync('bash', ['-e', '-c', script], {
         encoding: 'utf8',
-        env: { ...process.env, GITHUB_OUTPUT: output },
+        env: {
+          ...process.env,
+          GITHUB_OUTPUT: output,
+          EVENT_NAME: 'workflow_dispatch',
+          COMPONENTS: component,
+        },
       });
       expect(result.status).toBe(0);
       expect(readFileSync(output, 'utf8')).toBe(expected);
