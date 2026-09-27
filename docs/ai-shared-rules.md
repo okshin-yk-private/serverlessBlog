@@ -43,10 +43,12 @@ the impact cannot be bounded; it does not include E2E or Terraform verification.
 - The root `eslint.config.js` ignores `frontend/**`; `frontend/admin` has its own config.
   `frontend/public-astro` is currently not covered by ESLint —
   Prettier (root glob) is the only automated style check there.
-- CI runs `typecheck` on every PR (no label gate). The vitest suites for `frontend/admin`,
-  `frontend/public-astro` run according to changed paths, independently for each
-  component; shared UI/dependency/test infrastructure changes run both. Other
-  component jobs still use labels. A skipped job does not prove its tests passed.
+- CI runs `typecheck` on every PR (no gate). Every other component job (Go, Terraform,
+  frontend, deploy-scripts) is gated by `scripts/ci/detect-changes.sh ci`'s changed-path
+  detection, not PR labels — labels applied by `actions/labeler` are display-only and do
+  not drive job selection. The vitest suites for `frontend/admin`, `frontend/public-astro`
+  run according to changed paths, independently for each component; shared UI/dependency/
+  test infrastructure changes run both. A skipped job does not prove its tests passed.
 - `go-functions/go.mod` is the single source of truth for the complete Go patch version.
   CI, deploy, CodeQL, and local deploy read it directly; `scripts/ci/verify-go-toolchain.sh`
   rejects independent workflow version declarations. Run `make -C go-functions lint` rather

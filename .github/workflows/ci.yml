@@ -16,16 +16,16 @@ name: CI
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened]
     branches:
       - main
       - develop
 
 # Deduplicate concurrent CI runs for the SAME pull request.
-# Dependabot opening a PR, combined with the auto-labeler firing `labeled` /
-# `unlabeled` events, launches several CI runs against one commit at nearly the
-# same instant. Each run executes Terraform Plan against the shared DEV/PRD
-# state backend and races on the S3/DynamoDB state lock, surfacing as a flaky
+# A force-push, a rapid string of commits, or Dependabot rebasing a PR can
+# launch several CI runs against nearly the same commit in quick succession.
+# Each run executes Terraform Plan against the shared DEV/PRD state backend
+# and races on the S3/DynamoDB state lock, surfacing as a flaky
 # "Terraform Plan" failure even though the plan itself is clean.
 #
 # Scoping the group to the PR number (not a fixed string) keeps plans for
@@ -79,7 +79,7 @@ jobs:
   # Job 0: Setup Labels (Auto-label + Check)
   # =======================================
   setup-labels:
-    name: Auto-label and Get Labels
+    name: Auto-label and Detect Changed Components
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -87,15 +87,12 @@ jobs:
     timeout-minutes: 10
     outputs:
       pr-number: ${{ steps.get-pr.outputs.pr-number }}
-      has-infrastructure: ${{ steps.check-labels.outputs.has-infrastructure }}
-      has-terraform: ${{ steps.check-labels.outputs.has-terraform }}
-      has-frontend: ${{ steps.check-labels.outputs.has-frontend }}
+      has-infrastructure: ${{ steps.frontend-changes.outputs.infrastructure }}
+      has-terraform: ${{ steps.frontend-changes.outputs.terraform }}
       has-astro: ${{ steps.frontend-changes.outputs.astro }}
       has-admin: ${{ steps.frontend-changes.outputs.admin }}
-      has-tests: ${{ steps.check-labels.outputs.has-tests }}
-      has-workflow: ${{ steps.check-labels.outputs.has-workflow }}
-      has-go: ${{ steps.check-labels.outputs.has-go }}
-      has-deploy-scripts: ${{ steps.check-labels.outputs.has-deploy-scripts }}
+      has-go: ${{ steps.frontend-changes.outputs.go }}
+      has-deploy-scripts: ${{ steps.frontend-changes.outputs.deploy-scripts }}
     steps:
       - name: Checkout code for component detection
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -123,71 +120,6 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           configuration-path: .github/labeler.yml
           sync-labels: true
-
-      - name: Check labels
-        id: check-labels
-        run: |
-          set -euo pipefail
-          PR_NUMBER="${{ steps.get-pr.outputs.pr-number }}"
-
-          # PRのラベルを取得
-          LABELS=$(gh api /repos/${{ github.repository }}/pulls/$PR_NUMBER --jq '.labels[].name' | tr '\n' ',')
-
-          echo "PR Labels: $LABELS"
-
-          # 部分文字列一致だと "frontend" が "frontend-foo" のような別ラベルにも
-          # 誤爆する。カンマ区切りリストの前後をカンマで囲み ",label," の形で
-          # 完全一致検索することで誤爆を防ぐ。
-          has_label() {
-            echo ",${LABELS}," | grep -q ",$1,"
-          }
-
-          # 各ラベルの存在をチェック
-          if has_label "infrastructure"; then
-            echo "has-infrastructure=true" >> $GITHUB_OUTPUT
-          else
-            echo "has-infrastructure=false" >> $GITHUB_OUTPUT
-          fi
-
-          if has_label "terraform"; then
-            echo "has-terraform=true" >> $GITHUB_OUTPUT
-          else
-            echo "has-terraform=false" >> $GITHUB_OUTPUT
-          fi
-
-          if has_label "frontend"; then
-            echo "has-frontend=true" >> $GITHUB_OUTPUT
-          else
-            echo "has-frontend=false" >> $GITHUB_OUTPUT
-          fi
-
-          if has_label "tests"; then
-            echo "has-tests=true" >> $GITHUB_OUTPUT
-          else
-            echo "has-tests=false" >> $GITHUB_OUTPUT
-          fi
-
-          if has_label "workflow"; then
-            echo "has-workflow=true" >> $GITHUB_OUTPUT
-          else
-            echo "has-workflow=false" >> $GITHUB_OUTPUT
-          fi
-
-          # Note: Rust label check removed - Rust implementation has been deleted (Task 21.2)
-
-          if has_label "go"; then
-            echo "has-go=true" >> $GITHUB_OUTPUT
-          else
-            echo "has-go=false" >> $GITHUB_OUTPUT
-          fi
-
-          if has_label "deploy-scripts"; then
-            echo "has-deploy-scripts=true" >> $GITHUB_OUTPUT
-          else
-            echo "has-deploy-scripts=false" >> $GITHUB_OUTPUT
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # =======================================
   # Job 1: Lint Check (always runs)
@@ -904,13 +836,13 @@ jobs:
     timeout-minutes: 20
     needs: [setup-labels, terraform-validate-dev, terraform-merge-artifacts]
     environment: dev
-    # NOTE: Duplicate CI runs for the *same* PR (from the `labeled`/`unlabeled`
-    # event storm) are de-duplicated by the workflow-level `concurrency` group
-    # keyed on the PR number (see top of file). Plans for *different* PRs still
-    # run in parallel and wait politely for the shared DynamoDB state lock via
-    # `terraform plan -lock-timeout` (see the Plan step). We intentionally do NOT
-    # use a fixed shared group, which would cancel cross-PR plans as false
-    # "cancelled" failures.
+    # NOTE: Duplicate CI runs for the *same* PR (from a force-push or a rapid
+    # string of commits) are de-duplicated by the workflow-level `concurrency`
+    # group keyed on the PR number (see top of file). Plans for *different* PRs
+    # still run in parallel and wait politely for the shared DynamoDB state
+    # lock via `terraform plan -lock-timeout` (see the Plan step). We
+    # intentionally do NOT use a fixed shared group, which would cancel
+    # cross-PR plans as false "cancelled" failures.
     if: |
       always() &&
       needs.setup-labels.outputs.has-terraform == 'true' &&
@@ -1024,13 +956,13 @@ jobs:
     timeout-minutes: 20
     needs: [setup-labels, terraform-validate-prd, terraform-merge-artifacts]
     environment: prod
-    # NOTE: Duplicate CI runs for the *same* PR (from the `labeled`/`unlabeled`
-    # event storm) are de-duplicated by the workflow-level `concurrency` group
-    # keyed on the PR number (see top of file). Plans for *different* PRs still
-    # run in parallel and wait politely for the shared DynamoDB state lock via
-    # `terraform plan -lock-timeout` (see the Plan step). We intentionally do NOT
-    # use a fixed shared group, which would cancel cross-PR plans as false
-    # "cancelled" failures.
+    # NOTE: Duplicate CI runs for the *same* PR (from a force-push or a rapid
+    # string of commits) are de-duplicated by the workflow-level `concurrency`
+    # group keyed on the PR number (see top of file). Plans for *different* PRs
+    # still run in parallel and wait politely for the shared DynamoDB state
+    # lock via `terraform plan -lock-timeout` (see the Plan step). We
+    # intentionally do NOT use a fixed shared group, which would cancel
+    # cross-PR plans as false "cancelled" failures.
     if: |
       always() &&
       needs.setup-labels.outputs.has-terraform == 'true' &&

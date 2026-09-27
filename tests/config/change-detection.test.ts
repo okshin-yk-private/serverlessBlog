@@ -206,6 +206,52 @@ describe('complete push and PR component detection', () => {
       expect(flags(repo.detect('ci'))).toMatchObject({ astro, admin });
     });
   }
+
+  for (const [path, go, terraform] of [
+    ['go-functions/cmd/auth/login/main.go', 'true', 'false'],
+    ['go-functions/internal/clients/clients.go', 'true', 'false'],
+    ['terraform/environments/dev/main.tf', 'false', 'true'],
+    ['terraform/modules/api/main.tf', 'false', 'true'],
+    ['.terraform-version', 'false', 'true'],
+  ]) {
+    test(`CI selects go/terraform independently for ${path}`, () => {
+      const repo = fixture();
+      repo.write(path);
+      repo.commit();
+      expect(flags(repo.detect('ci'))).toMatchObject({ go, terraform });
+    });
+  }
+
+  for (const path of [
+    '.github/workflows/ci.yml',
+    '.github/actions/setup-bun-deps/action.yml',
+    '.github/actions/setup-terraform-cached/action.yml',
+    'scripts/ci/detect-changes.sh',
+  ]) {
+    test(`CI fails closed toward go and terraform for ${path}`, () => {
+      const repo = fixture();
+      repo.write(path);
+      repo.commit();
+      expect(flags(repo.detect('ci'))).toMatchObject({
+        go: 'true',
+        terraform: 'true',
+      });
+    });
+  }
+
+  test('deploy mode output is unchanged: no go/terraform keys', () => {
+    const repo = fixture();
+    repo.write('go-functions/main.go');
+    repo.commit();
+    const result = repo.detect('deploy');
+    expect(result.status).toBe(0);
+    expect(flags(result)).toEqual({
+      astro: 'false',
+      admin: 'false',
+      infrastructure: 'true',
+      'deploy-scripts': 'false',
+    });
+  });
 });
 
 describe('workflow wiring', () => {
