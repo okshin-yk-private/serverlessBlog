@@ -97,7 +97,7 @@ resource "aws_cognito_user_pool_client" "main" {
   # Token validity settings (matching CDK configuration)
   access_token_validity  = 60    # 1 hour in minutes
   id_token_validity      = 60    # 1 hour in minutes
-  refresh_token_validity = 43200 # 30 days in minutes
+  refresh_token_validity = 10080 # 7 days in minutes
 
   token_validity_units {
     access_token  = "minutes"
