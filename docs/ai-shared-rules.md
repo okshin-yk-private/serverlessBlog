@@ -73,8 +73,10 @@ the impact cannot be bounded; it does not include E2E or Terraform verification.
   against `develop` counts as that authorization for its merge (see "Authorization and
   completion"). Merging to `main` (PRD) always needs its own explicit request.
 - `develop` uses a merge queue and repository auto-merge is disabled, so `gh pr merge`
-  fails. Enqueue with the GraphQL `enqueuePullRequest` mutation and pass `expectedHeadOid`
-  (the verified head SHA); the queue re-runs the required checks before merging.
+  fails. Enqueue with `python3 scripts/ci/enqueue_pr.py <N>`: it accepts only open
+  same-repository PRs into `develop` whose required checks passed on the current head, and
+  enqueues with that head as `expectedHeadOid`. Agents do not call `enqueuePullRequest`
+  directly. The queue re-runs the required checks before merging.
 - Branch naming: `fix/issue-<N>` / `feat/issue-<N>`.
 - Never commit secrets. Triage Code Scanning alerts via the GitHub Security tab —
   see `docs/SECURITY_SCANNING.md`.

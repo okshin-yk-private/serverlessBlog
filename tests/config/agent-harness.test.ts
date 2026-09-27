@@ -282,10 +282,11 @@ describe('harness wiring', () => {
     );
     expect(rules).toContain('Merging to `main` (PRD) always needs');
     expect(skill).not.toContain('mergeやデプロイの承認にはならない');
+    // Agents enqueue only through the develop-only helper, never raw GraphQL.
     for (const text of [rules, skill]) {
-      expect(text).toContain('enqueuePullRequest');
-      expect(text).toContain('expectedHeadOid');
+      expect(text).toContain('python3 scripts/ci/enqueue_pr.py');
     }
+    expect(skill).not.toContain('gh api graphql');
     expect(skill).toContain('`main` 向けはマージしない');
   });
 });

@@ -53,10 +53,12 @@ DEVデプロイ）の承認も含む。`main` 向けはマージしない（PRD�
 2. `All CI Checks Passed`、`Security Scan Summary`、`Dependency Update Security Gate` が
    最新の実行で成功し、headが変わっていないことを確認する。失敗が今回の変更に起因する
    なら修正してpushし、1から繰り返す。外部要因なら報告して止める。
-3. リポジトリのauto-mergeは無効なので `gh pr merge` は使わず、GraphQLで投入する。
+3. リポジトリのauto-mergeは無効なので `gh pr merge` は使わず、次で投入する。
+   スクリプトが base＝`develop`・必須チェック成功・head不変を再確認し、
+   満たさなければ `BLOCKED` で止まる（`--dry-run` で判定だけ行える）。
 
    ```bash
-   gh api graphql -f query='mutation($id:ID!,$h:GitObjectID!){enqueuePullRequest(input:{pullRequestId:$id,expectedHeadOid:$h}){mergeQueueEntry{position state}}}' -f id=<PR node id> -f h=<verified head SHA>
+   python3 scripts/ci/enqueue_pr.py <PR番号>
    ```
 
 4. queueの `merge_group` チェックとマージ、続くDEV Deployの結果まで追跡する。
