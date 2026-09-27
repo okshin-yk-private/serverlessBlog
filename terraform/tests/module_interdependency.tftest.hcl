@@ -151,12 +151,6 @@ run "api_outputs_for_cdn_and_lambda" {
     lambda_build_status_post_invoke_arn            = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-build-status-post-go/invocations"
     lambda_get_post_by_slug_arn                    = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-post-by-slug-go"
     lambda_get_post_by_slug_invoke_arn             = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-get-post-by-slug-go/invocations"
-    lambda_login_arn                               = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go"
-    lambda_login_invoke_arn                        = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go/invocations"
-    lambda_logout_arn                              = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-logout-go"
-    lambda_logout_invoke_arn                       = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-logout-go/invocations"
-    lambda_refresh_arn                             = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-refresh-go"
-    lambda_refresh_invoke_arn                      = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-refresh-go/invocations"
     lambda_get_upload_url_arn                      = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-upload-url-go"
     lambda_get_upload_url_invoke_arn               = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-upload-url-go/invocations"
     lambda_delete_image_arn                        = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-image-go"
@@ -208,8 +202,8 @@ run "lambda_outputs_for_monitoring" {
 
   # Verify function_names has expected count (known during plan)
   assert {
-    condition     = length(output.function_names) == 19
-    error_message = "Lambda module must export all 19 function names"
+    condition     = length(output.function_names) == 16
+    error_message = "Lambda module must export all 16 function names"
   }
 
   # Verify role name outputs match expected values.
@@ -219,11 +213,6 @@ run "lambda_outputs_for_monitoring" {
   assert {
     condition     = output.posts_write_role_name == "blog-lambda-posts-write-role"
     error_message = "Lambda module must export posts_write_role_name correctly"
-  }
-
-  assert {
-    condition     = output.auth_role_name == "blog-lambda-auth-role"
-    error_message = "Lambda module must export auth_role_name correctly"
   }
 
   assert {
@@ -354,11 +343,6 @@ run "output_compatibility_lambda_to_monitoring" {
   assert {
     condition     = contains(output.function_names, "blog-create-post-go")
     error_message = "Lambda function_names must include create_post function"
-  }
-
-  assert {
-    condition     = contains(output.function_names, "blog-login-go")
-    error_message = "Lambda function_names must include login function"
   }
 
   assert {

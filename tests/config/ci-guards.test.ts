@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -367,13 +368,19 @@ describe('workflow permissions and wiring', () => {
       );
       expect(result.status).toBe(0);
       const functions = result.stdout.trim().split('\n');
-      // develop currently ships 19 functions, including auth/login,
-      // auth/logout and auth/refresh; this guards against silently
-      // dropping any of them while consolidating the build jobs.
-      expect(functions).toHaveLength(19);
-      expect(functions).toEqual(
-        expect.arrayContaining(['auth-login', 'auth-logout', 'auth-refresh'])
-      );
+      // Every listed Lambda must have a real cmd/<group>/<name> entrypoint,
+      // so the list the workflows verify cannot drift from the sources.
+      // The auth Lambdas were removed in #732 and must not come back here.
+      expect(functions.length).toBeGreaterThan(0);
+      for (const name of functions) {
+        const [group, ...rest] = name.split('-');
+        expect(
+          existsSync(
+            join(repo, 'go-functions/cmd', group, rest.join('-'), 'main.go')
+          )
+        ).toBe(true);
+      }
+      expect(functions.some((name) => name.startsWith('auth-'))).toBe(false);
       expect(new Set(functions).size).toBe(functions.length);
     });
   });

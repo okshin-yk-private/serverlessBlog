@@ -7,7 +7,6 @@ Go Lambda関数とIAMロールを管理するTerraformモジュールです。
 ブログプラットフォームの11のGo Lambda関数を作成・管理します:
 
 - **Posts関数**: createPost、getPost、getPublicPost、listPosts、updatePost、deletePost
-- **Auth関数**: login、logout、refresh
 - **Images関数**: getUploadUrl、deleteImage
 
 ## 使用方法
@@ -58,7 +57,6 @@ module "lambda" {
 | aws_iam_role.lambda_posts_read | resource |
 | aws_iam_role.lambda_posts_write | resource |
 | aws_iam_role.lambda_posts_build_status | resource |
-| aws_iam_role.lambda_auth | resource |
 | aws_iam_role.lambda_images | resource |
 | aws_iam_role.lambda_categories_read | resource |
 | aws_iam_role.lambda_categories_write | resource |
@@ -93,7 +91,6 @@ module "lambda" {
 | posts_read_role_arn | Posts domain read-only Lambda execution role ARN |
 | posts_write_role_arn | Posts domain write Lambda execution role ARN |
 | posts_build_status_role_arn | Posts domain build-status Lambda execution role ARN |
-| auth_role_arn | Auth domain Lambda execution role ARN |
 | images_role_arn | Images domain Lambda execution role ARN |
 | categories_read_role_arn | Categories domain read-only Lambda execution role ARN |
 | categories_write_role_arn | Categories domain write Lambda execution role ARN |
@@ -110,9 +107,6 @@ module "lambda" {
 | list_posts | posts | 記事一覧 | 128MB | 30s |
 | update_post | posts | 記事更新 | 128MB | 30s |
 | delete_post | posts | 記事削除 | 128MB | 30s |
-| login | auth | ログイン | 128MB | 30s |
-| logout | auth | ログアウト | 128MB | 30s |
-| refresh | auth | トークン更新 | 128MB | 30s |
 | get_upload_url | images | 画像アップロードURL取得 | 128MB | 30s |
 | delete_image | images | 画像削除 | 128MB | 30s |
 
@@ -210,17 +204,6 @@ TransactWriteItems で書き換えるため）。
 - logs:PutLogEvents
 ```
 
-### auth ロール
-
-```
-- cognito-idp:AdminInitiateAuth
-- cognito-idp:AdminRespondToAuthChallenge
-- cognito-idp:GlobalSignOut
-- logs:CreateLogGroup
-- logs:CreateLogStream
-- logs:PutLogEvents
-```
-
 ### images ロール
 
 ```
@@ -281,9 +264,6 @@ go-functions/
     ├── listPosts/bootstrap
     ├── updatePost/bootstrap
     ├── deletePost/bootstrap
-    ├── login/bootstrap
-    ├── logout/bootstrap
-    ├── refresh/bootstrap
     ├── getUploadUrl/bootstrap
     └── deleteImage/bootstrap
 ```

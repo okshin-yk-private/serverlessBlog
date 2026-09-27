@@ -163,26 +163,6 @@ import {
   id = "4lfu0fgsk3/m72w81"
 }
 
-import {
-  to = module.api.aws_api_gateway_resource.admin_auth
-  id = "4lfu0fgsk3/zg5axl"
-}
-
-import {
-  to = module.api.aws_api_gateway_resource.admin_auth_login
-  id = "4lfu0fgsk3/e1qjrn"
-}
-
-import {
-  to = module.api.aws_api_gateway_resource.admin_auth_logout
-  id = "4lfu0fgsk3/s4tg1s"
-}
-
-import {
-  to = module.api.aws_api_gateway_resource.admin_auth_refresh
-  id = "4lfu0fgsk3/e106oi"
-}
-
 # Stage doesn't exist yet - will be created by Terraform
 # import {
 #   to = module.api.aws_api_gateway_stage.main

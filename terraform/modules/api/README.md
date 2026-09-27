@@ -8,7 +8,7 @@ API GatewayとCognito Authorizerを管理するTerraformモジュールです。
 
 - **REST API**: ブログAPIのメインエントリポイント
 - **Cognito Authorizer**: 保護されたエンドポイントの認証
-- **APIリソース/メソッド**: /posts、/auth、/imagesエンドポイント
+- **APIリソース/メソッド**: /posts、/imagesエンドポイント
 - **デプロイメントステージ**: dev/prd環境
 
 ## 使用方法
@@ -89,13 +89,9 @@ module "api" {
 └── admin
     ├── posts                 # 管理用記事操作 (認証必須)
     │   └── {id}              # 記事CRUD
-    ├── images
-    │   ├── upload-url        # アップロードURL取得 (認証必須)
-    │   └── {key+}            # 画像削除 (認証必須)
-    └── auth
-        ├── login             # ログイン
-        ├── logout            # ログアウト (認証必須)
-        └── refresh           # トークン更新
+    └── images
+        ├── upload-url        # アップロードURL取得 (認証必須)
+        └── {key+}            # 画像削除 (認証必須)
 ```
 
 ## 認証設定
@@ -110,9 +106,6 @@ module "api" {
 | DELETE /admin/posts/{id} | DELETE | Cognito |
 | POST /admin/images/upload-url | POST | Cognito |
 | DELETE /admin/images/{key+} | DELETE | Cognito |
-| POST /admin/auth/login | POST | なし |
-| POST /admin/auth/logout | POST | Cognito |
-| POST /admin/auth/refresh | POST | なし |
 
 ## CORS設定
 

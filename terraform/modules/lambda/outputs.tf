@@ -16,9 +16,6 @@ output "function_arns" {
     build_status_post            = aws_lambda_function.build_status_post.arn
     reconcile_build_post         = aws_lambda_function.reconcile_build_post.arn
     get_post_by_slug             = aws_lambda_function.get_post_by_slug.arn
-    login                        = aws_lambda_function.login.arn
-    logout                       = aws_lambda_function.logout.arn
-    refresh                      = aws_lambda_function.refresh.arn
     get_upload_url               = aws_lambda_function.get_upload_url.arn
     delete_image                 = aws_lambda_function.delete_image.arn
     list_categories              = aws_lambda_function.list_categories.arn
@@ -45,9 +42,6 @@ output "function_invoke_arns" {
     build_status_post            = aws_lambda_function.build_status_post.invoke_arn
     reconcile_build_post         = aws_lambda_function.reconcile_build_post.invoke_arn
     get_post_by_slug             = aws_lambda_function.get_post_by_slug.invoke_arn
-    login                        = aws_lambda_function.login.invoke_arn
-    logout                       = aws_lambda_function.logout.invoke_arn
-    refresh                      = aws_lambda_function.refresh.invoke_arn
     get_upload_url               = aws_lambda_function.get_upload_url.invoke_arn
     delete_image                 = aws_lambda_function.delete_image.invoke_arn
     list_categories              = aws_lambda_function.list_categories.invoke_arn
@@ -74,9 +68,6 @@ output "function_names" {
     aws_lambda_function.build_status_post.function_name,
     aws_lambda_function.reconcile_build_post.function_name,
     aws_lambda_function.get_post_by_slug.function_name,
-    aws_lambda_function.login.function_name,
-    aws_lambda_function.logout.function_name,
-    aws_lambda_function.refresh.function_name,
     aws_lambda_function.get_upload_url.function_name,
     aws_lambda_function.delete_image.function_name,
     aws_lambda_function.list_categories.function_name,
@@ -131,17 +122,6 @@ output "posts_build_reconciler_role_arn" {
 output "posts_build_reconciler_role_name" {
   value       = aws_iam_role.lambda_posts_build_reconciler.name
   description = "Posts domain build-reconciler Lambda execution role name"
-}
-
-# Auth Domain Role
-output "auth_role_arn" {
-  value       = aws_iam_role.lambda_auth.arn
-  description = "Auth domain Lambda execution role ARN"
-}
-
-output "auth_role_name" {
-  value       = aws_iam_role.lambda_auth.name
-  description = "Auth domain Lambda execution role name"
 }
 
 # Images Domain Role
@@ -259,37 +239,6 @@ output "get_post_by_slug_function_name" {
 output "get_post_by_slug_invoke_arn" {
   value       = aws_lambda_function.get_post_by_slug.invoke_arn
   description = "Get Post By Slug Lambda function invoke ARN for API Gateway integration"
-}
-
-# Auth domain
-output "login_function_arn" {
-  value       = aws_lambda_function.login.arn
-  description = "Login Lambda function ARN"
-}
-
-output "login_function_name" {
-  value       = aws_lambda_function.login.function_name
-  description = "Login Lambda function name"
-}
-
-output "logout_function_arn" {
-  value       = aws_lambda_function.logout.arn
-  description = "Logout Lambda function ARN"
-}
-
-output "logout_function_name" {
-  value       = aws_lambda_function.logout.function_name
-  description = "Logout Lambda function name"
-}
-
-output "refresh_function_arn" {
-  value       = aws_lambda_function.refresh.arn
-  description = "Refresh Lambda function ARN"
-}
-
-output "refresh_function_name" {
-  value       = aws_lambda_function.refresh.function_name
-  description = "Refresh Lambda function name"
 }
 
 # Images domain
