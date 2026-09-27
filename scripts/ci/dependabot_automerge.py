@@ -92,9 +92,9 @@ class GitHub:
         self.root = f"https://api.github.com/repos/{repository}"
         self.token = token
 
-    def __call__(self, path, method="GET", body=None):
+    def __call__(self, path, method="GET", body=None, url=None):
         data = None if body is None else json.dumps(body).encode()
-        request = urllib.request.Request(self.root + path, data=data, method=method, headers={
+        request = urllib.request.Request(url or self.root + path, data=data, method=method, headers={
             "Authorization": f"Bearer {self.token}",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
@@ -106,6 +106,12 @@ class GitHub:
         except urllib.error.HTTPError as error:
             # Do not print response bodies or authentication material.
             raise Blocked(f"GitHub API {method} {path.split('?')[0]} returned HTTP {error.code}") from error
+
+    def graphql(self, query, variables):
+        result = self("/graphql", "POST", {"query": query, "variables": variables}, url="https://api.github.com/graphql")
+        # GraphQL reports failures with HTTP 200; never treat a partial response as success.
+        require(isinstance(result, dict) and not result.get("errors") and isinstance(result.get("data"), dict), "GitHub GraphQL request failed")
+        return result["data"]
 
     def pages(self, path, key=None):
         result = []
@@ -119,10 +125,26 @@ class GitHub:
         raise Blocked("API pagination limit reached")
 
 
-def readiness(api, pr, commits):
+QUEUE_STATE = """
+query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) { id headRefOid isInMergeQueue }
+  }
+}
+"""
+ENQUEUE = """
+mutation($id: ID!, $head: GitObjectID!) {
+  enqueuePullRequest(input: {pullRequestId: $id, expectedHeadOid: $head}) {
+    mergeQueueEntry { position }
+  }
+}
+"""
+
+
+def readiness(api, pr):
+    # No "based on current develop" requirement: the merge queue re-runs the
+    # required checks on the merged result before anything reaches develop.
     sha = pr["head"]["sha"]
-    base_sha = api("/git/ref/heads/develop")["object"]["sha"]
-    require([parent["sha"] for parent in commits[0].get("parents", [])] == [base_sha], "rebase on current develop and rerun checks")
     require(pr.get("mergeable") is True and pr.get("mergeable_state") == "clean", "GitHub mergeability is not clean")
     require(pr.get("auto_merge") is None, "remove pre-existing native auto-merge before controller use")
     checks = api.pages(f"/commits/{sha}/check-runs?filter=latest", "check_runs")
@@ -134,18 +156,39 @@ def readiness(api, pr, commits):
         require(run.get("status") == "completed" and run.get("conclusion") == "success", f"latest workflow has not succeeded: {filename}")
         matches = [check for check in checks if check.get("name") == check_name and check.get("check_suite", {}).get("id") == run.get("check_suite_id") and check.get("app", {}).get("slug") == "github-actions"]
         require(len(matches) == 1 and matches[0].get("status") == "completed" and matches[0].get("conclusion") == "success", f"required job missing, skipped or unsuccessful: {check_name}")
-    return base_sha
 
 
 def protected(api):
-    # Activation intentionally supports classic protection only. Do not guess whether
-    # a combination of rulesets provides equivalent enforcement.
+    # Required checks come from classic protection; only the merge queue comes from
+    # a ruleset. Do not guess whether other ruleset combinations are equivalent.
     protection = api("/branches/develop/protection")
     status = protection.get("required_status_checks") or {}
-    require(status.get("strict") is True, "strict required checks are not configured")
     require(protection.get("enforce_admins", {}).get("enabled") is True, "administrator protection is not enforced")
     required = {check.get("context") for check in status.get("checks", []) if check.get("app_id") == 15368}
     require(set(WORKFLOWS.values()) <= required, "required checks must be pinned to GitHub Actions")
+    # The merge queue replaces strict up-to-date checks (#735): it must test every
+    # entry with all required checks green, and nobody may bypass it.
+    queues = [rule for rule in api.pages("/rules/branches/develop") if rule.get("type") == "merge_queue"]
+    require(len(queues) == 1, "develop merge queue rule is not active")
+    require((queues[0].get("parameters") or {}).get("grouping_strategy") == "ALLGREEN", "merge queue must require every entry to pass")
+    ruleset_id = queues[0].get("ruleset_id")
+    require(isinstance(ruleset_id, int) and ruleset_id > 0, "merge queue rule has no repository ruleset")
+    ruleset = api(f"/rulesets/{ruleset_id}")
+    require(ruleset.get("enforcement") == "active", "merge queue ruleset is not enforced")
+    # bypass_actors is omitted without administration access; absence is not "none".
+    require(ruleset.get("bypass_actors") == [], "merge queue ruleset allows bypass or cannot be inspected")
+
+
+def enqueue(api, repository, pr):
+    owner, name = repository.split("/")
+    state = api.graphql(QUEUE_STATE, {"owner": owner, "name": name, "number": pr["number"]})["repository"]["pullRequest"]
+    require(state.get("headRefOid") == pr["head"]["sha"], "PR head changed during evaluation")
+    if state.get("isInMergeQueue"):
+        return None
+    result = api.graphql(ENQUEUE, {"id": state["id"], "head": pr["head"]["sha"]})
+    entry = (result.get("enqueuePullRequest") or {}).get("mergeQueueEntry")
+    require(isinstance(entry, dict), "GitHub did not add the PR to the merge queue")
+    return entry.get("position")
 
 
 def process(api, repository, number, enabled=False):
@@ -154,21 +197,23 @@ def process(api, repository, number, enabled=False):
     commits = api.pages(f"/pulls/{number}/commits")
     ecosystem, count = eligible(pr, files, commits, repository)
     print(f"PR #{number}: eligible {ecosystem} update ({count} dependencies)")
-    base_sha = readiness(api, pr, commits)
+    readiness(api, pr)
     if not enabled:
         print(f"PR #{number}: DRY RUN, current checks passed; no mutation (activation protection/App checks remain)")
         return
     protected(api)
-    # Recheck the full policy/readiness immediately before the SHA-guarded merge.
+    # Recheck the full policy/readiness immediately before the SHA-guarded enqueue.
     fresh = api(f"/pulls/{number}")
     fresh_files = api.pages(f"/pulls/{number}/files")
     fresh_commits = api.pages(f"/pulls/{number}/commits")
     eligible(fresh, fresh_files, fresh_commits, repository)
     require(fresh["head"]["sha"] == pr["head"]["sha"], "PR head changed during evaluation")
-    require(readiness(api, fresh, fresh_commits) == base_sha, "develop changed during evaluation")
-    result = api(f"/pulls/{number}/merge", "PUT", {"sha": pr["head"]["sha"], "merge_method": "squash"})
-    require(result.get("merged") is True, "GitHub did not merge the PR")
-    print(f"PR #{number}: merged commit {result['sha']}")
+    readiness(api, fresh)
+    position = enqueue(api, repository, fresh)
+    if position is None:
+        print(f"PR #{number}: already in the merge queue; no action")
+    else:
+        print(f"PR #{number}: added to the merge queue at position {position}")
 
 
 def main():

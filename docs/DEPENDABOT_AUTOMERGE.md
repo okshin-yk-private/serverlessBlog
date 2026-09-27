@@ -22,7 +22,8 @@
 - 変更は下記の1ディレクトリ内の既存ファイルの更新のみ。追加・削除・renameは拒否。
   - ルート、`frontend/admin`、`frontend/public-astro`、`scripts/deploy`の`package.json`と`bun.lock`。
   - `go-functions`の`go.mod`と`go.sum`。
-- コミットの親が現在の`develop`。ベースが進んだ場合はDependabotのrebaseと再検証を待つ。
+- ベースの最新化は求めない。`develop`が進んでいても、merge queueがマージ後の結果で
+  3つの検査を再実行し、失敗したエントリはqueueから外される（#735）。
 - 最新SHA・当該PRに対応する3つのworkflowと、下記の各jobがすべて`success`。
   - `All CI Checks Passed`
   - `Security Scan Summary`
@@ -30,8 +31,9 @@
 - GitHubがマージ可能と判定し、既存のnative Auto-merge予約がない。
 
 予約が将来のコミットへ残ることを避けるため、GitHub標準のAuto-merge予約は使いません。
-検査完了後に対象を再取得・再判定し、REST merge APIへ期待するhead SHAを渡して
-squash mergeします。ブランチ保護を迂回しません。
+検査完了後に対象を再取得・再判定し、GraphQL `enqueuePullRequest`へ期待するhead SHA
+（`expectedHeadOid`）を渡してmerge queueへ追加します。既にqueue内なら何もしません。
+実際のマージはqueueが行い、マージ方式はqueueの設定に従います。ブランチ保護を迂回しません。
 リポジトリの「Allow auto-merge」の有効化も、この実装では不要です。
 
 Terraform、GitHub Actions、major更新、複数コミット、複数ディレクトリの更新は
@@ -74,7 +76,8 @@ controllerは`develop`のコードだけを実行し、PR head、PR artifact、�
 6. 下記のGitHub Appとclassic branch protectionを準備する。
 7. 運用開始の承認後、modeを`enabled`へ変更する。
    既に全検査が終わったPRは次の完了イベントまで動作しないため、必要な検査を再実行する。
-8. 最初の1件で、squash merge、DEV Deploy、該当するデプロイ後E2Eの成功を確認する。
+8. 最初の1件で、queueへの追加、`merge_group`での3検査の成功、queueによるマージ、
+   DEV Deploy、該当するデプロイ後E2Eの成功を確認する。
 
 ## GitHub側の設定
 
@@ -82,15 +85,15 @@ controllerは`develop`のコードだけを実行し、PR head、PR artifact、�
 
 | Repository permission | Access         | 目的                   |
 | --------------------- | -------------- | ---------------------- |
-| Contents              | Read and write | 対象SHAのマージ        |
-| Pull requests         | Read and write | PR情報・マージ         |
+| Contents              | Read and write | merge queueへの追加    |
+| Pull requests         | Read and write | PR情報・queueへの追加  |
 | Actions               | Read           | 最新workflow結果       |
 | Checks                | Read           | jobの成功・発行元      |
 | Administration        | Read           | ブランチ保護条件の確認 |
 | Metadata              | Read           | GitHub Appの必須権限   |
 
 Appに管理者権限・保護ルールのbypass・Workflows書き込み権限は与えません。
-App tokenによるマージで既存のpush起動を維持します。Appの秘密鍵はチャットへ貼らず、
+queueによるマージの`develop` pushでDEV Deployが起動します。Appの秘密鍵はチャットへ貼らず、
 Actions secretへ直接登録します。個人の長期PATは使いません。
 
 | 種類                | 名前                               | 値                               |
@@ -102,15 +105,23 @@ Actions secretへ直接登録します。個人の長期PATは使いません。
 `develop`のclassic branch protectionで、PR経由のマージと次を設定します。
 
 - 前述の3つのcheckを必須化。発行元はGitHub Actions（App ID `15368`）に固定。
-- Require branches to be up to date before merging（`strict=true`）。
+- Require branches to be up to date before merging は無効（`strict=false`）。
+  最新化はmerge queueが代わりに担う。
 - 管理者にも保護ルールを適用（`enforce_admins=true`）。
 - 必須レビューがある場合は、そのレビュー完了まではマージされない。
   controllerによる自動approveやレビュー要件のbypassは実装していない。
-- squash mergeを許可する。
 
-この初期実装はclassic protectionをAPIで検証します。rulesetのみでの同等性判定は
-対応していないため、有効なrulesetだけがある場合も停止します。
-必須チェック設定は一般の`develop`向けPRにも適用されます。
+加えて、`develop`を対象とするrepository rulesetで merge queue を必須にします。
+
+- Enforcement: Active。Bypass list: 空。
+- Require merge queue: Merge method は Merge commit、
+  Only merge non-failing pull requests（`grouping_strategy=ALLGREEN`）を有効。
+
+controllerは必須チェックをclassic protectionから、merge queueをrulesetから検証します。
+queueルールがない、`ALLGREEN`でない、Activeでない、bypassがある（またはbypass設定を
+読めない）場合は停止します。これ以外のruleset構成での同等性判定は対応していません。
+必須チェックとmerge queueは一般の`develop`向けPRにも適用されます。
+3つのworkflowは`merge_group`でも起動し、queueの結果に同じcheckを報告します。
 
 ## 停止と復旧
 
@@ -130,7 +141,9 @@ config suiteからPython標準ライブラリの挙動テストも実行しま�
 APIを模擬したテストは権限・GitHubの実行時挙動を保証しないため、導入時の実地確認が必要です。
 
 - [GitHub workflow_runの権限と起動条件](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run)
-- [GitHub REST merge APIと期待するhead SHA](https://docs.github.com/en/rest/pulls/pulls#merge-a-pull-request)
+- [GitHub merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)
+- [GraphQL enqueuePullRequest](https://docs.github.com/en/graphql/reference/mutations#enqueuepullrequest)
+- [Repository rules for a branch](https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch)
 - [GitHub branch protection](https://docs.github.com/en/rest/branches/branch-protection#get-branch-protection)
 - [GitHub tokenと後続workflowの起動](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow)
 - [Trivy 0.70.0 Bun parser](https://github.com/aquasecurity/trivy/blob/v0.70.0/pkg/fanal/analyzer/language/nodejs/bun/bun.go)
