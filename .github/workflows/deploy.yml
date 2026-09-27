@@ -30,6 +30,8 @@ on:
       - 'scripts/deploy_passkey_infrastructure.sh'
       - 'scripts/ci/detect-changes.sh'
       - 'scripts/ci/deploy-base.sh'
+      - 'scripts/ci/verify-public-contract.sh'
+      - 'scripts/ci/verify_public_contract.py'
       - '.github/workflows/deploy.yml'
       - 'tests/e2e/**'
       - 'tests/config/**'
@@ -1180,6 +1182,18 @@ jobs:
           path: playwright-report-aws/
           retention-days: 3
 
+      # 手動で確認していた公開契約 (#683: API/RSS が内部フィールドを漏らさない、
+      # JSON-LD の著者が Organization であること / #680: public・admin 双方の
+      # CSP が strict であること) を自動化。E2E が落ちていても両方の結果が見える
+      # よう always() にし、config ステップ (BASE_URL/Basic Auth の取得) が
+      # 成功している場合だけ実行する。
+      - name: Verify public contract (no internal fields, strict CSP)
+        if: always() && steps.config.outcome == 'success'
+        run: bash scripts/ci/verify-public-contract.sh "$BASE_URL"
+        env:
+          BASE_URL: ${{ steps.config.outputs.base_url }}
+          BASIC_AUTH: ${{ steps.config.outputs.basic_user }}:${{ steps.config.outputs.basic_pass }}
+
   # =======================================
   # Post-Deploy Smoke Test (PRD)
   # Production had no post-deploy verification at all, which is how #463
@@ -1204,6 +1218,14 @@ jobs:
       SITE_URL: https://boneofmyfallacy.net
 
     steps:
+      # scripts/ci/verify-public-contract.sh below needs the repo checked out
+      # at the deployed SHA (this job previously ran the smoke test inline
+      # with no checkout at all).
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
       - name: Verify public site
         run: |
           set -uo pipefail
@@ -1297,6 +1319,13 @@ jobs:
           echo "========================================="
           echo "✓ Production smoke test passed"
           echo "========================================="
+
+      # 手動で確認していた公開契約 (#683: API/RSS が内部フィールドを漏らさない、
+      # JSON-LD の著者が Organization であること / #680: public・admin 双方の
+      # CSP が strict であること) を自動化。PRD には Basic Auth が無いため
+      # BASIC_AUTH は渡さない。
+      - name: Verify public contract (no internal fields, strict CSP)
+        run: bash scripts/ci/verify-public-contract.sh "$SITE_URL"
 
   # =======================================
   # Deployment Summary
