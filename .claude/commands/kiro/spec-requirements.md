@@ -64,7 +64,7 @@ Provide output in the language specified in spec.json with:
 **Format Requirements**:
 - Use Markdown headings for clarity
 - Include file paths in code blocks
-- Keep summary concise (under 300 words)
+- Keep summary concise: what was produced, open issues, and the next step
 
 ## Safety & Fallback
 

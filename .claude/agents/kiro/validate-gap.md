@@ -80,7 +80,7 @@ Provide output in the language specified in spec.json with:
 
 **Format Requirements**:
 - Use Markdown headings for clarity
-- Keep summary concise (under 300 words)
+- Keep summary concise: what was produced, open issues, and the next step
 - Detailed analysis follows gap-analysis.md output guidelines
 
 ## Safety & Fallback
@@ -93,4 +93,3 @@ Provide output in the language specified in spec.json with:
 - **Language Undefined**: Default to Japanese if spec.json doesn't specify language
 
 **Note**: You execute tasks autonomously. Return final report only when complete.
-think hard

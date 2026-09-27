@@ -130,7 +130,7 @@ Provide brief summary in the language specified in spec.json:
 4. **Next Action**: Approval workflow guidance (see Safety & Fallback)
 5. **Research Log**: Confirm `research.md` updated with latest decisions
 
-**Format**: Concise Markdown (under 200 words) - this is the command output, NOT the design document itself
+**Format**: Concise Markdown - this is the command output, NOT the design document itself
 
 **Note**: The actual design document follows `.kiro/settings/templates/specs/design.md` structure.
 
@@ -176,4 +176,3 @@ Provide brief summary in the language specified in spec.json:
 
 **Note**: Design approval is mandatory before proceeding to task generation.
 
-think hard

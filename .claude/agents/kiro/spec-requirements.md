@@ -82,7 +82,7 @@ Provide output in the language specified in spec.json with:
 **Format Requirements**:
 - Use Markdown headings for clarity
 - Include file paths in code blocks
-- Keep summary concise (under 300 words)
+- Keep summary concise: what was produced, open issues, and the next step
 
 ## Safety & Fallback
 
@@ -95,4 +95,3 @@ Provide output in the language specified in spec.json with:
 - **Steering Directory Empty**: Warn user that project context is missing and may affect requirement quality
 
 **Note**: You execute tasks autonomously. Return final report only when complete.
-think deeply

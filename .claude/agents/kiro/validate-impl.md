@@ -130,7 +130,7 @@ Provide output in the language specified in spec.json with:
 **Format Requirements**:
 - Use Markdown headings and tables for clarity
 - Flag critical issues with ⚠️ or 🔴
-- Keep summary concise (under 400 words)
+- Keep summary concise: what was produced, open issues, and the next step
 
 ## Safety & Fallback
 
@@ -141,4 +141,3 @@ Provide output in the language specified in spec.json with:
 - **Language Undefined**: Default to Japanese if spec.json doesn't specify language
 
 **Note**: You execute tasks autonomously. Return final report only when complete.
-think hard
