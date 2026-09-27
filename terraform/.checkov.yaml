@@ -212,7 +212,7 @@ skip-check:
   # CloudWatch metrics provide sufficient visibility for traffic patterns.
   # Access logging will be enabled in production (Phase 3).
   # Mitigation: CloudWatch metrics; CloudTrail API logging
-  # Review-by: 2027-03-31
+  # Review-by: 2026-10-31 (CloudFront access logging is proposed in #684)
   - CKV_AWS_68
 
   # CKV2_AWS_42: Ensure CloudFront distribution uses response headers policy
