@@ -286,6 +286,9 @@ describe('harness wiring', () => {
     for (const text of [rules, skill]) {
       expect(text).toContain('python3 scripts/ci/enqueue_pr.py');
     }
+    // --auto reserves native auto-merge as the default path; plain mode is the fallback.
+    expect(rules).toContain('scripts/ci/enqueue_pr.py <N> --auto');
+    expect(skill).toContain('scripts/ci/enqueue_pr.py <PR番号> --auto');
     expect(skill).not.toContain('gh api graphql');
     expect(skill).toContain('`main` 向けはマージしない');
   });

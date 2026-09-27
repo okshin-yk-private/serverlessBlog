@@ -9,6 +9,11 @@ GitHubの混雑による遅延・実行の取りこぼしはあり、09:00ちょ
 本番のデプロイ後Smoke Testは既存Deploy workflowで実行します。
 マージ後のデプロイ失敗を自動revertする仕組みはありません。
 
+リポジトリの「Allow auto-merge」はagentのdevelop PR（`enqueue_pr.py --auto`）向けに
+有効化されています。このcontrollerはdevelop→mainのPRが既存のnative Auto-merge予約を
+持つ場合は引き続き拒否するため（`auto_merge is None`）、このPRへ`--auto`で予約しては
+いけません。
+
 ## リリースの流れ
 
 1. `main`の保護と現在の`develop`・`main`のSHAを確認する。
