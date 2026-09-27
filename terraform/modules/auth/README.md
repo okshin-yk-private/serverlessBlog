@@ -77,11 +77,12 @@ module "auth" {
 
 ## 認証フロー
 
-App Clientで有効な認証フロー:
+App Clientで有効な認証フロー（管理画面はAmplify経由でCognitoに直接SRP/パスキー認証するため、
+`ALLOW_USER_PASSWORD_AUTH`は無効化しています）:
 
-- `ALLOW_USER_PASSWORD_AUTH`: ユーザー名/パスワード認証
 - `ALLOW_USER_SRP_AUTH`: SRP認証
 - `ALLOW_REFRESH_TOKEN_AUTH`: リフレッシュトークン
+- `ALLOW_USER_AUTH`: パスキー認証（`enable_passkeys = true`の場合）
 
 ## トークン有効期限
 

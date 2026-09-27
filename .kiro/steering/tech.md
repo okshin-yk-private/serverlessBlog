@@ -183,10 +183,9 @@
 
 ## API設計
 
-### 認証API
-- `POST /auth/login` - ログイン
-- `POST /auth/logout` - ログアウト
-- `POST /auth/refresh` - トークン更新
+### 認証
+管理画面のサインインはAmplify経由でCognitoに直接行う（SRP認証 / USER_AUTHパスキー）。
+専用の認証Lambda（`/admin/auth/login`等）は存在しない。
 
 ### 記事API
 - `GET /posts` - 記事一覧取得（ページネーション）

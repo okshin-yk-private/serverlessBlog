@@ -32,9 +32,6 @@ FUNCTIONS := \
 	posts/delete \
 	posts/build_status \
 	posts/reconcile_build \
-	auth/login \
-	auth/logout \
-	auth/refresh \
 	images/get_upload_url \
 	images/delete \
 	categories/list \

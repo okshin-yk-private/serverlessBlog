@@ -42,13 +42,6 @@ var (
 		"posts-delete",
 	}
 
-	// AuthFunctions are the authentication domain functions
-	AuthFunctions = []string{
-		"auth-login",
-		"auth-logout",
-		"auth-refresh",
-	}
-
 	// ImagesFunctions are the images domain functions
 	ImagesFunctions = []string{
 		"images-get_upload_url",
@@ -63,7 +56,7 @@ var (
 	}
 
 	// AllFunctions is the complete list of Lambda functions
-	AllFunctions = append(append(PostsFunctions, AuthFunctions...), ImagesFunctions...)
+	AllFunctions = append(append([]string{}, PostsFunctions...), ImagesFunctions...)
 )
 
 // getBinDir returns the bin directory path
@@ -236,9 +229,6 @@ func TestIndividualBuildTime(t *testing.T) {
 		"posts-list":            "cmd/posts/list",
 		"posts-update":          "cmd/posts/update",
 		"posts-delete":          "cmd/posts/delete",
-		"auth-login":            "cmd/auth/login",
-		"auth-logout":           "cmd/auth/logout",
-		"auth-refresh":          "cmd/auth/refresh",
 		"images-get_upload_url": "cmd/images/get_upload_url",
 		"images-delete":         "cmd/images/delete",
 	}
@@ -315,12 +305,6 @@ func TestMemoryConfigurationRequirements(t *testing.T) {
 	}
 	for _, fn := range writeOps {
 		t.Logf("  - %s: 256 MB recommended", fn)
-	}
-
-	t.Log("")
-	t.Log("Auth Operations (128MB):")
-	for _, fn := range AuthFunctions {
-		t.Logf("  - %s: 128 MB recommended", fn)
 	}
 
 	t.Log("")

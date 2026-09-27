@@ -66,8 +66,7 @@ GitHub Actions CI/CDパイプラインと同等のデプロイをローカルか
 ## Lambda Functions
 
 posts-create, posts-get, posts-get_public, posts-list,
-posts-update, posts-delete, auth-login, auth-logout,
-auth-refresh, images-get_upload_url, images-delete
+posts-update, posts-delete, images-get_upload_url, images-delete
 
 ## Prerequisites
 

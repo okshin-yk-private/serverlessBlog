@@ -21,12 +21,6 @@ variables {
   lambda_delete_post_invoke_arn                  = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-post-go/invocations"
   lambda_build_status_post_arn                   = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-build-status-post-go"
   lambda_build_status_post_invoke_arn            = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-build-status-post-go/invocations"
-  lambda_login_arn                               = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go"
-  lambda_login_invoke_arn                        = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-login-go/invocations"
-  lambda_logout_arn                              = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-logout-go"
-  lambda_logout_invoke_arn                       = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-logout-go/invocations"
-  lambda_refresh_arn                             = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-refresh-go"
-  lambda_refresh_invoke_arn                      = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-refresh-go/invocations"
   lambda_get_upload_url_arn                      = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-upload-url-go"
   lambda_get_upload_url_invoke_arn               = "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:123456789012:function:blog-upload-url-go/invocations"
   lambda_delete_image_arn                        = "arn:aws:lambda:ap-northeast-1:123456789012:function:blog-delete-image-go"
@@ -338,78 +332,6 @@ run "admin_images_key_resource_created" {
   assert {
     condition     = aws_api_gateway_resource.admin_images_key.path_part == "{key+}"
     error_message = "/admin/images/{key+} resource path must be created"
-  }
-}
-
-# Test 15: Verify /admin/auth resource path is created
-# Requirement 5.1: Create /admin/auth resource
-run "admin_auth_resource_created" {
-  command = plan
-
-  variables {
-    api_name              = "serverless-blog-api"
-    environment           = "dev"
-    stage_name            = "dev"
-    cognito_user_pool_arn = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
-  }
-
-  assert {
-    condition     = aws_api_gateway_resource.admin_auth.path_part == "auth"
-    error_message = "/admin/auth resource path must be created"
-  }
-}
-
-# Test 16: Verify /admin/auth/login resource path is created
-# Requirement 5.1: Create /admin/auth/login resource
-run "admin_auth_login_resource_created" {
-  command = plan
-
-  variables {
-    api_name              = "serverless-blog-api"
-    environment           = "dev"
-    stage_name            = "dev"
-    cognito_user_pool_arn = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
-  }
-
-  assert {
-    condition     = aws_api_gateway_resource.admin_auth_login.path_part == "login"
-    error_message = "/admin/auth/login resource path must be created"
-  }
-}
-
-# Test 17: Verify /admin/auth/logout resource path is created
-# Requirement 5.1: Create /admin/auth/logout resource
-run "admin_auth_logout_resource_created" {
-  command = plan
-
-  variables {
-    api_name              = "serverless-blog-api"
-    environment           = "dev"
-    stage_name            = "dev"
-    cognito_user_pool_arn = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
-  }
-
-  assert {
-    condition     = aws_api_gateway_resource.admin_auth_logout.path_part == "logout"
-    error_message = "/admin/auth/logout resource path must be created"
-  }
-}
-
-# Test 18: Verify /admin/auth/refresh resource path is created
-# Requirement 5.1: Create /admin/auth/refresh resource
-run "admin_auth_refresh_resource_created" {
-  command = plan
-
-  variables {
-    api_name              = "serverless-blog-api"
-    environment           = "dev"
-    stage_name            = "dev"
-    cognito_user_pool_arn = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
-  }
-
-  assert {
-    condition     = aws_api_gateway_resource.admin_auth_refresh.path_part == "refresh"
-    error_message = "/admin/auth/refresh resource path must be created"
   }
 }
 

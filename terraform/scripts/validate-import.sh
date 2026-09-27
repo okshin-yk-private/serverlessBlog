@@ -216,9 +216,6 @@ validate_lambda() {
         "blog-list-posts-go"
         "blog-update-post-go"
         "blog-delete-post-go"
-        "blog-login-go"
-        "blog-logout-go"
-        "blog-refresh-go"
         "blog-upload-url-go"
         "blog-delete-image-go"
     )

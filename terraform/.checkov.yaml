@@ -308,7 +308,6 @@ skip-check:
   # Justification: Intentionally public endpoints for blog functionality:
   # - GET /posts, /posts/{id} - public blog content
   # - GET /categories - public category listing
-  # - POST /admin/auth/login, /admin/auth/refresh - authentication endpoints
   # - OPTIONS methods - CORS preflight requests
   # Protected admin endpoints use Cognito authorizers.
   # Mitigation: Cognito protects sensitive endpoints; CloudFront rate limiting

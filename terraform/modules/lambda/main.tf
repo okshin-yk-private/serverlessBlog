@@ -3,7 +3,6 @@
 #
 # This module defines the Go Lambda functions used by the API and background jobs.
 # - Posts domain: createPost, getPost, getPublicPost, listPosts, updatePost, deletePost
-# - Auth domain: login, logout, refresh
 # - Images domain: getUploadUrl, deleteImage
 
 locals {
@@ -82,21 +81,6 @@ locals {
       description = "Get published blog post by friendly slug (public, no-auth) (Go)"
       binary_name = "posts-get_by_slug"
     }
-    login = {
-      name        = "blog-login-go"
-      description = "User authentication (Go)"
-      binary_name = "auth-login"
-    }
-    logout = {
-      name        = "blog-logout-go"
-      description = "User logout (Go)"
-      binary_name = "auth-logout"
-    }
-    refresh = {
-      name        = "blog-refresh-go"
-      description = "Token refresh (Go)"
-      binary_name = "auth-refresh"
-    }
     get_upload_url = {
       name        = "blog-upload-url-go"
       description = "Generate pre-signed URL for image upload (Go)"
@@ -145,7 +129,6 @@ locals {
 # ======================
 # IAM Roles are defined in iam.tf
 # Posts domain: aws_iam_role.lambda_posts
-# Auth domain: aws_iam_role.lambda_auth
 # Images domain: aws_iam_role.lambda_images
 # ======================
 
@@ -203,24 +186,6 @@ resource "aws_cloudwatch_log_group" "reconcile_build_post" {
 
 resource "aws_cloudwatch_log_group" "get_post_by_slug" {
   name              = "/aws/lambda/${local.lambda_functions.get_post_by_slug.name}"
-  retention_in_days = local.log_retention_days
-  tags              = local.common_tags
-}
-
-resource "aws_cloudwatch_log_group" "login" {
-  name              = "/aws/lambda/${local.lambda_functions.login.name}"
-  retention_in_days = local.log_retention_days
-  tags              = local.common_tags
-}
-
-resource "aws_cloudwatch_log_group" "logout" {
-  name              = "/aws/lambda/${local.lambda_functions.logout.name}"
-  retention_in_days = local.log_retention_days
-  tags              = local.common_tags
-}
-
-resource "aws_cloudwatch_log_group" "refresh" {
-  name              = "/aws/lambda/${local.lambda_functions.refresh.name}"
   retention_in_days = local.log_retention_days
   tags              = local.common_tags
 }
@@ -304,27 +269,6 @@ data "archive_file" "get_post_by_slug" {
   type             = "zip"
   source_file      = "${var.go_binary_path}/${local.lambda_functions.get_post_by_slug.binary_name}/bootstrap"
   output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.get_post_by_slug.binary_name}.zip"
-  output_file_mode = "0644"
-}
-
-data "archive_file" "login" {
-  type             = "zip"
-  source_file      = "${var.go_binary_path}/${local.lambda_functions.login.binary_name}/bootstrap"
-  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.login.binary_name}.zip"
-  output_file_mode = "0644"
-}
-
-data "archive_file" "logout" {
-  type             = "zip"
-  source_file      = "${var.go_binary_path}/${local.lambda_functions.logout.binary_name}/bootstrap"
-  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.logout.binary_name}.zip"
-  output_file_mode = "0644"
-}
-
-data "archive_file" "refresh" {
-  type             = "zip"
-  source_file      = "${var.go_binary_path}/${local.lambda_functions.refresh.binary_name}/bootstrap"
-  output_path      = "${path.module}/.terraform/tmp/${local.lambda_functions.refresh.binary_name}.zip"
   output_file_mode = "0644"
 }
 
@@ -609,94 +553,6 @@ resource "aws_lambda_function" "get_post_by_slug" {
   }
 
   depends_on = [aws_cloudwatch_log_group.get_post_by_slug]
-
-  tags = local.common_tags
-}
-
-# ======================
-# Auth Domain Lambda Functions
-# ======================
-
-# POST /auth/login - Login
-resource "aws_lambda_function" "login" {
-  function_name = local.lambda_functions.login.name
-  description   = local.lambda_functions.login.description
-  role          = aws_iam_role.lambda_auth.arn
-
-  filename         = data.archive_file.login.output_path
-  source_code_hash = data.archive_file.login.output_base64sha256
-
-  runtime       = "provided.al2023"
-  architectures = ["arm64"]
-  handler       = "bootstrap"
-  memory_size   = 128
-  timeout       = 30
-
-  environment {
-    variables = local.common_environment
-  }
-
-  tracing_config {
-    mode = local.tracing_mode
-  }
-
-  depends_on = [aws_cloudwatch_log_group.login]
-
-  tags = local.common_tags
-}
-
-# POST /auth/logout - Logout
-resource "aws_lambda_function" "logout" {
-  function_name = local.lambda_functions.logout.name
-  description   = local.lambda_functions.logout.description
-  role          = aws_iam_role.lambda_auth.arn
-
-  filename         = data.archive_file.logout.output_path
-  source_code_hash = data.archive_file.logout.output_base64sha256
-
-  runtime       = "provided.al2023"
-  architectures = ["arm64"]
-  handler       = "bootstrap"
-  memory_size   = 128
-  timeout       = 30
-
-  environment {
-    variables = local.common_environment
-  }
-
-  tracing_config {
-    mode = local.tracing_mode
-  }
-
-  depends_on = [aws_cloudwatch_log_group.logout]
-
-  tags = local.common_tags
-}
-
-# POST /auth/refresh - Refresh Token
-resource "aws_lambda_function" "refresh" {
-  function_name = local.lambda_functions.refresh.name
-  description   = local.lambda_functions.refresh.description
-  role          = aws_iam_role.lambda_auth.arn
-
-  filename         = data.archive_file.refresh.output_path
-  source_code_hash = data.archive_file.refresh.output_base64sha256
-
-  runtime       = "provided.al2023"
-  architectures = ["arm64"]
-  handler       = "bootstrap"
-  memory_size   = 128
-  timeout       = 30
-
-  environment {
-    variables = local.common_environment
-  }
-
-  tracing_config {
-    mode = local.tracing_mode
-  }
-
-  depends_on = [aws_cloudwatch_log_group.refresh]
 
   tags = local.common_tags
 }

@@ -79,40 +79,6 @@ func TestGetS3_Singleton(t *testing.T) {
 	}
 }
 
-// TestGetCognito tests the Cognito client getter.
-func TestGetCognito(t *testing.T) {
-	ResetForTesting()
-
-	client, err := GetCognito()
-	if err != nil {
-		t.Errorf("GetCognito() error = %v, want nil", err)
-		return
-	}
-	if client == nil {
-		t.Error("GetCognito() returned nil client")
-	}
-}
-
-// TestGetCognito_Singleton tests that GetCognito returns same instance.
-func TestGetCognito_Singleton(t *testing.T) {
-	ResetForTesting()
-
-	client1, err1 := GetCognito()
-	if err1 != nil {
-		t.Errorf("first GetCognito() error = %v", err1)
-		return
-	}
-	client2, err2 := GetCognito()
-	if err2 != nil {
-		t.Errorf("second GetCognito() error = %v", err2)
-		return
-	}
-
-	if client1 != client2 {
-		t.Error("GetCognito() should return the same instance (singleton)")
-	}
-}
-
 // TestGetPresignClient tests the S3 Presign client getter.
 func TestGetPresignClient(t *testing.T) {
 	ResetForTesting()
@@ -220,30 +186,6 @@ func TestLocalStackEndpointOverride_S3(t *testing.T) {
 	}
 }
 
-// TestLocalStackEndpointOverride_Cognito tests endpoint override for Cognito.
-func TestLocalStackEndpointOverride_Cognito(t *testing.T) {
-	ResetForTesting()
-
-	// Set LocalStack endpoint
-	if err := os.Setenv("COGNITO_ENDPOINT", "http://localhost:4566"); err != nil {
-		t.Fatalf("failed to set COGNITO_ENDPOINT: %v", err)
-	}
-	defer func() {
-		if err := os.Unsetenv("COGNITO_ENDPOINT"); err != nil {
-			t.Errorf("failed to unset COGNITO_ENDPOINT: %v", err)
-		}
-	}()
-
-	client, err := GetCognito()
-	if err != nil {
-		t.Errorf("GetCognito() with endpoint override error = %v, want nil", err)
-		return
-	}
-	if client == nil {
-		t.Error("GetCognito() with endpoint override returned nil client")
-	}
-}
-
 // TestGetDynamoDB_ReturnsErrorWhenInitFails tests error handling.
 func TestGetDynamoDB_ReturnsErrorWhenInitFails(t *testing.T) {
 	ResetForTesting()
@@ -284,26 +226,6 @@ func TestGetS3_ReturnsErrorWhenInitFails(t *testing.T) {
 	}
 }
 
-// TestGetCognito_ReturnsErrorWhenInitFails tests error handling for Cognito.
-func TestGetCognito_ReturnsErrorWhenInitFails(t *testing.T) {
-	ResetForTesting()
-
-	// Inject an initialization error
-	SetInitErrorForTesting(errTestInit)
-
-	client, err := GetCognito()
-	if err == nil {
-		t.Error("GetCognito() should return error when init fails")
-		return
-	}
-	if !errors.Is(err, errTestInit) {
-		t.Errorf("GetCognito() error = %v, want %v", err, errTestInit)
-	}
-	if client != nil {
-		t.Error("GetCognito() should return nil client when init fails")
-	}
-}
-
 // TestGetPresignClient_ReturnsErrorWhenInitFails tests error handling for Presign.
 func TestGetPresignClient_ReturnsErrorWhenInitFails(t *testing.T) {
 	ResetForTesting()
@@ -328,7 +250,7 @@ func TestGetPresignClient_ReturnsErrorWhenInitFails(t *testing.T) {
 func TestAllClientsThreadSafe(t *testing.T) {
 	ResetForTesting()
 
-	done := make(chan error, 12)
+	done := make(chan error, 9)
 
 	// Spawn goroutines to access all clients concurrently
 	for i := 0; i < 3; i++ {
@@ -341,17 +263,13 @@ func TestAllClientsThreadSafe(t *testing.T) {
 			done <- err
 		}()
 		go func() {
-			_, err := GetCognito()
-			done <- err
-		}()
-		go func() {
 			_, err := GetPresignClient()
 			done <- err
 		}()
 	}
 
 	// Wait for all goroutines to complete and check for errors
-	for i := 0; i < 12; i++ {
+	for i := 0; i < 9; i++ {
 		if err := <-done; err != nil {
 			t.Errorf("concurrent client access error = %v", err)
 		}
@@ -366,7 +284,6 @@ func TestAllClientsSingletonAfterConcurrentAccess(t *testing.T) {
 	// Then verify singletons are consistent
 	verifySingletonConsistency(t, "DynamoDB", func() (interface{}, error) { return GetDynamoDB() })
 	verifySingletonConsistency(t, "S3", func() (interface{}, error) { return GetS3() })
-	verifySingletonConsistency(t, "Cognito", func() (interface{}, error) { return GetCognito() })
 	verifySingletonConsistency(t, "Presign", func() (interface{}, error) { return GetPresignClient() })
 }
 

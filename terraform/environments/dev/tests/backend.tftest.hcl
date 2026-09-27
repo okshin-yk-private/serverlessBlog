@@ -249,34 +249,6 @@ override_resource {
 }
 
 override_resource {
-  target = module.api.aws_api_gateway_resource.admin_auth
-  values = {
-    id = "4lfu0fgsk3/zg5axl"
-  }
-}
-
-override_resource {
-  target = module.api.aws_api_gateway_resource.admin_auth_login
-  values = {
-    id = "4lfu0fgsk3/e1qjrn"
-  }
-}
-
-override_resource {
-  target = module.api.aws_api_gateway_resource.admin_auth_logout
-  values = {
-    id = "4lfu0fgsk3/s4tg1s"
-  }
-}
-
-override_resource {
-  target = module.api.aws_api_gateway_resource.admin_auth_refresh
-  values = {
-    id = "4lfu0fgsk3/e106oi"
-  }
-}
-
-override_resource {
   target = module.cdn.aws_cloudfront_function.image_path
   values = {
     id = "ImagePathFunction-dev"

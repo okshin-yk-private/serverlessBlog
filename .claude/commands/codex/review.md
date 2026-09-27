@@ -21,7 +21,7 @@ Codex側で `/claude:execute-review` を実行することでレビューが完�
 - `--focus` オプション: security, performance, architecture, testing, all (デフォルト: all)
 
 例:
-- `cmd/auth/*.go --focus security`
+- `cmd/posts/create/*.go --focus security`
 - `go-functions/**/*.go`
 - `terraform/modules/lambda/main.tf --focus architecture`
 
