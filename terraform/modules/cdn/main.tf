@@ -629,8 +629,7 @@ resource "aws_cloudfront_response_headers_policy" "admin_security_headers" {
 # justified for this personal blog; same justification as .trivyignore and
 # .checkov.yaml CKV_AWS_86. No CloudFront-level rate limiting exists; the only rate
 # limiting is API Gateway stage/method throttling (modules/api, #682).
-# The trivy:ignore lines must stay directly above the resource to take effect.
-#trivy:ignore:AVD-AWS-0045 WAF is not cost-effective for a personal blog
+# The trivy:ignore line must stay directly above the resource to take effect.
 #trivy:ignore:AVD-AWS-0011 No WAF in front of CloudFront (cost; see comment above)
 resource "aws_cloudfront_distribution" "main" {
   enabled             = true
