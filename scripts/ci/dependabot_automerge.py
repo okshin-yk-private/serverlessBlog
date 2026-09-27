@@ -175,8 +175,11 @@ def protected(api):
     require(isinstance(ruleset_id, int) and ruleset_id > 0, "merge queue rule has no repository ruleset")
     ruleset = api(f"/rulesets/{ruleset_id}")
     require(ruleset.get("enforcement") == "active", "merge queue ruleset is not enforced")
-    # bypass_actors is omitted without administration access; absence is not "none".
-    require(ruleset.get("bypass_actors") == [], "merge queue ruleset allows bypass or cannot be inspected")
+    # The App token (Administration: read) does not receive bypass_actors (#738).
+    # What this controller relies on is that its own enqueue cannot skip the
+    # queue; a bypass list, when visible, must still be empty.
+    require(ruleset.get("current_user_can_bypass") == "never", "controller could bypass the merge queue")
+    require(ruleset.get("bypass_actors", []) == [], "merge queue ruleset allows bypass")
 
 
 def enqueue(api, repository, pr):

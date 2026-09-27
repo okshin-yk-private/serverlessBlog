@@ -118,8 +118,10 @@ Actions secretへ直接登録します。個人の長期PATは使いません。
   Only merge non-failing pull requests（`grouping_strategy=ALLGREEN`）を有効。
 
 controllerは必須チェックをclassic protectionから、merge queueをrulesetから検証します。
-queueルールがない、`ALLGREEN`でない、Activeでない、bypassがある（またはbypass設定を
-読めない）場合は停止します。これ以外のruleset構成での同等性判定は対応していません。
+queueルールがない、`ALLGREEN`でない、Activeでない、App自身がqueueを迂回できる
+（`current_user_can_bypass`が`never`以外）、bypass一覧が見えていて空でない場合は停止します。
+App（Administration: read）のトークンにはbypass一覧が返らないため、一覧の空確認は
+管理者の設定確認で担保します（#738）。これ以外のruleset構成での同等性判定は対応していません。
 必須チェックとmerge queueは一般の`develop`向けPRにも適用されます。
 3つのworkflowは`merge_group`でも起動し、queueの結果に同じcheckを報告します。
 
