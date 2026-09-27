@@ -5,41 +5,12 @@
     <link id="site-favicon" rel="icon" type="image/png" href="/favicon-light.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Theme bootstrap (FOUC prevention). Mirrors public-astro Layout. -->
-    <script>
-      (function () {
-        try {
-          var saved = localStorage.getItem('theme');
-          if (saved !== 'light' && saved !== 'dark' && saved !== 'system') {
-            saved = 'system';
-          }
-          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          var resolved = saved === 'system' ? (prefersDark ? 'dark' : 'light') : saved;
-          document.documentElement.setAttribute('data-theme', resolved);
-        } catch (e) {
-          document.documentElement.setAttribute('data-theme', 'light');
-        }
-      })();
-    </script>
+    <!-- Theme bootstrap (FOUC prevention). Mirrors public-astro Layout.
+         External, render-blocking classic script (CSP script-src 'self': no inline scripts). -->
+    <script src="/theme-init.js"></script>
 
     <!-- Theme-aware favicon. Mirrors public-astro Layout. -->
-    <script>
-      (function () {
-        var favicon = document.getElementById('site-favicon');
-        if (!favicon) return;
-
-        var syncFavicon = function () {
-          var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-          favicon.setAttribute('href', isDark ? '/favicon-dark.png' : '/favicon-light.png');
-        };
-
-        syncFavicon();
-        new MutationObserver(syncFavicon).observe(document.documentElement, {
-          attributes: true,
-          attributeFilter: ['data-theme'],
-        });
-      })();
-    </script>
+    <script src="/theme-favicon-sync.js"></script>
 
     <title>Bone of my fallacy - Admin</title>
   </head>

@@ -52,23 +52,10 @@
   </svg>
 </button>
 
-<script is:inline>
-  (function () {
-    var btn = document.querySelector('[data-theme-toggle]');
-    if (!btn) return;
-    btn.addEventListener('click', function () {
-      var current =
-        document.documentElement.getAttribute('data-theme') === 'dark'
-          ? 'dark'
-          : 'light';
-      var next = current === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
-      try {
-        localStorage.setItem('theme', next);
-      } catch (e) {}
-    });
-  })();
-</script>
+<!-- External static file: Vite/rolldown otherwise inlines a script this small
+     directly into the HTML as `<script type="module">`, which has no src and
+     would fail CSP script-src 'self'. -->
+<script is:inline src="/theme-toggle.js"></script>
 
 <style>
   .theme-toggle {

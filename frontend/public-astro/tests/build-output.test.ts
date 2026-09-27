@@ -79,10 +79,19 @@ describe('Astro Build Output', () => {
 
     it('should include theme-aware favicon assets', () => {
       const indexHtml = readFileSync(join(distDir, 'index.html'), 'utf-8');
+      // The initial <link> href (light) stays inline in the HTML; the
+      // dark-mode swap now lives in the externalized theme-favicon-sync.js
+      // (CSP script-src 'self' phase 1 — see Issue #680).
       expect(indexHtml).toContain('/favicon-light.png');
-      expect(indexHtml).toContain('/favicon-dark.png');
+      expect(indexHtml).toContain('/theme-favicon-sync.js');
       expect(existsSync(join(distDir, 'favicon-light.png'))).toBe(true);
       expect(existsSync(join(distDir, 'favicon-dark.png'))).toBe(true);
+      expect(existsSync(join(distDir, 'theme-favicon-sync.js'))).toBe(true);
+      const faviconScript = readFileSync(
+        join(distDir, 'theme-favicon-sync.js'),
+        'utf-8'
+      );
+      expect(faviconScript).toContain('/favicon-dark.png');
     });
   });
 
