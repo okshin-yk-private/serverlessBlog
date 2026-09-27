@@ -90,7 +90,7 @@ App Clientで有効な認証フロー（管理画面はAmplify経由でCognito�
 |---------|---------|
 | Access Token | 1時間 |
 | ID Token | 1時間 |
-| Refresh Token | 30日 |
+| Refresh Token | 7日 |
 
 ## 既存リソースのインポート
 

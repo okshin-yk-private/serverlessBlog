@@ -389,11 +389,11 @@ run "token_validity" {
     error_message = "ID token validity must be 60 minutes (1 hour)"
   }
 
-  # Refresh token validity: 30 days, expressed in minutes because
-  # token_validity_units.refresh_token = "minutes" (30 * 24 * 60 = 43200)
+  # Refresh token validity: 7 days, expressed in minutes because
+  # token_validity_units.refresh_token = "minutes" (7 * 24 * 60 = 10080)
   assert {
-    condition     = aws_cognito_user_pool_client.main.refresh_token_validity == 43200
-    error_message = "Refresh token validity must be 30 days (43200 minutes)"
+    condition     = aws_cognito_user_pool_client.main.refresh_token_validity == 10080
+    error_message = "Refresh token validity must be 7 days (10080 minutes)"
   }
 }
 
