@@ -643,3 +643,398 @@ run "cloudwatch_logging_prd" {
     error_message = "Access log settings must be configured for production"
   }
 }
+
+# ======================
+# Admin Write Method Throttling Tests (Issue #682, item 1)
+# ======================
+
+# Test 34: Verify a per-method throttling setting exists for every admin write
+# method, with the expected method_path and the configured admin-write limits.
+run "admin_write_method_settings_created" {
+  command = plan
+
+  variables {
+    api_name                           = "serverless-blog-api"
+    environment                        = "dev"
+    stage_name                         = "dev"
+    cognito_user_pool_arn              = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
+    admin_write_throttling_rate_limit  = 10
+    admin_write_throttling_burst_limit = 20
+  }
+
+  # aws_api_gateway_resource.*.path is a computed attribute, unknown until apply.
+  # Override it with the known path so method_path (built from it via trimprefix)
+  # can be asserted at plan time, matching the pattern the rest of this test file
+  # uses (command = plan everywhere, no real apply).
+  override_resource {
+    target          = aws_api_gateway_resource.admin_posts
+    override_during = plan
+    values = {
+      path = "/admin/posts"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_posts_id
+    override_during = plan
+    values = {
+      path = "/admin/posts/{id}"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_images_upload_url
+    override_during = plan
+    values = {
+      path = "/admin/images/upload-url"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_images_key
+    override_during = plan
+    values = {
+      path = "/admin/images/{key+}"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_categories
+    override_during = plan
+    values = {
+      path = "/admin/categories"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_categories_id
+    override_during = plan
+    values = {
+      path = "/admin/categories/{id}"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_categories_sort
+    override_during = plan
+    values = {
+      path = "/admin/categories/sort"
+    }
+  }
+
+  assert {
+    condition     = aws_api_gateway_method_settings.admin_write["admin_posts_create"].method_path == "admin/posts/POST"
+    error_message = "POST /admin/posts must have a method-level throttling setting at admin/posts/POST"
+  }
+
+  assert {
+    condition     = aws_api_gateway_method_settings.admin_write["admin_posts_update"].method_path == "admin/posts/{id}/PUT"
+    error_message = "PUT /admin/posts/{id} must have a method-level throttling setting at admin/posts/{id}/PUT"
+  }
+
+  assert {
+    condition     = aws_api_gateway_method_settings.admin_write["admin_posts_delete"].method_path == "admin/posts/{id}/DELETE"
+    error_message = "DELETE /admin/posts/{id} must have a method-level throttling setting at admin/posts/{id}/DELETE"
+  }
+
+  assert {
+    condition     = aws_api_gateway_method_settings.admin_write["admin_images_upload_url"].method_path == "admin/images/upload-url/POST"
+    error_message = "POST /admin/images/upload-url must have a method-level throttling setting"
+  }
+
+  assert {
+    condition     = aws_api_gateway_method_settings.admin_write["admin_images_delete"].method_path == "admin/images/{key+}/DELETE"
+    error_message = "DELETE /admin/images/{key+} must have a method-level throttling setting"
+  }
+
+  assert {
+    condition     = aws_api_gateway_method_settings.admin_write["admin_categories_create"].method_path == "admin/categories/POST"
+    error_message = "POST /admin/categories must have a method-level throttling setting"
+  }
+
+  assert {
+    condition     = aws_api_gateway_method_settings.admin_write["admin_categories_update"].method_path == "admin/categories/{id}/PUT"
+    error_message = "PUT /admin/categories/{id} must have a method-level throttling setting"
+  }
+
+  assert {
+    condition     = aws_api_gateway_method_settings.admin_write["admin_categories_delete"].method_path == "admin/categories/{id}/DELETE"
+    error_message = "DELETE /admin/categories/{id} must have a method-level throttling setting"
+  }
+
+  assert {
+    condition     = aws_api_gateway_method_settings.admin_write["admin_categories_sort"].method_path == "admin/categories/sort/PATCH"
+    error_message = "PATCH /admin/categories/sort must have a method-level throttling setting"
+  }
+
+  # Every admin write method setting must carry the lower admin-write limits.
+  assert {
+    condition = alltrue([
+      for k, v in aws_api_gateway_method_settings.admin_write :
+      v.settings[0].throttling_rate_limit == 10 && v.settings[0].throttling_burst_limit == 20
+    ])
+    error_message = "All admin write method settings must use the admin_write_throttling_rate_limit/burst_limit values"
+  }
+
+  # Exactly the 9 write methods enumerated above, no more, no less.
+  assert {
+    condition     = length(aws_api_gateway_method_settings.admin_write) == 9
+    error_message = "Exactly 9 admin write methods are expected to have per-method throttling"
+  }
+}
+
+# Test 35: OPTIONS (CORS preflight) methods must never be throttled individually.
+run "admin_write_excludes_options" {
+  command = plan
+
+  variables {
+    api_name              = "serverless-blog-api"
+    environment           = "dev"
+    stage_name            = "dev"
+    cognito_user_pool_arn = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_posts
+    override_during = plan
+    values = {
+      path = "/admin/posts"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_posts_id
+    override_during = plan
+    values = {
+      path = "/admin/posts/{id}"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_images_upload_url
+    override_during = plan
+    values = {
+      path = "/admin/images/upload-url"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_images_key
+    override_during = plan
+    values = {
+      path = "/admin/images/{key+}"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_categories
+    override_during = plan
+    values = {
+      path = "/admin/categories"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_categories_id
+    override_during = plan
+    values = {
+      path = "/admin/categories/{id}"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_categories_sort
+    override_during = plan
+    values = {
+      path = "/admin/categories/sort"
+    }
+  }
+
+  assert {
+    condition = alltrue([
+      for k, v in aws_api_gateway_method_settings.admin_write : !endswith(v.method_path, "/OPTIONS")
+    ])
+    error_message = "OPTIONS methods must not have a per-method throttling setting"
+  }
+}
+
+# Test 36: Public GET methods (posts, categories) must stay on the stage-wide
+# setting, not be given their own lower per-method limit — the SSG build depends
+# on the public API at build time and must not be at risk of extra throttling.
+run "admin_write_excludes_public_get" {
+  command = plan
+
+  variables {
+    api_name              = "serverless-blog-api"
+    environment           = "dev"
+    stage_name            = "dev"
+    cognito_user_pool_arn = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_posts
+    override_during = plan
+    values = {
+      path = "/admin/posts"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_posts_id
+    override_during = plan
+    values = {
+      path = "/admin/posts/{id}"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_images_upload_url
+    override_during = plan
+    values = {
+      path = "/admin/images/upload-url"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_images_key
+    override_during = plan
+    values = {
+      path = "/admin/images/{key+}"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_categories
+    override_during = plan
+    values = {
+      path = "/admin/categories"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_categories_id
+    override_during = plan
+    values = {
+      path = "/admin/categories/{id}"
+    }
+  }
+
+  override_resource {
+    target          = aws_api_gateway_resource.admin_categories_sort
+    override_during = plan
+    values = {
+      path = "/admin/categories/sort"
+    }
+  }
+
+  assert {
+    condition = alltrue([
+      for k, v in aws_api_gateway_method_settings.admin_write :
+      !startswith(v.method_path, "posts/") && !startswith(v.method_path, "categories/")
+    ])
+    error_message = "Public GET methods (posts, categories) must not receive a per-method throttling setting"
+  }
+}
+
+# Test 37: The stage-wide "all" method settings must remain unchanged (still
+# */* at the stage-wide throttling_rate_limit/burst_limit), so public GET and any
+# method not covered by the admin-write map keep their existing behavior.
+run "stage_wide_all_setting_unchanged" {
+  command = plan
+
+  variables {
+    api_name               = "serverless-blog-api"
+    environment            = "dev"
+    stage_name             = "dev"
+    cognito_user_pool_arn  = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
+    throttling_rate_limit  = 100
+    throttling_burst_limit = 200
+  }
+
+  assert {
+    condition     = aws_api_gateway_method_settings.all.method_path == "*/*"
+    error_message = "The stage-wide method settings must still cover */* "
+  }
+
+  assert {
+    condition     = aws_api_gateway_method_settings.all.settings[0].throttling_rate_limit == 100
+    error_message = "The stage-wide throttling_rate_limit must remain unchanged at 100"
+  }
+
+  assert {
+    condition     = aws_api_gateway_method_settings.all.settings[0].throttling_burst_limit == 200
+    error_message = "The stage-wide throttling_burst_limit must remain unchanged at 200"
+  }
+}
+
+# Test 38: admin_write_throttling_rate_limit must be positive.
+run "admin_write_rate_limit_must_be_positive" {
+  command = plan
+
+  variables {
+    api_name                          = "serverless-blog-api"
+    environment                       = "dev"
+    stage_name                        = "dev"
+    cognito_user_pool_arn             = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
+    admin_write_throttling_rate_limit = 0
+  }
+
+  expect_failures = [
+    var.admin_write_throttling_rate_limit,
+  ]
+}
+
+# Test 39: admin_write_throttling_burst_limit must be positive.
+run "admin_write_burst_limit_must_be_positive" {
+  command = plan
+
+  variables {
+    api_name                           = "serverless-blog-api"
+    environment                        = "dev"
+    stage_name                         = "dev"
+    cognito_user_pool_arn              = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
+    admin_write_throttling_burst_limit = -1
+  }
+
+  expect_failures = [
+    var.admin_write_throttling_burst_limit,
+  ]
+}
+
+# Test 40: admin_write_throttling_rate_limit must not exceed the stage-wide
+# throttling_rate_limit (validation rejects a value above the stage-wide limit).
+run "admin_write_rate_limit_must_not_exceed_stage_wide" {
+  command = plan
+
+  variables {
+    api_name                          = "serverless-blog-api"
+    environment                       = "dev"
+    stage_name                        = "dev"
+    cognito_user_pool_arn             = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
+    throttling_rate_limit             = 100
+    admin_write_throttling_rate_limit = 150
+  }
+
+  expect_failures = [
+    var.admin_write_throttling_rate_limit,
+  ]
+}
+
+# Test 41: admin_write_throttling_burst_limit must not exceed the stage-wide
+# throttling_burst_limit (validation rejects a value above the stage-wide limit).
+run "admin_write_burst_limit_must_not_exceed_stage_wide" {
+  command = plan
+
+  variables {
+    api_name                           = "serverless-blog-api"
+    environment                        = "dev"
+    stage_name                         = "dev"
+    cognito_user_pool_arn              = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
+    throttling_burst_limit             = 200
+    admin_write_throttling_burst_limit = 250
+  }
+
+  expect_failures = [
+    var.admin_write_throttling_burst_limit,
+  ]
+}

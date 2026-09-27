@@ -196,10 +196,14 @@ skip-check:
   - CKV_AWS_174
 
   # CKV_AWS_86: Ensure CloudFront distribution has WAF enabled
-  # Justification: WAF adds cost for this blog application. Rate limiting
-  # is handled at CloudFront level. No sensitive financial or PII data.
+  # Justification: A regional WAF web ACL adds a monthly base fee plus per-rule and
+  # per-request charges, which isn't justified for this blog application. There is
+  # no CloudFront-level rate limiting (no WAF, no CloudFront rate-based rule). The
+  # only rate limiting that exists is API Gateway stage/method throttling
+  # (modules/api: stage-wide 100 rps / burst 200, plus a lower per-method limit on
+  # admin write methods added in #682). No sensitive financial or PII data.
   # Phase 2 consideration for production hardening.
-  # Mitigation: CloudFront geo-restrictions; rate limiting; monitoring
+  # Mitigation: API Gateway stage/method throttling; monitoring
   # Review-by: 2027-03-31
   - CKV_AWS_86
 
@@ -288,7 +292,8 @@ skip-check:
   # CKV_AWS_374: Ensure CloudFront distribution has geo restrictions configured
   # Justification: Public blog intended for global accessibility. No regulatory
   # requirement for geo-blocking. Content is not region-specific.
-  # Mitigation: CloudFront rate limiting; WAF consideration for production
+  # Mitigation: none needed for geo; abuse is bounded only by API Gateway
+  # throttling (no WAF / CloudFront rate limiting exists).
   # Review-by: 2027-03-31
   - CKV_AWS_374
 
@@ -310,7 +315,8 @@ skip-check:
   # - GET /categories - public category listing
   # - OPTIONS methods - CORS preflight requests
   # Protected admin endpoints use Cognito authorizers.
-  # Mitigation: Cognito protects sensitive endpoints; CloudFront rate limiting
+  # Mitigation: Cognito protects sensitive endpoints; API Gateway stage-wide
+  # throttling (no CloudFront rate limiting exists).
   # Review-by: 2027-03-31
   - CKV_AWS_59
 
@@ -324,7 +330,8 @@ skip-check:
   # set request_validator_id where path-parameter shape matters at the
   # gateway level.
   # Mitigation: Lambda-level schema validation; Cognito authorizer on
-  # mutating admin endpoints; CloudFront rate limiting.
+  # mutating admin endpoints; API Gateway throttling (stage-wide plus a lower
+  # limit on admin write methods). No CloudFront rate limiting exists.
   # Review-by: 2027-03-31
   - CKV2_AWS_53
 
