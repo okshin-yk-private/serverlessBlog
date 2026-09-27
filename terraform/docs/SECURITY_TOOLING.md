@@ -136,7 +136,7 @@ trivy config --severity HIGH,CRITICAL --format json .
 ```bash
 # terraform/.trivyignore
 AVD-AWS-0089  # S3バケットロギング無効化（正当な理由あり）
-AVD-AWS-0066  # Lambda DLQ未設定（同期関数のため不要）
+AVD-AWS-0066  # Lambda X-Ray トレース未設定（prd のみ有効）
 ```
 
 ### 一時的なスキップ
@@ -211,7 +211,7 @@ Checkov（`.checkov.yaml`）とTrivy（`.trivyignore`）のスキップルール
 |------------|----------|------|
 | CKV_AWS_18 | AVD-AWS-0089 | S3アクセスログ |
 | CKV_AWS_119 | AVD-AWS-0025 | DynamoDB CMK暗号化 |
-| CKV_AWS_116 | AVD-AWS-0066 | Lambda DLQ |
+| CKV_AWS_50 | AVD-AWS-0066 | Lambda X-Ray トレース |
 | CKV_AWS_158 | AVD-AWS-0017 | CloudWatch CMK |
 
 ## CI/CD統合
