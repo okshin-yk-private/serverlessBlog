@@ -50,7 +50,8 @@ class FakeAPI:
         self.protection = {"enforce_admins": {"enabled": True}, "required_status_checks": {
             "strict": False, "checks": [{"context": name, "app_id": 15368} for name in merge.WORKFLOWS.values()]}}
         self.rules = [{"type": "merge_queue", "ruleset_id": 7, "parameters": {"grouping_strategy": "ALLGREEN"}}]
-        self.ruleset = {"enforcement": "active", "bypass_actors": []}
+        # Shape seen by the App token (#738): bypass_actors is omitted.
+        self.ruleset = {"enforcement": "active", "current_user_can_bypass": "never"}
         self.queue = {"id": "PR_node", "headRefOid": "head", "isInMergeQueue": False}
         self.runs, self.checks = {}, []
         for i, (filename, name) in enumerate(merge.WORKFLOWS.items(), 1):
@@ -156,6 +157,12 @@ class ControllerTests(unittest.TestCase):
         merge.process(api, REPO, 1, enabled=True)
         self.assertEqual(len(api.writes), 1)
 
+    def test_admin_view_with_empty_bypass_list_is_accepted(self):
+        api = FakeAPI()
+        api.ruleset["bypass_actors"] = []
+        merge.process(api, REPO, 1, enabled=True)
+        self.assertEqual(len(api.writes), 1)
+
     def test_already_queued_pr_is_not_enqueued_again(self):
         api = FakeAPI()
         api.queue["isInMergeQueue"] = True
@@ -197,7 +204,11 @@ class ControllerTests(unittest.TestCase):
             lambda a: a.rules[0].update(ruleset_id=None),
             lambda a: a.ruleset.update(enforcement="evaluate"),
             lambda a: a.ruleset.update(bypass_actors=[{"actor_type": "RepositoryRole", "actor_id": 5}]),
-            lambda a: a.ruleset.pop("bypass_actors"),
+            lambda a: a.ruleset.update(bypass_actors=None),
+            lambda a: a.ruleset.update(current_user_can_bypass="always"),
+            lambda a: a.ruleset.update(current_user_can_bypass="pull_requests_only"),
+            lambda a: a.ruleset.update(current_user_can_bypass="exempt"),
+            lambda a: a.ruleset.pop("current_user_can_bypass"),
             lambda a: a.queue.update(headRefOid="replacement"),
             lambda a: a.protection["required_status_checks"]["checks"].pop(),
             lambda a: a.protection["required_status_checks"]["checks"][0].update(app_id=None),

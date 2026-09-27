@@ -55,10 +55,10 @@ on:
           - astro
 
 # develop/main への連続 push で terraform apply が同じ S3/DynamoDB state に対して
-# 同時に走ると、後発の apply は -lock-timeout を渡していないため state lock 待ちで
-# 即座に失敗する。plan と違い apply の取り消しはデータ不整合のリスクの方が大きい
-# ため、実行中の apply を cancel-in-progress で打ち切らず、キューイングして順番に
-# 適用させる。
+# 同時に走らないよう、実行中の apply を cancel-in-progress で打ち切らず、キューイング
+# して順番に適用させる（plan と違い apply の取り消しはデータ不整合のリスクの方が大きい）。
+# CI（merge queue を含む）の Terraform Plan とは同じ state lock を共有するため、
+# deploy_passkey_infrastructure.sh の plan/apply は -lock-timeout で解放を待つ（#738）。
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
