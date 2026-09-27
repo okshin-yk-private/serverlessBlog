@@ -22,13 +22,13 @@ import {
   generateTwitterCardData,
   escapeHtmlAttribute,
 } from '../lib/seoUtils';
+import { SITE_NAME } from '../lib/site';
 
 interface Props extends SEOProps {
   /** Site name (defaults to 'bone of my fallacy') */
   siteName?: string;
 }
 
-const SITE_NAME = 'bone of my fallacy';
 const SITE_URL =
   import.meta.env.SITE_URL || import.meta.env.SITE || 'https://example.com';
 

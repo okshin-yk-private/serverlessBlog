@@ -86,7 +86,11 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		return middleware.MessageResponse(404, "post not found")
 	}
 
-	return middleware.PublicJSONResponse(200, post)
+	// Issue #683: unauthenticated callers get the public DTO, which omits
+	// contentMarkdown and authorId (the raw Cognito sub). This endpoint has
+	// no authenticated route (see terraform/modules/api/main.tf), so it
+	// always strips them.
+	return middleware.PublicJSONResponse(200, domain.NewPublicBlogPost(post))
 }
 
 func main() {

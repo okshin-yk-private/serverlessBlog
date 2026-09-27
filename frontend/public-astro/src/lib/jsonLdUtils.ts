@@ -35,11 +35,17 @@ export interface JsonLdPost {
 }
 
 /**
- * Person schema type
+ * Organization schema type
+ *
+ * Issue #683: article authorship is attributed to the site (an
+ * organization/publication name), not an individual person, so this
+ * replaces the previous Person schema. It also avoids implying the
+ * Cognito user sub (previously used as authorName) identifies a person.
  */
-export interface PersonSchema {
-  '@type': 'Person';
+export interface OrganizationSchema {
+  '@type': 'Organization';
   name: string;
+  url: string;
 }
 
 /**
@@ -61,7 +67,7 @@ export interface BlogPostingJsonLd {
   description: string;
   datePublished: string;
   dateModified: string;
-  author: PersonSchema;
+  author: OrganizationSchema;
   mainEntityOfPage: WebPageSchema;
   image?: string;
 }
@@ -142,8 +148,9 @@ export function generateBlogPostingJsonLd(
     datePublished: post.publishedAt,
     dateModified: dateModified,
     author: {
-      '@type': 'Person',
+      '@type': 'Organization',
       name: post.authorName,
+      url: normalizeUrl(siteUrl),
     },
     mainEntityOfPage: {
       '@type': 'WebPage',

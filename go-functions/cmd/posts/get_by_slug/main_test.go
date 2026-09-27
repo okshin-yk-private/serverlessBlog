@@ -47,10 +47,12 @@ func TestHandler_PublishedPost_Returns200(t *testing.T) {
 	defer cleanup()
 
 	post := domain.BlogPost{
-		ID:            "post-1",
-		Title:         "Hello",
-		PublishStatus: domain.PublishStatusPublished,
-		Slug:          ptr("hello"),
+		ID:              "post-1",
+		Title:           "Hello",
+		ContentMarkdown: "# Hello",
+		PublishStatus:   domain.PublishStatusPublished,
+		AuthorID:        "cognito-sub-1234",
+		Slug:            ptr("hello"),
 	}
 	item, err := attributevalue.MarshalMap(post)
 	if err != nil {
@@ -72,12 +74,25 @@ func TestHandler_PublishedPost_Returns200(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatalf("expected 200, got %d body=%s", resp.StatusCode, resp.Body)
 	}
-	var got domain.BlogPost
+	// Issue #683: this endpoint has no authenticated route (public, no-auth
+	// only), so it always returns the public DTO without contentMarkdown/authorId.
+	var got domain.PublicBlogPost
 	if err := json.Unmarshal([]byte(resp.Body), &got); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 	if got.ID != "post-1" {
 		t.Errorf("expected post id post-1, got %q", got.ID)
+	}
+
+	var raw map[string]interface{}
+	if err := json.Unmarshal([]byte(resp.Body), &raw); err != nil {
+		t.Fatalf("unmarshal raw response: %v", err)
+	}
+	if _, ok := raw["contentMarkdown"]; ok {
+		t.Error("expected contentMarkdown to be absent from public response")
+	}
+	if _, ok := raw["authorId"]; ok {
+		t.Error("expected authorId to be absent from public response")
 	}
 }
 

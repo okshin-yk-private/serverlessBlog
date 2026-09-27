@@ -30,6 +30,24 @@ export interface MockPost {
 }
 
 /**
+ * 公開エンドポイント用にMockPostからcontentMarkdownとauthorIdを取り除く
+ *
+ * issue #683: 公開API（get_public / get_by_slug / 未認証時のlist）は
+ * Markdownソースと生のCognito sub（authorId）を返さない。MSWモックも
+ * Goバックエンドの公開DTO（domain.PublicBlogPost）と同じ形にする。
+ */
+export function toPublicPost(
+  post: MockPost
+): Omit<MockPost, 'contentMarkdown' | 'authorId'> {
+  const {
+    contentMarkdown: _contentMarkdown,
+    authorId: _authorId,
+    ...rest
+  } = post;
+  return rest;
+}
+
+/**
  * モック記事データの生成
  */
 export const createMockPost = (overrides: Partial<MockPost> = {}): MockPost => {

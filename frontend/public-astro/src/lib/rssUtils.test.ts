@@ -60,7 +60,9 @@ describe('rssUtils', () => {
       expect(item.guid).toBe('https://example.com/posts/test-post-1/');
       expect(item.pubDate).toEqual(new Date('2024-01-15T10:30:00Z'));
       expect(item.category).toBe('テクノロジー');
-      expect(item.author).toBe('author-1');
+      // Issue #683: RSS items never carry an author (would require an email
+      // address per RSS 2.0, and previously leaked the Cognito sub).
+      expect(item).not.toHaveProperty('author');
     });
 
     it('should use createdAt when publishedAt is not available', () => {
@@ -79,15 +81,6 @@ describe('rssUtils', () => {
       const item = postToRSSItem(post, siteUrl);
 
       expect(item.category).toBeUndefined();
-    });
-
-    it('should handle posts without author', () => {
-      const post = createMockPost({ authorId: '' });
-      const siteUrl = 'https://example.com';
-
-      const item = postToRSSItem(post, siteUrl);
-
-      expect(item.author).toBeUndefined();
     });
   });
 

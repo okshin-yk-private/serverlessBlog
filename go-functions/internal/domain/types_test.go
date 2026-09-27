@@ -1432,6 +1432,124 @@ func TestInvalidIDsErrorResponseJSONMarshal(t *testing.T) {
 	}
 }
 
+// TestNewPublicBlogPostOmitsSensitiveFields verifies that the public DTO
+// (issue #683) drops contentMarkdown and authorId - the raw Cognito sub -
+// from unauthenticated API responses, while keeping every other field the
+// public site consumes.
+func TestNewPublicBlogPostOmitsSensitiveFields(t *testing.T) {
+	publishedAt := "2026-01-04T00:00:00Z"
+	slug := "hello-world"
+	excerpt := "An excerpt"
+	coverImageURL := "https://example.com/cover.jpg"
+
+	post := BlogPost{
+		Version:         3,
+		ID:              "test-id",
+		Title:           "Test Title",
+		ContentMarkdown: "# Hello",
+		ContentHTML:     "<h1>Hello</h1>",
+		Category:        "technology",
+		Tags:            []string{"go", "lambda"},
+		PublishStatus:   PublishStatusPublished,
+		AuthorID:        "cognito-sub-1234",
+		CreatedAt:       "2026-01-01T00:00:00Z",
+		UpdatedAt:       "2026-01-02T00:00:00Z",
+		PublishedAt:     &publishedAt,
+		ImageURLs:       []string{"https://example.com/image.jpg"},
+		Slug:            &slug,
+		Excerpt:         &excerpt,
+		CoverImageURL:   &coverImageURL,
+	}
+
+	publicPost := NewPublicBlogPost(post)
+
+	data, err := json.Marshal(publicPost)
+	if err != nil {
+		t.Fatalf("Failed to marshal PublicBlogPost: %v", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	if _, ok := result["contentMarkdown"]; ok {
+		t.Error("expected contentMarkdown to be absent from PublicBlogPost JSON")
+	}
+	if _, ok := result["authorId"]; ok {
+		t.Error("expected authorId to be absent from PublicBlogPost JSON")
+	}
+
+	// Fields the public site still needs must round-trip unchanged.
+	wantString := map[string]string{
+		"id":            "test-id",
+		"title":         "Test Title",
+		"contentHtml":   "<h1>Hello</h1>",
+		"category":      "technology",
+		"publishStatus": PublishStatusPublished,
+		"createdAt":     "2026-01-01T00:00:00Z",
+		"updatedAt":     "2026-01-02T00:00:00Z",
+		"publishedAt":   publishedAt,
+		"slug":          slug,
+		"excerpt":       excerpt,
+		"coverImageUrl": coverImageURL,
+	}
+	for field, want := range wantString {
+		got, ok := result[field].(string)
+		if !ok || got != want {
+			t.Errorf("field %s = %v, want %q", field, result[field], want)
+		}
+	}
+
+	if version, ok := result["version"].(float64); !ok || int64(version) != 3 {
+		t.Errorf("field version = %v, want 3", result["version"])
+	}
+
+	tags, ok := result["tags"].([]interface{})
+	if !ok || len(tags) != 2 || tags[0] != "go" || tags[1] != "lambda" {
+		t.Errorf("field tags = %v, want [go lambda]", result["tags"])
+	}
+
+	imageURLs, ok := result["imageUrls"].([]interface{})
+	if !ok || len(imageURLs) != 1 || imageURLs[0] != "https://example.com/image.jpg" {
+		t.Errorf("field imageUrls = %v, want [https://example.com/image.jpg]", result["imageUrls"])
+	}
+}
+
+// TestNewPublicBlogPostOptionalFieldsOmitEmpty verifies that PublicBlogPost
+// preserves BlogPost's omitempty behavior for legacy items lacking the
+// writer-experience metadata fields (slug/excerpt/coverImageUrl/publishedAt).
+func TestNewPublicBlogPostOptionalFieldsOmitEmpty(t *testing.T) {
+	post := BlogPost{
+		ID:            "legacy-id",
+		Title:         "Legacy Post",
+		ContentHTML:   "<p>legacy</p>",
+		Category:      "life",
+		Tags:          []string{},
+		PublishStatus: PublishStatusPublished,
+		AuthorID:      "cognito-sub-legacy",
+		CreatedAt:     "2024-01-01T00:00:00Z",
+		UpdatedAt:     "2024-01-01T00:00:00Z",
+		ImageURLs:     []string{},
+	}
+
+	data, err := json.Marshal(NewPublicBlogPost(post))
+	if err != nil {
+		t.Fatalf("Failed to marshal PublicBlogPost: %v", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	for _, field := range []string{"publishedAt", "slug", "excerpt", "coverImageUrl"} {
+		if _, ok := result[field]; ok {
+			t.Errorf("expected %s to be omitted when unset, got %v", field, result[field])
+		}
+	}
+}
+
 // TestCategoryDescriptionOmitEmpty tests that description is omitted when nil
 func TestCategoryDescriptionOmitEmpty(t *testing.T) {
 	category := Category{

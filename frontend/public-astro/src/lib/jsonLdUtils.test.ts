@@ -48,7 +48,7 @@ describe('jsonLdUtils', () => {
       expect(result.dateModified).toBe('2024-01-16T12:00:00Z');
     });
 
-    it('should include author as Person type', () => {
+    it('should include author as Organization type with the site URL', () => {
       const post: JsonLdPost = {
         id: '123',
         title: 'My First Blog Post',
@@ -61,8 +61,9 @@ describe('jsonLdUtils', () => {
       const result = generateBlogPostingJsonLd(post, SITE_URL);
 
       expect(result.author).toEqual({
-        '@type': 'Person',
+        '@type': 'Organization',
         name: 'John Doe',
+        url: 'https://example.com',
       });
     });
 
@@ -130,8 +131,9 @@ describe('jsonLdUtils', () => {
       expect(result.headline).toBe('日本語タイトル');
       expect(result.description).toBe('これは日本語の説明文です。');
       expect(result.author).toEqual({
-        '@type': 'Person',
+        '@type': 'Organization',
         name: '山田太郎',
+        url: 'https://example.com',
       });
     });
 
@@ -318,7 +320,7 @@ describe('jsonLdUtils', () => {
         description: 'Test',
         datePublished: '2024-01-15T10:00:00Z',
         dateModified: '2024-01-15T10:00:00Z',
-        author: { '@type': 'Person', name: 'Test' },
+        author: { '@type': 'Organization', name: 'Test', url: SITE_URL },
         mainEntityOfPage: {
           '@type': 'WebPage',
           '@id': 'https://example.com/posts/1',

@@ -867,7 +867,7 @@ func TestHandler_ResponseStructure(t *testing.T) {
 	}
 
 	item := items2[0].(map[string]interface{})
-	expectedFields := []string{"id", "title", "contentHtml", "category", "tags", "publishStatus", "authorId", "createdAt", "updatedAt", "imageUrls"}
+	expectedFields := []string{"id", "title", "contentHtml", "category", "tags", "publishStatus", "createdAt", "updatedAt", "imageUrls"}
 	for _, field := range expectedFields {
 		if _, ok := item[field]; !ok {
 			t.Errorf("expected field %q to be present in response item", field)
@@ -877,6 +877,12 @@ func TestHandler_ResponseStructure(t *testing.T) {
 	// contentMarkdown should NOT be present
 	if _, ok := item["contentMarkdown"]; ok {
 		t.Errorf("expected field contentMarkdown to NOT be present in response item")
+	}
+
+	// Issue #683: authorId (the raw Cognito user sub) must not be present
+	// for this unauthenticated request.
+	if _, ok := item["authorId"]; ok {
+		t.Errorf("expected field authorId to NOT be present in unauthenticated response item")
 	}
 }
 
@@ -1676,6 +1682,22 @@ func TestHandler_AdminRequestIncludesCount(t *testing.T) {
 	// Verify count query was executed (should be 2 queries: list + count)
 	if queryCallCount != 2 {
 		t.Errorf("expected 2 queries (list + count), got %d", queryCallCount)
+	}
+
+	// Issue #683: authenticated (admin) responses must be unaffected -
+	// authorId keeps being returned for every item.
+	respItems, ok := responseMap["items"].([]interface{})
+	if !ok || len(respItems) != len(posts) {
+		t.Fatalf("expected %d items, got %+v", len(posts), responseMap["items"])
+	}
+	for i, raw := range respItems {
+		respItem, ok := raw.(map[string]interface{})
+		if !ok {
+			t.Fatalf("item %d is not an object: %+v", i, raw)
+		}
+		if respItem["authorId"] != posts[i].AuthorID {
+			t.Errorf("item %d: expected authorId %q for authenticated request, got %v", i, posts[i].AuthorID, respItem["authorId"])
+		}
 	}
 }
 
@@ -2811,7 +2833,7 @@ func TestExecuteSearchQuery_CursorAfterPartialPageMatch(t *testing.T) {
 		},
 	}
 
-	items, cursor, err := executeSearchQuery(context.Background(), mockClient, testTableName, 1, "", "published", "react", nil)
+	items, cursor, err := executeSearchQuery(context.Background(), mockClient, testTableName, 1, "", "published", "react", nil, false)
 	if err != nil {
 		t.Fatalf("executeSearchQuery returned unexpected error: %v", err)
 	}
@@ -2858,7 +2880,7 @@ func TestExecuteSearchQuery_CursorUsesCategoryKeyWhenFiltered(t *testing.T) {
 		},
 	}
 
-	items, cursor, err := executeSearchQuery(context.Background(), mockClient, testTableName, 1, "technology", "published", "react", nil)
+	items, cursor, err := executeSearchQuery(context.Background(), mockClient, testTableName, 1, "technology", "published", "react", nil, false)
 	if err != nil {
 		t.Fatalf("executeSearchQuery returned unexpected error: %v", err)
 	}
@@ -2909,7 +2931,7 @@ func TestExecuteSearchQuery_PageCapReached(t *testing.T) {
 		},
 	}
 
-	items, cursor, err := executeSearchQuery(context.Background(), mockClient, testTableName, 10, "", "published", "nonexistent-term", nil)
+	items, cursor, err := executeSearchQuery(context.Background(), mockClient, testTableName, 10, "", "published", "nonexistent-term", nil, false)
 	if err != nil {
 		t.Fatalf("executeSearchQuery returned unexpected error: %v", err)
 	}
@@ -2989,8 +3011,42 @@ func TestProcessResults_PreservesPublicMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	items := processResults([]map[string]types.AttributeValue{item})
+	items := processResults([]map[string]types.AttributeValue{item}, true)
 	if len(items) != 1 || items[0].Slug == nil || *items[0].Slug != slug || items[0].Excerpt == nil || *items[0].Excerpt != excerpt || items[0].CoverImageURL == nil || *items[0].CoverImageURL != cover || items[0].Version != 4 {
 		t.Fatalf("lost metadata: %+v", items)
+	}
+	if items[0].AuthorID != post.AuthorID {
+		t.Errorf("expected authorId to be included when includeAuthorID=true, got %+v", items[0])
+	}
+}
+
+// TestProcessResults_OmitsAuthorIDWhenNotIncluded verifies issue #683: an
+// unauthenticated (public) list response never carries authorId (the raw
+// Cognito user sub), even though the underlying BlogPost has one.
+func TestProcessResults_OmitsAuthorIDWhenNotIncluded(t *testing.T) {
+	post := createTestPost("post-1", domain.PublishStatusPublished, "tech", "2026-09-08T00:00:00Z")
+	item, err := attributevalue.MarshalMap(post)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	items := processResults([]map[string]types.AttributeValue{item}, false)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %+v", items)
+	}
+	if items[0].AuthorID != "" {
+		t.Errorf("expected authorId to be empty when includeAuthorID=false, got %q", items[0].AuthorID)
+	}
+
+	data, err := json.Marshal(items[0])
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if _, ok := raw["authorId"]; ok {
+		t.Errorf("expected authorId key to be omitted from JSON, got %+v", raw)
 	}
 }

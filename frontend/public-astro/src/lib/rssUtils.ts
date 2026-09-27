@@ -29,8 +29,6 @@ export interface RSSItem {
   guid: string;
   /** カテゴリ（オプション） */
   category?: string;
-  /** 著者（オプション） */
-  author?: string;
 }
 
 /**
@@ -88,7 +86,6 @@ export function postToRSSItem(post: Post, siteUrl: string): RSSItem {
     pubDate,
     guid,
     category: post.category || undefined,
-    author: post.authorId || undefined,
   };
 }
 
