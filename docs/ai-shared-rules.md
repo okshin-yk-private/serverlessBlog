@@ -72,10 +72,15 @@ the impact cannot be bounded; it does not include E2E or Terraform verification.
   Merge/deployment needs explicit authorization for the target. A request to create a PR
   against `develop` counts as that authorization for its merge (see "Authorization and
   completion"). Merging to `main` (PRD) always needs its own explicit request.
-- `develop` uses a merge queue and repository auto-merge is disabled, so `gh pr merge`
-  fails. Enqueue with `python3 scripts/ci/enqueue_pr.py <N>`: it accepts only open
-  same-repository PRs into `develop` whose required checks passed on the current head, and
-  enqueues with that head as `expectedHeadOid`. Agents do not call `enqueuePullRequest`
+- `develop` uses a merge queue, so `gh pr merge` fails. For a develop PR, default to
+  `python3 scripts/ci/enqueue_pr.py <N> --auto` right after the PR is created/updated: it
+  reserves GitHub's native auto-merge (`enablePullRequestAutoMerge` with that head as
+  `expectedHeadOid`), so GitHub itself queues the PR once required checks pass — no waiting
+  or polling needed. It refuses non-develop, fork, closed, draft and Dependabot-authored
+  PRs. Plain mode (no `--auto`), `python3 scripts/ci/enqueue_pr.py <N>`, is the fallback: it
+  accepts only open same-repository PRs into `develop` whose required checks already passed
+  on the current head, and enqueues directly (`enqueuePullRequest`) with that head as
+  `expectedHeadOid`. Agents do not call `enqueuePullRequest` / `enablePullRequestAutoMerge`
   directly. The queue re-runs the required checks before merging.
 - Branch naming: `fix/issue-<N>` / `feat/issue-<N>`.
 - Never commit secrets. Triage Code Scanning alerts via the GitHub Security tab —

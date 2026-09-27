@@ -33,6 +33,15 @@ def require(condition, reason):
         raise Blocked(reason)
 
 
+def _sanitize(value, limit=200):
+    # Only ever used on GraphQL error "type"/"message" text, never on tokens or bodies
+    # that could carry secrets.
+    if not value:
+        return ""
+    text = re.sub(r"[\x00-\x1f\x7f]+", " ", str(value)).strip()
+    return text[:limit]
+
+
 def dependencies(message):
     # Deliberately parse only Dependabot's plain scalar metadata subset, not arbitrary
     # YAML. Unexpected schema, anchors, folded values and duplicate keys fail closed.
@@ -110,7 +119,15 @@ class GitHub:
     def graphql(self, query, variables):
         result = self("/graphql", "POST", {"query": query, "variables": variables}, url="https://api.github.com/graphql")
         # GraphQL reports failures with HTTP 200; never treat a partial response as success.
-        require(isinstance(result, dict) and not result.get("errors") and isinstance(result.get("data"), dict), "GitHub GraphQL request failed")
+        detail = ""
+        if isinstance(result, dict):
+            errors = result.get("errors")
+            if isinstance(errors, list) and errors and isinstance(errors[0], dict):
+                parts = [part for part in (_sanitize(errors[0].get("type")), _sanitize(errors[0].get("message"))) if part]
+                if parts:
+                    detail = ": " + ": ".join(parts)
+        require(isinstance(result, dict) and not result.get("errors") and isinstance(result.get("data"), dict),
+                f"GitHub GraphQL request failed{detail}")
         return result["data"]
 
     def pages(self, path, key=None):
