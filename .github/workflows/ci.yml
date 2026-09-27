@@ -546,147 +546,60 @@ jobs:
           echo "✓ All Terraform files are properly formatted"
 
   # =======================================
-  # Job: Build Go Lambda Binaries (Parallel Matrix for Terraform)
+  # Job: Build Go Lambda Binaries (single job, cached across PRs)
   # =======================================
   terraform-build-lambdas:
-    name: Build Lambda (${{ matrix.function }})
+    name: Build Lambda Binaries
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     needs: [setup-labels]
     # Only terraform-plan-dev/prd consume these binaries, and both require
     # has-terraform == 'true'. go-functions/** carries the `go` + `infrastructure`
     # labels but NOT `terraform` (see .github/labeler.yml), so gating on
-    # has-go too used to build all Lambdas in the matrix below (plus a merge job whose output
-    # nothing reads) on every Go-only PR for no reason.
+    # has-go too used to build all Lambdas on every Go-only PR for no reason.
     if: needs.setup-labels.outputs.has-terraform == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - function: posts-create
-            path: posts/create
-          - function: posts-get
-            path: posts/get
-          - function: posts-get_public
-            path: posts/get_public
-          - function: posts-list
-            path: posts/list
-          - function: posts-update
-            path: posts/update
-          - function: posts-delete
-            path: posts/delete
-          - function: posts-build_status
-            path: posts/build_status
-          - function: posts-reconcile_build
-            path: posts/reconcile_build
-          - function: posts-get_by_slug
-            path: posts/get_by_slug
-          - function: images-get_upload_url
-            path: images/get_upload_url
-          - function: images-delete
-            path: images/delete
-          - function: categories-list
-            path: categories/list
-          - function: categories-create
-            path: categories/create
-          - function: categories-update
-            path: categories/update
-          - function: categories-bulk_sort
-            path: categories/bulk_sort
-          - function: categories-delete
-            path: categories/delete
+    outputs:
+      cache-hit: ${{ steps.cache.outputs.cache-hit }}
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
+      - name: Restore Lambda binaries from cache
+        # Exact-match key only (no restore-keys): this restores develop's
+        # cache whenever go-functions is unchanged, and never restores a
+        # stale cache from an older source hash (issue #718).
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        id: cache
+        with:
+          path: go-functions/bin
+          key: lambda-all-${{ runner.os }}-${{ hashFiles('go-functions/**/*.go', 'go-functions/go.sum', 'go-functions/go.mod', 'go-functions/Makefile') }}
+
       - name: Setup Go
+        if: steps.cache.outputs.cache-hit != 'true'
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go-functions/go.mod
           check-latest: false
           cache-dependency-path: go-functions/go.sum
 
-      - name: Cache Lambda binary
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        id: binary-cache
-        with:
-          path: go-functions/bin/${{ matrix.function }}
-          key: lambda-${{ matrix.function }}-${{ runner.os }}-${{ hashFiles('go-functions/**/*.go', 'go-functions/go.sum') }}
-
-      - name: Build Lambda binary (${{ matrix.function }})
-        if: steps.binary-cache.outputs.cache-hit != 'true'
-        working-directory: go-functions
+      - name: Build all Lambda binaries
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           echo "========================================="
-          echo "Building Lambda: ${{ matrix.function }}"
+          echo "Building Lambda binaries (cache miss)"
           echo "========================================="
-          mkdir -p bin/${{ matrix.function }}
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
-            go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -tags="lambda.norpc" \
-            -o bin/${{ matrix.function }}/bootstrap ./cmd/${{ matrix.path }}
-          # Normalize timestamp for reproducible builds
-          touch -t 202001010000.00 bin/${{ matrix.function }}/bootstrap
-          echo "✓ ${{ matrix.function }} built successfully"
-
-      - name: Cache hit status
-        if: steps.binary-cache.outputs.cache-hit == 'true'
-        run: echo "✓ ${{ matrix.function }} restored from cache"
-
-      - name: Upload Lambda binary
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: lambda-${{ matrix.function }}
-          path: go-functions/bin/${{ matrix.function }}/
-          retention-days: 1
-
-  # =======================================
-  # Job: Merge Lambda Artifacts
-  # =======================================
-  terraform-merge-artifacts:
-    name: Merge Lambda Artifacts
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: [terraform-build-lambdas]
-    if: needs.terraform-build-lambdas.result == 'success'
-    steps:
-      - name: Checkout code (for hash calculation)
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          sparse-checkout: go-functions
-          sparse-checkout-cone-mode: false
-
-      - name: Download all Lambda artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: lambda-*
-          path: go-functions/bin/
-          merge-multiple: false
-
-      - name: Reorganize artifacts
-        run: |
-          echo "========================================="
-          echo "Merging Lambda Artifacts"
-          echo "========================================="
-          cd go-functions/bin
-          for dir in lambda-*; do
-            func_name="${dir#lambda-}"
-            if [ -d "$dir" ]; then
-              mkdir -p "$func_name"
-              mv "$dir"/* "$func_name"/ 2>/dev/null || true
-              rmdir "$dir" 2>/dev/null || true
-            fi
-          done
-          echo "✓ Artifacts merged"
-          ls -la
+          make -C go-functions build
 
       - name: Verify all binaries present
         run: |
           echo "========================================="
           echo "Verifying Lambda Binaries"
           echo "========================================="
-          FUNCS="posts-create posts-get posts-get_public posts-get_by_slug posts-list posts-update posts-delete posts-build_status posts-reconcile_build images-get_upload_url images-delete categories-list categories-create categories-update categories-bulk_sort categories-delete"
+          FUNCS=$(make -s -C go-functions print-functions)
+          TOTAL=0
           MISSING=0
           for f in $FUNCS; do
+            TOTAL=$((TOTAL + 1))
             if [ -f "go-functions/bin/$f/bootstrap" ]; then
               echo "✓ $f"
             else
@@ -698,15 +611,21 @@ jobs:
             echo "ERROR: $MISSING binaries missing!"
             exit 1
           fi
-          echo "✓ All 19 binaries verified"
+          echo "✓ All $TOTAL binaries verified"
 
-      - name: Save combined Lambda cache
+      - name: Save Lambda binaries to cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        # Best-effort: a concurrent run may already have saved this exact
+        # key (same go-functions source hash); "Cache already exists" is
+        # not a failure, since the existing entry is equally valid.
+        id: cache-save
+        continue-on-error: true
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: go-functions/bin
-          key: lambda-all-${{ runner.os }}-${{ hashFiles('go-functions/**/*.go', 'go-functions/go.sum') }}
+          key: lambda-all-${{ runner.os }}-${{ hashFiles('go-functions/**/*.go', 'go-functions/go.sum', 'go-functions/go.mod', 'go-functions/Makefile') }}
 
-      - name: Upload merged Lambda binaries
+      - name: Upload Lambda binaries
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: lambda-binaries
@@ -924,7 +843,7 @@ jobs:
       id-token: write # AWS OIDC authentication
       pull-requests: write # plan result comment
     timeout-minutes: 20
-    needs: [setup-labels, terraform-validate-dev, terraform-merge-artifacts]
+    needs: [setup-labels, terraform-validate-dev, terraform-build-lambdas]
     environment: dev
     # NOTE: Duplicate CI runs for the *same* PR (from the `labeled`/`unlabeled`
     # event storm) are de-duplicated by the workflow-level `concurrency` group
@@ -937,7 +856,7 @@ jobs:
       always() &&
       needs.setup-labels.outputs.has-terraform == 'true' &&
       needs.terraform-validate-dev.result == 'success' &&
-      needs.terraform-merge-artifacts.result == 'success' &&
+      needs.terraform-build-lambdas.result == 'success' &&
       needs.setup-labels.outputs.base-ref == 'develop'
     outputs:
       plan-exitcode: ${{ steps.plan.outputs.exitcode }}
@@ -1045,7 +964,7 @@ jobs:
       id-token: write # AWS OIDC authentication
       pull-requests: write # plan result comment
     timeout-minutes: 20
-    needs: [setup-labels, terraform-validate-prd, terraform-merge-artifacts]
+    needs: [setup-labels, terraform-validate-prd, terraform-build-lambdas]
     environment: prod
     # NOTE: Duplicate CI runs for the *same* PR (from the `labeled`/`unlabeled`
     # event storm) are de-duplicated by the workflow-level `concurrency` group
@@ -1058,7 +977,7 @@ jobs:
       always() &&
       needs.setup-labels.outputs.has-terraform == 'true' &&
       needs.terraform-validate-prd.result == 'success' &&
-      needs.terraform-merge-artifacts.result == 'success' &&
+      needs.terraform-build-lambdas.result == 'success' &&
       needs.setup-labels.outputs.base-ref == 'main'
     outputs:
       plan-exitcode: ${{ steps.plan.outputs.exitcode }}
@@ -1540,7 +1459,6 @@ jobs:
       # Terraform Infrastructure
       - terraform-fmt
       - terraform-build-lambdas
-      - terraform-merge-artifacts
       - terraform-validate-dev
       - terraform-validate-prd
       - terraform-security-scan
@@ -1584,7 +1502,6 @@ jobs:
           echo "--- Terraform Infrastructure ---"
           echo "  Format: ${{ needs.terraform-fmt.result }}"
           echo "  Build Lambdas: ${{ needs.terraform-build-lambdas.result }}"
-          echo "  Merge Artifacts: ${{ needs.terraform-merge-artifacts.result }}"
           echo "  Validate (DEV): ${{ needs.terraform-validate-dev.result }}"
           echo "  Validate (PRD): ${{ needs.terraform-validate-prd.result }}"
           echo "  Security Scan: ${{ needs.terraform-security-scan.result }}"
@@ -1632,7 +1549,6 @@ jobs:
           check_required "Go Tests" "${{ needs.go-tests.result }}" "${{ needs.setup-labels.outputs.has-go == 'true' }}"
           check_required "Terraform Format" "${{ needs.terraform-fmt.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
           check_required "Terraform Build Lambdas" "${{ needs.terraform-build-lambdas.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
-          check_required "Terraform Merge Artifacts" "${{ needs.terraform-merge-artifacts.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
           check_required "Terraform Validate (DEV)" "${{ needs.terraform-validate-dev.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && needs.setup-labels.outputs.base-ref == 'develop' }}"
           check_required "Terraform Validate (PRD)" "${{ needs.terraform-validate-prd.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && needs.setup-labels.outputs.base-ref == 'main' }}"
           check_required "Terraform Security Scan" "${{ needs.terraform-security-scan.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
