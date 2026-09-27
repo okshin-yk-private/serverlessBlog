@@ -9,7 +9,11 @@ export const postSchema = z.object({
   category: z.string(),
   tags: z.array(z.string()),
   publishStatus: z.enum(['draft', 'published']),
-  authorId: z.string(),
+  // Issue #683: the public API no longer returns authorId (it was the raw
+  // Cognito sub). Kept optional, not removed outright, so any response that
+  // still includes it (e.g. an authenticated caller reusing this schema)
+  // continues to validate.
+  authorId: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   publishedAt: z.string().optional(),

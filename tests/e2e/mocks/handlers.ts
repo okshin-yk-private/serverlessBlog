@@ -22,6 +22,7 @@ import {
   createMockPost,
   mockCategories,
   slugifyCategoryName,
+  toPublicPost,
   type MockCategory,
 } from './mockData';
 
@@ -215,8 +216,11 @@ export const handlers = [
     const paginatedPosts = filteredPosts.slice(startIndex, startIndex + limit);
     const hasMore = startIndex + limit < filteredPosts.length;
 
+    // issue #683: unauthenticated list responses omit authorId (the raw
+    // Cognito sub), matching Go's list handler (processResults with
+    // includeAuthorID=false). contentMarkdown was already excluded here.
     return HttpResponse.json({
-      items: paginatedPosts, // Backend APIは "items" キーを返す
+      items: paginatedPosts.map(toPublicPost), // Backend APIは "items" キーを返す
       count: paginatedPosts.length,
       nextToken: hasMore ? 'mock-next-token' : undefined,
     });
@@ -233,7 +237,9 @@ export const handlers = [
     if (!post) {
       return HttpResponse.json({ message: 'Post not found' }, { status: 404 });
     }
-    return HttpResponse.json(post);
+    // issue #683: mirrors Go's get_by_slug, which always returns the public
+    // DTO (no contentMarkdown/authorId) since this route is public-only.
+    return HttpResponse.json(toPublicPost(post));
   }),
 
   // 記事詳細取得（公開サイト）
@@ -249,7 +255,9 @@ export const handlers = [
       return HttpResponse.json({ message: 'Post not found' }, { status: 404 });
     }
 
-    return HttpResponse.json(post);
+    // issue #683: mirrors Go's get_public, which always returns the public
+    // DTO (no contentMarkdown/authorId) since this route is public-only.
+    return HttpResponse.json(toPublicPost(post));
   }),
 
   // 管理画面: ログイン - Happy Path Only
