@@ -69,7 +69,12 @@ the impact cannot be bounded; it does not include E2E or Terraform verification.
 
 - Base branch is `develop`, not `main`, unless the user explicitly requests another base.
 - Pushes to `develop` and `main` trigger DEV and PRD deployment workflows respectively.
-  Merge/deployment needs explicit authorization for the target; PR creation does not grant it.
+  Merge/deployment needs explicit authorization for the target. A request to create a PR
+  against `develop` counts as that authorization for its merge (see "Authorization and
+  completion"). Merging to `main` (PRD) always needs its own explicit request.
+- `develop` uses a merge queue and repository auto-merge is disabled, so `gh pr merge`
+  fails. Enqueue with the GraphQL `enqueuePullRequest` mutation and pass `expectedHeadOid`
+  (the verified head SHA); the queue re-runs the required checks before merging.
 - Branch naming: `fix/issue-<N>` / `feat/issue-<N>`.
 - Never commit secrets. Triage Code Scanning alerts via the GitHub Security tab —
   see `docs/SECURITY_SCANNING.md`.
@@ -118,6 +123,13 @@ the language configured in that spec's `spec.json.language`.
 - An implementation request ends after the requested change and checks. A request to
   commit/push/create a PR includes those actions. If CI confirmation was requested,
   follow the required jobs on the current head SHA to completion, repairing in-scope failures.
+- A request to create a PR against `develop` also authorizes merging it: follow every
+  workflow run on the head SHA to completion (a cancelled duplicate is not a result), and
+  once `All CI Checks Passed`, `Security Scan Summary` and `Dependency Update Security Gate`
+  succeed on an unchanged head, enqueue it (`enqueuePullRequest` with `expectedHeadOid`).
+  Follow the queue to the merge and report the resulting DEV Deploy. Do not merge when the
+  user asks for a PR only, no merge, or a draft; when a required check fails (fix in-scope
+  causes, push and repeat; report external ones); or when the head changed.
 - Report changes, checks and outcomes, remaining limitations, and the actual PR/CI state.
   Pending, skipped, blocked, or unrun checks are not success. State external blockers precisely.
 - Kiro phase approval remains intentional. Do not start kiro for an ordinary edit unless
