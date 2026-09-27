@@ -20,6 +20,10 @@ on:
     branches:
       - main
       - develop
+  # Merge queue (#735): re-run the same checks on the queued merge result so
+  # develop does not need "Require branches to be up to date".
+  merge_group:
+    types: [checks_requested]
 
 # Deduplicate concurrent CI runs for the SAME pull request.
 # Dependabot opening a PR, combined with the auto-labeler firing `labeled` /
@@ -87,6 +91,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       pr-number: ${{ steps.get-pr.outputs.pr-number }}
+      base-ref: ${{ steps.get-pr.outputs.base-ref }}
       has-infrastructure: ${{ steps.check-labels.outputs.has-infrastructure }}
       has-terraform: ${{ steps.check-labels.outputs.has-terraform }}
       has-frontend: ${{ steps.check-labels.outputs.has-frontend }}
@@ -106,12 +111,35 @@ jobs:
         id: frontend-changes
         run: bash scripts/ci/detect-changes.sh ci "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
 
-      - name: Get PR number
+      # A merge group has no PR payload. Its head ref is
+      # refs/heads/gh-readonly-queue/<base>/pr-<number>-<sha>, naming the PR the
+      # entry was built for; that PR's labels (synced while it was open) select
+      # the same jobs a PR run would.
+      - name: Get PR number and base branch
         id: get-pr
-        run: echo "pr-number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BASE_REF: ${{ github.base_ref }}
+          GROUP_HEAD_REF: ${{ github.event.merge_group.head_ref }}
+          GROUP_BASE_REF: ${{ github.event.merge_group.base_ref }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = merge_group ]; then
+            BASE_REF="${GROUP_BASE_REF#refs/heads/}"
+            PR_NUMBER=$(printf '%s\n' "$GROUP_HEAD_REF" | sed -nE "s#^refs/heads/gh-readonly-queue/${BASE_REF}/pr-([0-9]+)-[0-9a-f]+\$#\\1#p")
+          else
+            BASE_REF="$PR_BASE_REF"
+          fi
+          if [ -z "$PR_NUMBER" ] || [ -z "$BASE_REF" ]; then
+            echo "Cannot determine PR number or base branch for $EVENT_NAME" >&2
+            exit 1
+          fi
+          echo "pr-number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "base-ref=$BASE_REF" >> "$GITHUB_OUTPUT"
 
       - name: Label PR based on changed files
         if: |
@@ -702,7 +730,7 @@ jobs:
     if: |
       needs.setup-labels.outputs.has-terraform == 'true' &&
       needs.terraform-fmt.result == 'success' &&
-      github.base_ref == 'develop'
+      needs.setup-labels.outputs.base-ref == 'develop'
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -735,7 +763,7 @@ jobs:
     if: |
       needs.setup-labels.outputs.has-terraform == 'true' &&
       needs.terraform-fmt.result == 'success' &&
-      github.base_ref == 'main'
+      needs.setup-labels.outputs.base-ref == 'main'
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -838,13 +866,13 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           # Full history is required so terraform-test-targets.sh can diff
-          # against origin/${{ github.base_ref }} for the --changed filter.
+          # against origin/<base branch> for the --changed filter.
           fetch-depth: 0
 
       - name: Determine terraform test targets
         id: targets
         env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE_REF: ${{ needs.setup-labels.outputs.base-ref }}
         run: |
           TARGETS=$(bash scripts/ci/terraform-test-targets.sh --changed "origin/${BASE_REF}" --json)
           echo "targets=$TARGETS" >> $GITHUB_OUTPUT
@@ -916,7 +944,7 @@ jobs:
       needs.setup-labels.outputs.has-terraform == 'true' &&
       needs.terraform-validate-dev.result == 'success' &&
       needs.terraform-merge-artifacts.result == 'success' &&
-      github.base_ref == 'develop'
+      needs.setup-labels.outputs.base-ref == 'develop'
     outputs:
       plan-exitcode: ${{ steps.plan.outputs.exitcode }}
     steps:
@@ -988,6 +1016,7 @@ jobs:
           retention-days: 3
 
       - name: Comment Plan on PR
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
@@ -1036,7 +1065,7 @@ jobs:
       needs.setup-labels.outputs.has-terraform == 'true' &&
       needs.terraform-validate-prd.result == 'success' &&
       needs.terraform-merge-artifacts.result == 'success' &&
-      github.base_ref == 'main'
+      needs.setup-labels.outputs.base-ref == 'main'
     outputs:
       plan-exitcode: ${{ steps.plan.outputs.exitcode }}
     steps:
@@ -1101,6 +1130,7 @@ jobs:
           retention-days: 3
 
       - name: Comment Plan on PR
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
@@ -1609,13 +1639,13 @@ jobs:
           check_required "Terraform Format" "${{ needs.terraform-fmt.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
           check_required "Terraform Build Lambdas" "${{ needs.terraform-build-lambdas.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
           check_required "Terraform Merge Artifacts" "${{ needs.terraform-merge-artifacts.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
-          check_required "Terraform Validate (DEV)" "${{ needs.terraform-validate-dev.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && github.base_ref == 'develop' }}"
-          check_required "Terraform Validate (PRD)" "${{ needs.terraform-validate-prd.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && github.base_ref == 'main' }}"
+          check_required "Terraform Validate (DEV)" "${{ needs.terraform-validate-dev.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && needs.setup-labels.outputs.base-ref == 'develop' }}"
+          check_required "Terraform Validate (PRD)" "${{ needs.terraform-validate-prd.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && needs.setup-labels.outputs.base-ref == 'main' }}"
           check_required "Terraform Security Scan" "${{ needs.terraform-security-scan.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
           check_required "Terraform Test - Determine Targets" "${{ needs.terraform-test-matrix-prep.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
           check_required "Terraform Test" "${{ needs.terraform-test.result }}" "${{ needs.terraform-test-matrix-prep.outputs.has-targets == 'true' }}"
-          check_required "Terraform Plan (DEV)" "${{ needs.terraform-plan-dev.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && github.base_ref == 'develop' }}"
-          check_required "Terraform Plan (PRD)" "${{ needs.terraform-plan-prd.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && github.base_ref == 'main' }}"
+          check_required "Terraform Plan (DEV)" "${{ needs.terraform-plan-dev.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && needs.setup-labels.outputs.base-ref == 'develop' }}"
+          check_required "Terraform Plan (PRD)" "${{ needs.terraform-plan-prd.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && needs.setup-labels.outputs.base-ref == 'main' }}"
           check_required "Frontend Astro Tests" "${{ needs.frontend-astro-tests.result }}" "${{ needs.setup-labels.outputs.has-astro == 'true' }}"
           check_required "Frontend Admin Tests" "${{ needs.frontend-admin-tests.result }}" "${{ needs.setup-labels.outputs.has-admin == 'true' }}"
           check_required "E2E Public" "${{ needs.e2e-public-tests.result }}" "${{ needs.setup-labels.outputs.has-astro == 'true' }}"

@@ -37,3 +37,20 @@ test('security gate has no write token and blocks new secrets', () => {
   expect(workflow).toContain('trivy image --download-db-only');
   expect(workflow).toContain('sha256sum --check');
 });
+
+test('every required-check workflow also reports on the merge queue', () => {
+  for (const file of [
+    'ci.yml',
+    'security-scan.yml',
+    'dependency-update-security.yml',
+  ]) {
+    const workflow = readFileSync(`.github/workflows/${file}`, 'utf8');
+    expect(workflow).toMatch(
+      /\n {2}merge_group:\n {4}types: \[checks_requested\]\n/
+    );
+  }
+  // Merge groups have no PR payload: base branch comes from setup-labels.
+  const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+  expect(ci).not.toContain('github.base_ref ==');
+  expect(ci).toContain('github.event.merge_group.head_ref');
+});
