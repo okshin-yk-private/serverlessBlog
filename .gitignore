@@ -17,6 +17,16 @@ out/
 !frontend/admin/src/**/*.d.ts
 !frontend/public-astro/src/**/*.d.ts
 
+# Exception: static, unbundled scripts served as-is from public/ (must load
+# with a <script src>, not be processed/bundled, for CSP script-src 'self' —
+# see Issue #680). Mirrors the existing frontend/admin/public/mockServiceWorker.js.
+!frontend/admin/public/theme-init.js
+!frontend/admin/public/theme-favicon-sync.js
+!frontend/public-astro/public/theme-init.js
+!frontend/public-astro/public/theme-favicon-sync.js
+!frontend/public-astro/public/theme-toggle.js
+!frontend/public-astro/public/theme-os-follow.js
+
 # Astro generated types and content cache
 frontend/public-astro/.astro/
 

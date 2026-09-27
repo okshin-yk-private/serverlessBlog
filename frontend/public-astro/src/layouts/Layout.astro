@@ -68,25 +68,10 @@ const {
 
     <!-- Theme bootstrap (FOUC prevention).
          Reads localStorage.theme ("light" | "dark" | "system"), falls back to system preference,
-         and applies data-theme to <html> before any styles render. Must be inline & blocking. -->
-    <script is:inline>
-      (function () {
-        try {
-          var saved = localStorage.getItem('theme');
-          if (saved !== 'light' && saved !== 'dark' && saved !== 'system') {
-            saved = 'system';
-          }
-          var prefersDark = window.matchMedia(
-            '(prefers-color-scheme: dark)'
-          ).matches;
-          var resolved =
-            saved === 'system' ? (prefersDark ? 'dark' : 'light') : saved;
-          document.documentElement.setAttribute('data-theme', resolved);
-        } catch (e) {
-          document.documentElement.setAttribute('data-theme', 'light');
-        }
-      })();
-    </script>
+         and applies data-theme to <html> before any styles render.
+         External, render-blocking classic script (CSP script-src 'self': no inline scripts).
+         Must stay a plain script tag with a src, no defer/async/module type. -->
+    <script is:inline src="/theme-init.js"></script>
 
     <!-- Theme-aware favicon -->
     <link
@@ -95,27 +80,7 @@ const {
       type="image/png"
       href="/favicon-light.png"
     />
-    <script is:inline>
-      (function () {
-        var favicon = document.getElementById('site-favicon');
-        if (!favicon) return;
-
-        var syncFavicon = function () {
-          var isDark =
-            document.documentElement.getAttribute('data-theme') === 'dark';
-          favicon.setAttribute(
-            'href',
-            isDark ? '/favicon-dark.png' : '/favicon-light.png'
-          );
-        };
-
-        syncFavicon();
-        new MutationObserver(syncFavicon).observe(document.documentElement, {
-          attributes: true,
-          attributeFilter: ['data-theme'],
-        });
-      })();
-    </script>
+    <script is:inline src="/theme-favicon-sync.js"></script>
 
     <!-- SEO Meta Tags (Task 3.1) -->
     <SEO
@@ -161,21 +126,11 @@ const {
       </div>
     </footer>
 
-    <!-- Live OS theme follow when user has not explicitly chosen light/dark. -->
-    <script is:inline>
-      (function () {
-        var mql = window.matchMedia('(prefers-color-scheme: dark)');
-        var handler = function (e) {
-          var saved = localStorage.getItem('theme') || 'system';
-          if (saved !== 'system') return;
-          document.documentElement.setAttribute(
-            'data-theme',
-            e.matches ? 'dark' : 'light'
-          );
-        };
-        mql.addEventListener('change', handler);
-      })();
-    </script>
+    <!-- Live OS theme follow when user has not explicitly chosen light/dark.
+         External static file: Vite/rolldown otherwise inlines a script this
+         small directly into the HTML as `<script type="module">`, which has
+         no src and would fail CSP script-src 'self'. -->
+    <script is:inline src="/theme-os-follow.js"></script>
   </body>
 </html>
 

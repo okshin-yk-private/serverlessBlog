@@ -45,7 +45,10 @@ for (const width of [390, 1440]) {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route('**/*.js', async (route) => {
+    // Hold only the component bundles. The render-blocking theme scripts in
+    // <head> (/theme-*.js, static files for CSP script-src 'self', #680) run
+    // before first paint by design, as the inline scripts they replaced did.
+    await page.route('**/_astro/**/*.js', async (route) => {
       await gate;
       await route.continue();
     });

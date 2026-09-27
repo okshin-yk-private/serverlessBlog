@@ -710,3 +710,150 @@ run "api_origin_https_only" {
     error_message = "API Gateway origin must use https-only protocol policy"
   }
 }
+
+# Test 24: Verify /admin/* uses a dedicated response headers policy, distinct
+# from every other behavior (Issue #680: per-surface CSP split, phase 1).
+run "admin_uses_dedicated_response_headers_policy" {
+  command = plan
+
+  override_resource {
+    target          = aws_cloudfront_response_headers_policy.security_headers
+    override_during = plan
+    values = {
+      id = "mock-public-response-headers-policy-id"
+    }
+  }
+
+  override_resource {
+    target          = aws_cloudfront_response_headers_policy.admin_security_headers
+    override_during = plan
+    values = {
+      id = "mock-admin-response-headers-policy-id"
+    }
+  }
+
+  variables {
+    environment                             = "dev"
+    image_bucket_name                       = "test-images-bucket"
+    image_bucket_regional_domain_name       = "test-images-bucket.s3.ap-northeast-1.amazonaws.com"
+    public_site_bucket_name                 = "test-public-site-bucket"
+    public_site_bucket_regional_domain_name = "test-public-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    admin_site_bucket_name                  = "test-admin-site-bucket"
+    admin_site_bucket_regional_domain_name  = "test-admin-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    rest_api_id                             = "abc123xyz"
+    api_stage_name                          = "dev"
+    aws_region                              = "ap-northeast-1"
+  }
+
+  # /admin/* must use the admin-only policy.
+  assert {
+    condition = anytrue([
+      for behavior in aws_cloudfront_distribution.main.ordered_cache_behavior :
+      behavior.path_pattern == "/admin/*" && behavior.response_headers_policy_id == aws_cloudfront_response_headers_policy.admin_security_headers.id
+    ])
+    error_message = "/admin/* must use the dedicated admin response headers policy"
+  }
+
+  # The default (public site) behavior must use the public policy, not admin's.
+  assert {
+    condition     = aws_cloudfront_distribution.main.default_cache_behavior[0].response_headers_policy_id == aws_cloudfront_response_headers_policy.security_headers.id
+    error_message = "The default cache behavior (public site) must use the public response headers policy"
+  }
+
+  # Every non-admin behavior (/_astro/*, /images/*, /api/*) must use the
+  # public policy, never the admin one.
+  assert {
+    condition = alltrue([
+      for behavior in aws_cloudfront_distribution.main.ordered_cache_behavior :
+      behavior.path_pattern == "/admin/*" || behavior.response_headers_policy_id == aws_cloudfront_response_headers_policy.security_headers.id
+    ])
+    error_message = "Every non-admin behavior must use the public response headers policy"
+  }
+
+  # The two policies must be genuinely distinct resources.
+  assert {
+    condition     = aws_cloudfront_response_headers_policy.admin_security_headers.id != aws_cloudfront_response_headers_policy.security_headers.id
+    error_message = "Admin and public response headers policies must be separate resources"
+  }
+}
+
+# Test 25: Verify the enforced Content-Security-Policy on both policies is
+# unchanged (Issue #680 phase 1 must not alter enforced behavior).
+run "enforced_csp_unchanged_on_both_policies" {
+  command = plan
+
+  variables {
+    environment                             = "dev"
+    image_bucket_name                       = "test-images-bucket"
+    image_bucket_regional_domain_name       = "test-images-bucket.s3.ap-northeast-1.amazonaws.com"
+    public_site_bucket_name                 = "test-public-site-bucket"
+    public_site_bucket_regional_domain_name = "test-public-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    admin_site_bucket_name                  = "test-admin-site-bucket"
+    admin_site_bucket_regional_domain_name  = "test-admin-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    rest_api_id                             = "abc123xyz"
+    api_stage_name                          = "dev"
+    aws_region                              = "ap-northeast-1"
+  }
+
+  assert {
+    condition     = aws_cloudfront_response_headers_policy.security_headers.security_headers_config[0].content_security_policy[0].content_security_policy == "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.amazonaws.com"
+    error_message = "The enforced CSP on the public response headers policy must stay byte-for-byte unchanged in phase 1"
+  }
+
+  assert {
+    condition     = aws_cloudfront_response_headers_policy.admin_security_headers.security_headers_config[0].content_security_policy[0].content_security_policy == "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.amazonaws.com"
+    error_message = "The enforced CSP on the admin response headers policy must be identical to the public one in phase 1"
+  }
+}
+
+# Test 26: Verify the Report-Only CSP strings carry the tightened directives
+# without enforcing anything (Issue #680 phase 1).
+run "report_only_csp_directives" {
+  command = plan
+
+  variables {
+    environment                             = "dev"
+    image_bucket_name                       = "test-images-bucket"
+    image_bucket_regional_domain_name       = "test-images-bucket.s3.ap-northeast-1.amazonaws.com"
+    public_site_bucket_name                 = "test-public-site-bucket"
+    public_site_bucket_regional_domain_name = "test-public-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    admin_site_bucket_name                  = "test-admin-site-bucket"
+    admin_site_bucket_regional_domain_name  = "test-admin-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    rest_api_id                             = "abc123xyz"
+    api_stage_name                          = "dev"
+    aws_region                              = "ap-northeast-1"
+  }
+
+  # Public: Report-Only header present, tightened directives, no 'unsafe-inline' script-src.
+  assert {
+    condition = anytrue([
+      for item in aws_cloudfront_response_headers_policy.security_headers.custom_headers_config[0].items :
+      item.header == "Content-Security-Policy-Report-Only" &&
+      strcontains(item.value, "script-src 'self';") &&
+      !strcontains(item.value, "script-src 'self' 'unsafe-inline'") &&
+      strcontains(item.value, "connect-src 'self';") &&
+      strcontains(item.value, "object-src 'none';") &&
+      strcontains(item.value, "frame-ancestors 'none';") &&
+      strcontains(item.value, "base-uri 'self';") &&
+      strcontains(item.value, "form-action 'self'")
+    ])
+    error_message = "Public policy must carry a tightened Content-Security-Policy-Report-Only header"
+  }
+
+  # Admin: Report-Only header present, tightened script-src, and connect-src
+  # scoped to same-origin + Cognito + the image bucket's regional S3 domain.
+  assert {
+    condition = anytrue([
+      for item in aws_cloudfront_response_headers_policy.admin_security_headers.custom_headers_config[0].items :
+      item.header == "Content-Security-Policy-Report-Only" &&
+      strcontains(item.value, "script-src 'self';") &&
+      !strcontains(item.value, "script-src 'self' 'unsafe-inline'") &&
+      strcontains(item.value, "connect-src 'self' https://cognito-idp.ap-northeast-1.amazonaws.com https://test-images-bucket.s3.ap-northeast-1.amazonaws.com;") &&
+      strcontains(item.value, "object-src 'none';") &&
+      strcontains(item.value, "frame-ancestors 'none';") &&
+      strcontains(item.value, "base-uri 'self';") &&
+      strcontains(item.value, "form-action 'self'")
+    ])
+    error_message = "Admin policy must carry a tightened Content-Security-Policy-Report-Only header scoped to Cognito and the image bucket"
+  }
+}
