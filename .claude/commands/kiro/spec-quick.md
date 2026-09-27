@@ -15,7 +15,7 @@ argument-hint: <project-description> [--auto]
 </background_information>
 
 <instructions>
-## ⚠️ CRITICAL: Automatic Mode Execution Rules
+## Automatic Mode Execution Rules
 
 **If `--auto` flag is present in `$ARGUMENTS`, you are in AUTOMATIC MODE.**
 
@@ -24,7 +24,7 @@ In Automatic Mode:
 - Use TodoWrite to track progress (4 tasks: init, requirements, design, tasks)
 - Each phase completion updates TodoWrite and continues immediately
 - IGNORE any "Next Step" messages from Phase 2-4 (they are for standalone usage)
-- Stop ONLY after Phase 4 completes or if error occurs
+- Stop after Phase 4 completes, or earlier if an error occurs
 
 **Progress tracking with TodoWrite**:
 - Phase 1 complete = 1/4 tasks done → Continue to Phase 2
@@ -135,7 +135,7 @@ Execute these 4 phases in order:
 
 Wait for completion. Subagent will return with "次のステップ" message.
 
-**IMPORTANT**: In Automatic Mode, IGNORE the "次のステップ" message. It is for standalone usage.
+In Automatic Mode, skip the "次のステップ" message; it is for standalone usage.
 
 **Update TodoWrite**: Mark task 2 as `completed`, task 3 as `in_progress`.
 
@@ -165,7 +165,7 @@ Note: `-y` flag auto-approves requirements.
 
 Wait for completion. Subagent will return with "次のステップ" message.
 
-**IMPORTANT**: In Automatic Mode, IGNORE the "次のステップ" message.
+In Automatic Mode, skip the "次のステップ" message.
 
 **Update TodoWrite**: Mark task 3 as `completed`, task 4 as `in_progress`.
 

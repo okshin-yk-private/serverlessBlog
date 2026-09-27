@@ -57,10 +57,6 @@
 # | /admin/images             | aws_api_gateway_resource.admin_images          |
 # | /admin/images/upload-url  | aws_api_gateway_resource.admin_images_upload_url |
 # | /admin/images/{key+}      | aws_api_gateway_resource.admin_images_key      |
-# | /admin/auth               | aws_api_gateway_resource.admin_auth            |
-# | /admin/auth/login         | aws_api_gateway_resource.admin_auth_login      |
-# | /admin/auth/logout        | aws_api_gateway_resource.admin_auth_logout     |
-# | /admin/auth/refresh       | aws_api_gateway_resource.admin_auth_refresh    |
 # +---------------------------+------------------------------------------------+
 #
 # After import, verify:

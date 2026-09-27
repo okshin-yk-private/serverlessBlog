@@ -121,36 +121,6 @@ variable "lambda_get_post_by_slug_invoke_arn" {
   description = "Get Post By Slug Lambda function invoke ARN"
 }
 
-variable "lambda_login_arn" {
-  type        = string
-  description = "Login Lambda function ARN"
-}
-
-variable "lambda_login_invoke_arn" {
-  type        = string
-  description = "Login Lambda function invoke ARN"
-}
-
-variable "lambda_logout_arn" {
-  type        = string
-  description = "Logout Lambda function ARN"
-}
-
-variable "lambda_logout_invoke_arn" {
-  type        = string
-  description = "Logout Lambda function invoke ARN"
-}
-
-variable "lambda_refresh_arn" {
-  type        = string
-  description = "Refresh Lambda function ARN"
-}
-
-variable "lambda_refresh_invoke_arn" {
-  type        = string
-  description = "Refresh Lambda function invoke ARN"
-}
-
 variable "lambda_get_upload_url_arn" {
   type        = string
   description = "Get Upload URL Lambda function ARN"

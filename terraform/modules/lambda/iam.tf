@@ -306,53 +306,6 @@ resource "aws_iam_role_policy" "lambda_posts_build_reconciler_codebuild" {
 }
 
 # ======================
-# Auth Domain IAM Role
-# Out of scope for #493 - already scoped to InitiateAuth /
-# RespondToAuthChallenge / GlobalSignOut only (no DynamoDB/S3 access).
-# ======================
-
-resource "aws_iam_role" "lambda_auth" {
-  name               = "blog-lambda-auth-role"
-  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
-  tags               = local.common_tags
-}
-
-# Basic execution policy for CloudWatch Logs
-resource "aws_iam_role_policy_attachment" "lambda_auth_basic_execution" {
-  role       = aws_iam_role.lambda_auth.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-# X-Ray policy (prd only)
-resource "aws_iam_role_policy_attachment" "lambda_auth_xray" {
-  count      = var.enable_xray ? 1 : 0
-  role       = aws_iam_role.lambda_auth.name
-  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
-}
-
-# Cognito access policy for Auth domain
-resource "aws_iam_role_policy" "lambda_auth_cognito" {
-  name = "blog-lambda-auth-cognito-policy"
-  role = aws_iam_role.lambda_auth.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "CognitoAuth"
-        Effect = "Allow"
-        Action = [
-          "cognito-idp:InitiateAuth",
-          "cognito-idp:RespondToAuthChallenge",
-          "cognito-idp:GlobalSignOut"
-        ]
-        Resource = var.user_pool_arn
-      }
-    ]
-  })
-}
-
-# ======================
 # Images Domain IAM Role
 # Out of scope for #493 - both functions genuinely need S3 read/write/delete
 # on the shared bucket (get_upload_url presigns a PUT, which requires

@@ -55,7 +55,7 @@ Provide output in the language specified in `spec.json` with the following struc
 **Format Requirements**:
 - Use Markdown headings (##, ###)
 - Wrap commands in code blocks
-- Keep total output concise (under 250 words)
+- Keep total output concise: what was produced, open issues, and the next step
 - Use clear, professional language per `spec.json.language`
 
 ## Safety & Fallback

@@ -149,6 +149,36 @@ export const migrateFromLocalStorage = (): void => {
   }
 };
 
+// Amplify v6 が Cognito トークンを localStorage に保存する際のキーのプレフィックス
+// (@aws-amplify/auth の AUTH_KEY_PREFIX と同じ値。キーは
+//  `${AUTH_KEY_PREFIX}.<clientId>.<username>.<type>` の形式)
+const LEGACY_AMPLIFY_KEY_PREFIX = 'CognitoIdentityServiceProvider.';
+
+/**
+ * 旧バージョンが localStorage に残した Amplify のCognitoトークンを削除する
+ *
+ * Amplify v6 の既定保存先(localStorage)を使っていた過去のセッションで
+ * 書き込まれた `CognitoIdentityServiceProvider.*` キーのみを対象とする。
+ * それ以外のキー（アプリ独自のトークンやテーマ設定など）には触れない。
+ * localStorageにアクセスできない環境でも例外を投げないようにする。
+ */
+export const cleanupLegacyAmplifyKeys = (): void => {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(LEGACY_AMPLIFY_KEY_PREFIX)) {
+        keysToRemove.push(key);
+      }
+    }
+    for (const key of keysToRemove) {
+      localStorage.removeItem(key);
+    }
+  } catch {
+    // localStorageにアクセスできない場合は無視
+  }
+};
+
 /**
  * JWTペイロードの型定義
  */

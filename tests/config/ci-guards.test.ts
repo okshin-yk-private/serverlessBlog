@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -265,5 +266,122 @@ describe('workflow permissions and wiring', () => {
     expect(read('.github/workflows/nightly.yml')).toContain(
       'python3 scripts/ci/verify_security_exceptions.py --fail-on-expired'
     );
+  });
+
+  // Issue #718: the terraform provider cache no longer accumulates old
+  // provider versions via restore-keys, and Lambda binaries are restored
+  // from (or built and saved to) a single exact-match cache instead of a
+  // 19-way matrix, with the function list read from go-functions/Makefile
+  // rather than duplicated in each workflow.
+  describe('terraform provider cache and Lambda build (issue #718)', () => {
+    test('the shared setup-terraform-cached action has no restore-keys', () => {
+      const action = read('.github/actions/setup-terraform-cached/action.yml');
+      expect(action).toContain(
+        "key: terraform-providers-${{ runner.os }}-${{ hashFiles('terraform/**/.terraform.lock.hcl') }}"
+      );
+      expect(action).not.toContain('restore-keys');
+    });
+
+    test('deploy.yml delegates DEV/PRD Terraform setup to the shared cached action', () => {
+      const deploy = jobs(read('.github/workflows/deploy.yml'));
+      for (const name of [
+        'deploy-infrastructure-dev',
+        'deploy-infrastructure-prd',
+      ]) {
+        const job = deploy[name];
+        expect(job).toContain('uses: ./.github/actions/setup-terraform-cached');
+        expect(job).not.toContain('uses: hashicorp/setup-terraform@');
+        expect(job).not.toContain('restore-keys');
+      }
+    });
+
+    // Binaries depend on the Go toolchain (go.mod) and the build flags
+    // (Makefile), not only on sources: a Go security patch or a flag change
+    // must never reuse stale binaries from the cache.
+    const LAMBDA_CACHE_KEY =
+      "key: lambda-all-${{ runner.os }}-${{ hashFiles('go-functions/**/*.go', 'go-functions/go.sum', 'go-functions/go.mod', 'go-functions/Makefile') }}";
+
+    test('every Lambda cache restore/save uses the toolchain- and flag-aware key', () => {
+      for (const file of [
+        '.github/workflows/ci.yml',
+        '.github/workflows/deploy.yml',
+      ]) {
+        const keys = read(file).match(/key: lambda-all-.*$/gm) ?? [];
+        expect(keys.length).toBe(2);
+        for (const key of keys) expect(key).toBe(LAMBDA_CACHE_KEY);
+      }
+    });
+
+    test('ci.yml builds Lambda binaries in a single job with an exact-match cache, not a matrix', () => {
+      const ci = jobs(read('.github/workflows/ci.yml'));
+      const build = ci['terraform-build-lambdas'];
+      expect(build).toBeDefined();
+      expect(build).not.toContain('strategy:');
+      expect(build).not.toContain('matrix:');
+      expect(build).not.toContain('restore-keys:');
+      expect(build).toContain(LAMBDA_CACHE_KEY);
+      expect(build).toContain('make -C go-functions build');
+      expect(build).toContain('make -s -C go-functions print-functions');
+      // The separate merge job is gone; terraform-build-lambdas alone
+      // produces the lambda-binaries artifact plan jobs consume.
+      expect(ci['terraform-merge-artifacts']).toBeUndefined();
+    });
+
+    test('deploy.yml restores or builds Lambda binaries in a single job, not a matrix', () => {
+      const deploy = jobs(read('.github/workflows/deploy.yml'));
+      const job = deploy['restore-lambda-binaries'];
+      expect(job).toBeDefined();
+      expect(job).not.toContain('strategy:');
+      expect(job).not.toContain('matrix:');
+      expect(job).not.toContain('restore-keys:');
+      expect(job).toContain('make -C go-functions build');
+      expect(job).toContain('make -s -C go-functions print-functions');
+      expect(deploy['build-lambdas']).toBeUndefined();
+      expect(deploy['merge-lambda-artifacts']).toBeUndefined();
+    });
+
+    test('no workflow hardcodes the Lambda function list; go-functions/Makefile is the single source', () => {
+      for (const file of [
+        '.github/workflows/ci.yml',
+        '.github/workflows/deploy.yml',
+      ]) {
+        const workflow = read(file);
+        expect(workflow).not.toContain('posts-create posts-get');
+        expect(workflow).not.toMatch(/function:\s*posts-create/);
+      }
+    });
+
+    test('ci-success still fail-closed gates the Lambda build job', () => {
+      const ciSuccess = jobs(read('.github/workflows/ci.yml'))['ci-success'];
+      expect(ciSuccess).toContain('- terraform-build-lambdas');
+      expect(ciSuccess).not.toContain('terraform-merge-artifacts');
+      expect(ciSuccess).toContain(
+        '"Terraform Build Lambdas" "${{ needs.terraform-build-lambdas.result }}"'
+      );
+    });
+
+    test('go-functions/Makefile print-functions is the single source of the function list', () => {
+      const result = spawnSync(
+        'make',
+        ['-s', '-C', 'go-functions', 'print-functions'],
+        { cwd: repo, encoding: 'utf8' }
+      );
+      expect(result.status).toBe(0);
+      const functions = result.stdout.trim().split('\n');
+      // Every listed Lambda must have a real cmd/<group>/<name> entrypoint,
+      // so the list the workflows verify cannot drift from the sources.
+      // The auth Lambdas were removed in #732 and must not come back here.
+      expect(functions.length).toBeGreaterThan(0);
+      for (const name of functions) {
+        const [group, ...rest] = name.split('-');
+        expect(
+          existsSync(
+            join(repo, 'go-functions/cmd', group, rest.join('-'), 'main.go')
+          )
+        ).toBe(true);
+      }
+      expect(functions.some((name) => name.startsWith('auth-'))).toBe(false);
+      expect(new Set(functions).size).toBe(functions.length);
+    });
   });
 });

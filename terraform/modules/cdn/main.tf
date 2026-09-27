@@ -9,6 +9,19 @@ locals {
   cache_policy_caching_disabled  = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
   # AllViewerExceptHostHeader - Forwards all viewer headers except Host (recommended for API Gateway)
   origin_request_policy_all_viewer_except_host = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
+
+  # Issue #680 phase 1: stricter per-surface CSP strings shipped as
+  # Content-Security-Policy-Report-Only (violations are only reported to the
+  # browser console; nothing is blocked). The enforced Content-Security-Policy
+  # header on both response headers policies below is intentionally left
+  # byte-for-byte unchanged. Phase 2 (a later PR) will enforce these once DEV
+  # shows zero report-only violations.
+  csp_report_only_public = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+
+  # admin connects to same-origin /api, Cognito, and the presigned S3 PUT
+  # target for image uploads (regional virtual-hosted endpoint); it also
+  # renders local blob: URLs for image previews before upload completes.
+  csp_report_only_admin = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://cognito-idp.${var.aws_region}.amazonaws.com https://${var.image_bucket_regional_domain_name}; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
 }
 
 # Origin Access Control for S3 buckets
@@ -518,11 +531,13 @@ EOF
   }
 }
 
-# Security Response Headers Policy
-# Adds security headers to all CloudFront responses
+# Security Response Headers Policy - Public site
+# Adds security headers to CloudFront responses for the default behavior,
+# /_astro/*, /images/* and /api/* (everything except /admin/*; see
+# admin_security_headers below for Issue #680's per-surface CSP split).
 resource "aws_cloudfront_response_headers_policy" "security_headers" {
   name    = "BlogSecurityHeaders-${var.environment}"
-  comment = "Security response headers for blog CDN"
+  comment = "Security response headers for blog CDN (public site)"
 
   security_headers_config {
     content_type_options {
@@ -549,6 +564,61 @@ resource "aws_cloudfront_response_headers_policy" "security_headers" {
     referrer_policy {
       referrer_policy = "strict-origin-when-cross-origin"
       override        = true
+    }
+  }
+
+  # Issue #680 phase 1: report-only, does not block anything yet.
+  custom_headers_config {
+    items {
+      header   = "Content-Security-Policy-Report-Only"
+      value    = local.csp_report_only_public
+      override = true
+    }
+  }
+}
+
+# Security Response Headers Policy - Admin site (/admin/*)
+# Same enforced security headers/CSP as the public policy above (unchanged),
+# plus a stricter Content-Security-Policy-Report-Only tailored to admin's
+# actual connections (same-origin /api, Cognito, presigned S3 image upload).
+resource "aws_cloudfront_response_headers_policy" "admin_security_headers" {
+  name    = "BlogSecurityHeadersAdmin-${var.environment}"
+  comment = "Security response headers for blog CDN (admin)"
+
+  security_headers_config {
+    content_type_options {
+      override = true
+    }
+
+    frame_options {
+      frame_option = "DENY"
+      override     = true
+    }
+
+    strict_transport_security {
+      access_control_max_age_sec = 31536000
+      include_subdomains         = true
+      preload                    = true
+      override                   = true
+    }
+
+    content_security_policy {
+      content_security_policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.amazonaws.com"
+      override                = true
+    }
+
+    referrer_policy {
+      referrer_policy = "strict-origin-when-cross-origin"
+      override        = true
+    }
+  }
+
+  # Issue #680 phase 1: report-only, does not block anything yet.
+  custom_headers_config {
+    items {
+      header   = "Content-Security-Policy-Report-Only"
+      value    = local.csp_report_only_admin
+      override = true
     }
   }
 }
@@ -650,7 +720,7 @@ resource "aws_cloudfront_distribution" "main" {
     viewer_protocol_policy     = "redirect-to-https"
     compress                   = true
     cache_policy_id            = local.cache_policy_caching_optimized
-    response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.admin_security_headers.id
 
     # Use combined function (auth + SPA) for dev, SPA-only for production
     function_association {

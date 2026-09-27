@@ -148,38 +148,6 @@ resource "aws_api_gateway_resource" "admin_images_key" {
   path_part   = "{key+}"
 }
 
-# /admin/auth resource
-# Requirement 5.1: Create /admin/auth resource
-resource "aws_api_gateway_resource" "admin_auth" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.admin.id
-  path_part   = "auth"
-}
-
-# /admin/auth/login resource
-# Requirement 5.1: Create /admin/auth/login resource
-resource "aws_api_gateway_resource" "admin_auth_login" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.admin_auth.id
-  path_part   = "login"
-}
-
-# /admin/auth/logout resource
-# Requirement 5.1: Create /admin/auth/logout resource
-resource "aws_api_gateway_resource" "admin_auth_logout" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.admin_auth.id
-  path_part   = "logout"
-}
-
-# /admin/auth/refresh resource
-# Requirement 5.1: Create /admin/auth/refresh resource
-resource "aws_api_gateway_resource" "admin_auth_refresh" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.admin_auth.id
-  path_part   = "refresh"
-}
-
 # ======================
 # API Methods and Integrations
 # ======================
@@ -591,205 +559,6 @@ resource "aws_api_gateway_integration_response" "admin_images_key_options" {
   response_parameters = {
     "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
     "method.response.header.Access-Control-Allow-Methods" = "'DELETE,OPTIONS'"
-    "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origins[0]}'"
-  }
-}
-
-# --- POST /admin/auth/login (No auth) ---
-resource "aws_api_gateway_method" "admin_auth_login_post" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_auth_login.id
-  http_method   = "POST"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "admin_auth_login_post" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.admin_auth_login.id
-  http_method             = aws_api_gateway_method.admin_auth_login_post.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = var.lambda_login_invoke_arn
-}
-
-# --- OPTIONS /admin/auth/login (CORS) ---
-resource "aws_api_gateway_method" "admin_auth_login_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_auth_login.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "admin_auth_login_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.admin_auth_login.id
-  http_method = aws_api_gateway_method.admin_auth_login_options.http_method
-  type        = "MOCK"
-
-  request_templates = {
-    "application/json" = "{\"statusCode\": 200}"
-  }
-}
-
-resource "aws_api_gateway_method_response" "admin_auth_login_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.admin_auth_login.id
-  http_method = aws_api_gateway_method.admin_auth_login_options.http_method
-  status_code = "200"
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true
-    "method.response.header.Access-Control-Allow-Methods" = true
-    "method.response.header.Access-Control-Allow-Origin"  = true
-  }
-
-  response_models = {
-    "application/json" = "Empty"
-  }
-}
-
-resource "aws_api_gateway_integration_response" "admin_auth_login_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.admin_auth_login.id
-  http_method = aws_api_gateway_method.admin_auth_login_options.http_method
-  status_code = aws_api_gateway_method_response.admin_auth_login_options.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
-    "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origins[0]}'"
-  }
-}
-
-# --- POST /admin/auth/logout (Cognito auth) ---
-resource "aws_api_gateway_method" "admin_auth_logout_post" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_auth_logout.id
-  http_method   = "POST"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
-}
-
-resource "aws_api_gateway_integration" "admin_auth_logout_post" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.admin_auth_logout.id
-  http_method             = aws_api_gateway_method.admin_auth_logout_post.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = var.lambda_logout_invoke_arn
-}
-
-# --- OPTIONS /admin/auth/logout (CORS) ---
-resource "aws_api_gateway_method" "admin_auth_logout_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_auth_logout.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "admin_auth_logout_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.admin_auth_logout.id
-  http_method = aws_api_gateway_method.admin_auth_logout_options.http_method
-  type        = "MOCK"
-
-  request_templates = {
-    "application/json" = "{\"statusCode\": 200}"
-  }
-}
-
-resource "aws_api_gateway_method_response" "admin_auth_logout_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.admin_auth_logout.id
-  http_method = aws_api_gateway_method.admin_auth_logout_options.http_method
-  status_code = "200"
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true
-    "method.response.header.Access-Control-Allow-Methods" = true
-    "method.response.header.Access-Control-Allow-Origin"  = true
-  }
-
-  response_models = {
-    "application/json" = "Empty"
-  }
-}
-
-resource "aws_api_gateway_integration_response" "admin_auth_logout_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.admin_auth_logout.id
-  http_method = aws_api_gateway_method.admin_auth_logout_options.http_method
-  status_code = aws_api_gateway_method_response.admin_auth_logout_options.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
-    "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origins[0]}'"
-  }
-}
-
-# --- POST /admin/auth/refresh (No auth) ---
-resource "aws_api_gateway_method" "admin_auth_refresh_post" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_auth_refresh.id
-  http_method   = "POST"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "admin_auth_refresh_post" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.admin_auth_refresh.id
-  http_method             = aws_api_gateway_method.admin_auth_refresh_post.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = var.lambda_refresh_invoke_arn
-}
-
-# --- OPTIONS /admin/auth/refresh (CORS) ---
-resource "aws_api_gateway_method" "admin_auth_refresh_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_auth_refresh.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "admin_auth_refresh_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.admin_auth_refresh.id
-  http_method = aws_api_gateway_method.admin_auth_refresh_options.http_method
-  type        = "MOCK"
-
-  request_templates = {
-    "application/json" = "{\"statusCode\": 200}"
-  }
-}
-
-resource "aws_api_gateway_method_response" "admin_auth_refresh_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.admin_auth_refresh.id
-  http_method = aws_api_gateway_method.admin_auth_refresh_options.http_method
-  status_code = "200"
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true
-    "method.response.header.Access-Control-Allow-Methods" = true
-    "method.response.header.Access-Control-Allow-Origin"  = true
-  }
-
-  response_models = {
-    "application/json" = "Empty"
-  }
-}
-
-resource "aws_api_gateway_integration_response" "admin_auth_refresh_options" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.admin_auth_refresh.id
-  http_method = aws_api_gateway_method.admin_auth_refresh_options.http_method
-  status_code = aws_api_gateway_method_response.admin_auth_refresh_options.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
     "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origins[0]}'"
   }
 }
@@ -1436,10 +1205,6 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.admin_images.id,
       aws_api_gateway_resource.admin_images_upload_url.id,
       aws_api_gateway_resource.admin_images_key.id,
-      aws_api_gateway_resource.admin_auth.id,
-      aws_api_gateway_resource.admin_auth_login.id,
-      aws_api_gateway_resource.admin_auth_logout.id,
-      aws_api_gateway_resource.admin_auth_refresh.id,
       aws_api_gateway_resource.categories.id,
       aws_api_gateway_resource.admin_categories.id,
       aws_api_gateway_resource.admin_categories_id.id,
@@ -1461,9 +1226,6 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_method.admin_posts_id_build_status_options.id,
       aws_api_gateway_method.admin_images_upload_url_post.id,
       aws_api_gateway_method.admin_images_key_delete.id,
-      aws_api_gateway_method.admin_auth_login_post.id,
-      aws_api_gateway_method.admin_auth_logout_post.id,
-      aws_api_gateway_method.admin_auth_refresh_post.id,
       aws_api_gateway_method.posts_get.id,
       aws_api_gateway_method.posts_id_get.id,
       aws_api_gateway_method.posts_by_slug_value_get.id,
@@ -1483,9 +1245,6 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_integration.admin_posts_id_build_status_options.id,
       aws_api_gateway_integration.admin_images_upload_url_post.id,
       aws_api_gateway_integration.admin_images_key_delete.id,
-      aws_api_gateway_integration.admin_auth_login_post.id,
-      aws_api_gateway_integration.admin_auth_logout_post.id,
-      aws_api_gateway_integration.admin_auth_refresh_post.id,
       aws_api_gateway_integration.posts_get.id,
       aws_api_gateway_integration.posts_id_get.id,
       aws_api_gateway_integration.posts_by_slug_value_get.id,
@@ -1512,9 +1271,6 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.admin_posts_id_build_status_options,
     aws_api_gateway_integration.admin_images_upload_url_post,
     aws_api_gateway_integration.admin_images_key_delete,
-    aws_api_gateway_integration.admin_auth_login_post,
-    aws_api_gateway_integration.admin_auth_logout_post,
-    aws_api_gateway_integration.admin_auth_refresh_post,
     aws_api_gateway_integration.posts_get,
     aws_api_gateway_integration.posts_id_get,
     aws_api_gateway_integration.posts_by_slug_value_get,
@@ -1696,30 +1452,6 @@ resource "aws_lambda_permission" "get_post_by_slug" {
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
 }
 
-resource "aws_lambda_permission" "login" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = var.lambda_login_arn
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
-}
-
-resource "aws_lambda_permission" "logout" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = var.lambda_logout_arn
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
-}
-
-resource "aws_lambda_permission" "refresh" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = var.lambda_refresh_arn
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
-}
-
 resource "aws_lambda_permission" "get_upload_url" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
@@ -1779,4 +1511,3 @@ resource "aws_lambda_permission" "delete_category" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
 }
-

@@ -10,6 +10,13 @@ import unittest
 
 
 class DeploymentOrderTest(unittest.TestCase):
+    def assert_waits_for_state_lock(self, calls):
+        # A merge-queue CI plan can hold the shared DEV state lock (#738).
+        locking = [call for call in calls if call[0] == 'terraform' and ('plan' in call or 'apply' in call)]
+        self.assertTrue(locking)
+        for call in locking:
+            self.assertIn('-lock-timeout=10m', call)
+
     def run_deploy(self, environment='dev', unsafe=False, fail_bootstrap=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -62,6 +69,7 @@ elif 'show' in args:
         self.assertLess(configuration, applies[1])
         self.assertTrue(calls[applies[0]][-1].endswith('sms-recovery'))
         self.assertIn('--check-only', calls[-1])
+        self.assert_waits_for_state_lock(calls)
 
     def test_unsafe_recovery_plan_stops_before_any_apply_or_cognito_update(self):
         result, calls = self.run_deploy(unsafe=True)
@@ -77,6 +85,7 @@ elif 'show' in args:
         bootstrap = next(i for i, call in enumerate(calls) if '--require-production-mfa' in call)
         inspect = next(i for i, call in enumerate(calls) if '--inspect-tier' in call)
         self.assertLess(bootstrap, inspect)
+        self.assert_waits_for_state_lock(calls)
 
     def test_production_bootstrap_failure_stops_before_terraform_and_passkeys(self):
         result, calls = self.run_deploy(environment='prd', fail_bootstrap=True)

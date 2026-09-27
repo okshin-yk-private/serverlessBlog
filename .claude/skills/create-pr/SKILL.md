@@ -9,8 +9,9 @@ allowed-tools: Bash(git *), Bash(gh *)
 # PR作成
 
 リポジトリルートの `docs/ai-shared-rules.md` に従う。今回の依頼で
-承認された変更だけをPRに含める。PR作成依頼はcommit・pushを含むが、
-mergeやデプロイの承認にはならない。
+承認された変更だけをPRに含める。PR作成依頼はcommit・pushを含む。
+`develop` 向けPRの作成依頼は、CI成功後のmerge queueでのマージ（とそれに続く
+DEVデプロイ）の承認も含む。`main` 向けはマージしない（PRDデプロイは別途明示依頼）。
 
 ## 変更とブランチ
 
@@ -42,9 +43,28 @@ mergeやデプロイの承認にはならない。
 5. PR本文は問題と変更後の動作、検証結果、残る制約を記す。関連Issueがあり
    全体を解決した場合だけ `Closes #<N>` を付ける。
 
+## CI監視とマージ（`develop` 向け）
+
+ユーザーが「PRだけ」「マージしない」「draft」と指定した場合、および `main` 向けは
+マージしない（`main` 向けはマージしない）。それ以外は次を続ける。
+
+1. head SHAの全workflow実行が終わるまで待つ。重複起動で `cancelled` になった実行を
+   結果として扱わない。
+2. `All CI Checks Passed`、`Security Scan Summary`、`Dependency Update Security Gate` が
+   最新の実行で成功し、headが変わっていないことを確認する。失敗が今回の変更に起因する
+   なら修正してpushし、1から繰り返す。外部要因なら報告して止める。
+3. リポジトリのauto-mergeは無効なので `gh pr merge` は使わず、次で投入する。
+   スクリプトが base＝`develop`・必須チェック成功・head不変を再確認し、
+   満たさなければ `BLOCKED` で止まる（`--dry-run` で判定だけ行える）。
+
+   ```bash
+   python3 scripts/ci/enqueue_pr.py <PR番号>
+   ```
+
+4. queueの `merge_group` チェックとマージ、続くDEV Deployの結果まで追跡する。
+
 ## 完了
 
-PR URL、ベース・head、検証結果、CI状態を報告する。依頼がCI確認まで含む場合は
-同じhead SHAの必要jobが終了するまで追跡し、失敗原因を調べて対応する。
+PR URL、ベース・head、検証結果、CI状態、マージとDEV Deployの結果を報告する。
 実行中・未実行・外部要因でブロックされた検証を成功として扱わない。
 修復可能なローカルエラーだけで終了せず、承認範囲で作業を継続する。

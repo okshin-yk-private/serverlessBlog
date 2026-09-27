@@ -21,6 +21,11 @@ export type MockChallengeResponse =
 
 export type MockSignInResponse = LoginResponse | MockChallengeResponse;
 
+/**
+ * MSW mock mode (`VITE_ENABLE_MSW_MOCK === 'true'`) only. There is no deployed
+ * backend endpoint for this call - production admin sign-in goes directly to
+ * Cognito via Amplify (SRP / USER_AUTH passkeys), never through this API.
+ */
 export async function confirmMockSignIn(
   email: string,
   challengeResponse: string,
@@ -45,6 +50,10 @@ export interface APIError {
 
 /**
  * ログインAPIを呼び出す
+ *
+ * MSW mock mode (`VITE_ENABLE_MSW_MOCK === 'true'`) only. There is no deployed
+ * backend endpoint for `/auth/login` - production admin sign-in goes directly
+ * to Cognito via Amplify (SRP / USER_AUTH passkeys), never through this API.
  */
 export async function loginAPI(
   email: string,

@@ -8,6 +8,7 @@ import {
   isTokenExpired,
   decodeToken,
   migrateFromLocalStorage,
+  cleanupLegacyAmplifyKeys,
 } from './auth';
 
 describe('validateEmail', () => {
@@ -151,6 +152,93 @@ describe('Token管理', () => {
       expect(() => migrateFromLocalStorage()).not.toThrow();
       expect(getAuthToken()).toBeNull();
     });
+  });
+});
+
+describe('cleanupLegacyAmplifyKeys', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it('CognitoIdentityServiceProvider.で始まるキーのみをlocalStorageから削除する', () => {
+    localStorage.setItem(
+      'CognitoIdentityServiceProvider.clientid.username.idToken',
+      'legacy-id-token'
+    );
+    localStorage.setItem(
+      'CognitoIdentityServiceProvider.clientid.username.refreshToken',
+      'legacy-refresh-token'
+    );
+    localStorage.setItem(
+      'CognitoIdentityServiceProvider.clientid.LastAuthUser',
+      'username'
+    );
+    localStorage.setItem('theme', 'dark');
+    localStorage.setItem('auth_token', 'app-own-token');
+
+    cleanupLegacyAmplifyKeys();
+
+    expect(
+      localStorage.getItem(
+        'CognitoIdentityServiceProvider.clientid.username.idToken'
+      )
+    ).toBeNull();
+    expect(
+      localStorage.getItem(
+        'CognitoIdentityServiceProvider.clientid.username.refreshToken'
+      )
+    ).toBeNull();
+    expect(
+      localStorage.getItem(
+        'CognitoIdentityServiceProvider.clientid.LastAuthUser'
+      )
+    ).toBeNull();
+    // 無関係なキーは削除されない
+    expect(localStorage.getItem('theme')).toBe('dark');
+    expect(localStorage.getItem('auth_token')).toBe('app-own-token');
+  });
+
+  it('該当するキーが存在しない場合は何もしない', () => {
+    localStorage.setItem('theme', 'light');
+
+    expect(() => cleanupLegacyAmplifyKeys()).not.toThrow();
+    expect(localStorage.getItem('theme')).toBe('light');
+  });
+
+  it('localStorageへのアクセスが例外を投げても呼び出し元にエラーを伝播しない', () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      window,
+      'localStorage'
+    );
+    Object.defineProperty(window, 'localStorage', {
+      value: {
+        get length(): number {
+          throw new DOMException('SecurityError');
+        },
+        key: () => {
+          throw new DOMException('SecurityError');
+        },
+        getItem: () => {
+          throw new DOMException('SecurityError');
+        },
+        removeItem: () => {
+          throw new DOMException('SecurityError');
+        },
+      },
+      configurable: true,
+    });
+
+    try {
+      expect(() => cleanupLegacyAmplifyKeys()).not.toThrow();
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(window, 'localStorage', originalDescriptor);
+      }
+    }
   });
 });
 

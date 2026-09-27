@@ -11,6 +11,8 @@
  * - 15.5: 404ページでもサイトヘッダーとナビゲーションを維持
  */
 
+import { SITE_NAME } from './site';
+
 export interface SocialLink {
   name: string;
   url: string;
@@ -53,7 +55,7 @@ export interface NotFoundPageContent {
  */
 export function getSiteMetadata(): SiteMetadata {
   return {
-    siteName: 'bone of my fallacy',
+    siteName: SITE_NAME,
     siteDescription:
       'テクノロジー、ライフスタイル、プログラミングなど様々なトピックを扱う個人ブログ。',
     author: {

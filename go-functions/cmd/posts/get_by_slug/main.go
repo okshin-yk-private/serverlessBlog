@@ -95,7 +95,10 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		return middleware.MessageResponse(404, "post not found")
 	}
 
-	return middleware.PublicJSONResponse(200, post)
+	// Issue #683: this route is mounted only as public/no-auth (see
+	// terraform/modules/api/main.tf), so it always returns the public DTO,
+	// which omits contentMarkdown and authorId (the raw Cognito sub).
+	return middleware.PublicJSONResponse(200, domain.NewPublicBlogPost(post))
 }
 
 func main() {

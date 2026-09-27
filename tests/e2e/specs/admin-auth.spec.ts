@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures';
+import { test, expect } from '../fixtures/csp';
 
 /**
  * 管理画面認証フローの最小限E2Eテスト

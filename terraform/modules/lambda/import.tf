@@ -13,9 +13,6 @@
 #   - ListPostsGo (blog-list-posts-go)
 #   - UpdatePostGo (blog-update-post-go)
 #   - DeletePostGo (blog-delete-post-go)
-#   - LoginGo (blog-login-go)
-#   - LogoutGo (blog-logout-go)
-#   - RefreshGo (blog-refresh-go)
 #   - GetUploadUrlGo (blog-upload-url-go)
 #   - DeleteImageGo (blog-delete-image-go)
 #
@@ -65,28 +62,6 @@
 # import {
 #   to = aws_lambda_function.delete_post
 #   id = "blog-delete-post-go"
-# }
-
-# ====================
-# Auth Domain Functions
-# ====================
-
-# Import Login Lambda Function
-# import {
-#   to = aws_lambda_function.login
-#   id = "blog-login-go"
-# }
-
-# Import Logout Lambda Function
-# import {
-#   to = aws_lambda_function.logout
-#   id = "blog-logout-go"
-# }
-
-# Import Refresh Lambda Function
-# import {
-#   to = aws_lambda_function.refresh
-#   id = "blog-refresh-go"
 # }
 
 # ====================
@@ -156,24 +131,6 @@
 #   id = "/aws/lambda/blog-delete-post-go"
 # }
 
-# Import Login Log Group
-# import {
-#   to = aws_cloudwatch_log_group.login
-#   id = "/aws/lambda/blog-login-go"
-# }
-
-# Import Logout Log Group
-# import {
-#   to = aws_cloudwatch_log_group.logout
-#   id = "/aws/lambda/blog-logout-go"
-# }
-
-# Import Refresh Log Group
-# import {
-#   to = aws_cloudwatch_log_group.refresh
-#   id = "/aws/lambda/blog-refresh-go"
-# }
-
 # Import Get Upload URL Log Group
 # import {
 #   to = aws_cloudwatch_log_group.get_upload_url
@@ -200,9 +157,6 @@
 # | ListPostsGo                    | aws_lambda_function.list_posts            |
 # | UpdatePostGo                   | aws_lambda_function.update_post           |
 # | DeletePostGo                   | aws_lambda_function.delete_post           |
-# | LoginGo                        | aws_lambda_function.login                 |
-# | LogoutGo                       | aws_lambda_function.logout                |
-# | RefreshGo                      | aws_lambda_function.refresh               |
 # | GetUploadUrlGo                 | aws_lambda_function.get_upload_url        |
 # | DeleteImageGo                  | aws_lambda_function.delete_image          |
 # +--------------------------------+-------------------------------------------+
@@ -217,9 +171,6 @@
 # | blog-list-posts-go        | aws_lambda_function.list_posts                 |
 # | blog-update-post-go       | aws_lambda_function.update_post                |
 # | blog-delete-post-go       | aws_lambda_function.delete_post                |
-# | blog-login-go             | aws_lambda_function.login                      |
-# | blog-logout-go            | aws_lambda_function.logout                     |
-# | blog-refresh-go           | aws_lambda_function.refresh                    |
 # | blog-upload-url-go        | aws_lambda_function.get_upload_url             |
 # | blog-delete-image-go      | aws_lambda_function.delete_image               |
 # +---------------------------+------------------------------------------------+

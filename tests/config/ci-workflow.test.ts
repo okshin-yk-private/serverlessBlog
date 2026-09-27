@@ -1,7 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const workflow = readFileSync('.github/workflows/ci.yml', 'utf8');
@@ -104,6 +102,15 @@ describe('CI aggregate executes the workflow shell', () => {
       'has-admin: ${{ steps.frontend-changes.outputs.admin }}'
     );
     expect(workflow).toContain(
+      'has-go: ${{ steps.frontend-changes.outputs.go }}'
+    );
+    expect(workflow).toContain(
+      'has-terraform: ${{ steps.frontend-changes.outputs.terraform }}'
+    );
+    expect(workflow).toContain(
+      'has-deploy-scripts: ${{ steps.frontend-changes.outputs.deploy-scripts }}'
+    );
+    expect(workflow).toContain(
       'bash scripts/ci/detect-changes.sh ci "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"'
     );
   });
@@ -113,30 +120,41 @@ describe('CI aggregate executes the workflow shell', () => {
   });
 });
 
-describe('label lookup', () => {
-  test('a failed GitHub request fails the step instead of selecting no tests', () => {
-    const directory = mkdtempSync(join(tmpdir(), 'ci-labels-'));
-    try {
-      writeFileSync(join(directory, 'gh'), '#!/bin/sh\nexit 1\n', {
-        mode: 0o755,
-      });
-      const script = workflow
-        .split('        id: check-labels\n        run: |\n')[1]
-        .split('        env:')[0]
-        .replace(/\$\{\{.*?\}\}/g, 'fixture');
-      const output = join(directory, 'output');
-      const result = spawnSync('bash', ['-e', '-c', script], {
-        env: {
-          ...process.env,
-          PATH: `${directory}:${process.env.PATH}`,
-          GITHUB_OUTPUT: output,
-        },
-        encoding: 'utf8',
-      });
-      expect(result.status).toBe(1);
-      expect(result.stdout).not.toContain('PR Labels:');
-    } finally {
-      rmSync(directory, { recursive: true, force: true });
+describe('job gating no longer depends on PR labels', () => {
+  const triggerBlock = workflow.slice(
+    workflow.indexOf('on:\n'),
+    workflow.indexOf('concurrency:')
+  );
+
+  test('the labeled/unlabeled PR events no longer trigger CI', () => {
+    expect(triggerBlock).toContain('types: [opened, synchronize, reopened]');
+    expect(triggerBlock).not.toContain('labeled');
+    expect(triggerBlock).not.toContain('unlabeled');
+  });
+
+  test('the PR-label-reading step (gh api pulls/.../labels) has been removed', () => {
+    expect(workflow).not.toContain('id: check-labels');
+    expect(workflow).not.toContain('.labels[].name');
+    expect(workflow).not.toContain('has_label');
+  });
+
+  test('has-go, has-terraform and has-deploy-scripts are sourced from path detection', () => {
+    const setupLabelsJob = workflow
+      .split('  setup-labels:\n')[1]
+      .split(/\n {2}[a-zA-Z][\w-]*:\n/)[0];
+    expect(setupLabelsJob).not.toContain('steps.check-labels');
+    for (const output of ['has-go', 'has-terraform', 'has-deploy-scripts']) {
+      expect(setupLabelsJob).toContain(
+        `${output}: \${{ steps.frontend-changes.outputs.`
+      );
     }
+  });
+
+  test('the auto-labeler step, if kept, only labels PRs for display', () => {
+    // The auto-labeler step may remain for PR display purposes, but no job
+    // condition may branch on a PR's *label list* (as opposed to the
+    // `setup-labels` job name/id, or the path-derived `has-*` outputs).
+    expect(workflow).not.toMatch(/if:[^\n]*pull_request\.labels/);
+    expect(workflow).not.toMatch(/if:[^\n]*contains\([^)]*labels/);
   });
 });

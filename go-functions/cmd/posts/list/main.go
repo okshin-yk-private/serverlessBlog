@@ -58,7 +58,13 @@ var dynamoClientGetter = func() (DynamoDBClientInterface, error) {
 	return clients.GetDynamoDB()
 }
 
-// ListPostsResponseItem represents a post item in the list response (without contentMarkdown)
+// ListPostsResponseItem represents a post item in the list response (without
+// contentMarkdown).
+//
+// AuthorID (the raw Cognito user sub) is only populated for authenticated
+// requests - see processResults' includeAuthorID parameter and issue #683.
+// omitempty on the tag drops it from unauthenticated JSON responses, where
+// the field is left at its zero value.
 type ListPostsResponseItem struct {
 	Slug          *string  `json:"slug,omitempty"`
 	Excerpt       *string  `json:"excerpt,omitempty"`
@@ -70,7 +76,7 @@ type ListPostsResponseItem struct {
 	Category      string   `json:"category"`
 	Tags          []string `json:"tags"`
 	PublishStatus string   `json:"publishStatus"`
-	AuthorID      string   `json:"authorId"`
+	AuthorID      string   `json:"authorId,omitempty"`
 	CreatedAt     string   `json:"createdAt"`
 	UpdatedAt     string   `json:"updatedAt"`
 	PublishedAt   *string  `json:"publishedAt,omitempty"`
@@ -123,12 +129,16 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// Parse nextToken for pagination
 	exclusiveStartKey := parseNextToken(queryParams["nextToken"])
 
+	// Determined once and reused below: whether to include admin-only
+	// fields (publishStatus override, authorId, count).
+	authenticated := isAuthenticated(request)
+
 	// Parse publishStatus (defaults to "published" for backward compatibility)
 	// Security: Unauthenticated users can ONLY access published posts
 	publishStatus := domain.PublishStatusPublished
 	if queryParams["publishStatus"] != "" {
 		// Only authenticated users can query non-published posts
-		if !isAuthenticated(request) {
+		if !authenticated {
 			// Security: Force published status for unauthenticated requests
 			// Ignore any publishStatus parameter from unauthenticated users
 			publishStatus = domain.PublishStatusPublished
@@ -159,7 +169,7 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		// out of data, or hits the page-walk cap - see its doc comment and
 		// maxSearchPages for the exact contract.
 		var searchErr error
-		items, lastEvaluatedKey, searchErr = executeSearchQuery(ctx, dynamoClient, tableName, limit, category, publishStatus, searchLower, exclusiveStartKey)
+		items, lastEvaluatedKey, searchErr = executeSearchQuery(ctx, dynamoClient, tableName, limit, category, publishStatus, searchLower, exclusiveStartKey, authenticated)
 		if searchErr != nil {
 			return middleware.ServerError(ctx, "failed to retrieve posts", searchErr)
 		}
@@ -173,8 +183,8 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 			return middleware.ServerError(ctx, "failed to retrieve posts", err)
 		}
 
-		// Process results - exclude contentMarkdown
-		items = processResults(result.Items)
+		// Process results - exclude contentMarkdown, and authorId unless authenticated (issue #683)
+		items = processResults(result.Items, authenticated)
 		lastEvaluatedKey = result.LastEvaluatedKey
 	}
 
@@ -192,7 +202,7 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	}
 
 	// For authenticated (admin) requests, execute count query and include count in response
-	if isAuthenticated(request) {
+	if authenticated {
 		count, err := executeCountQuery(ctx, dynamoClient, tableName, publishStatus)
 		if err != nil {
 			return middleware.ServerError(ctx, "failed to retrieve posts", err)
@@ -323,8 +333,14 @@ func buildQueryInput(tableName string, limit int32, category, publishStatus stri
 	return queryInput
 }
 
-// processResults converts DynamoDB items to response items (excluding contentMarkdown)
-func processResults(items []map[string]types.AttributeValue) []ListPostsResponseItem {
+// processResults converts DynamoDB items to response items (excluding
+// contentMarkdown always, and authorId unless includeAuthorID is true).
+//
+// includeAuthorID must be the caller's isAuthenticated(request) result:
+// authorId is the raw Cognito user sub, which issue #683 stopped exposing to
+// unauthenticated (public) callers. Admin/authenticated list responses keep
+// it unchanged.
+func processResults(items []map[string]types.AttributeValue, includeAuthorID bool) []ListPostsResponseItem {
 	result := make([]ListPostsResponseItem, 0, len(items))
 
 	for _, item := range items {
@@ -342,11 +358,13 @@ func processResults(items []map[string]types.AttributeValue) []ListPostsResponse
 			Category:      post.Category,
 			Tags:          post.Tags,
 			PublishStatus: post.PublishStatus,
-			AuthorID:      post.AuthorID,
 			CreatedAt:     post.CreatedAt,
 			UpdatedAt:     post.UpdatedAt,
 			PublishedAt:   post.PublishedAt,
 			ImageURLs:     post.ImageURLs,
+		}
+		if includeAuthorID {
+			responseItem.AuthorID = post.AuthorID
 		}
 
 		// Ensure empty arrays are not nil
@@ -442,6 +460,8 @@ const maxSearchPages = 20
 // unclaimed match later in that same page on the next request, since the
 // next Query would start after the whole page instead of after the last
 // item actually returned.
+// includeAuthorID must be the caller's isAuthenticated(request) result; see
+// processResults for why (issue #683).
 func executeSearchQuery(
 	ctx context.Context,
 	client DynamoDBClientInterface,
@@ -449,6 +469,7 @@ func executeSearchQuery(
 	limit int32,
 	category, publishStatus, searchLower string,
 	exclusiveStartKey map[string]types.AttributeValue,
+	includeAuthorID bool,
 ) ([]ListPostsResponseItem, map[string]types.AttributeValue, error) {
 	matched := make([]ListPostsResponseItem, 0, limit)
 	currentKey := exclusiveStartKey
@@ -463,7 +484,7 @@ func executeSearchQuery(
 		}
 
 		for _, rawItem := range result.Items {
-			converted := processResults([]map[string]types.AttributeValue{rawItem})
+			converted := processResults([]map[string]types.AttributeValue{rawItem}, includeAuthorID)
 			if len(converted) == 0 {
 				continue // malformed item; processResults already skipped it
 			}

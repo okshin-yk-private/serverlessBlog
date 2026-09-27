@@ -18,6 +18,7 @@ import {
 } from '../../lib/postDetailUtils';
 import type { JsonLdPost } from '../../lib/jsonLdUtils';
 import { getPostPathSegment, getPostStaticPaths } from '../../lib/postUtils';
+import { SITE_NAME } from '../../lib/site';
 
 /**
  * getStaticPaths: 全公開記事のパスを生成する。
@@ -56,7 +57,7 @@ const jsonLdPost: JsonLdPost = {
   description: description,
   publishedAt: articlePublishedAt,
   updatedAt: articleModifiedAt,
-  authorName: post.authorId || 'Anonymous',
+  authorName: SITE_NAME,
   imageUrl: firstImage,
 };
 ---

@@ -90,7 +90,7 @@ Provide brief summary in the language specified in spec.json:
    - ✅ Testing tasks included
 4. **Next Action**: Review tasks and proceed when ready
 
-**Format**: Concise (under 200 words)
+**Format**: Concise - status, key results, and the next step
 
 ## Safety & Fallback
 

@@ -370,8 +370,11 @@ describe('SEO・OGP・JSON-LD統合テスト (Task 8.2)', () => {
         expect(typedJsonLd.author).toBeDefined();
 
         const author = typedJsonLd.author as Record<string, unknown>;
-        expect(author['@type']).toBe('Person');
-        expect(author.name).toBeDefined();
+        // Issue #683: author is the site (Organization), not the Cognito
+        // sub previously exposed via post.authorId.
+        expect(author['@type']).toBe('Organization');
+        expect(author.name).toBe(SITE_NAME);
+        expect(author.url).toBeDefined();
       }
     });
 

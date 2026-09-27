@@ -155,6 +155,56 @@ type BlogPost struct {
 	CoverImageURL   *string  `json:"coverImageUrl,omitempty" dynamodbav:"coverImageUrl,omitempty"`
 }
 
+// PublicBlogPost is the response shape for unauthenticated post endpoints
+// (issue #683). It carries every field the public site (frontend/public-astro,
+// see src/lib/postSchema.ts) consumes, but omits:
+//   - ContentMarkdown: the public site only renders ContentHTML; sending the
+//     Markdown source too doubled the response body for no reader benefit.
+//   - AuthorID: this is the raw Cognito user sub, an internal identifier that
+//     was leaking into public JSON-LD/RSS author fields with no legitimate
+//     public use.
+//
+// Authenticated/admin responses (cmd/posts/get, and cmd/posts/list for
+// authenticated callers) continue to return the full BlogPost.
+type PublicBlogPost struct {
+	Version       int64    `json:"version"`
+	ID            string   `json:"id"`
+	Title         string   `json:"title"`
+	ContentHTML   string   `json:"contentHtml"`
+	Category      string   `json:"category"`
+	Tags          []string `json:"tags"`
+	PublishStatus string   `json:"publishStatus"`
+	CreatedAt     string   `json:"createdAt"`
+	UpdatedAt     string   `json:"updatedAt"`
+	PublishedAt   *string  `json:"publishedAt,omitempty"`
+	ImageURLs     []string `json:"imageUrls"`
+	Slug          *string  `json:"slug,omitempty"`
+	Excerpt       *string  `json:"excerpt,omitempty"`
+	CoverImageURL *string  `json:"coverImageUrl,omitempty"`
+}
+
+// NewPublicBlogPost builds the public (unauthenticated) response DTO from a
+// full BlogPost, dropping ContentMarkdown and AuthorID. See PublicBlogPost's
+// doc comment for why those two fields are excluded.
+func NewPublicBlogPost(post BlogPost) PublicBlogPost {
+	return PublicBlogPost{
+		Version:       post.Version,
+		ID:            post.ID,
+		Title:         post.Title,
+		ContentHTML:   post.ContentHTML,
+		Category:      post.Category,
+		Tags:          post.Tags,
+		PublishStatus: post.PublishStatus,
+		CreatedAt:     post.CreatedAt,
+		UpdatedAt:     post.UpdatedAt,
+		PublishedAt:   post.PublishedAt,
+		ImageURLs:     post.ImageURLs,
+		Slug:          post.Slug,
+		Excerpt:       post.Excerpt,
+		CoverImageURL: post.CoverImageURL,
+	}
+}
+
 // CreatePostRequest represents the request body for creating a post.
 type CreatePostRequest struct {
 	Title           string   `json:"title"`
@@ -311,60 +361,9 @@ type ListPostsResponse struct {
 	NextToken *string    `json:"nextToken,omitempty"`
 }
 
-// TokenResponse represents authentication tokens.
-type TokenResponse struct {
-	AccessToken  string  `json:"accessToken"`
-	IDToken      string  `json:"idToken"`
-	RefreshToken *string `json:"refreshToken,omitempty"`
-	ExpiresIn    int     `json:"expiresIn"`
-}
-
 // ErrorResponse represents an API error response.
 type ErrorResponse struct {
 	Message string `json:"message"`
-}
-
-// LoginRequest represents the request body for login.
-type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-// Validate validates the LoginRequest.
-func (r *LoginRequest) Validate() error {
-	if r.Email == "" {
-		return errors.New("email is required")
-	}
-	if r.Password == "" {
-		return errors.New("password is required")
-	}
-	return nil
-}
-
-// LogoutRequest represents the request body for logout.
-type LogoutRequest struct {
-	AccessToken string `json:"accessToken"`
-}
-
-// Validate validates the LogoutRequest.
-func (r *LogoutRequest) Validate() error {
-	if r.AccessToken == "" {
-		return errors.New("accessToken is required")
-	}
-	return nil
-}
-
-// RefreshRequest represents the request body for token refresh.
-type RefreshRequest struct {
-	RefreshToken string `json:"refreshToken"`
-}
-
-// Validate validates the RefreshRequest.
-func (r *RefreshRequest) Validate() error {
-	if r.RefreshToken == "" {
-		return errors.New("refreshToken is required")
-	}
-	return nil
 }
 
 // GetUploadURLRequest represents the request body for getting a presigned upload URL.

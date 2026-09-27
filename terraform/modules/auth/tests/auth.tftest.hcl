@@ -136,9 +136,10 @@ run "mfa_configuration_on" {
   }
 }
 
-# Test 9: Verify App Client is created with USER_PASSWORD_AUTH flow
-# Requirement 4.3: App Client with USER_PASSWORD_AUTH
-run "app_client_user_password_auth" {
+# Test 9: Verify App Client does not allow USER_PASSWORD_AUTH and disables OAuth
+# Requirement 4.3: Admin sign-in uses Amplify SRP / USER_AUTH passkeys directly
+# against Cognito (see #678); USER_PASSWORD_AUTH and OAuth are not used.
+run "app_client_no_user_password_auth_no_oauth" {
   command = plan
 
   variables {
@@ -147,8 +148,18 @@ run "app_client_user_password_auth" {
   }
 
   assert {
-    condition     = contains(aws_cognito_user_pool_client.main.explicit_auth_flows, "ALLOW_USER_PASSWORD_AUTH")
-    error_message = "App Client must support USER_PASSWORD_AUTH flow"
+    condition     = !contains(aws_cognito_user_pool_client.main.explicit_auth_flows, "ALLOW_USER_PASSWORD_AUTH")
+    error_message = "App Client must not support USER_PASSWORD_AUTH flow"
+  }
+
+  assert {
+    condition     = contains(aws_cognito_user_pool_client.main.explicit_auth_flows, "ALLOW_USER_SRP_AUTH")
+    error_message = "App Client must support USER_SRP_AUTH flow"
+  }
+
+  assert {
+    condition     = aws_cognito_user_pool_client.main.allowed_oauth_flows_user_pool_client == false
+    error_message = "App Client must not enable OAuth flows"
   }
 }
 
@@ -378,11 +389,11 @@ run "token_validity" {
     error_message = "ID token validity must be 60 minutes (1 hour)"
   }
 
-  # Refresh token validity: 30 days, expressed in minutes because
-  # token_validity_units.refresh_token = "minutes" (30 * 24 * 60 = 43200)
+  # Refresh token validity: 7 days, expressed in minutes because
+  # token_validity_units.refresh_token = "minutes" (7 * 24 * 60 = 10080)
   assert {
-    condition     = aws_cognito_user_pool_client.main.refresh_token_validity == 43200
-    error_message = "Refresh token validity must be 30 days (43200 minutes)"
+    condition     = aws_cognito_user_pool_client.main.refresh_token_validity == 10080
+    error_message = "Refresh token validity must be 7 days (10080 minutes)"
   }
 }
 

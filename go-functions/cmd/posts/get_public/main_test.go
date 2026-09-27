@@ -114,7 +114,9 @@ func TestHandler_SuccessfulGetPublishedPost(t *testing.T) {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)
 	}
 
-	var post domain.BlogPost
+	// Issue #683: the public endpoint returns PublicBlogPost, which omits
+	// contentMarkdown and authorId (the raw Cognito sub).
+	var post domain.PublicBlogPost
 	if err := json.Unmarshal([]byte(resp.Body), &post); err != nil {
 		t.Fatalf("failed to unmarshal response: %v", err)
 	}
@@ -129,6 +131,17 @@ func TestHandler_SuccessfulGetPublishedPost(t *testing.T) {
 
 	if post.PublishStatus != domain.PublishStatusPublished {
 		t.Errorf("expected publishStatus %q, got %q", domain.PublishStatusPublished, post.PublishStatus)
+	}
+
+	var rawResponse map[string]interface{}
+	if err := json.Unmarshal([]byte(resp.Body), &rawResponse); err != nil {
+		t.Fatalf("failed to unmarshal raw response: %v", err)
+	}
+	if _, ok := rawResponse["contentMarkdown"]; ok {
+		t.Error("expected contentMarkdown to be absent from public response")
+	}
+	if _, ok := rawResponse["authorId"]; ok {
+		t.Error("expected authorId to be absent from public response")
 	}
 }
 
@@ -519,11 +532,20 @@ func TestHandler_ResponseStructure(t *testing.T) {
 		t.Fatalf("failed to unmarshal response: %v", err)
 	}
 
-	// Check all expected fields are present
-	expectedFields := []string{"id", "title", "contentMarkdown", "contentHtml", "category", "tags", "publishStatus", "authorId", "createdAt", "updatedAt", "publishedAt", "imageUrls"}
+	// Check all expected fields are present. Issue #683: contentMarkdown and
+	// authorId (the raw Cognito sub) are intentionally excluded from the
+	// public response.
+	expectedFields := []string{"id", "title", "contentHtml", "category", "tags", "publishStatus", "createdAt", "updatedAt", "publishedAt", "imageUrls"}
 	for _, field := range expectedFields {
 		if _, ok := responseMap[field]; !ok {
 			t.Errorf("expected field %q to be present in response", field)
+		}
+	}
+
+	unexpectedFields := []string{"contentMarkdown", "authorId"}
+	for _, field := range unexpectedFields {
+		if _, ok := responseMap[field]; ok {
+			t.Errorf("expected field %q to be absent from public response", field)
 		}
 	}
 }

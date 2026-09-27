@@ -11,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/codebuild"
-	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
@@ -19,7 +18,6 @@ import (
 var (
 	dynamoClient    *dynamodb.Client
 	s3Client        *s3.Client
-	cognitoClient   *cognitoidentityprovider.Client
 	codebuildClient *codebuild.Client
 	presignClient   *s3.PresignClient
 	once            sync.Once
@@ -28,8 +26,8 @@ var (
 
 // initClients initializes all AWS clients once.
 // It reads region from AWS_REGION environment variable and
-// supports LocalStack endpoint overrides via DYNAMODB_ENDPOINT,
-// S3_ENDPOINT, and COGNITO_ENDPOINT environment variables.
+// supports LocalStack endpoint overrides via DYNAMODB_ENDPOINT and
+// S3_ENDPOINT environment variables.
 func initClients() {
 	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
@@ -67,15 +65,6 @@ func initClients() {
 		})
 	}
 	codebuildClient = codebuild.NewFromConfig(cfg, codebuildOpts...)
-
-	// Initialize Cognito client with optional endpoint override
-	cognitoOpts := []func(*cognitoidentityprovider.Options){}
-	if endpoint := os.Getenv("COGNITO_ENDPOINT"); endpoint != "" {
-		cognitoOpts = append(cognitoOpts, func(o *cognitoidentityprovider.Options) {
-			o.BaseEndpoint = aws.String(endpoint)
-		})
-	}
-	cognitoClient = cognitoidentityprovider.NewFromConfig(cfg, cognitoOpts...)
 }
 
 // GetDynamoDB returns the singleton DynamoDB client.
@@ -94,15 +83,6 @@ func GetS3() (*s3.Client, error) {
 		return nil, initErr
 	}
 	return s3Client, nil
-}
-
-// GetCognito returns the singleton Cognito Identity Provider client.
-func GetCognito() (*cognitoidentityprovider.Client, error) {
-	once.Do(initClients)
-	if initErr != nil {
-		return nil, initErr
-	}
-	return cognitoClient, nil
 }
 
 // GetPresignClient returns the singleton S3 Presign client for generating presigned URLs.
@@ -129,7 +109,6 @@ func ResetForTesting() {
 	once = sync.Once{}
 	dynamoClient = nil
 	s3Client = nil
-	cognitoClient = nil
 	codebuildClient = nil
 	presignClient = nil
 	initErr = nil

@@ -271,4 +271,22 @@ describe('harness wiring', () => {
       'git worktree add .claude/worktrees/<name>'
     );
   });
+
+  test('a develop PR request includes CI follow-through and a merge-queue merge (#745)', () => {
+    const read = (path: string) => readFileSync(join(repo, path), 'utf8');
+    const rules = read('docs/ai-shared-rules.md');
+    const skill = read('.claude/skills/create-pr/SKILL.md');
+    expect(rules).not.toContain('PR creation does not grant it');
+    expect(rules).toContain(
+      'A request to create a PR against `develop` also authorizes merging it'
+    );
+    expect(rules).toContain('Merging to `main` (PRD) always needs');
+    expect(skill).not.toContain('mergeやデプロイの承認にはならない');
+    // Agents enqueue only through the develop-only helper, never raw GraphQL.
+    for (const text of [rules, skill]) {
+      expect(text).toContain('python3 scripts/ci/enqueue_pr.py');
+    }
+    expect(skill).not.toContain('gh api graphql');
+    expect(skill).toContain('`main` 向けはマージしない');
+  });
 });

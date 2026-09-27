@@ -47,9 +47,12 @@ def fixture():
 class FakeAPI:
     def __init__(self):
         self.pr, self.files, self.commits = fixture()
-        self.base = "base"
         self.protection = {"enforce_admins": {"enabled": True}, "required_status_checks": {
-            "strict": True, "checks": [{"context": name, "app_id": 15368} for name in merge.WORKFLOWS.values()]}}
+            "strict": False, "checks": [{"context": name, "app_id": 15368} for name in merge.WORKFLOWS.values()]}}
+        self.rules = [{"type": "merge_queue", "ruleset_id": 7, "parameters": {"grouping_strategy": "ALLGREEN"}}]
+        # Shape seen by the App token (#738): bypass_actors is omitted.
+        self.ruleset = {"enforcement": "active", "current_user_can_bypass": "never"}
+        self.queue = {"id": "PR_node", "headRefOid": "head", "isInMergeQueue": False}
         self.runs, self.checks = {}, []
         for i, (filename, name) in enumerate(merge.WORKFLOWS.items(), 1):
             self.runs[filename] = [{"id": i, "run_attempt": 1, "head_sha": "head", "head_branch": self.pr["head"]["ref"], "pull_requests": [{"number": 1}], "status": "completed", "conclusion": "success", "check_suite_id": i}]
@@ -62,18 +65,26 @@ class FakeAPI:
         if method != "GET":
             self.writes.append((path, method, body))
             return {"merged": True, "sha": "merged"}
+        if path == "/rulesets/7":
+            return copy.deepcopy(self.ruleset)
         if path == "/pulls/1":
             self.pr_reads += 1
             if self.pr_reads == 2 and self.on_refresh:
                 self.on_refresh(self)
             return copy.deepcopy(self.pr)
-        if path == "/git/ref/heads/develop":
-            return {"object": {"sha": self.base}}
         if path == "/branches/develop/protection":
             return self.protection
         raise AssertionError(path)
 
+    def graphql(self, query, variables):
+        if "enqueuePullRequest" in query:
+            self.writes.append(("enqueuePullRequest", variables))
+            return {"enqueuePullRequest": {"mergeQueueEntry": {"position": 1}}}
+        return {"repository": {"pullRequest": copy.deepcopy(self.queue)}}
+
     def pages(self, path, key=None):
+        if path == "/rules/branches/develop":
+            return copy.deepcopy(self.rules)
         if path == "/pulls/1/files":
             return copy.deepcopy(self.files)
         if path == "/pulls/1/commits":
@@ -134,10 +145,35 @@ class ControllerTests(unittest.TestCase):
         merge.process(api, REPO, 1)
         self.assertEqual(api.writes, [])
 
-    def test_merges_only_exact_head_after_required_checks(self):
+    def test_enqueues_only_exact_head_after_required_checks(self):
         api = FakeAPI()
         merge.process(api, REPO, 1, enabled=True)
-        self.assertEqual(api.writes, [("/pulls/1/merge", "PUT", {"sha": "head", "merge_method": "squash"})])
+        self.assertEqual(api.writes, [("enqueuePullRequest", {"id": "PR_node", "head": "head"})])
+
+    def test_behind_develop_is_left_to_the_merge_queue(self):
+        # The PR commit's parent is an older develop commit; the queue retests the merge result.
+        api = FakeAPI()
+        api.commits[0]["parents"] = [{"sha": "older-develop"}]
+        merge.process(api, REPO, 1, enabled=True)
+        self.assertEqual(len(api.writes), 1)
+
+    def test_admin_view_with_empty_bypass_list_is_accepted(self):
+        api = FakeAPI()
+        api.ruleset["bypass_actors"] = []
+        merge.process(api, REPO, 1, enabled=True)
+        self.assertEqual(len(api.writes), 1)
+
+    def test_already_queued_pr_is_not_enqueued_again(self):
+        api = FakeAPI()
+        api.queue["isInMergeQueue"] = True
+        merge.process(api, REPO, 1, enabled=True)
+        self.assertEqual(api.writes, [])
+
+    def test_graphql_errors_fail_closed(self):
+        client = merge.GitHub(REPO, "fixture")
+        for response in [{"errors": [{"message": "denied"}], "data": None}, {"data": None}, None]:
+            with self.subTest(response=response), patch.object(merge.GitHub, "__call__", return_value=response), self.assertRaises(merge.Blocked):
+                client.graphql("query { viewer { login } }", {})
 
     def test_manual_dispatch_stays_read_only_even_when_enabled(self):
         api = FakeAPI()
@@ -150,7 +186,6 @@ class ControllerTests(unittest.TestCase):
 
     def test_rejects_stale_missing_skipped_or_spoofed_checks(self):
         changes = [
-            lambda a: setattr(a, "base", "new-base"),
             lambda a: a.pr.update(mergeable=None),
             lambda a: a.pr.update(mergeable_state="behind"),
             lambda a: a.pr.update(auto_merge={"enabled_by": "somebody"}),
@@ -163,7 +198,18 @@ class ControllerTests(unittest.TestCase):
             lambda a: a.checks[0].update(conclusion="skipped"),
             lambda a: a.checks[0].update(check_suite={"id": 99}),
             lambda a: a.checks[0].update(app={"slug": "other-app"}),
-            lambda a: a.protection["required_status_checks"].update(strict=False),
+            lambda a: setattr(a, "rules", []),
+            lambda a: a.rules.append(copy.deepcopy(a.rules[0])),
+            lambda a: a.rules[0]["parameters"].update(grouping_strategy="HEADGREEN"),
+            lambda a: a.rules[0].update(ruleset_id=None),
+            lambda a: a.ruleset.update(enforcement="evaluate"),
+            lambda a: a.ruleset.update(bypass_actors=[{"actor_type": "RepositoryRole", "actor_id": 5}]),
+            lambda a: a.ruleset.update(bypass_actors=None),
+            lambda a: a.ruleset.update(current_user_can_bypass="always"),
+            lambda a: a.ruleset.update(current_user_can_bypass="pull_requests_only"),
+            lambda a: a.ruleset.update(current_user_can_bypass="exempt"),
+            lambda a: a.ruleset.pop("current_user_can_bypass"),
+            lambda a: a.queue.update(headRefOid="replacement"),
             lambda a: a.protection["required_status_checks"]["checks"].pop(),
             lambda a: a.protection["required_status_checks"]["checks"][0].update(app_id=None),
             lambda a: a.protection["enforce_admins"].update(enabled=False),
@@ -179,7 +225,6 @@ class ControllerTests(unittest.TestCase):
     def test_rechecks_head_base_and_optout_immediately_before_merge(self):
         for refresh in [
             lambda a: a.pr["head"].update(sha="replacement"),
-            lambda a: setattr(a, "base", "new-base"),
             lambda a: a.pr.update(labels=[{"name": "no-automerge"}]),
             lambda a: a.checks[0].update(conclusion="failure"),
         ]:

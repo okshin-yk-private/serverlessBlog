@@ -666,42 +666,6 @@ func TestListPostsResponseWithNextToken(t *testing.T) {
 	}
 }
 
-// TestTokenResponseJSONMarshal tests TokenResponse JSON serialization
-func TestTokenResponseJSONMarshal(t *testing.T) {
-	response := TokenResponse{
-		AccessToken:  "access-token",
-		IDToken:      "id-token",
-		RefreshToken: nil,
-		ExpiresIn:    3600,
-	}
-
-	data, err := json.Marshal(response)
-	if err != nil {
-		t.Fatalf("Failed to marshal TokenResponse: %v", err)
-	}
-
-	var result map[string]interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		t.Fatalf("Failed to unmarshal JSON: %v", err)
-	}
-
-	// Verify field names
-	if _, ok := result["accessToken"]; !ok {
-		t.Error("Expected accessToken to be present")
-	}
-	if _, ok := result["idToken"]; !ok {
-		t.Error("Expected idToken to be present")
-	}
-	if _, ok := result["expiresIn"]; !ok {
-		t.Error("Expected expiresIn to be present")
-	}
-
-	// Verify refreshToken is omitted when nil
-	if _, ok := result["refreshToken"]; ok {
-		t.Error("Expected refreshToken to be omitted when nil")
-	}
-}
-
 // TestErrorResponseJSONMarshal tests ErrorResponse JSON serialization
 func TestErrorResponseJSONMarshal(t *testing.T) {
 	response := ErrorResponse{
@@ -730,108 +694,6 @@ func TestPublishStatusConstants(t *testing.T) {
 	}
 	if PublishStatusPublished != "published" {
 		t.Errorf("Expected PublishStatusPublished to be 'published', got %v", PublishStatusPublished)
-	}
-}
-
-// TestLoginRequestValidation tests LoginRequest validation
-func TestLoginRequestValidation(t *testing.T) {
-	tests := []struct {
-		name    string
-		request LoginRequest
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name: "valid request",
-			request: LoginRequest{
-				Email:    "test@example.com",
-				Password: "password123",
-			},
-			wantErr: false,
-		},
-		{
-			name: "missing email",
-			request: LoginRequest{
-				Password: "password123",
-			},
-			wantErr: true,
-			errMsg:  "email",
-		},
-		{
-			name: "missing password",
-			request: LoginRequest{
-				Email: "test@example.com",
-			},
-			wantErr: true,
-			errMsg:  "password",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.request.Validate()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-// TestRefreshRequestValidation tests RefreshRequest validation
-func TestRefreshRequestValidation(t *testing.T) {
-	tests := []struct {
-		name    string
-		request RefreshRequest
-		wantErr bool
-	}{
-		{
-			name:    "valid request",
-			request: RefreshRequest{RefreshToken: "token123"},
-			wantErr: false,
-		},
-		{
-			name:    "missing refreshToken",
-			request: RefreshRequest{},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.request.Validate()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-// TestLogoutRequestValidation tests LogoutRequest validation
-func TestLogoutRequestValidation(t *testing.T) {
-	tests := []struct {
-		name    string
-		request LogoutRequest
-		wantErr bool
-	}{
-		{
-			name:    "valid request",
-			request: LogoutRequest{AccessToken: "token123"},
-			wantErr: false,
-		},
-		{
-			name:    "missing accessToken",
-			request: LogoutRequest{},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.request.Validate()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
 	}
 }
 
@@ -1567,6 +1429,124 @@ func TestInvalidIDsErrorResponseJSONMarshal(t *testing.T) {
 	invalidIDs := result["invalidIds"].([]interface{})
 	if len(invalidIDs) != 2 {
 		t.Errorf("Expected 2 invalid IDs, got %d", len(invalidIDs))
+	}
+}
+
+// TestNewPublicBlogPostOmitsSensitiveFields verifies that the public DTO
+// (issue #683) drops contentMarkdown and authorId - the raw Cognito sub -
+// from unauthenticated API responses, while keeping every other field the
+// public site consumes.
+func TestNewPublicBlogPostOmitsSensitiveFields(t *testing.T) {
+	publishedAt := "2026-01-04T00:00:00Z"
+	slug := "hello-world"
+	excerpt := "An excerpt"
+	coverImageURL := "https://example.com/cover.jpg"
+
+	post := BlogPost{
+		Version:         3,
+		ID:              "test-id",
+		Title:           "Test Title",
+		ContentMarkdown: "# Hello",
+		ContentHTML:     "<h1>Hello</h1>",
+		Category:        "technology",
+		Tags:            []string{"go", "lambda"},
+		PublishStatus:   PublishStatusPublished,
+		AuthorID:        "cognito-sub-1234",
+		CreatedAt:       "2026-01-01T00:00:00Z",
+		UpdatedAt:       "2026-01-02T00:00:00Z",
+		PublishedAt:     &publishedAt,
+		ImageURLs:       []string{"https://example.com/image.jpg"},
+		Slug:            &slug,
+		Excerpt:         &excerpt,
+		CoverImageURL:   &coverImageURL,
+	}
+
+	publicPost := NewPublicBlogPost(post)
+
+	data, err := json.Marshal(publicPost)
+	if err != nil {
+		t.Fatalf("Failed to marshal PublicBlogPost: %v", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	if _, ok := result["contentMarkdown"]; ok {
+		t.Error("expected contentMarkdown to be absent from PublicBlogPost JSON")
+	}
+	if _, ok := result["authorId"]; ok {
+		t.Error("expected authorId to be absent from PublicBlogPost JSON")
+	}
+
+	// Fields the public site still needs must round-trip unchanged.
+	wantString := map[string]string{
+		"id":            "test-id",
+		"title":         "Test Title",
+		"contentHtml":   "<h1>Hello</h1>",
+		"category":      "technology",
+		"publishStatus": PublishStatusPublished,
+		"createdAt":     "2026-01-01T00:00:00Z",
+		"updatedAt":     "2026-01-02T00:00:00Z",
+		"publishedAt":   publishedAt,
+		"slug":          slug,
+		"excerpt":       excerpt,
+		"coverImageUrl": coverImageURL,
+	}
+	for field, want := range wantString {
+		got, ok := result[field].(string)
+		if !ok || got != want {
+			t.Errorf("field %s = %v, want %q", field, result[field], want)
+		}
+	}
+
+	if version, ok := result["version"].(float64); !ok || int64(version) != 3 {
+		t.Errorf("field version = %v, want 3", result["version"])
+	}
+
+	tags, ok := result["tags"].([]interface{})
+	if !ok || len(tags) != 2 || tags[0] != "go" || tags[1] != "lambda" {
+		t.Errorf("field tags = %v, want [go lambda]", result["tags"])
+	}
+
+	imageURLs, ok := result["imageUrls"].([]interface{})
+	if !ok || len(imageURLs) != 1 || imageURLs[0] != "https://example.com/image.jpg" {
+		t.Errorf("field imageUrls = %v, want [https://example.com/image.jpg]", result["imageUrls"])
+	}
+}
+
+// TestNewPublicBlogPostOptionalFieldsOmitEmpty verifies that PublicBlogPost
+// preserves BlogPost's omitempty behavior for legacy items lacking the
+// writer-experience metadata fields (slug/excerpt/coverImageUrl/publishedAt).
+func TestNewPublicBlogPostOptionalFieldsOmitEmpty(t *testing.T) {
+	post := BlogPost{
+		ID:            "legacy-id",
+		Title:         "Legacy Post",
+		ContentHTML:   "<p>legacy</p>",
+		Category:      "life",
+		Tags:          []string{},
+		PublishStatus: PublishStatusPublished,
+		AuthorID:      "cognito-sub-legacy",
+		CreatedAt:     "2024-01-01T00:00:00Z",
+		UpdatedAt:     "2024-01-01T00:00:00Z",
+		ImageURLs:     []string{},
+	}
+
+	data, err := json.Marshal(NewPublicBlogPost(post))
+	if err != nil {
+		t.Fatalf("Failed to marshal PublicBlogPost: %v", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	for _, field := range []string{"publishedAt", "slug", "excerpt", "coverImageUrl"} {
+		if _, ok := result[field]; ok {
+			t.Errorf("expected %s to be omitted when unset, got %v", field, result[field])
+		}
 	}
 }
 

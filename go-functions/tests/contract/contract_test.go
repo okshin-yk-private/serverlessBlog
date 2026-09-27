@@ -117,6 +117,128 @@ func TestPostsListContract(t *testing.T) {
 	})
 }
 
+// TestPublicPostContract verifies the public (unauthenticated) post detail
+// endpoints - GET /posts/:id (get_public) and GET /posts/by-slug/:slug
+// (get_by_slug) - return domain.PublicBlogPost, which the MSW mock
+// (tests/e2e/mocks/mockData.ts toPublicPost, used by the public /posts and
+// /posts/by-slug/:slug handlers) mirrors by omitting contentMarkdown and
+// authorId. Issue #683.
+func TestPublicPostContract(t *testing.T) {
+	t.Run("public post response matches MSW public mock structure", func(t *testing.T) {
+		// MSW's toPublicPost() strips contentMarkdown and authorId from the
+		// full MockPost before returning it from GET /posts/:id and
+		// GET /posts/by-slug/:slug.
+		mswResponse := `{
+			"id": "post-1",
+			"title": "Getting Started with Serverless",
+			"contentHtml": "<h1>Content</h1>",
+			"category": "technology",
+			"tags": ["serverless", "aws"],
+			"publishStatus": "published",
+			"createdAt": "2024-01-15T09:00:00Z",
+			"updatedAt": "2024-01-15T10:00:00Z",
+			"publishedAt": "2024-01-15T10:00:00Z",
+			"imageUrls": [], "version": 1
+		}`
+
+		publishedAt := "2024-01-15T10:00:00Z"
+		goPost := domain.NewPublicBlogPost(domain.BlogPost{
+			Version:         1,
+			ID:              "post-1",
+			Title:           "Getting Started with Serverless",
+			ContentMarkdown: "# Content", // must NOT survive into the DTO
+			ContentHTML:     "<h1>Content</h1>",
+			Category:        "technology",
+			Tags:            []string{"serverless", "aws"},
+			PublishStatus:   "published",
+			AuthorID:        "test-author-id", // must NOT survive into the DTO
+			CreatedAt:       "2024-01-15T09:00:00Z",
+			UpdatedAt:       "2024-01-15T10:00:00Z",
+			PublishedAt:     &publishedAt,
+			ImageURLs:       []string{},
+		})
+
+		goBody, err := json.Marshal(goPost)
+		if err != nil {
+			t.Fatalf("Failed to marshal Go response: %v", err)
+		}
+
+		diffs := CompareJSONStructure(mswResponse, string(goBody))
+		if len(diffs) > 0 {
+			t.Errorf("Public post response structure mismatch with MSW mock:\n")
+			for _, d := range diffs {
+				t.Errorf("  %s", FormatDiff(d))
+			}
+		}
+	})
+}
+
+// TestPublicPostsListContract verifies the public (unauthenticated) posts
+// list endpoint - GET /posts - omits authorId from every item, matching the
+// MSW mock (tests/e2e/mocks/handlers.ts, which maps items through
+// toPublicPost). Admin/authenticated list responses are covered by
+// TestPostsListContract above and keep authorId. Issue #683.
+func TestPublicPostsListContract(t *testing.T) {
+	t.Run("public list item matches MSW public mock structure", func(t *testing.T) {
+		mswResponse := `{
+			"items": [
+				{
+					"id": "post-1",
+					"title": "Getting Started with Serverless",
+					"contentHtml": "<h1>Content</h1>",
+					"category": "technology",
+					"tags": ["serverless", "aws"],
+					"publishStatus": "published",
+					"createdAt": "2024-01-15T09:00:00Z",
+					"updatedAt": "2024-01-15T10:00:00Z",
+					"publishedAt": "2024-01-15T10:00:00Z",
+					"imageUrls": [], "version": 1
+				}
+			],
+			"nextToken": "mock-next-token"
+		}`
+
+		nextToken := "mock-next-token"
+		publishedAt := "2024-01-15T10:00:00Z"
+		goResp := struct {
+			Items     []domain.PublicBlogPost `json:"items"`
+			NextToken *string                 `json:"nextToken,omitempty"`
+		}{
+			Items: []domain.PublicBlogPost{
+				domain.NewPublicBlogPost(domain.BlogPost{
+					Version:         1,
+					ID:              "post-1",
+					Title:           "Getting Started with Serverless",
+					ContentMarkdown: "# Content",
+					ContentHTML:     "<h1>Content</h1>",
+					Category:        "technology",
+					Tags:            []string{"serverless", "aws"},
+					PublishStatus:   "published",
+					AuthorID:        "test-author-id",
+					CreatedAt:       "2024-01-15T09:00:00Z",
+					UpdatedAt:       "2024-01-15T10:00:00Z",
+					PublishedAt:     &publishedAt,
+					ImageURLs:       []string{},
+				}),
+			},
+			NextToken: &nextToken,
+		}
+
+		goBody, err := json.Marshal(goResp)
+		if err != nil {
+			t.Fatalf("Failed to marshal Go response: %v", err)
+		}
+
+		diffs := CompareJSONStructure(mswResponse, string(goBody))
+		if len(diffs) > 0 {
+			t.Errorf("Public posts list response structure mismatch with MSW mock:\n")
+			for _, d := range diffs {
+				t.Errorf("  %s", FormatDiff(d))
+			}
+		}
+	})
+}
+
 // TestPostCreateContract verifies the post creation endpoint response
 // matches the MSW mock handler: POST /api/admin/posts
 func TestPostCreateContract(t *testing.T) {
@@ -227,76 +349,6 @@ func TestPostDeleteContract(t *testing.T) {
 		// Go implementation should also return 204 with empty body
 		// This is verified structurally - no body to compare
 		// We just verify the convention is documented and followed
-	})
-}
-
-// TestAuthLoginContract verifies the login endpoint response
-// matches the MSW mock handler: POST /auth/login
-func TestAuthLoginContract(t *testing.T) {
-	t.Run("login success response matches MSW mock structure", func(t *testing.T) {
-		// MSW mock returns: { token: "jwt...", user: { id: "...", email: "..." } }
-		mswResponse := `{
-			"token": "mock-jwt-token",
-			"user": {
-				"id": "user-123",
-				"email": "admin@example.com"
-			}
-		}`
-
-		// Go auth login returns a different structure (TokenResponse)
-		// This test documents the contract difference and verifies Go's structure
-		// The frontend adapter handles the mapping
-		goResp := struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		}{
-			Token: "mock-jwt-token",
-			User: struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			}{
-				ID:    "user-123",
-				Email: "admin@example.com",
-			},
-		}
-
-		goBody, err := json.Marshal(goResp)
-		if err != nil {
-			t.Fatalf("Failed to marshal Go response: %v", err)
-		}
-
-		diffs := CompareJSONStructure(mswResponse, string(goBody))
-		if len(diffs) > 0 {
-			t.Errorf("Auth login response structure mismatch with MSW mock:\n")
-			for _, d := range diffs {
-				t.Errorf("  %s", FormatDiff(d))
-			}
-		}
-	})
-
-	t.Run("login error response matches MSW mock structure", func(t *testing.T) {
-		// MSW mock returns: { message: "ログインに失敗しました" } with status 401
-		mswResponse := `{"message":"ログインに失敗しました"}`
-
-		goResp := domain.ErrorResponse{
-			Message: "ログインに失敗しました",
-		}
-
-		goBody, err := json.Marshal(goResp)
-		if err != nil {
-			t.Fatalf("Failed to marshal Go response: %v", err)
-		}
-
-		diffs := CompareJSONStructure(mswResponse, string(goBody))
-		if len(diffs) > 0 {
-			t.Errorf("Auth login error response structure mismatch with MSW mock:\n")
-			for _, d := range diffs {
-				t.Errorf("  %s", FormatDiff(d))
-			}
-		}
 	})
 }
 

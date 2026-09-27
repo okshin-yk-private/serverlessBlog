@@ -12,6 +12,9 @@ import {
   type ServerResponse,
 } from 'http';
 
+// issue #683: no contentMarkdown/authorId here - this mock represents the
+// public API response (GET /posts, GET /posts/:id), which no longer
+// includes the Markdown source or the raw Cognito sub.
 export interface MockPost {
   id: string;
   title: string;
@@ -19,7 +22,6 @@ export interface MockPost {
   category: string;
   tags: string[];
   publishStatus: 'draft' | 'published';
-  authorId: string;
   createdAt: string;
   updatedAt: string;
   publishedAt?: string;
@@ -37,7 +39,6 @@ export const mockPosts: MockPost[] = [
     category: 'tech',
     tags: ['test', 'astro'],
     publishStatus: 'published',
-    authorId: 'author-1',
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-01T00:00:00Z',
     publishedAt: '2024-01-01T00:00:00Z',
@@ -52,7 +53,6 @@ export const mockPosts: MockPost[] = [
     category: 'blog',
     tags: ['日本語', 'テスト'],
     publishStatus: 'published',
-    authorId: 'author-1',
     createdAt: '2024-01-02T00:00:00Z',
     updatedAt: '2024-01-02T00:00:00Z',
     publishedAt: '2024-01-02T00:00:00Z',
@@ -64,7 +64,6 @@ export const mockPosts: MockPost[] = [
     category: 'draft',
     tags: ['draft'],
     publishStatus: 'draft',
-    authorId: 'author-1',
     createdAt: '2024-01-03T00:00:00Z',
     updatedAt: '2024-01-03T00:00:00Z',
   },
