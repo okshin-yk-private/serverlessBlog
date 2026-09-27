@@ -95,6 +95,35 @@ resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
   }
 }
 
+# Deny non-TLS access. S3 server access logging and CloudFront standard
+# logging (log delivery) write to this bucket over TLS via the S3 service
+# itself, so this Deny does not affect log delivery.
+resource "aws_s3_bucket_policy" "access_logs" {
+  count  = var.enable_access_logs ? 1 : 0
+  bucket = aws_s3_bucket.access_logs[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.access_logs[0].arn,
+          "${aws_s3_bucket.access_logs[0].arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
+      }
+    ]
+  })
+}
+
 #------------------------------------------------------------------------------
 # Image Storage Bucket
 #------------------------------------------------------------------------------
@@ -222,6 +251,22 @@ resource "aws_s3_bucket_policy" "images" {
         Condition = {
           StringEquals = {
             "AWS:SourceArn" = var.cloudfront_distribution_arn
+          }
+        }
+      },
+      {
+        # AWS FSBP S3.5: deny any request that does not use TLS.
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.images.arn,
+          "${aws_s3_bucket.images.arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
           }
         }
       }
@@ -354,6 +399,22 @@ resource "aws_s3_bucket_policy" "public_site" {
         Condition = {
           StringEquals = { "AWS:SourceArn" = var.cloudfront_distribution_arn }
         }
+      },
+      {
+        # AWS FSBP S3.5: deny any request that does not use TLS.
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.public_site.arn,
+          "${aws_s3_bucket.public_site.arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
       }
     ]
   })
@@ -464,6 +525,22 @@ resource "aws_s3_bucket_policy" "admin_site" {
         Condition = {
           StringEquals = {
             "AWS:SourceArn" = var.cloudfront_distribution_arn
+          }
+        }
+      },
+      {
+        # AWS FSBP S3.5: deny any request that does not use TLS.
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.admin_site.arn,
+          "${aws_s3_bucket.admin_site.arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
           }
         }
       }
