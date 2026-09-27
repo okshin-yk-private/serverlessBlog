@@ -27,10 +27,13 @@ ASTRO=false
 ADMIN=false
 INFRASTRUCTURE=false
 DEPLOY_SCRIPTS=false
+GO=false
+TERRAFORM=false
 while IFS= read -r -d '' CHANGED_PATH; do
   case "$CHANGED_PATH" in
     scripts/configure_passkey_mfa.py|scripts/deploy_passkey_infrastructure.sh) INFRASTRUCTURE=true; ADMIN=true ;;
-    terraform/*|go-functions/*) INFRASTRUCTURE=true ;;
+    terraform/*|.terraform-version) INFRASTRUCTURE=true; TERRAFORM=true ;;
+    go-functions/*) INFRASTRUCTURE=true; GO=true ;;
     frontend/public-astro/*) ASTRO=true ;;
     frontend/admin/*) ADMIN=true ;;
     frontend/shared-ui/*|package.json|bun.lock|bunfig.toml|tsconfig*.json)
@@ -46,8 +49,21 @@ while IFS= read -r -d '' CHANGED_PATH; do
       tests/e2e/*|playwright.aws.config.ts|.github/workflows/ci.yml|.github/actions/setup-bun-deps/*|scripts/ci/*|tests/config/*|.prettierrc*|.prettierignore)
         ASTRO=true; ADMIN=true ;;
     esac
+    # Changes to the workflow itself, its composite actions or the CI scripts
+    # can alter go/terraform job behavior even when no go-functions/terraform
+    # path changed. Fail closed by running both (mirrors the astro/admin rule
+    # above for the same paths).
+    case "$CHANGED_PATH" in
+      .github/workflows/ci.yml|.github/actions/*|scripts/ci/*)
+        GO=true; TERRAFORM=true ;;
+    esac
   fi
 done < "$CHANGED_PATHS"
 
-printf 'astro=%s\nadmin=%s\ninfrastructure=%s\ndeploy-scripts=%s\n' \
-  "$ASTRO" "$ADMIN" "$INFRASTRUCTURE" "$DEPLOY_SCRIPTS"
+if [ "$MODE" = ci ]; then
+  printf 'astro=%s\nadmin=%s\ninfrastructure=%s\ndeploy-scripts=%s\ngo=%s\nterraform=%s\n' \
+    "$ASTRO" "$ADMIN" "$INFRASTRUCTURE" "$DEPLOY_SCRIPTS" "$GO" "$TERRAFORM"
+else
+  printf 'astro=%s\nadmin=%s\ninfrastructure=%s\ndeploy-scripts=%s\n' \
+    "$ASTRO" "$ADMIN" "$INFRASTRUCTURE" "$DEPLOY_SCRIPTS"
+fi
