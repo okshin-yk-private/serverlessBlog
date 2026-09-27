@@ -76,7 +76,7 @@ resource "aws_cognito_user_pool" "main" {
 }
 
 # Cognito User Pool Client
-# Requirement 4.3: App Client with USER_PASSWORD_AUTH, USER_SRP_AUTH, REFRESH_TOKEN_AUTH
+# Requirement 4.3: App Client with USER_SRP_AUTH, REFRESH_TOKEN_AUTH (+ USER_AUTH for passkeys)
 resource "aws_cognito_user_pool_client" "main" {
   # Note: CDK created client with name "serverless-blog-admin-client"
   name         = "serverless-blog-admin-client"
@@ -86,8 +86,10 @@ resource "aws_cognito_user_pool_client" "main" {
   # The CDK-created client does not have a secret (ClientSecret is not returned by API)
 
   # Requirement 4.3: Auth flows
+  # ALLOW_USER_PASSWORD_AUTH is intentionally excluded: production admin sign-in
+  # uses Amplify (SRP / USER_AUTH passkeys) directly against Cognito, and the
+  # Go auth Lambdas that used USER_PASSWORD_AUTH have been removed (see #678).
   explicit_auth_flows = concat([
-    "ALLOW_USER_PASSWORD_AUTH",
     "ALLOW_USER_SRP_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH"
   ], var.enable_passkeys ? ["ALLOW_USER_AUTH"] : [])
@@ -106,17 +108,13 @@ resource "aws_cognito_user_pool_client" "main" {
   # Supported identity providers
   supported_identity_providers = ["COGNITO"]
 
-  # OAuth settings (matching CDK configuration)
-  allowed_oauth_flows = ["code", "implicit"]
-  allowed_oauth_scopes = [
-    "aws.cognito.signin.user.admin",
-    "email",
-    "openid",
-    "phone",
-    "profile"
-  ]
-  allowed_oauth_flows_user_pool_client = true
-  callback_urls                        = ["https://example.com"]
+  # OAuth is not used: the admin frontend (frontend/admin/src/config/amplify.ts)
+  # signs in directly against Cognito via Amplify SRP/USER_AUTH, with no
+  # Hosted UI / OAuth redirect flow and no user pool domain configured.
+  allowed_oauth_flows_user_pool_client = false
+  allowed_oauth_flows                  = []
+  allowed_oauth_scopes                 = []
+  callback_urls                        = []
 
   # Token revocation
   enable_token_revocation = true

@@ -58,13 +58,6 @@ mock_provider "aws" {
   }
 
   override_resource {
-    target = aws_iam_role.lambda_auth
-    values = {
-      arn = "arn:aws:iam::123456789012:role/blog-lambda-auth-role"
-    }
-  }
-
-  override_resource {
     target = aws_iam_role.lambda_images
     values = {
       arn = "arn:aws:iam::123456789012:role/blog-lambda-images-role"
@@ -255,60 +248,6 @@ run "build_status_post_function_configuration" {
 }
 
 # ======================
-# Auth Domain Functions Tests
-# ======================
-
-# Test: Login Lambda Function
-run "login_function_configuration" {
-  command = plan
-
-  assert {
-    condition     = aws_lambda_function.login.function_name == "blog-login-go"
-    error_message = "Login function name should match CDK naming"
-  }
-
-  assert {
-    condition     = aws_lambda_function.login.runtime == "provided.al2023"
-    error_message = "Login function should use provided.al2023 runtime"
-  }
-
-  assert {
-    condition     = aws_lambda_function.login.architectures[0] == "arm64"
-    error_message = "Login function should use ARM64 architecture"
-  }
-}
-
-# Test: Logout Lambda Function
-run "logout_function_configuration" {
-  command = plan
-
-  assert {
-    condition     = aws_lambda_function.logout.function_name == "blog-logout-go"
-    error_message = "Logout function name should match CDK naming"
-  }
-
-  assert {
-    condition     = aws_lambda_function.logout.runtime == "provided.al2023"
-    error_message = "Logout function should use provided.al2023 runtime"
-  }
-}
-
-# Test: Refresh Lambda Function
-run "refresh_function_configuration" {
-  command = plan
-
-  assert {
-    condition     = aws_lambda_function.refresh.function_name == "blog-refresh-go"
-    error_message = "Refresh function name should match CDK naming"
-  }
-
-  assert {
-    condition     = aws_lambda_function.refresh.runtime == "provided.al2023"
-    error_message = "Refresh function should use provided.al2023 runtime"
-  }
-}
-
-# ======================
 # Images Domain Functions Tests
 # ======================
 
@@ -376,26 +315,6 @@ run "posts_functions_environment_variables" {
   }
 }
 
-# Test: Auth functions have correct environment variables
-run "auth_functions_environment_variables" {
-  command = plan
-
-  assert {
-    condition     = aws_lambda_function.login.environment[0].variables["USER_POOL_ID"] == "ap-northeast-1_example"
-    error_message = "Login function should have USER_POOL_ID environment variable"
-  }
-
-  assert {
-    condition     = aws_lambda_function.login.environment[0].variables["USER_POOL_CLIENT_ID"] == "example-client-id"
-    error_message = "Login function should have USER_POOL_CLIENT_ID environment variable"
-  }
-
-  assert {
-    condition     = aws_lambda_function.refresh.environment[0].variables["USER_POOL_ID"] == "ap-northeast-1_example"
-    error_message = "Refresh function should have USER_POOL_ID environment variable"
-  }
-}
-
 # Test: Images functions have correct environment variables
 run "images_functions_environment_variables" {
   command = plan
@@ -427,10 +346,6 @@ run "xray_tracing_disabled_in_dev" {
     error_message = "X-Ray tracing should be PassThrough when disabled"
   }
 
-  assert {
-    condition     = aws_lambda_function.login.tracing_config[0].mode == "PassThrough"
-    error_message = "X-Ray tracing should be PassThrough when disabled for auth functions"
-  }
 }
 
 # ======================
@@ -447,11 +362,6 @@ run "xray_tracing_enabled_in_prd" {
   assert {
     condition     = aws_lambda_function.create_post.tracing_config[0].mode == "Active"
     error_message = "X-Ray tracing should be Active when enabled"
-  }
-
-  assert {
-    condition     = aws_lambda_function.login.tracing_config[0].mode == "Active"
-    error_message = "X-Ray tracing should be Active when enabled for auth functions"
   }
 
   assert {
@@ -497,15 +407,6 @@ run "lambda_posts_build_reconciler_role_created" {
   assert {
     condition     = aws_iam_role.lambda_posts_build_reconciler.name == "blog-lambda-posts-build-reconciler-role"
     error_message = "Lambda posts build-reconciler role should be created with correct name"
-  }
-}
-
-run "lambda_auth_role_created" {
-  command = plan
-
-  assert {
-    condition     = aws_iam_role.lambda_auth.name == "blog-lambda-auth-role"
-    error_message = "Lambda auth role should be created with correct name"
   }
 }
 
@@ -724,11 +625,6 @@ run "cloudwatch_log_groups_created" {
   }
 
   assert {
-    condition     = aws_cloudwatch_log_group.login.name == "/aws/lambda/blog-login-go"
-    error_message = "Login CloudWatch log group should be created with correct name"
-  }
-
-  assert {
     condition     = aws_cloudwatch_log_group.get_upload_url.name == "/aws/lambda/blog-upload-url-go"
     error_message = "Get Upload URL CloudWatch log group should be created with correct name"
   }
@@ -806,22 +702,6 @@ run "core_lambda_functions_exist" {
   assert {
     condition     = aws_lambda_function.reconcile_build_post.function_name != ""
     error_message = "reconcile_build_post Lambda function should exist"
-  }
-
-  # Auth domain (3 functions)
-  assert {
-    condition     = aws_lambda_function.login.function_name != ""
-    error_message = "login Lambda function should exist"
-  }
-
-  assert {
-    condition     = aws_lambda_function.logout.function_name != ""
-    error_message = "logout Lambda function should exist"
-  }
-
-  assert {
-    condition     = aws_lambda_function.refresh.function_name != ""
-    error_message = "refresh Lambda function should exist"
   }
 
   # Images domain (2 functions)

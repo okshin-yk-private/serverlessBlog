@@ -59,9 +59,6 @@ VALID_LAMBDA_FUNCTIONS=(
     "posts-list"
     "posts-update"
     "posts-delete"
-    "auth-login"
-    "auth-logout"
-    "auth-refresh"
     "images-get_upload_url"
     "images-delete"
 )
@@ -76,9 +73,6 @@ declare -A LAMBDA_TO_TERRAFORM=(
     ["posts-list"]="list_posts"
     ["posts-update"]="update_post"
     ["posts-delete"]="delete_post"
-    ["auth-login"]="login"
-    ["auth-logout"]="logout"
-    ["auth-refresh"]="refresh"
     ["images-get_upload_url"]="get_upload_url"
     ["images-delete"]="delete_image"
 )
@@ -135,8 +129,7 @@ show_usage() {
     echo ""
     echo -e "${YELLOW}Lambda Functions:${NC}"
     echo "  posts-create, posts-get, posts-get_public, posts-list,"
-    echo "  posts-update, posts-delete, auth-login, auth-logout,"
-    echo "  auth-refresh, images-get_upload_url, images-delete"
+    echo "  posts-update, posts-delete, images-get_upload_url, images-delete"
     echo ""
     echo -e "${YELLOW}Examples:${NC}"
     echo "  # Full deploy to dev environment"
@@ -321,7 +314,7 @@ log_verbose() {
 
 # Convert Lambda function name (CLI format) to Terraform resource address
 # Arguments:
-#   $1 - Lambda function name (e.g., "posts-create", "auth-login")
+#   $1 - Lambda function name (e.g., "posts-create", "images-delete")
 # Returns:
 #   Terraform resource address (e.g., "module.lambda.aws_lambda_function.create_post")
 get_terraform_target() {

@@ -311,60 +311,9 @@ type ListPostsResponse struct {
 	NextToken *string    `json:"nextToken,omitempty"`
 }
 
-// TokenResponse represents authentication tokens.
-type TokenResponse struct {
-	AccessToken  string  `json:"accessToken"`
-	IDToken      string  `json:"idToken"`
-	RefreshToken *string `json:"refreshToken,omitempty"`
-	ExpiresIn    int     `json:"expiresIn"`
-}
-
 // ErrorResponse represents an API error response.
 type ErrorResponse struct {
 	Message string `json:"message"`
-}
-
-// LoginRequest represents the request body for login.
-type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-// Validate validates the LoginRequest.
-func (r *LoginRequest) Validate() error {
-	if r.Email == "" {
-		return errors.New("email is required")
-	}
-	if r.Password == "" {
-		return errors.New("password is required")
-	}
-	return nil
-}
-
-// LogoutRequest represents the request body for logout.
-type LogoutRequest struct {
-	AccessToken string `json:"accessToken"`
-}
-
-// Validate validates the LogoutRequest.
-func (r *LogoutRequest) Validate() error {
-	if r.AccessToken == "" {
-		return errors.New("accessToken is required")
-	}
-	return nil
-}
-
-// RefreshRequest represents the request body for token refresh.
-type RefreshRequest struct {
-	RefreshToken string `json:"refreshToken"`
-}
-
-// Validate validates the RefreshRequest.
-func (r *RefreshRequest) Validate() error {
-	if r.RefreshToken == "" {
-		return errors.New("refreshToken is required")
-	}
-	return nil
 }
 
 // GetUploadURLRequest represents the request body for getting a presigned upload URL.

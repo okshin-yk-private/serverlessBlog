@@ -76,20 +76,6 @@ run "verify_posts_iam_role" {
   }
 }
 
-# Test 2: Verify Auth domain IAM role name
-run "verify_auth_iam_role" {
-  command = plan
-
-  module {
-    source = "./modules/lambda"
-  }
-
-  assert {
-    condition     = aws_iam_role.lambda_auth.name == "blog-lambda-auth-role"
-    error_message = "Auth domain role name must be 'blog-lambda-auth-role'"
-  }
-}
-
 # Test 3: Verify Images domain IAM role name
 run "verify_images_iam_role" {
   command = plan
@@ -137,20 +123,6 @@ run "verify_s3_policy_name" {
   }
 }
 
-# Test 6: Verify Cognito policy name for Auth role
-run "verify_cognito_policy_name" {
-  command = plan
-
-  module {
-    source = "./modules/lambda"
-  }
-
-  assert {
-    condition     = aws_iam_role_policy.lambda_auth_cognito.name == "blog-lambda-auth-cognito-policy"
-    error_message = "Cognito policy name must be 'blog-lambda-auth-cognito-policy'"
-  }
-}
-
 # Test 7: Verify S3 cascade policy name for Posts write role
 run "verify_s3_cascade_policy_name" {
   command = plan
@@ -194,11 +166,6 @@ run "verify_role_outputs" {
   }
 
   assert {
-    condition     = output.auth_role_name == "blog-lambda-auth-role"
-    error_message = "auth_role_name output must be correct"
-  }
-
-  assert {
     condition     = output.images_role_name == "blog-lambda-images-role"
     error_message = "images_role_name output must be correct"
   }
@@ -228,12 +195,11 @@ run "verify_domain_roles_distinct" {
       aws_iam_role.lambda_posts_write.name,
       aws_iam_role.lambda_posts_build_status.name,
       aws_iam_role.lambda_posts_build_reconciler.name,
-      aws_iam_role.lambda_auth.name,
       aws_iam_role.lambda_images.name,
       aws_iam_role.lambda_categories_read.name,
       aws_iam_role.lambda_categories_write.name,
-    ])) == 8
-    error_message = "All eight domain/purpose-specific IAM roles must have distinct names"
+    ])) == 7
+    error_message = "All seven domain/purpose-specific IAM roles must have distinct names"
   }
 }
 

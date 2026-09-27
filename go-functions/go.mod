@@ -9,7 +9,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.5
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.21.5
 	github.com/aws/aws-sdk-go-v2/service/codebuild v1.78.0
-	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.74.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.69.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.1
 	github.com/gojp/kana v0.1.0
@@ -19,6 +18,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/stretchr/testify v1.12.1
 	github.com/yuin/goldmark v1.8.6
+	golang.org/x/net v0.56.0
 )
 
 require (
@@ -43,5 +43,4 @@ require (
 	github.com/ikawaha/kagome-dict v1.1.7 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/net v0.56.0 // indirect
 )

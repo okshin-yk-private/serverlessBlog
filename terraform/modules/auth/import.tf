@@ -38,6 +38,6 @@
 #   - Password policy: 12+ chars, require all character types
 #   - MFA: OPTIONAL
 #   - Email verification: enabled
-#   - Auth flows: USER_PASSWORD_AUTH, USER_SRP_AUTH, REFRESH_TOKEN_AUTH
+#   - Auth flows: USER_SRP_AUTH, REFRESH_TOKEN_AUTH
 #   - Token validity: access/id 1h, refresh 30d
 #   - Self sign-up: disabled

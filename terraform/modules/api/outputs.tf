@@ -75,26 +75,6 @@ output "admin_images_key_resource_id" {
   description = "Admin Images {key+} resource ID"
 }
 
-output "admin_auth_resource_id" {
-  value       = aws_api_gateway_resource.admin_auth.id
-  description = "Admin Auth resource ID"
-}
-
-output "admin_auth_login_resource_id" {
-  value       = aws_api_gateway_resource.admin_auth_login.id
-  description = "Admin Auth login resource ID"
-}
-
-output "admin_auth_logout_resource_id" {
-  value       = aws_api_gateway_resource.admin_auth_logout.id
-  description = "Admin Auth logout resource ID"
-}
-
-output "admin_auth_refresh_resource_id" {
-  value       = aws_api_gateway_resource.admin_auth_refresh.id
-  description = "Admin Auth refresh resource ID"
-}
-
 # Request Validator output
 output "request_validator_id" {
   value       = aws_api_gateway_request_validator.main.id
