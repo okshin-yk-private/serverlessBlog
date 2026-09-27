@@ -64,7 +64,12 @@ module "storage" {
   environment                 = var.environment
   enable_access_logs          = false # Access logs not enabled for dev
   cloudfront_distribution_arn = ""    # Bucket policy set separately to avoid circular dependency
-  cors_allow_origins          = ["*"] # Dev uses wildcard (protected by Basic Auth)
+  cors_allow_origins          = ["*"] # Dev-only convenience; not a security boundary.
+  # This CORS policy lets the admin browser PUT directly to S3 with a presigned URL;
+  # it is not behind CloudFront's Basic Auth (that Function only runs on the site's
+  # viewer behaviors, never on the S3 bucket). Object writes still require a valid
+  # presigned URL, which the admin API only issues to a Cognito-authenticated caller.
+  # See #682.
 
   tags = local.common_tags
 }
@@ -80,7 +85,13 @@ module "lambda" {
   source = "../../modules/lambda"
 
   environment         = var.environment
-  cors_allowed_origin = "*" # Dev uses wildcard (protected by Basic Auth)
+  cors_allowed_origin = "*" # Dev-only convenience; not a security boundary.
+  # This is the Access-Control-Allow-Origin header the Lambda handlers return.
+  # Basic Auth is a CloudFront Function on the site (viewer) behaviors only; it does
+  # not run in front of the API. The REGIONAL execute-api endpoint - and CloudFront's
+  # /api/* behavior - can be called directly without it. Admin write routes still
+  # require a valid Cognito token; see modules/api's per-method throttling (#682)
+  # for abuse mitigation on those routes.
   table_name          = module.database.table_name
   table_arn           = module.database.table_arn
   bucket_name         = module.storage.image_bucket_name

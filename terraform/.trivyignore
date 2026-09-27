@@ -88,10 +88,15 @@ AVD-AWS-0190
 # CloudFront Rules
 # ======================================
 
-# AVD-AWS-0011: CloudFront distribution does not have WAF enabled
-# Justification: Same as CKV_AWS_86 - WAF adds cost.
-# Rate limiting at CloudFront level; no PII data.
-# Review-by: 2026-10-31 (the stated rate limiting does not exist; see #682)
+# AVD-AWS-0011: CloudFront distribution does not have a WAF in front
+# Justification: Same as CKV_AWS_86 - a regional WAF web ACL adds a monthly base fee
+# plus per-rule and per-request charges, which isn't justified for this personal blog.
+# There is no CloudFront-level rate limiting (no WAF, no CloudFront rate-based rule);
+# the only rate limiting that exists is API Gateway stage/method throttling
+# (modules/api: stage-wide 100 rps / burst 200, plus a lower per-method limit on
+# admin write methods - 10 rps / burst 20 by default - added in #682). No PII data
+# is served or stored by this application.
+# Review-by: 2027-03-31
 AVD-AWS-0011
 
 # AVD-AWS-0012: CloudFront distribution logging disabled

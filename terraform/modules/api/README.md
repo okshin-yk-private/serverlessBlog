@@ -54,6 +54,8 @@ module "api" {
 | aws_api_gateway_request_validator.main | resource |
 | aws_api_gateway_stage.main | resource |
 | aws_api_gateway_deployment.main | resource |
+| aws_api_gateway_method_settings.all | resource |
+| aws_api_gateway_method_settings.admin_write | resource |
 
 ## Inputs
 
@@ -64,6 +66,10 @@ module "api" {
 | stage_name | API stage name | `string` | n/a | yes |
 | cognito_user_pool_arn | Cognito User Pool ARN for Authorizer | `string` | n/a | yes |
 | cors_allow_origins | CORS allowed origins | `list(string)` | `["*"]` | no |
+| throttling_rate_limit | Stage-wide default throttling rate limit (requests per second), applied to `*/*` | `number` | `100` | no |
+| throttling_burst_limit | Stage-wide default throttling burst limit, applied to `*/*` | `number` | `200` | no |
+| admin_write_throttling_rate_limit | Throttling rate limit for admin write methods (POST/PUT/PATCH/DELETE under `/admin/...`); must be positive and ≤ `throttling_rate_limit` | `number` | `10` | no |
+| admin_write_throttling_burst_limit | Throttling burst limit for admin write methods (POST/PUT/PATCH/DELETE under `/admin/...`); must be positive and ≤ `throttling_burst_limit` | `number` | `20` | no |
 | tags | Additional tags for resources | `map(string)` | `{}` | no |
 
 ## Outputs
@@ -106,6 +112,21 @@ module "api" {
 | DELETE /admin/posts/{id} | DELETE | Cognito |
 | POST /admin/images/upload-url | POST | Cognito |
 | DELETE /admin/images/{key+} | DELETE | Cognito |
+
+## スロットリング
+
+ステージ全体（`*/*`）にデフォルト 100 rps / burst 200 の共通スロットリングを適用します。加えて、
+`/admin/...` 配下の書き込み系メソッド（POST/PUT/PATCH/DELETE。OPTIONSと公開GETは対象外）には、
+個別に低い上限（デフォルト 10 rps / burst 20）を設定しています。管理画面の自動保存
+（デバウンス1.5秒、開いているエディタ1つあたり約0.7rps）や複数画像の同時アップロードは問題なく
+収まりつつ、単一の送信元がステージ全体の枠を使い切って他の全APIを429にする事態を防ぎます。
+
+公開GET（`/posts`, `/categories`）はステージ全体の設定のままです。Astro SSGのビルド時に
+公開APIを呼び出すため、個別の低い上限を設けてビルドを不安定にするリスクを避けています。
+
+`admin_write_throttling_rate_limit` / `admin_write_throttling_burst_limit` は、それぞれ
+`throttling_rate_limit` / `throttling_burst_limit`（ステージ全体の上限）を超えない値であることを
+バリデーションで強制します。
 
 ## CORS設定
 
