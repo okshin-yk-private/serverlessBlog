@@ -29,6 +29,7 @@ on:
       - 'scripts/configure_passkey_mfa.py'
       - 'scripts/deploy_passkey_infrastructure.sh'
       - 'scripts/ci/detect-changes.sh'
+      - 'scripts/ci/deploy-base.sh'
       - '.github/workflows/deploy.yml'
       - 'tests/e2e/**'
       - 'tests/config/**'
@@ -82,6 +83,9 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read # last successful Deploy run (#740)
     outputs:
       deploy-infrastructure: ${{ steps.changes.outputs.infrastructure }}
       deploy-frontend: ${{ steps.changes.outputs.frontend }}
@@ -118,8 +122,16 @@ jobs:
               echo "astro=false" >> $GITHUB_OUTPUT
             fi
           else
-            # Compare the entire push, including deletions and shared dependencies.
-            FLAGS=$(bash scripts/ci/detect-changes.sh deploy "$BEFORE_SHA" "$AFTER_SHA")
+            # Diff from the last successful push deploy of this branch, not the
+            # push's `before`: a cancelled or failed deploy must not drop its
+            # changes (#740). Runs are serialized per ref by `concurrency`, so the
+            # current run is never counted as a success here.
+            LAST_SUCCESS=$(gh api "repos/${REPOSITORY}/actions/workflows/deploy.yml/runs?branch=${BRANCH}&event=push&status=success&per_page=1" \
+              --jq '.workflow_runs[0].head_sha // ""')
+            BASE_SHA=$(bash scripts/ci/deploy-base.sh "$AFTER_SHA" "$LAST_SUCCESS")
+            echo "Deploy base: ${BASE_SHA} (last successful deploy: ${LAST_SUCCESS:-none})"
+            # Compare the entire range, including deletions and shared dependencies.
+            FLAGS=$(bash scripts/ci/detect-changes.sh deploy "$BASE_SHA" "$AFTER_SHA")
             while IFS='=' read -r component changed; do
               case "$component" in
                 infrastructure) echo "infrastructure=$changed" >> "$GITHUB_OUTPUT" ;;
@@ -131,8 +143,10 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           COMPONENTS: ${{ github.event.inputs.components }}
-          BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
 
       - name: Determine target environment
         id: env

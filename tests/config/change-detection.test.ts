@@ -254,18 +254,89 @@ describe('complete push and PR component detection', () => {
   });
 });
 
+const baseSelector = resolve('scripts/ci/deploy-base.sh');
+const EMPTY_BASE = '0'.repeat(40);
+
+describe('deploy base selection (#740)', () => {
+  function select(cwd: string, head: string, lastSuccess: string) {
+    return spawnSync('bash', [baseSelector, head, lastSuccess], {
+      cwd,
+      encoding: 'utf8',
+    });
+  }
+
+  test('diffs from the last successful deploy, not the previous push', () => {
+    const repo = fixture();
+    repo.write('scripts/deploy/deploy.ts');
+    const deployed = repo.base;
+    const cancelled = repo.commit();
+    repo.write('go-functions/main.go');
+    const head = repo.commit();
+    const result = select(repo.cwd, head, deployed);
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).toBe(deployed);
+    // The cancelled push's scripts/deploy change is still selected.
+    expect(flags(repo.detect('deploy', result.stdout.trim(), head))).toEqual({
+      astro: 'true',
+      admin: 'false',
+      infrastructure: 'true',
+      'deploy-scripts': 'true',
+    });
+    expect(cancelled).not.toBe(deployed);
+  });
+
+  test('deploys everything without a usable successful deploy', () => {
+    const repo = fixture();
+    repo.write('README.md', 'next');
+    const head = repo.commit();
+    for (const lastSuccess of ['', 'f'.repeat(40)]) {
+      const result = select(repo.cwd, head, lastSuccess);
+      expect(result.status).toBe(0);
+      expect(result.stdout.trim()).toBe(EMPTY_BASE);
+    }
+    // Diverged history (for example a rewritten branch) is not a safe base.
+    repo.git('checkout', '-qb', 'other', repo.base);
+    repo.write('README.md', 'diverged');
+    const diverged = repo.commit();
+    expect(select(repo.cwd, head, diverged).stdout.trim()).toBe(EMPTY_BASE);
+  });
+
+  test('refuses to deploy a commit older than the last successful deploy', () => {
+    const repo = fixture();
+    repo.write('README.md', 'next');
+    const newer = repo.commit();
+    const result = select(repo.cwd, repo.base, newer);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('older than');
+  });
+
+  test('the same commit selects no work', () => {
+    const repo = fixture();
+    const result = select(repo.cwd, repo.base, repo.base);
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).toBe(repo.base);
+  });
+});
+
 describe('workflow wiring', () => {
   const deploy = readFileSync('.github/workflows/deploy.yml', 'utf8');
   const detectionJob = deploy.slice(
     deploy.indexOf('  detect-changes:'),
     deploy.indexOf('  restore-lambda-binaries:')
   );
-  test('deployment provides the entire push range and history', () => {
+  test('deployment diffs from the last successful deploy with full history', () => {
     expect(detectionJob).toContain('fetch-depth: 0');
-    expect(detectionJob).toContain('BEFORE_SHA: ${{ github.event.before }}');
+    expect(detectionJob).not.toContain('github.event.before');
     expect(detectionJob).toContain('AFTER_SHA: ${{ github.sha }}');
+    expect(detectionJob).toContain('actions: read');
     expect(detectionJob).toContain(
-      'bash scripts/ci/detect-changes.sh deploy "$BEFORE_SHA" "$AFTER_SHA"'
+      'actions/workflows/deploy.yml/runs?branch=${BRANCH}&event=push&status=success&per_page=1'
+    );
+    expect(detectionJob).toContain(
+      'BASE_SHA=$(bash scripts/ci/deploy-base.sh "$AFTER_SHA" "$LAST_SUCCESS")'
+    );
+    expect(detectionJob).toContain(
+      'bash scripts/ci/detect-changes.sh deploy "$BASE_SHA" "$AFTER_SHA"'
     );
     // Dispatch inputs reach the shell as environment variables, never through
     // template expansion inside `run:` (#694, zizmor template-injection).
@@ -283,6 +354,7 @@ describe('workflow wiring', () => {
       'bun.lock',
       'scripts/deploy/**',
       'scripts/ci/detect-changes.sh',
+      'scripts/ci/deploy-base.sh',
     ]) {
       expect(deploy.split('  workflow_dispatch:')[0]).toContain(`- '${path}'`);
     }
