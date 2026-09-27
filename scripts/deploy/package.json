@@ -26,9 +26,9 @@
   },
   "devDependencies": {
     "@types/mime-types": "^2.1.4",
-    "@types/node": "^22.20.3",
+    "@types/node": "^22.20.4",
     "@vitest/coverage-v8": "^4.1.11",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
   }
