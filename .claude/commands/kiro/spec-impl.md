@@ -84,7 +84,7 @@ Provide brief summary in the language specified in spec.json:
 1. **Tasks Executed**: Task numbers and test results
 2. **Status**: Completed tasks marked in tasks.md, remaining tasks count
 
-**Format**: Concise (under 150 words)
+**Format**: Concise - status, key results, and the next step
 
 ## Safety & Fallback
 

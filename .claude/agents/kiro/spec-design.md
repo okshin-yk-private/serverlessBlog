@@ -136,7 +136,7 @@ Provide brief summary in the language specified in spec.json:
 3. **Key Findings**: 2-3 critical insights from discovery that shaped the design
 4. **Next Action**: Approval workflow guidance (see Safety & Fallback)
 
-**Format**: Concise Markdown (under 200 words) - this is the command output, NOT the design document itself
+**Format**: Concise Markdown - this is the command output, NOT the design document itself
 
 **Note**: The actual design document follows `.kiro/settings/templates/specs/design.md` structure.
 

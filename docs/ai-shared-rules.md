@@ -28,7 +28,7 @@ the impact cannot be bounded; it does not include E2E or Terraform verification.
 
 - Use `bun`, not `npx`, for Node packages and scripts.
 - `bun run verify` first runs `deps:sync` (`bun install --frozen-lockfile` in the four
-  packages), so stale `node_modules` after pulling no longer surface as missing-module
+  packages), so stale `node_modules` after pulling do not surface as missing-module
   errors. `bun run doctor` checks tool presence and the Bun/Go/Terraform versions CI uses.
 - Agents run with `STRICT_LOCAL_CHECKS=1` (`.claude/settings.json`, `scripts/run-codex.sh`):
   a commit fails instead of silently skipping terraform validate / trivy / gitleaks when
@@ -79,8 +79,8 @@ the impact cannot be bounded; it does not include E2E or Terraform verification.
 - Before reviewing code, investigating a bug or filing an issue, run `git fetch origin`
   and check `git rev-list --left-right --count HEAD...origin/develop`. If HEAD is behind,
   base findings on `origin/develop` (read files with `git show origin/develop:<path>` or
-  work in a fresh worktree), not on the local checkout. A review once ran 108 commits
-  behind and reported four problems that were already fixed.
+  work in a fresh worktree), not on the local checkout; findings from a stale checkout
+  can describe problems that are already fixed.
 - Before filing an issue, confirm the cited code still exists on `origin/develop` and
   search existing issues, closed ones included: `gh issue list --state all --search "<keywords>"`.
 - Several sessions may share the main checkout. Agents do not switch branches there; each
