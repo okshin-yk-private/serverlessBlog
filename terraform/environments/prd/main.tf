@@ -234,6 +234,22 @@ resource "aws_s3_bucket_policy" "images_cloudfront" {
             "AWS:SourceArn" = module.cdn.distribution_arn
           }
         }
+      },
+      {
+        # AWS FSBP S3.5: deny any request that does not use TLS.
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          module.storage.image_bucket_arn,
+          "${module.storage.image_bucket_arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
       }
     ]
   })
@@ -272,6 +288,22 @@ resource "aws_s3_bucket_policy" "public_site_cloudfront" {
         Condition = {
           StringEquals = { "AWS:SourceArn" = module.cdn.distribution_arn }
         }
+      },
+      {
+        # AWS FSBP S3.5: deny any request that does not use TLS.
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          module.storage.public_site_bucket_arn,
+          "${module.storage.public_site_bucket_arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
       }
     ]
   })
@@ -296,6 +328,22 @@ resource "aws_s3_bucket_policy" "admin_site_cloudfront" {
         Condition = {
           StringEquals = {
             "AWS:SourceArn" = module.cdn.distribution_arn
+          }
+        }
+      },
+      {
+        # AWS FSBP S3.5: deny any request that does not use TLS.
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          module.storage.admin_site_bucket_arn,
+          "${module.storage.admin_site_bucket_arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
           }
         }
       }

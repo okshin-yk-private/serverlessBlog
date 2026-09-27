@@ -612,3 +612,21 @@ run "passkey_mfa_prerequisites" {
     error_message = "Passkey sign-in must be enabled on both pool and client."
   }
 }
+
+# Test 32: App Client must not leak whether a username exists
+# Issue #684 item 4: prevent_user_existence_errors must be explicitly ENABLED
+# so that InitiateAuth/ForgotPassword return a generic error instead of
+# distinguishing "user does not exist" from "wrong password".
+run "prevent_user_existence_errors_enabled" {
+  command = plan
+
+  variables {
+    user_pool_name = "test-blog-user-pool"
+    environment    = "dev"
+  }
+
+  assert {
+    condition     = aws_cognito_user_pool_client.main.prevent_user_existence_errors == "ENABLED"
+    error_message = "App Client must explicitly set prevent_user_existence_errors = ENABLED to avoid user enumeration"
+  }
+}
