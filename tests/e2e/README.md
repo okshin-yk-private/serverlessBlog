@@ -167,6 +167,11 @@ bun run test:e2e:admin:ui     # 管理画面UIモード
 
 - 作成例: `[E2E-TEST] New Test Article`
 - `global-teardown.ts` で自動クリーンアップ
+  - 実 AWS 環境では admin SPA に実 UI でログイン (Amplify SRP → Cognito) し、SPA が
+    sessionStorage に置いた ID トークンで admin API を呼ぶ。`TEST_ADMIN_EMAIL` /
+    `TEST_ADMIN_PASSWORD` が未設定、またはログインがダッシュボードに到達しない
+    (TOTP MFA が必須のユーザー等) 場合は警告を出して掃除を skip する
+  - 下書き・公開済みの両方をページングして探す
 - 手動クリーンアップ: `bun run cleanup:test-data`
 
 ### MSW環境
