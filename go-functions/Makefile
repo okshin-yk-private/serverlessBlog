@@ -43,7 +43,7 @@ FUNCTIONS := \
 	categories/bulk_sort \
 	categories/delete
 
-.PHONY: all build clean test lint fmt verify-toolchain check-linter help
+.PHONY: all build build-one print-functions clean test lint fmt verify-toolchain check-linter help
 
 # Default target
 all: build
@@ -74,6 +74,12 @@ endif
 		go build $(BUILD_FLAGS) -ldflags="$(LDFLAGS)" -tags="$(BUILD_TAGS)" \
 		-o $(BIN_DIR)/$$name/bootstrap ./$(CMD_DIR)/$(FUNC); \
 	touch -t $(FIXED_TIMESTAMP) $(BIN_DIR)/$$name/bootstrap
+
+# Print hyphenated function names (one per line): "posts/create" -> "posts-create".
+# CI/deploy workflows read this instead of hardcoding the function list, so
+# $(FUNCTIONS) above stays the single source of truth for "which Lambdas exist".
+print-functions:
+	@for func in $(FUNCTIONS); do echo $$func | tr '/' '-'; done
 
 # Run tests with race detector
 test:
@@ -145,6 +151,7 @@ help:
 	@echo "  all        - Build all Lambda functions (default)"
 	@echo "  build      - Build all Lambda functions"
 	@echo "  build-one  - Build single function (FUNC=posts/create)"
+	@echo "  print-functions - Print hyphenated function names, one per line"
 	@echo "  test       - Run tests with race detector"
 	@echo "  lint       - Verify the pinned toolchain and run golangci-lint"
 	@echo "  verify-toolchain - Check version declarations and the active Go version"
