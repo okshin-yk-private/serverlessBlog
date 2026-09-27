@@ -55,6 +55,16 @@ the impact cannot be bounded; it does not include E2E or Terraform verification.
   than `golangci-lint run` directly: it checks the active Go patch version and the pinned
   golangci-lint release first, preventing the opaque parser panic caused by an older linter.
 
+- `.husky/scripts/pre-commit-tests.sh` runs tests only for staged `go-functions/`,
+  `frontend/admin/`, `frontend/public-astro/` and `scripts/deploy/` paths. A commit that
+  touches only `tests/**`, root configs or `.github/**` prints "No testable components
+  changed" — that is not a pass; run `bun run test:unit:config` (and the affected spec) yourself.
+- Local Playwright configs set `reuseExistingServer`, and other worktrees' sessions may
+  already hold the default ports (admin 3001, public 3000). Check with
+  `lsof -iTCP:<port> -sTCP:LISTEN` first: a reused server serves another checkout's code.
+  For the admin suite pick a free port with `ADMIN_DEV_PORT=<p> ADMIN_BASE_URL=http://127.0.0.1:<p>`;
+  the public config has no port override. Stop only servers you started.
+
 ## Repository etiquette
 
 - Base branch is `develop`, not `main`, unless the user explicitly requests another base.
@@ -115,6 +125,26 @@ the language configured in that spec's `spec.json.language`.
   the same phase is sufficient; update spec metadata instead of requesting it again.
 - If a skill requires stopping outside the intended boundary, cite the exact file and
   instruction, and distinguish its requirement from your interpretation.
+
+## Real-environment (DEV) E2E
+
+Running `playwright.aws.config.ts` or seeding data against a deployed environment needs
+the user's authorization for that environment (see [ai-verification.md](ai-verification.md)).
+
+- DEV only. Before running, confirm the account (`aws sts get-caller-identity`) and that
+  `BASE_URL` is the value of `/serverless-blog/dev/cdn/public-url`; abort otherwise. Never PRD.
+- Read Basic-auth and `TEST_ADMIN_*` credentials from SSM straight into environment
+  variables (commands in `tests/e2e/README.md`). Never echo them; report lengths if needed.
+- There is no REST login. Admin sign-in is Amplify SRP / `USER_AUTH` against Cognito and the
+  App Client does not allow `USER_PASSWORD_AUTH`. Tooling that needs an admin ID token logs in
+  through `AdminLoginPage` and reads sessionStorage `auth_session_token`, as
+  `tests/e2e/global-teardown.ts` does. Do not add a login endpoint or auth flow for tooling.
+- Data created for verification uses the `[E2E-TEST]` prefix and stays a draft without a
+  slug: publishing (or a slug) starts the CodeBuild site rebuild. Delete it afterwards and
+  confirm through a second path (API list or DynamoDB), not the deleting tool's own log.
+- MSW runs and PR CI never exercise the `VITE_ENABLE_MSW_MOCK=false` code paths
+  (`global-setup.ts`, `global-teardown.ts`, AWS branches in specs). A change there is
+  unverified until it runs against DEV — say so in the report and PR.
 
 ## Research delegation
 

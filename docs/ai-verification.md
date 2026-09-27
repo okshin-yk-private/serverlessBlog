@@ -16,6 +16,7 @@ explicit authorization for the target environment.
 | Deploy scripts | `bun run test:unit:deploy`; inspect affected CI/deployment contracts without deploying. |
 | Terraform | `terraform fmt -check` for changed files and `terraform validate` for affected root modules with initialized providers; relevant mock tests where supported. A cloud plan/apply is a separate authorized action. |
 | CI / test configuration | `bun run test:unit:config` plus checks that exercise the changed workflow or test runner behavior. |
+| E2E harness (`tests/e2e/**`, `playwright*.config.ts`) | `bun run test:unit:config`, plus the affected specs in MSW mode on an isolated port. Changes to AWS-mode paths also need an authorized DEV run (see ai-shared-rules.md, 'Real-environment (DEV) E2E'); otherwise report them as unverified. |
 | Shared application contracts, broad dependencies, cross-component application changes, uncertain impact | `bun run verify` plus relevant E2E/Terraform/build checks that verify does not cover. |
 
 For UI behavior, add relevant browser/E2E verification when unit checks do not establish
