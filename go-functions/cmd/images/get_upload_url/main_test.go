@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -14,7 +15,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
 	"serverless-blog/go-functions/internal/domain"
@@ -22,21 +23,25 @@ import (
 
 // MockPresignClient implements S3PresignerInterface for testing
 type MockPresignClient struct {
-	PresignPutObjectFunc func(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error)
+	PresignPostObjectFunc func(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.PresignPostOptions)) (*s3.PresignedPostRequest, error)
 }
 
-func (m *MockPresignClient) PresignPutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error) {
+func (m *MockPresignClient) PresignPostObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.PresignPostOptions)) (*s3.PresignedPostRequest, error) {
 	// Execute the option functions to ensure they are covered in tests
-	opts := &s3.PresignOptions{}
+	opts := &s3.PresignPostOptions{}
 	for _, fn := range optFns {
 		fn(opts)
 	}
 
-	if m.PresignPutObjectFunc != nil {
-		return m.PresignPutObjectFunc(ctx, params, optFns...)
+	if m.PresignPostObjectFunc != nil {
+		return m.PresignPostObjectFunc(ctx, params, optFns...)
 	}
-	return &v4.PresignedHTTPRequest{
-		URL: "https://test-bucket.s3.amazonaws.com/test-key?presigned",
+	return &s3.PresignedPostRequest{
+		URL: "https://test-bucket.s3.amazonaws.com/",
+		Values: map[string]string{
+			"key":    aws.ToString(params.Key),
+			"policy": "test-policy",
+		},
 	}, nil
 }
 
@@ -82,7 +87,7 @@ func TestHandler(t *testing.T) {
 			cloudFrontDomain: "https://cdn.example.com",
 			mockPresignClient: func() (S3PresignerInterface, error) {
 				return &MockPresignClient{
-					PresignPutObjectFunc: func(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error) {
+					PresignPostObjectFunc: func(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.PresignPostOptions)) (*s3.PresignedPostRequest, error) {
 						// Verify bucket and key
 						if aws.ToString(params.Bucket) != "test-bucket" {
 							t.Errorf("unexpected bucket: %s", aws.ToString(params.Bucket))
@@ -90,8 +95,9 @@ func TestHandler(t *testing.T) {
 						if aws.ToString(params.ContentType) != "image/jpeg" {
 							t.Errorf("unexpected content type: %s", aws.ToString(params.ContentType))
 						}
-						return &v4.PresignedHTTPRequest{
-							URL: "https://test-bucket.s3.amazonaws.com/presigned-url",
+						return &s3.PresignedPostRequest{
+							URL:    "https://test-bucket.s3.amazonaws.com/presigned-url",
+							Values: map[string]string{"key": aws.ToString(params.Key), "policy": "test-policy"},
 						}, nil
 					},
 				}, nil
@@ -126,9 +132,10 @@ func TestHandler(t *testing.T) {
 			cloudFrontDomain: "",
 			mockPresignClient: func() (S3PresignerInterface, error) {
 				return &MockPresignClient{
-					PresignPutObjectFunc: func(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error) {
-						return &v4.PresignedHTTPRequest{
-							URL: "https://my-bucket.s3.amazonaws.com/presigned",
+					PresignPostObjectFunc: func(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.PresignPostOptions)) (*s3.PresignedPostRequest, error) {
+						return &s3.PresignedPostRequest{
+							URL:    "https://my-bucket.s3.amazonaws.com/presigned",
+							Values: map[string]string{"key": aws.ToString(params.Key)},
 						}, nil
 					},
 				}, nil
@@ -431,7 +438,7 @@ func TestHandler(t *testing.T) {
 			cloudFrontDomain: "",
 			mockPresignClient: func() (S3PresignerInterface, error) {
 				return &MockPresignClient{
-					PresignPutObjectFunc: func(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error) {
+					PresignPostObjectFunc: func(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.PresignPostOptions)) (*s3.PresignedPostRequest, error) {
 						return nil, errors.New("presign error")
 					},
 				}, nil
@@ -719,5 +726,152 @@ func TestPresignExpiration(t *testing.T) {
 	expected := 15 * time.Minute
 	if presignExpiration != expected {
 		t.Errorf("expected presign expiration to be %v, got %v", expected, presignExpiration)
+	}
+}
+
+// Test the 5 MiB upload size cap constant (issue #684 item 1), which must
+// match MAX_IMAGE_BYTES in frontend/admin/src/utils/imageValidation.ts
+// (cross-checked by tests/config).
+func TestMaxUploadSizeBytes(t *testing.T) {
+	const expected = 5 * 1024 * 1024
+	if maxUploadSizeBytes != expected {
+		t.Errorf("expected maxUploadSizeBytes to be %d, got %d", expected, maxUploadSizeBytes)
+	}
+}
+
+// Test buildUploadConditions returns the exact Content-Type and
+// content-length-range conditions expected by the POST policy.
+func TestBuildUploadConditions(t *testing.T) {
+	conditions := buildUploadConditions("image/png")
+
+	if len(conditions) != 2 {
+		t.Fatalf("expected 2 conditions, got %d: %#v", len(conditions), conditions)
+	}
+
+	contentTypeCond, ok := conditions[0].(map[string]string)
+	if !ok {
+		t.Fatalf("expected first condition to be map[string]string, got %T", conditions[0])
+	}
+	if contentTypeCond["Content-Type"] != "image/png" {
+		t.Errorf("expected Content-Type condition %q, got %q", "image/png", contentTypeCond["Content-Type"])
+	}
+
+	rangeCond, ok := conditions[1].([]any)
+	if !ok {
+		t.Fatalf("expected second condition to be []any, got %T", conditions[1])
+	}
+	if len(rangeCond) != 3 || rangeCond[0] != contentLengthRangeCondition || rangeCond[1] != 1 || rangeCond[2] != maxUploadSizeBytes {
+		t.Errorf("unexpected content-length-range condition: %#v", rangeCond)
+	}
+}
+
+// s3PolicyDocument mirrors the shape of the base64-decoded S3 POST policy
+// document, enough to assert on its "conditions" list.
+type s3PolicyDocument struct {
+	Conditions []any `json:"conditions"`
+}
+
+// decodePolicy base64-decodes and JSON-unmarshals the "policy" field the SDK
+// returns in PresignedPostRequest.Values.
+func decodePolicy(t *testing.T, values map[string]string) s3PolicyDocument {
+	t.Helper()
+	raw, ok := values["policy"]
+	if !ok {
+		t.Fatalf("presigned POST values missing policy field: %#v", values)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil {
+		t.Fatalf("failed to base64-decode policy: %v", err)
+	}
+	var doc s3PolicyDocument
+	if err := json.Unmarshal(decoded, &doc); err != nil {
+		t.Fatalf("failed to unmarshal policy JSON: %v", err)
+	}
+	return doc
+}
+
+// policyHasCondition reports whether the policy's conditions list contains a
+// condition deep-equal to want, after round-tripping both through JSON so
+// numeric and map/slice representations compare consistently.
+func policyHasCondition(t *testing.T, conditions []any, want any) bool {
+	t.Helper()
+	wantJSON, err := json.Marshal(want)
+	if err != nil {
+		t.Fatalf("failed to marshal expected condition: %v", err)
+	}
+	for _, c := range conditions {
+		gotJSON, err := json.Marshal(c)
+		if err != nil {
+			t.Fatalf("failed to marshal actual condition: %v", err)
+		}
+		if string(gotJSON) == string(wantJSON) {
+			return true
+		}
+	}
+	return false
+}
+
+// realPresignClient builds a real *s3.PresignClient with static (fake)
+// credentials. Presigning a POST policy is a pure local computation (no
+// network call is made), so this exercises the actual SDK policy-building
+// logic (createPolicyDocument in presign_post.go) without hitting AWS.
+func realPresignClient(t *testing.T) *s3.PresignClient {
+	t.Helper()
+	client := s3.New(s3.Options{
+		Region:      "us-east-1",
+		Credentials: credentials.NewStaticCredentialsProvider("AKIAFAKE", "secretfakefakefakefakefakefakefake", ""),
+	})
+	return s3.NewPresignClient(client)
+}
+
+// TestPresignPostObject_PolicyConditions verifies, against the real SDK
+// presigner, that the policy document produced for our conditions contains
+// the content-length-range (1..5 MiB), an exact key match, and the exact
+// Content-Type condition. This guards against a future change to
+// buildUploadConditions or the conditions wiring silently losing the size
+// cap that motivated issue #684 item 1.
+func TestPresignPostObject_PolicyConditions(t *testing.T) {
+	client := realPresignClient(t)
+
+	putInput := &s3.PutObjectInput{
+		Bucket:      aws.String("test-bucket"),
+		Key:         aws.String("user-123/uuid.png"),
+		ContentType: aws.String("image/png"),
+	}
+
+	presignedReq, err := client.PresignPostObject(context.Background(), putInput, func(opts *s3.PresignPostOptions) {
+		opts.Expires = presignExpiration
+		opts.Conditions = buildUploadConditions("image/png")
+	})
+	if err != nil {
+		t.Fatalf("PresignPostObject returned error: %v", err)
+	}
+
+	doc := decodePolicy(t, presignedReq.Values)
+
+	if !policyHasCondition(t, doc.Conditions, []any{contentLengthRangeCondition, 1, maxUploadSizeBytes}) {
+		t.Errorf("policy conditions missing content-length-range 1..%d: %#v", maxUploadSizeBytes, doc.Conditions)
+	}
+	if !policyHasCondition(t, doc.Conditions, map[string]string{"Content-Type": "image/png"}) {
+		t.Errorf("policy conditions missing exact Content-Type match: %#v", doc.Conditions)
+	}
+	if !policyHasCondition(t, doc.Conditions, map[string]string{"key": "user-123/uuid.png"}) {
+		t.Errorf("policy conditions missing exact key match: %#v", doc.Conditions)
+	}
+
+	if _, ok := presignedReq.Values["key"]; !ok {
+		t.Errorf("presigned POST values missing key form field: %#v", presignedReq.Values)
+	}
+}
+
+// TestPresignPostObject_RejectsUnsupportedContentType documents that
+// unsupported content types never reach the presigner: domain.Validate
+// rejects them before buildUploadConditions/PresignPostObject are called.
+// See TestHandler's "error - invalid content type" and
+// "error - invalid file extension" cases for the end-to-end behavior.
+func TestPresignPostObject_RejectsUnsupportedContentType(t *testing.T) {
+	req := domain.GetUploadURLRequest{FileName: "test.pdf", ContentType: "application/pdf"}
+	if err := req.Validate(); err == nil {
+		t.Fatal("expected Validate to reject an unsupported content type before any presign call")
 	}
 }

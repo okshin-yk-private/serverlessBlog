@@ -247,14 +247,22 @@ export const handlers = [
   }),
 
   // 画像アップロードURL取得モック（認証必要）
-  http.post(`${API_URL}/admin/upload-url`, ({ request }) => {
+  // バックエンドは presigned POST (uploadUrl + fields) を返す
+  // (posts.ts getUploadUrl / uploadImage 参照、issue #684)。
+  http.post(`${API_URL}/admin/images/upload-url`, ({ request }) => {
     if (!isAuthenticated(request)) {
       return unauthorizedResponse();
     }
 
     return HttpResponse.json({
-      uploadUrl: 'https://mock-s3-bucket.s3.amazonaws.com/upload-url',
-      imageUrl: 'https://mock-cloudfront.com/images/test-image.png',
+      uploadUrl: 'https://mock-s3-bucket.s3.us-east-1.amazonaws.com/',
+      fields: {
+        key: 'test-image.png',
+        policy: 'mock-policy',
+        'x-amz-signature': 'mock-signature',
+      },
+      key: 'test-image.png',
+      url: 'https://mock-cloudfront.com/images/test-image.png',
     });
   }),
 ];

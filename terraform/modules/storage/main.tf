@@ -272,13 +272,18 @@ resource "aws_s3_bucket_lifecycle_configuration" "images" {
   }
 }
 
-# CORS configuration for pre-signed URL uploads from browser
+# CORS configuration for pre-signed URL uploads from browser.
+# Uploads use a presigned POST (multipart/form-data), not PUT: a presigned
+# PUT cannot bound object size, but the POST policy's content-length-range
+# condition can (issue #684 item 1). No other caller presigns a PUT to this
+# bucket (see go-functions/cmd/images/get_upload_url/main.go), so PUT is
+# dropped rather than kept alongside POST.
 resource "aws_s3_bucket_cors_configuration" "images" {
   bucket = aws_s3_bucket.images.id
 
   cors_rule {
     allowed_headers = ["*"]
-    allowed_methods = ["PUT"]
+    allowed_methods = ["POST"]
     allowed_origins = var.cors_allow_origins
     max_age_seconds = 3000
   }

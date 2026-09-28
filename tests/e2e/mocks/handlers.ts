@@ -38,6 +38,12 @@ const API_BASE_URL =
 let nextSiteBuildRevision = 1;
 const siteBuildStartedAt: Record<string, number> = {};
 
+// S3 presigned POST content-length-range cap (5 MiB), mirroring
+// go-functions/cmd/images/get_upload_url's maxUploadSizeBytes, which in turn
+// must match frontend/admin/src/utils/imageValidation.ts's MAX_IMAGE_BYTES
+// (issue #684; see tests/config for the cross-check between those two).
+const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
+
 const createSiteBuildRequest = () => ({
   targetRevision: nextSiteBuildRevision++,
   status: 'queued' as const,
@@ -604,18 +610,41 @@ export const handlers = [
 
     // MSW SW は cross-origin (amazonaws.com など) を intercept できないため、
     // E2E では同 origin の擬似 S3 パスを返す。実環境の挙動とは異なるが、
-    // フロントエンド側の挙動 (URL を受け取って PUT する) は同等に検証できる。
-    // 注: バックエンドは "url" フィールドで最終 URL を返す (posts.ts getUploadUrl 参照)。
+    // フロントエンド側の挙動 (フィールド + file を multipart/form-data で
+    // POST する) は同等に検証できる。
+    // 注: バックエンドは presigned POST (uploadUrl + fields) を返す
+    // (posts.ts getUploadUrl / uploadImage 参照、issue #684)。
     return HttpResponse.json({
-      uploadUrl: `${API_BASE_URL}/_mock_s3_put/${body.fileName}`,
+      uploadUrl: `${API_BASE_URL}/_mock_s3_post/${body.fileName}`,
+      fields: {
+        key: `mock/${body.fileName}`,
+        policy: 'mock-policy',
+        'x-amz-signature': 'mock-signature',
+      },
+      key: `mock/${body.fileName}`,
       url: `https://mock-cdn.cloudfront.net/images/${body.fileName}`,
-      expiresIn: 900,
     });
   }),
 
-  // 管理画面: 同 origin S3 PUT スタブ
-  http.put(`${API_BASE_URL}/_mock_s3_put/:filename`, () => {
-    return new HttpResponse(null, { status: 200 });
+  // 管理画面: 同 origin S3 POST (presigned POST) スタブ。
+  // multipart/form-data を受け取り、5MiB (MAX_UPLOAD_SIZE_BYTES) を超える
+  // ファイルには実際の S3 content-length-range 違反と同様の 400
+  // EntityTooLarge を返す (issue #684)。
+  http.post(`${API_BASE_URL}/_mock_s3_post/:filename`, async ({ request }) => {
+    const formData = await request.formData();
+    const file = formData.get('file');
+    const size = file instanceof Blob ? file.size : 0;
+
+    if (size > MAX_UPLOAD_SIZE_BYTES) {
+      return new HttpResponse(
+        '<?xml version="1.0" encoding="UTF-8"?>\n' +
+          '<Error><Code>EntityTooLarge</Code>' +
+          '<Message>Your proposed upload exceeds the maximum allowed size</Message></Error>',
+        { status: 400, headers: { 'Content-Type': 'application/xml' } }
+      );
+    }
+
+    return new HttpResponse(null, { status: 204 });
   }),
 
   // 記事作成（認証必須）- `/api/posts` POST
