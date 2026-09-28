@@ -22,7 +22,6 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 
@@ -34,9 +33,24 @@ import (
 // presignExpiration defines the presigned URL expiration time (15 minutes)
 const presignExpiration = 15 * time.Minute
 
+// maxUploadSizeBytes caps uploaded image size via the S3 POST policy's
+// content-length-range condition (5 MiB). A presigned PUT cannot express
+// this limit, which previously let an authenticated admin upload up to the
+// S3 single-PUT maximum (5 GB); see issue #684 item 1.
+//
+// Must match MAX_IMAGE_BYTES in
+// frontend/admin/src/utils/imageValidation.ts so the server enforces exactly
+// what the admin UI promises. tests/config has a cross-check test that fails
+// if the two drift apart.
+const maxUploadSizeBytes = 5 * 1024 * 1024
+
+// contentLengthRangeCondition is the S3 POST policy condition name that
+// bounds the uploaded object's size.
+const contentLengthRangeCondition = "content-length-range"
+
 // S3PresignerInterface defines the interface for S3 presign operations (for testing)
 type S3PresignerInterface interface {
-	PresignPutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error)
+	PresignPostObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.PresignPostOptions)) (*s3.PresignedPostRequest, error)
 }
 
 // presignClientGetter is a function that returns the S3 Presign client
@@ -92,15 +106,17 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// Generate S3 key: {userId}/{uuid}.{extension}
 	s3Key := generateS3Key(userID, req.FileName)
 
-	// Generate presigned PUT URL
+	// Generate a presigned POST policy (not PUT): a presigned PUT cannot cap
+	// object size, but a POST policy's content-length-range condition can.
 	putInput := &s3.PutObjectInput{
 		Bucket:      aws.String(bucketName),
 		Key:         aws.String(s3Key),
 		ContentType: aws.String(req.ContentType),
 	}
 
-	presignedReq, err := presignClient.PresignPutObject(ctx, putInput, func(opts *s3.PresignOptions) {
+	presignedReq, err := presignClient.PresignPostObject(ctx, putInput, func(opts *s3.PresignPostOptions) {
 		opts.Expires = presignExpiration
+		opts.Conditions = buildUploadConditions(req.ContentType)
 	})
 	if err != nil {
 		return middleware.ServerError(ctx, "failed to generate upload URL", err)
@@ -112,11 +128,24 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// Build response
 	response := domain.GetUploadURLResponse{
 		UploadURL: presignedReq.URL,
+		Fields:    presignedReq.Values,
 		Key:       s3Key,
 		URL:       imageURL,
 	}
 
 	return middleware.JSONResponse(200, response)
+}
+
+// buildUploadConditions builds the S3 POST policy conditions for a presigned
+// upload: an exact match on the client-declared (and already validated)
+// Content-Type, and a content-length-range rejecting empty and over-limit
+// uploads. The SDK automatically appends an exact "key" condition since none
+// of these conditions already constrain "key".
+func buildUploadConditions(contentType string) []any {
+	return []any{
+		map[string]string{"Content-Type": contentType},
+		[]any{contentLengthRangeCondition, 1, maxUploadSizeBytes},
+	}
 }
 
 // extractUserID extracts the user ID (Cognito sub claim) from API Gateway authorizer context

@@ -29,10 +29,10 @@ test.describe('Admin Tiptap Editor - image drop', () => {
     await adminLoginPage.navigate();
     await adminLoginPage.clearCredentials();
     await adminLoginPage.login(testCredentials.email, testCredentials.password);
-    // 画像 PUT は MSW handlers.ts の `_mock_s3_put/:filename` ハンドラが処理する。
+    // 画像 POST（presigned POST）は MSW handlers.ts の `_mock_s3_post/:filename` ハンドラが処理する。
   });
 
-  test('画像をドロップすると UploadImage が S3 PUT を経て最終 URL を markdown に挿入する', async ({
+  test('画像をドロップすると UploadImage が S3 POST（presigned POST）を経て最終 URL を markdown に挿入する', async ({
     page,
   }) => {
     await page.goto('posts/new');

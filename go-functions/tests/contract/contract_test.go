@@ -383,27 +383,37 @@ func TestCategoriesListContract(t *testing.T) {
 }
 
 // TestImageUploadURLContract verifies the image upload URL endpoint response
-// matches the MSW mock handler: POST /api/images/upload-url
+// matches the MSW mock handler: POST /admin/images/upload-url
+// (tests/e2e/mocks/handlers.ts).
+//
+// Since issue #684 item 1, the endpoint returns a presigned POST (uploadUrl +
+// fields), not a presigned PUT: a PUT cannot bound object size, but the POST
+// policy's content-length-range condition can (see
+// go-functions/cmd/images/get_upload_url/main.go).
 func TestImageUploadURLContract(t *testing.T) {
 	t.Run("upload URL response matches MSW mock structure", func(t *testing.T) {
-		// MSW mock returns: { uploadUrl, imageUrl, expiresIn }
-		// Note: MSW uses "imageUrl" while Go uses { uploadUrl, key, url }
-		// This documents the contract difference
+		// MSW mock (tests/e2e/mocks/handlers.ts) returns:
+		// { uploadUrl, fields: {...}, key, url }
 		mswResponse := `{
-			"uploadUrl": "https://mock-s3-bucket.s3.amazonaws.com/images/test.jpg",
-			"imageUrl": "https://mock-cdn.cloudfront.net/images/test.jpg",
-			"expiresIn": 900
+			"uploadUrl": "https://mock-images-bucket.s3.us-east-1.amazonaws.com/",
+			"fields": {
+				"key": "mock/test.jpg",
+				"policy": "mock-policy",
+				"x-amz-signature": "mock-signature"
+			},
+			"key": "mock/test.jpg",
+			"url": "https://mock-cdn.cloudfront.net/images/test.jpg"
 		}`
 
-		// Go API returns different field names
-		goResp := struct {
-			UploadURL string `json:"uploadUrl"`
-			ImageURL  string `json:"imageUrl"`
-			ExpiresIn int    `json:"expiresIn"`
-		}{
-			UploadURL: "https://mock-s3-bucket.s3.amazonaws.com/images/test.jpg",
-			ImageURL:  "https://mock-cdn.cloudfront.net/images/test.jpg",
-			ExpiresIn: 900,
+		goResp := domain.GetUploadURLResponse{
+			UploadURL: "https://mock-images-bucket.s3.us-east-1.amazonaws.com/",
+			Fields: map[string]string{
+				"key":             "mock/test.jpg",
+				"policy":          "mock-policy",
+				"x-amz-signature": "mock-signature",
+			},
+			Key: "mock/test.jpg",
+			URL: "https://mock-cdn.cloudfront.net/images/test.jpg",
 		}
 
 		goBody, err := json.Marshal(goResp)

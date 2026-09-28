@@ -301,6 +301,22 @@ run "image_bucket_cors" {
     condition     = length(aws_s3_bucket_cors_configuration.images.cors_rule) > 0
     error_message = "Image bucket must have CORS configuration for pre-signed URL uploads"
   }
+
+  # Issue #684 item 1: uploads use a presigned POST (with a
+  # content-length-range policy condition) instead of a presigned PUT, which
+  # cannot bound object size. CORS must allow POST for the browser upload.
+  assert {
+    condition     = contains(flatten([for r in aws_s3_bucket_cors_configuration.images.cors_rule : r.allowed_methods]), "POST")
+    error_message = "Image bucket CORS must allow POST for presigned POST uploads"
+  }
+
+  # PUT is no longer used for image uploads (see
+  # go-functions/cmd/images/get_upload_url/main.go); it must not be
+  # reintroduced without re-evaluating the upload size cap it would bypass.
+  assert {
+    condition     = !contains(flatten([for r in aws_s3_bucket_cors_configuration.images.cors_rule : r.allowed_methods]), "PUT")
+    error_message = "Image bucket CORS should not allow PUT: presigned PUT cannot enforce the upload size limit"
+  }
 }
 
 # Test 16: Verify CloudFront OAC bucket policy is conditionally created
