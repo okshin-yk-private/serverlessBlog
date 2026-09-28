@@ -60,8 +60,12 @@ describe('API Module', () => {
 
       const result = await fetchAllPosts();
 
+      const callUrl = (mockFetch.mock.calls[0] as unknown[])[0];
+      expect(callUrl).toContain('https://api.example.com/posts?');
+      expect(callUrl).toContain('publishStatus=published');
+      expect(callUrl).toContain('limit=100');
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.example.com/posts?publishStatus=published',
+        callUrl,
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({
@@ -146,16 +150,18 @@ describe('API Module', () => {
       const result = await fetchAllPosts();
 
       expect(mockFetch).toHaveBeenCalledTimes(2);
-      expect(mockFetch).toHaveBeenNthCalledWith(
-        1,
-        'https://api.example.com/posts?publishStatus=published',
-        expect.any(Object)
-      );
-      expect(mockFetch).toHaveBeenNthCalledWith(
-        2,
-        'https://api.example.com/posts?publishStatus=published&nextToken=token123',
-        expect.any(Object)
-      );
+
+      const firstCallUrl = (mockFetch.mock.calls[0] as unknown[])[0] as string;
+      expect(firstCallUrl).toContain('https://api.example.com/posts?');
+      expect(firstCallUrl).toContain('publishStatus=published');
+      expect(firstCallUrl).toContain('limit=100');
+
+      const secondCallUrl = (mockFetch.mock.calls[1] as unknown[])[0] as string;
+      expect(secondCallUrl).toContain('https://api.example.com/posts?');
+      expect(secondCallUrl).toContain('publishStatus=published');
+      expect(secondCallUrl).toContain('limit=100');
+      expect(secondCallUrl).toContain('nextToken=token123');
+
       expect(result).toEqual([...page1Posts, ...page2Posts]);
     });
 

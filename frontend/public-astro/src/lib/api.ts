@@ -110,9 +110,14 @@ export async function fetchAllPosts(): Promise<Post[]> {
   const seenTokens = new Set<string>();
 
   do {
-    const url = nextToken
-      ? `${apiUrl}/posts?publishStatus=published&nextToken=${encodeURIComponent(nextToken)}`
-      : `${apiUrl}/posts?publishStatus=published`;
+    const params = new URLSearchParams({
+      publishStatus: 'published',
+      limit: '100',
+    });
+    if (nextToken) {
+      params.set('nextToken', nextToken);
+    }
+    const url = `${apiUrl}/posts?${params.toString()}`;
 
     const response = postListSchema.parse(
       await fetchWithRetry<unknown>(url, {
