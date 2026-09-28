@@ -646,3 +646,78 @@ run "access_logs_bucket_policy_absent_when_disabled" {
     error_message = "Access logs bucket policy must not be created when enable_access_logs is false"
   }
 }
+
+# Test 28: Verify the access-logs bucket policy stays deny-only when no
+# CloudFront log delivery source ARN is configured (default: dev, and prd
+# before the delivery source exists).
+# Issue #684 item 2: CloudWatch vended-log delivery statement is opt-in.
+run "access_logs_bucket_policy_no_log_delivery_statement_by_default" {
+  command = apply
+  variables {
+    project_name       = "serverless-blog"
+    environment        = "prd"
+    enable_access_logs = true
+  }
+
+  assert {
+    condition = length([
+      for statement in jsondecode(aws_s3_bucket_policy.access_logs[0].policy).Statement :
+      statement
+      if statement.Sid == "AWSLogDeliveryWrite" || statement.Sid == "AWSLogDeliveryAclCheck"
+    ]) == 0
+    error_message = "No log-delivery Allow statement must be added when cloudfront_log_delivery_source_arns is empty"
+  }
+}
+
+# Test 29: Verify the access-logs bucket policy grants delivery.logs.amazonaws.com
+# write access, scoped to the cloudfront/ prefix and to the configured
+# delivery source ARNs, when CloudFront standard logging v2 is wired up.
+# Issue #684 item 2: CloudWatch standard logging v2 (CloudFront) to S3.
+run "access_logs_bucket_policy_allows_cloudfront_log_delivery" {
+  command = apply
+  variables {
+    project_name       = "serverless-blog"
+    environment        = "prd"
+    enable_access_logs = true
+    cloudfront_log_delivery_source_arns = [
+      "arn:aws:logs:us-east-1:123456789012:delivery-source:serverless-blog-cloudfront-prd"
+    ]
+  }
+
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.access_logs[0].policy).Statement :
+      statement.Sid == "AWSLogDeliveryWrite" &&
+      statement.Effect == "Allow" &&
+      statement.Principal.Service == "delivery.logs.amazonaws.com" &&
+      statement.Action == "s3:PutObject" &&
+      statement.Resource == "${aws_s3_bucket.access_logs[0].arn}/cloudfront/*" &&
+      statement.Condition.StringEquals["s3:x-amz-acl"] == "bucket-owner-full-control" &&
+      statement.Condition.StringEquals["aws:SourceAccount"] == data.aws_caller_identity.current.account_id &&
+      contains(statement.Condition.ArnLike["aws:SourceArn"], "arn:aws:logs:us-east-1:123456789012:delivery-source:serverless-blog-cloudfront-prd")
+    ])
+    error_message = "Access logs bucket policy must allow delivery.logs.amazonaws.com to PutObject under cloudfront/ for the configured delivery source ARNs"
+  }
+
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.access_logs[0].policy).Statement :
+      statement.Sid == "AWSLogDeliveryAclCheck" &&
+      statement.Effect == "Allow" &&
+      statement.Principal.Service == "delivery.logs.amazonaws.com" &&
+      contains(statement.Action, "s3:GetBucketAcl") &&
+      contains(statement.Action, "s3:ListBucket") &&
+      statement.Resource == aws_s3_bucket.access_logs[0].arn
+    ])
+    error_message = "Access logs bucket policy must allow delivery.logs.amazonaws.com bucket-level ACL/List checks to avoid CloudTrail AccessDenied noise"
+  }
+
+  # The existing TLS-only deny statement must be preserved.
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.access_logs[0].policy).Statement :
+      statement.Sid == "DenyInsecureTransport" && statement.Effect == "Deny"
+    ])
+    error_message = "Access logs bucket policy must keep denying non-TLS access"
+  }
+}

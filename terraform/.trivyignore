@@ -101,9 +101,16 @@ AVD-AWS-0190
 AVD-AWS-0011
 
 # AVD-AWS-0010: CloudFront distribution does not have access logging configured (MEDIUM)
-# Justification: Same as CKV_AWS_68 - S3 storage cost.
-# CloudWatch metrics provide sufficient visibility.
-# Review-by: 2026-10-31 (CloudFront access logging is proposed in #684)
+# Justification: Issue #684 item 2 - standard logging v2 (CloudWatch vended-log
+# delivery: aws_cloudwatch_log_delivery_source/_destination/_delivery in
+# terraform/environments/prd/main.tf) is enabled in prd, delivering access
+# logs to the access-log bucket (module.storage, prd only) under the
+# cloudfront/ prefix, 90-day expiration via that bucket's lifecycle rule. Dev
+# intentionally has no access-log bucket and stays without logging (low-value
+# non-production traffic). This check inspects the distribution's legacy
+# `logging_config` attribute, which standard logging v2 does not use - so it
+# still fires even though logging is enabled through the newer mechanism.
+# Review-by: 2027-03-31
 AVD-AWS-0010
 
 # AVD-AWS-0012: CloudFront distribution allows unencrypted (HTTP) communications (CRITICAL)

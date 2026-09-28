@@ -208,11 +208,19 @@ skip-check:
   - CKV_AWS_86
 
   # CKV_AWS_68: Ensure CloudFront logging is enabled
-  # Justification: CloudFront access logging adds S3 storage costs.
-  # CloudWatch metrics provide sufficient visibility for traffic patterns.
-  # Access logging will be enabled in production (Phase 3).
-  # Mitigation: CloudWatch metrics; CloudTrail API logging
-  # Review-by: 2026-10-31 (CloudFront access logging is proposed in #684)
+  # Justification: Issue #684 item 2 - standard logging v2 (CloudWatch
+  # vended-log delivery: aws_cloudwatch_log_delivery_source/_destination/
+  # _delivery in terraform/environments/prd/main.tf) is enabled in prd,
+  # delivering access logs to the access-log bucket (module.storage, prd
+  # only) under the cloudfront/ prefix, expiring after 90 days via that
+  # bucket's lifecycle rule. Dev intentionally has no access-log bucket and
+  # stays without logging (low-value non-production traffic). This check
+  # inspects the distribution's legacy `logging_config` attribute, which
+  # standard logging v2 does not use - so it still fires even though logging
+  # is enabled through the newer mechanism.
+  # Mitigation: CloudWatch vended-log delivery to S3 (prd); CloudWatch metrics
+  # and CloudTrail API logging remain in place for dev.
+  # Review-by: 2027-03-31
   - CKV_AWS_68
 
   # CKV2_AWS_42: Ensure CloudFront distribution uses response headers policy
