@@ -172,7 +172,28 @@ bun run test:e2e:admin:ui     # 管理画面UIモード
     `TEST_ADMIN_PASSWORD` が未設定、またはログインがダッシュボードに到達しない
     (TOTP MFA が必須のユーザー等) 場合は警告を出して掃除を skip する
   - 下書き・公開済みの両方をページングして探す
-- 手動クリーンアップ: `bun run cleanup:test-data`
+- 手動クリーンアップ: `bun run cleanup:test-data` (`tests/e2e/cleanup-test-data.ts`)
+  - `global-teardown.ts` と同じ `cleanupE2ETestData` / ログイン処理を使う CLI。
+    記事・カテゴリの両方を API 経由で削除するので、公開記事削除時のサイト再ビルドと
+    S3 画像掃除も動く (Issue #737 — 旧 `scripts/cleanup-test-data.js` は DynamoDB を
+    直接叩いていたためこれらが起きなかった)
+  - **DEV 専用ガード**: `CLEANUP_TARGET_ENV=dev` を明示的に設定しない限り拒否する
+    (未設定・`dev` 以外はすべて拒否)。加えて対象 URL が既知の本番ドメイン
+    (`boneofmyfallacy.net`) の場合は `CLEANUP_TARGET_ENV=dev` を設定していても拒否する。
+    どちらのチェックもネットワーク呼び出しの前に行う
+  - 必要な環境変数は AWS E2E / `global-teardown.ts` と共通:
+    `BASE_URL` (または `ADMIN_BASE_URL`), `TEST_ADMIN_EMAIL`, `TEST_ADMIN_PASSWORD`、
+    DEV の Basic 認証を使う場合は `DEV_BASIC_AUTH_USERNAME` / `DEV_BASIC_AUTH_PASSWORD`
+  - 削除せず対象の記事・カテゴリ名を表示するだけなら `bun run cleanup:test-data -- --dry-run`
+  - 例:
+    ```bash
+    export CLEANUP_TARGET_ENV=dev
+    export BASE_URL=$(aws ssm get-parameter --name /serverless-blog/dev/cdn/public-url --query Parameter.Value --output text)
+    export TEST_ADMIN_EMAIL=$(aws ssm get-parameter --name /serverless-blog/dev/e2e/admin-email --with-decryption --query Parameter.Value --output text)
+    export TEST_ADMIN_PASSWORD=$(aws ssm get-parameter --name /serverless-blog/dev/e2e/admin-password --with-decryption --query Parameter.Value --output text)
+    bun run cleanup:test-data -- --dry-run   # まず対象を確認
+    bun run cleanup:test-data                # 実際に削除
+    ```
 
 ### MSW環境
 
@@ -245,7 +266,7 @@ post-deploy-e2e-dev
 方が適した層であり、PR CI 側で全 spec がゲートされているため実環境では二重に持たない。
 
 `[E2E-TEST]` プレフィックスの記事 / カテゴリは `global-teardown.ts` が自動削除する。
-手動掃除は `bun run cleanup:test-data`。
+手動掃除は `bun run cleanup:test-data` (DEV 専用ガード・`--dry-run` は上記「テストデータ管理」参照)。
 
 ## トラブルシューティング
 
