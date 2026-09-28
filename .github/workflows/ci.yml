@@ -153,7 +153,6 @@ jobs:
   # Job 1: Lint Check (always runs)
   # =======================================
   lint:
-    needs: [setup-labels]
     name: ESLint & Prettier Check
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -193,7 +192,6 @@ jobs:
   # build-astro job — i.e. after terraform apply has already run.
   # =======================================
   typecheck:
-    needs: [setup-labels]
     name: Type Check
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -265,13 +263,6 @@ jobs:
           version: v2.12.2
           working-directory: go-functions
           args: --timeout=5m
-
-      - name: Go vulnerability check
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
-        working-directory: go-functions
-        continue-on-error: true
 
   # =======================================
   # Job 2.6b: Go Tests - Coverage (conditional on 'go' label)

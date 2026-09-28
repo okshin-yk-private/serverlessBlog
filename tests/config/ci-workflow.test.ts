@@ -158,3 +158,47 @@ describe('job gating no longer depends on PR labels', () => {
     expect(workflow).not.toMatch(/if:[^\n]*contains\([^)]*labels/);
   });
 });
+
+// Issue #743 item 1: govulncheck already runs pinned (v1.8.0) in
+// security-scan.yml's dependency-audit job, which is not gated by results and
+// runs on every PR. The unpinned, continue-on-error duplicate in go-lint was
+// pure overhead with no gating value.
+describe('go-lint no longer duplicates govulncheck', () => {
+  test('the unpinned, ignored govulncheck step has been removed from ci.yml', () => {
+    expect(workflow).not.toContain('govulncheck@latest');
+    expect(workflow).not.toContain('Go vulnerability check');
+  });
+
+  test('golangci-lint remains the only tool step in go-lint', () => {
+    const goLintJob = workflow
+      .split('\n  go-lint:\n')[1]
+      .split(/\n {2}[a-zA-Z][\w-]*:\n/)[0];
+    expect(goLintJob).toContain('golangci-lint-action');
+    expect(goLintJob).not.toContain('govulncheck');
+  });
+});
+
+// Issue #743 item 2: lint/typecheck never branch on setup-labels outputs
+// (they always run, no if: gate), so waiting on that job only delayed their
+// start with no gating benefit. ci-success still needs both jobs directly,
+// so the required-check surface is unchanged.
+describe('lint and typecheck no longer wait on setup-labels', () => {
+  for (const job of ['lint', 'typecheck']) {
+    test(`${job} job has no needs: [setup-labels]`, () => {
+      const jobBlock = workflow
+        .split(new RegExp(`\\n  ${job}:\\n`))[1]
+        .split(/\n {2}[a-zA-Z][\w-]*:\n/)[0];
+      expect(jobBlock).not.toMatch(/needs:\s*\[setup-labels\]/);
+      expect(jobBlock).not.toContain('needs.setup-labels.outputs');
+    });
+  }
+
+  test('ci-success still declares lint and typecheck as required needs', () => {
+    // Failure-blocks-the-gate behavior for these jobs is already covered by
+    // the "cannot pass" loop above; this only guards that dropping
+    // needs.setup-labels from the jobs above did not also drop them from
+    // ci-success's own `needs:` list.
+    expect(finalJob).toContain('      - lint');
+    expect(finalJob).toContain('      - typecheck');
+  });
+});

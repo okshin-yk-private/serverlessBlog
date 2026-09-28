@@ -130,3 +130,65 @@ describe('atomic release workflow contracts', () => {
     }
   );
 });
+
+// Issue #743 item 4: post-deploy-e2e-dev used to run
+// `bunx playwright install --with-deps chromium` unconditionally on every
+// DEV deploy (~27s, run 36176816604). It now uses the same cache-then-
+// install-deps-on-hit pattern as ci.yml's E2E jobs, keyed on the
+// @playwright/test version so a cache hit skips the full browser download.
+describe('post-deploy-e2e-dev caches Playwright browsers', () => {
+  const job = workflow
+    .split('\n  post-deploy-e2e-dev:\n')[1]
+    .split(/\n {2}[a-zA-Z][\w-]*:\n/)[0];
+
+  test('no longer runs an unconditional full browser install', () => {
+    // The old step was named exactly "Install Playwright browsers" with an
+    // unconditional run:. The new (conditional, cache-miss-only) step is
+    // named "Install Playwright browsers and dependencies", so this must
+    // match the old name precisely rather than a substring of the new one.
+    expect(job).not.toMatch(/- name: Install Playwright browsers\n/);
+  });
+
+  test('resolves the Playwright version and caches ~/.cache/ms-playwright by it', () => {
+    expect(job).toContain(
+      "PLAYWRIGHT_VERSION=$(node -e \"console.log(require('./package.json').devDependencies['@playwright/test'])\")"
+    );
+    expect(job).toContain(
+      'uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0'
+    );
+    expect(job).toContain('path: ~/.cache/ms-playwright');
+    expect(job).toContain(
+      'key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}'
+    );
+  });
+
+  test('installs the full browser only on a cache miss, and only deps on a hit', () => {
+    expect(job).toContain(
+      "if: steps.playwright-cache.outputs.cache-hit != 'true'"
+    );
+    expect(job).toContain('run: bunx playwright install --with-deps chromium');
+    expect(job).toContain(
+      "if: steps.playwright-cache.outputs.cache-hit == 'true'"
+    );
+    expect(job).toContain('bunx playwright install-deps chromium');
+  });
+
+  test('the new Playwright steps never interpolate expressions inside run:', () => {
+    // zizmor template-injection guard: expressions may only be expanded in
+    // `with:`/`key:` contexts here, never inline inside a `run:` script.
+    // Scoped to the newly added steps only — other pre-existing steps in
+    // this job (e.g. reading step outputs into a shell `if`) are unrelated
+    // to this change and out of scope here.
+    const playwrightStepNames = [
+      'Get Playwright version',
+      'Install Playwright browsers and dependencies',
+      'Install Playwright system dependencies only',
+    ];
+    for (const stepName of playwrightStepNames) {
+      const step = job
+        .split(`- name: ${stepName}\n`)[1]
+        .split(/\n {6}- name:/)[0];
+      expect(step).not.toMatch(/\$\{\{/);
+    }
+  });
+});
