@@ -38,6 +38,49 @@ test('security gate has no write token and blocks new secrets', () => {
   expect(workflow).toContain('sha256sum --check');
 });
 
+test('terraform updates are a single grouped Thursday entry covering every directory', () => {
+  const config = Bun.YAML.parse(
+    readFileSync('.github/dependabot.yml', 'utf8')
+  ) as {
+    updates: Array<{
+      'package-ecosystem': string;
+      directory?: string;
+      directories?: string[];
+      schedule?: { day?: string };
+      groups?: Record<string, { 'group-by'?: string }>;
+    }>;
+  };
+
+  const terraformEntries = config.updates.filter(
+    (update) => update['package-ecosystem'] === 'terraform'
+  );
+  expect(terraformEntries).toHaveLength(1);
+
+  const [entry] = terraformEntries;
+  expect(entry.directory).toBeUndefined();
+  expect(entry.directories).toEqual(
+    expect.arrayContaining([
+      '/terraform',
+      '/terraform/bootstrap',
+      '/terraform/examples/complete',
+      '/terraform/environments/*',
+      '/terraform/modules/*',
+    ])
+  );
+  expect(entry.directories).toHaveLength(5);
+  expect(entry.schedule?.day).toBe('thursday');
+
+  const groupNames = Object.keys(entry.groups ?? {});
+  expect(groupNames).toHaveLength(1);
+  expect(entry.groups?.[groupNames[0]]?.['group-by']).toBe('dependency-name');
+
+  // No terraform entry targets an environment (or any other directory) on its own.
+  for (const update of config.updates) {
+    if (update['package-ecosystem'] !== 'terraform') continue;
+    expect(update.directory).toBeUndefined();
+  }
+});
+
 test('every required-check workflow also reports on the merge queue', () => {
   for (const file of [
     'ci.yml',

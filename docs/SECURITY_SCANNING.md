@@ -53,6 +53,39 @@ Enabling repository-level Dependabot security updates does not change that limit
 Use the four explicit Bun audits and Trivy to find security updates; do not wait
 for an automatic PR. Major upgrades are reviewed manually.
 
+The single Thursday `terraform` entry in `.github/dependabot.yml` covers every
+root/module directory (`/terraform`, `/terraform/bootstrap`,
+`/terraform/examples/complete`, `/terraform/environments/*`,
+`/terraform/modules/*`) with `group-by: dependency-name`, so one provider update
+opens one PR across all of them instead of one PR per directory (#716, #742).
+Grouped Terraform PRs are **not** eligible for the Bun/Go auto-merge controller
+(`scripts/ci/dependabot_automerge.py` only recognizes `dependabot/bun/*` and
+`dependabot/go_modules/*` branch prefixes); they are reviewed and merged manually
+like any other PR.
+
+`/terraform/bootstrap` is included for **lock-file updates only** — a Dependabot
+PR there only bumps `terraform/bootstrap/.terraform.lock.hcl`, it does not run
+`terraform apply`. `bootstrap` has no remote backend (state is local to whoever
+runs it) and manages the S3 bucket that becomes the state backend for every other
+Terraform root, so it is applied by hand, not from CI. Before applying a bootstrap
+update (or applying bootstrap for the first time in an account), import the
+existing bucket resources so the plan does not try to recreate them:
+
+```
+cd terraform/bootstrap
+AWS_PROFILE=<dev|prd> terraform init
+AWS_PROFILE=<dev|prd> terraform import aws_s3_bucket.terraform_state terraform-state-<account-id>
+AWS_PROFILE=<dev|prd> terraform import aws_s3_bucket_versioning.terraform_state terraform-state-<account-id>
+AWS_PROFILE=<dev|prd> terraform import aws_s3_bucket_server_side_encryption_configuration.terraform_state terraform-state-<account-id>
+AWS_PROFILE=<dev|prd> terraform import aws_s3_bucket_public_access_block.terraform_state terraform-state-<account-id>
+AWS_PROFILE=<dev|prd> terraform plan
+```
+
+After the four imports, `terraform plan` should show only the (as yet unimported)
+`aws_s3_bucket_policy` resource as a new addition — not a bucket recreation. Do
+this once per AWS account (dev and prd each have their own state bucket and their
+own local state, so the import runs separately in each account context).
+
 Sources: [GitHub supported ecosystems](https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories),
 [Bun audit](https://bun.com/docs/install/audit).
 

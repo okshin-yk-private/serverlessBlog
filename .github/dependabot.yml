@@ -145,54 +145,39 @@ updates:
         update-types: ["version-update:semver-major"]
 
   # ============================================================
-  # Terraform environments — Wednesday
+  # Terraform (all root and module directories) — Thursday
   # ============================================================
-  - package-ecosystem: "terraform"
-    directory: "/terraform/environments/dev"
-    schedule:
-      interval: "weekly"
-      day: "wednesday"
-      time: "03:00"
-      timezone: "Asia/Tokyo"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "terraform"
-    commit-message:
-      prefix: "chore(deps)"
-      include: "scope"
-
-  - package-ecosystem: "terraform"
-    directory: "/terraform/environments/prd"
-    schedule:
-      interval: "weekly"
-      day: "wednesday"
-      time: "04:00"
-      timezone: "Asia/Tokyo"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "terraform"
-    commit-message:
-      prefix: "chore(deps)"
-      include: "scope"
-
-  # ============================================================
-  # Terraform modules — Thursday
-  # ============================================================
-  # All modules pin the same providers, so one entry with group-by: dependency-name
-  # opens a single PR per dependency across every module instead of one PR per
-  # directory. develop requires up-to-date branches, so each extra PR meant another
-  # update-branch + CI cycle (#716). group-by covers version updates only.
+  # All root modules pin the same providers, so one entry with group-by:
+  # dependency-name opens a single PR per dependency across every directory
+  # instead of one PR per directory or per environment. develop requires
+  # up-to-date branches, so each extra PR meant another update-branch + CI
+  # cycle (#716). group-by covers version updates only.
+  #
+  # `/terraform/environments/dev` and `/terraform/environments/prd` moved here
+  # from their own Wednesday entries (#742): they used to open separate,
+  # ungrouped PRs, so the same provider bump landed as several PRs across two
+  # days. `/terraform`, `/terraform/examples/complete` and `/terraform/bootstrap`
+  # were previously uncovered entirely, so their lock files drifted to older
+  # provider versions (#742, #685 item 8). Each listed path has its own
+  # .terraform.lock.hcl; we expect `/terraform` to be scanned as its own root
+  # rather than recursively (GitHub's docs don't state this — verify on the
+  # first Thursday run that no lock file is updated twice). `/terraform/bootstrap` is included for lock-file updates
+  # only (no remote backend); see the "Dependency updates" section of
+  # docs/SECURITY_SCANNING.md for why a bootstrap update PR is safe without a
+  # per-PR plan, and for the import steps required before a manual apply.
   - package-ecosystem: "terraform"
     directories:
+      - "/terraform"
+      - "/terraform/bootstrap"
+      - "/terraform/examples/complete"
+      - "/terraform/environments/*"
       - "/terraform/modules/*"
     schedule: { interval: "weekly", day: "thursday", time: "03:00", timezone: "Asia/Tokyo" }
     open-pull-requests-limit: 5
     labels: ["dependencies", "terraform"]
     commit-message: { prefix: "chore(deps)", include: "scope" }
     groups:
-      terraform-modules:
+      terraform-dependencies:
         patterns: ["*"]
         group-by: dependency-name
 
