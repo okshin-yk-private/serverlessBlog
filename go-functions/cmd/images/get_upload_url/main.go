@@ -122,13 +122,23 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		return middleware.ServerError(ctx, "failed to generate upload URL", err)
 	}
 
+	// The SDK does not turn PutObjectInput.ContentType into a form field, but
+	// the policy requires an exact Content-Type match: without this field S3
+	// rejects every upload with 403 "Invalid according to Policy". The field
+	// also sets the stored object's Content-Type.
+	fields := make(map[string]string, len(presignedReq.Values)+1)
+	for k, v := range presignedReq.Values {
+		fields[k] = v
+	}
+	fields["Content-Type"] = req.ContentType
+
 	// Generate image URL (CloudFront or direct S3)
 	imageURL := generateImageURL(cloudFrontDomain, bucketName, s3Key)
 
 	// Build response
 	response := domain.GetUploadURLResponse{
 		UploadURL: presignedReq.URL,
-		Fields:    presignedReq.Values,
+		Fields:    fields,
 		Key:       s3Key,
 		URL:       imageURL,
 	}

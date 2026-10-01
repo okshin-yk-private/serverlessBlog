@@ -8,6 +8,23 @@ export interface LinkValues {
   button: boolean;
 }
 
+// Shop presets fill the usual affiliate label; その他 leaves it to the author.
+const LABEL_PRESETS = [
+  { id: 'amazon', name: 'Amazon', text: 'Amazonで商品を見る' },
+  { id: 'rakuten', name: '楽天市場', text: '楽天市場で商品を見る' },
+  {
+    id: 'yahoo',
+    name: 'Yahoo!ショッピング',
+    text: 'Yahoo!ショッピングで商品を見る',
+  },
+] as const;
+const OTHER_PRESET = 'other';
+type PresetId = (typeof LABEL_PRESETS)[number]['id'] | typeof OTHER_PRESET;
+
+const presetFor = (text: string): PresetId | null =>
+  LABEL_PRESETS.find((preset) => preset.text === text)?.id ??
+  (text ? OTHER_PRESET : null);
+
 interface LinkDialogProps {
   initial: LinkValues;
   existing: boolean;
@@ -26,7 +43,9 @@ export function LinkDialog({
   const id = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const textRef = useRef<HTMLInputElement>(null);
+  const urlRef = useRef<HTMLInputElement>(null);
   const [values, setValues] = useState(initial);
+  const [preset, setPreset] = useState(() => presetFor(initial.text));
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -51,6 +70,22 @@ export function LinkDialog({
       return;
     }
     onApply({ ...values, href });
+  };
+
+  const choosePreset = (id: PresetId) => {
+    setPreset(id);
+    setError('');
+    const chosen = LABEL_PRESETS.find((p) => p.id === id);
+    if (chosen) {
+      setValues({ ...values, text: chosen.text });
+      urlRef.current?.focus();
+      return;
+    }
+    // Clear only a label the author has not customized.
+    if (presetFor(values.text) !== OTHER_PRESET) {
+      setValues({ ...values, text: '' });
+    }
+    textRef.current?.focus();
   };
 
   // A portal avoids nesting this form in the article's save form. Native dialog
@@ -87,6 +122,26 @@ export function LinkDialog({
       <form className="admin-link-dialog-content" onSubmit={submit}>
         <h2 id={`${id}-title`}>{existing ? 'リンクを編集' : 'リンクを挿入'}</h2>
         <label htmlFor={`${id}-text`}>表示テキスト</label>
+        <div
+          className="admin-link-presets"
+          role="group"
+          aria-label="表示テキストの定型文"
+        >
+          {[...LABEL_PRESETS, { id: OTHER_PRESET, name: 'その他' }].map(
+            (option) => (
+              <button
+                key={option.id}
+                type="button"
+                className="admin-link-preset"
+                data-testid={`link-dialog-preset-${option.id}`}
+                aria-pressed={preset === option.id}
+                onClick={() => choosePreset(option.id)}
+              >
+                {option.name}
+              </button>
+            )
+          )}
+        </div>
         <input
           ref={textRef}
           id={`${id}-text`}
@@ -95,12 +150,18 @@ export function LinkDialog({
           value={values.text}
           onChange={(event) => {
             setValues({ ...values, text: event.target.value });
+            // Typing past a preset label turns it into free text (その他).
+            setPreset(
+              presetFor(event.target.value) ??
+                (preset === null ? null : OTHER_PRESET)
+            );
             setError('');
           }}
           placeholder="Amazonで商品を見る"
         />
         <label htmlFor={`${id}-url`}>URL</label>
         <input
+          ref={urlRef}
           id={`${id}-url`}
           className="admin-input"
           data-testid="link-dialog-url"

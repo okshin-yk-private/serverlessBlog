@@ -778,7 +778,8 @@ run "admin_uses_dedicated_response_headers_policy" {
 }
 
 # Test 25: Verify the enforced Content-Security-Policy on both policies is
-# unchanged (Issue #680 phase 1 must not alter enforced behavior).
+# unchanged (Issue #680 phase 1 must not alter enforced behavior), apart from
+# admin img-src blob:, which the editor needs to preview an uploading image.
 run "enforced_csp_unchanged_on_both_policies" {
   command = plan
 
@@ -801,8 +802,8 @@ run "enforced_csp_unchanged_on_both_policies" {
   }
 
   assert {
-    condition     = aws_cloudfront_response_headers_policy.admin_security_headers.security_headers_config[0].content_security_policy[0].content_security_policy == "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.amazonaws.com"
-    error_message = "The enforced CSP on the admin response headers policy must be identical to the public one in phase 1"
+    condition     = aws_cloudfront_response_headers_policy.admin_security_headers.security_headers_config[0].content_security_policy[0].content_security_policy == "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://*.amazonaws.com"
+    error_message = "The enforced CSP on the admin response headers policy must match the public one except img-src blob: (editor upload preview)"
   }
 }
 
