@@ -578,9 +578,11 @@ resource "aws_cloudfront_response_headers_policy" "security_headers" {
 }
 
 # Security Response Headers Policy - Admin site (/admin/*)
-# Same enforced security headers/CSP as the public policy above (unchanged),
-# plus a stricter Content-Security-Policy-Report-Only tailored to admin's
-# actual connections (same-origin /api, Cognito, presigned S3 image upload).
+# Same enforced security headers/CSP as the public policy above, except that
+# img-src also allows blob: for the editor's local preview of an image while it
+# uploads (UploadImage.ts); plus a stricter Content-Security-Policy-Report-Only
+# tailored to admin's actual connections (same-origin /api, Cognito, presigned
+# S3 image upload).
 resource "aws_cloudfront_response_headers_policy" "admin_security_headers" {
   name    = "BlogSecurityHeadersAdmin-${var.environment}"
   comment = "Security response headers for blog CDN (admin)"
@@ -603,7 +605,7 @@ resource "aws_cloudfront_response_headers_policy" "admin_security_headers" {
     }
 
     content_security_policy {
-      content_security_policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.amazonaws.com"
+      content_security_policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://*.amazonaws.com"
       override                = true
     }
 

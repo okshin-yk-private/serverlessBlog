@@ -10,6 +10,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -861,6 +863,59 @@ func TestPresignPostObject_PolicyConditions(t *testing.T) {
 
 	if _, ok := presignedReq.Values["key"]; !ok {
 		t.Errorf("presigned POST values missing key form field: %#v", presignedReq.Values)
+	}
+}
+
+// TestHandler_FieldsSatisfyPolicyConditions verifies, end to end against the
+// real SDK presigner, that every exact-match condition in the signed policy
+// has a matching form field in the response. S3 rejects a POST whose form
+// does not satisfy every condition with 403 AccessDenied ("Invalid according
+// to Policy"), and the admin UI only sends the fields we return (plus file).
+// The SDK does not turn PutObjectInput.ContentType into a form field, so a
+// Content-Type condition without a Content-Type field broke every upload.
+func TestHandler_FieldsSatisfyPolicyConditions(t *testing.T) {
+	t.Setenv("BUCKET_NAME", "test-bucket")
+	t.Setenv("CLOUDFRONT_DOMAIN", "")
+	origGetter, origUUID := presignClientGetter, uuidGenerator
+	t.Cleanup(func() { presignClientGetter, uuidGenerator = origGetter, origUUID })
+	presignClientGetter = func() (S3PresignerInterface, error) { return realPresignClient(t), nil }
+	uuidGenerator = func() string { return "uuid" }
+
+	resp, err := Handler(context.Background(), createAuthenticatedRequest(`{"fileName": "photo.png", "contentType": "image/png"}`))
+	if err != nil {
+		t.Fatalf("Handler returned error: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d. Body: %s", resp.StatusCode, resp.Body)
+	}
+	var body domain.GetUploadURLResponse
+	if err := json.Unmarshal([]byte(resp.Body), &body); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	doc := decodePolicy(t, body.Fields)
+	for _, c := range doc.Conditions {
+		var name, want string
+		switch cond := c.(type) {
+		case map[string]any:
+			for k, v := range cond {
+				name, want = k, fmt.Sprint(v)
+			}
+		case []any:
+			if len(cond) != 3 || cond[0] != "eq" {
+				continue // content-length-range / starts-with are not exact field matches
+			}
+			name, want = strings.TrimPrefix(fmt.Sprint(cond[1]), "$"), fmt.Sprint(cond[2])
+		default:
+			t.Fatalf("unexpected policy condition shape %T: %#v", c, c)
+		}
+		// S3 checks the bucket condition against the request URL, not a form field.
+		if name == "bucket" {
+			continue
+		}
+		if got, ok := body.Fields[name]; !ok || got != want {
+			t.Errorf("policy requires %q = %q but response fields have %q (present: %t)", name, want, got, ok)
+		}
 	}
 }
 
