@@ -76,6 +76,70 @@ describe('article link dialog', () => {
     expect(editor.getHTML()).toContain('</a> 続き');
   });
 
+  it('fills the label from a shop preset and moves focus to the URL', async () => {
+    const user = userEvent.setup();
+    const editor = await mount();
+    await user.click(screen.getByTestId('toolbar-link'));
+    for (const [preset, label] of [
+      ['amazon', 'Amazonで商品を見る'],
+      ['rakuten', '楽天市場で商品を見る'],
+      ['yahoo', 'Yahoo!ショッピングで商品を見る'],
+    ]) {
+      await user.click(screen.getByTestId(`link-dialog-preset-${preset}`));
+      expect(screen.getByTestId('link-dialog-text')).toHaveValue(label);
+      expect(
+        screen.getByTestId(`link-dialog-preset-${preset}`)
+      ).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByTestId('link-dialog-url')).toHaveFocus();
+    }
+    await user.type(
+      screen.getByTestId('link-dialog-url'),
+      'https://store.shopping.yahoo.co.jp/example/item.html'
+    );
+    await user.click(screen.getByTestId('link-dialog-submit'));
+    expect(getMarkdown(editor)).toContain(
+      '[Yahoo!ショッピングで商品を見る](https://store.shopping.yahoo.co.jp/example/item.html)'
+    );
+  });
+
+  it('switches to the free-text preset when the label is edited or cleared', async () => {
+    const user = userEvent.setup();
+    await mount();
+    await user.click(screen.getByTestId('toolbar-link'));
+    expect(screen.getByTestId('link-dialog-preset-other')).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    );
+    await user.click(screen.getByTestId('link-dialog-preset-amazon'));
+    await user.type(screen.getByTestId('link-dialog-text'), '（公式）');
+    expect(screen.getByTestId('link-dialog-preset-other')).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    // その他 keeps text the user wrote, but clears a label that is still a preset.
+    await user.click(screen.getByTestId('link-dialog-preset-other'));
+    expect(screen.getByTestId('link-dialog-text')).toHaveValue(
+      'Amazonで商品を見る（公式）'
+    );
+    await user.click(screen.getByTestId('link-dialog-preset-rakuten'));
+    await user.click(screen.getByTestId('link-dialog-preset-other'));
+    expect(screen.getByTestId('link-dialog-text')).toHaveValue('');
+    expect(screen.getByTestId('link-dialog-text')).toHaveFocus();
+  });
+
+  it('marks the matching preset when editing an existing shop link', async () => {
+    const user = userEvent.setup();
+    const editor = await mount(
+      '[楽天市場で商品を見る](https://item.rakuten.co.jp/example/)'
+    );
+    act(() => editor.commands.setTextSelection(2));
+    await user.click(screen.getByTestId('toolbar-link'));
+    expect(screen.getByTestId('link-dialog-preset-rakuten')).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+  });
+
   it('inserts a button and preserves it in Markdown and preview HTML', async () => {
     const user = userEvent.setup();
     const editor = await mount();

@@ -112,7 +112,11 @@ test.describe('Article links', () => {
   }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByTestId('toolbar-link').click();
-    await page.getByTestId('link-dialog-text').fill('Amazonで商品を見る');
+    await page.getByTestId('link-dialog-preset-amazon').click();
+    await expect(page.getByTestId('link-dialog-text')).toHaveValue(
+      'Amazonで商品を見る'
+    );
+    await expect(page.getByTestId('link-dialog-url')).toBeFocused();
     await page.getByTestId('link-dialog-url').fill('javascript:alert(1)');
     await page.getByTestId('link-dialog-submit').click();
     await expect(page.getByRole('alert')).toContainText('URLは');
@@ -123,7 +127,7 @@ test.describe('Article links', () => {
     await page.getByTestId('link-dialog-style').selectOption('button');
     await page.getByTestId('link-dialog-submit').focus();
     await page.keyboard.press('Tab');
-    await expect(page.getByTestId('link-dialog-text')).toBeFocused();
+    await expect(page.getByTestId('link-dialog-preset-amazon')).toBeFocused();
     await page.keyboard.press('Shift+Tab');
     await expect(page.getByTestId('link-dialog-submit')).toBeFocused();
     expect(
