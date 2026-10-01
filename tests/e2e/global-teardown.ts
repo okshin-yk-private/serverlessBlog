@@ -16,79 +16,17 @@
  * - R44: テストデータ管理
  */
 
-import { chromium, request, FullConfig } from '@playwright/test';
-import { AdminLoginPage } from './pages/AdminLoginPage';
+import { request, FullConfig } from '@playwright/test';
+import { E2E_TEST_PREFIX, cleanupE2ETestData } from './utils/awsCleanup';
 import {
-  ADMIN_SESSION_TOKEN_KEY,
-  E2E_TEST_PREFIX,
-  cleanupE2ETestData,
-} from './utils/awsCleanup';
+  basicAuthFromEnv,
+  obtainIdToken,
+  resolveAdminBaseURL,
+  resolveApiBase,
+} from './utils/adminAuth';
 
 // MSWモックが有効かどうかを判定
 const isMSWEnabled = process.env.VITE_ENABLE_MSW_MOCK !== 'false';
-
-/**
- * admin SPA のベース URL。playwright.aws.config.ts の admin-chromium と同じ解決規則
- * (--project で絞った実行でも同じ値になるよう、見つからなければ env から組み立てる)。
- */
-function resolveAdminBaseURL(config: FullConfig): string {
-  const fromProject = config.projects.find((p) => p.name === 'admin-chromium')
-    ?.use.baseURL;
-  const url =
-    fromProject ||
-    process.env.ADMIN_BASE_URL ||
-    `${process.env.BASE_URL || 'http://localhost:5173'}/admin`;
-  return url.replace(/\/*$/, '/');
-}
-
-/**
- * ID トークンを取得する。取得できなければ理由をログに出して null。
- * TOTP が必須のユーザー (prd の MFA ON 等) はここでダッシュボードに到達しない。
- */
-async function obtainIdToken(
-  adminBaseURL: string,
-  email: string,
-  password: string
-): Promise<string | null> {
-  const browser = await chromium.launch();
-  try {
-    const context = await browser.newContext({
-      baseURL: adminBaseURL,
-      // DEV の CloudFront Basic 認証。extraHTTPHeaders と違いオリジンを限定でき、
-      // Cognito へのリクエストに Basic 認証情報を載せない。
-      httpCredentials:
-        process.env.DEV_BASIC_AUTH_USERNAME &&
-        process.env.DEV_BASIC_AUTH_PASSWORD
-          ? {
-              username: process.env.DEV_BASIC_AUTH_USERNAME,
-              password: process.env.DEV_BASIC_AUTH_PASSWORD,
-              origin: new URL(adminBaseURL).origin,
-            }
-          : undefined,
-    });
-    const page = await context.newPage();
-    const loginPage = new AdminLoginPage(page);
-    await loginPage.navigate();
-    try {
-      await loginPage.login(email, password);
-    } catch {
-      // clickLogin はダッシュボード到達・エラー表示のどちらも起きないと reject する
-    }
-    if (!new URL(page.url()).pathname.endsWith('/dashboard')) {
-      console.warn(
-        `⚠️  Admin login did not reach the dashboard (at ${new URL(page.url()).pathname}).` +
-          ' Wrong credentials or an MFA (TOTP) challenge is likely.'
-      );
-      return null;
-    }
-    return await page.evaluate(
-      (key) => sessionStorage.getItem(key),
-      ADMIN_SESSION_TOKEN_KEY
-    );
-  } finally {
-    await browser.close();
-  }
-}
 
 async function cleanupAwsTestData(config: FullConfig): Promise<void> {
   console.log(`🗑️  Cleaning up test data with prefix: ${E2E_TEST_PREFIX}`);
@@ -106,12 +44,11 @@ async function cleanupAwsTestData(config: FullConfig): Promise<void> {
   const adminBaseURL = resolveAdminBaseURL(config);
   // admin SPA は VITE_API_URL=/api (同一オリジンの CloudFront /api/* behavior)。
   // /api/* には Basic 認証が掛かっていない。
-  const apiBase = new URL(
-    process.env.VITE_API_BASE_URL || '/api',
-    adminBaseURL
-  ).href.replace(/\/+$/, '');
+  const apiBase = resolveApiBase(adminBaseURL);
 
-  const idToken = await obtainIdToken(adminBaseURL, email, password);
+  const idToken = await obtainIdToken(adminBaseURL, email, password, {
+    basicAuth: basicAuthFromEnv(),
+  });
   if (!idToken) {
     console.warn(
       '⚠️  Could not authenticate for cleanup. Skipping test data removal.'

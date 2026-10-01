@@ -110,3 +110,25 @@ run "test_default_region" {
     error_message = "Default region should be ap-northeast-1"
   }
 }
+
+# Test 8: Verify the state bucket denies non-TLS access
+# Issue #684 item 3: every bucket policy must deny requests that are not over TLS.
+# NOTE: terraform/bootstrap is applied manually (not by CI); this test only
+# verifies the Terraform configuration, not the deployed bucket.
+run "test_state_bucket_denies_insecure_transport" {
+  command = apply
+
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.terraform_state.policy).Statement :
+      statement.Sid == "DenyInsecureTransport" &&
+      statement.Effect == "Deny" &&
+      statement.Principal == "*" &&
+      statement.Action == "s3:*" &&
+      statement.Condition.Bool["aws:SecureTransport"] == "false" &&
+      contains(statement.Resource, aws_s3_bucket.terraform_state.arn) &&
+      contains(statement.Resource, "${aws_s3_bucket.terraform_state.arn}/*")
+    ])
+    error_message = "Terraform state bucket policy must deny non-TLS access"
+  }
+}

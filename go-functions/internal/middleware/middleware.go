@@ -9,10 +9,12 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 )
 
-// PublicCacheMaxAgeSeconds is how long a response to an anonymous read may be
-// reused. It is deliberately short: publishing a post triggers a site rebuild
-// and a CloudFront invalidation, and a minute of staleness on the API is well
-// inside the time that pipeline takes.
+// PublicCacheMaxAgeSeconds is how long a browser may reuse a response to an
+// anonymous read. CloudFront does not cache /api/* (managed CachingDisabled
+// policy, terraform/modules/cdn) on purpose: the public site is SSG, so runtime
+// API reads are rare, and the post-publish CodeBuild build fetches the post list
+// through CloudFront, where a cached list would publish stale content. Before
+// enabling CloudFront caching for /api/*, that rebuild race must be solved.
 const (
 	PublicCacheMaxAgeSeconds = 60
 	headerContentType        = "Content-Type"
@@ -57,8 +59,9 @@ func PublicCacheHeaders() map[string]string {
 	return headers
 }
 
-// PublicJSONResponse creates a JSON response that a shared cache may reuse for
-// PublicCacheMaxAgeSeconds. See PublicCacheHeaders for when this is allowed.
+// PublicJSONResponse creates a JSON response that browsers may reuse for
+// PublicCacheMaxAgeSeconds (CloudFront does not cache /api/*). See
+// PublicCacheHeaders for when this is allowed.
 func PublicJSONResponse(statusCode int, body interface{}) (events.APIGatewayProxyResponse, error) {
 	response, err := JSONResponse(statusCode, body)
 	if err != nil {

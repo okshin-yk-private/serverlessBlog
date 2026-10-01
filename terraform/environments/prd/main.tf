@@ -10,6 +10,20 @@ locals {
     Environment = var.environment
     ManagedBy   = "Terraform"
   }
+
+  # Issue #684 item 2: CloudFront standard logging v2 (CloudWatch vended-log
+  # delivery) to the access-log bucket. The delivery source's ARN
+  # (arn:aws:logs:<region>:<account-id>:delivery-source:<name>) is
+  # deterministic from its name, account ID and the fixed us-east-1 region
+  # (CloudWatch requires the delivery source for a CloudFront distribution to
+  # be created there - see docs/AmazonCloudFront/standard-logging.html
+  # "Notes"), so it is computed here rather than read from the
+  # aws_cloudwatch_log_delivery_source resource below. That keeps
+  # module.storage's bucket policy independent of module.cdn's distribution
+  # ARN and avoids the same storage <-> cdn circular dependency that the
+  # OAC bucket policies (below) are already structured to avoid.
+  cloudfront_log_delivery_source_name = "${var.project_name}-cloudfront-${var.environment}"
+  cloudfront_log_delivery_source_arn  = "arn:aws:logs:us-east-1:${data.aws_caller_identity.current.account_id}:delivery-source:${local.cloudfront_log_delivery_source_name}"
 }
 
 #------------------------------------------------------------------------------
@@ -54,11 +68,12 @@ module "auth" {
 module "storage" {
   source = "../../modules/storage"
 
-  project_name                = var.project_name
-  environment                 = var.environment
-  enable_access_logs          = true                           # Access logs enabled for prd
-  cloudfront_distribution_arn = ""                             # Bucket policy set separately to avoid circular dependency
-  cors_allow_origins          = ["https://${var.domain_name}"] # Restrict CORS to custom domain
+  project_name                        = var.project_name
+  environment                         = var.environment
+  enable_access_logs                  = true                           # Access logs enabled for prd
+  cloudfront_distribution_arn         = ""                             # Bucket policy set separately to avoid circular dependency
+  cors_allow_origins                  = ["https://${var.domain_name}"] # Restrict CORS to custom domain
+  cloudfront_log_delivery_source_arns = [local.cloudfront_log_delivery_source_arn]
 
   tags = local.common_tags
 }
@@ -234,6 +249,22 @@ resource "aws_s3_bucket_policy" "images_cloudfront" {
             "AWS:SourceArn" = module.cdn.distribution_arn
           }
         }
+      },
+      {
+        # AWS FSBP S3.5: deny any request that does not use TLS.
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          module.storage.image_bucket_arn,
+          "${module.storage.image_bucket_arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
       }
     ]
   })
@@ -272,6 +303,22 @@ resource "aws_s3_bucket_policy" "public_site_cloudfront" {
         Condition = {
           StringEquals = { "AWS:SourceArn" = module.cdn.distribution_arn }
         }
+      },
+      {
+        # AWS FSBP S3.5: deny any request that does not use TLS.
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          module.storage.public_site_bucket_arn,
+          "${module.storage.public_site_bucket_arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
       }
     ]
   })
@@ -298,11 +345,82 @@ resource "aws_s3_bucket_policy" "admin_site_cloudfront" {
             "AWS:SourceArn" = module.cdn.distribution_arn
           }
         }
+      },
+      {
+        # AWS FSBP S3.5: deny any request that does not use TLS.
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          module.storage.admin_site_bucket_arn,
+          "${module.storage.admin_site_bucket_arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
       }
     ]
   })
 
   depends_on = [module.cdn]
+}
+
+#------------------------------------------------------------------------------
+# CloudFront Standard Logging v2 (CloudWatch vended-log delivery to S3)
+# Issue #684 item 2. Dependencies: cdn (distribution ARN), storage (bucket ARN
+# via the destination prefix and the access-log bucket policy above, which
+# already allows delivery.logs.amazonaws.com to write to the cloudfront/
+# prefix once module.storage.cloudfront_log_delivery_source_arns is set).
+# CloudWatch requires the delivery source for a CloudFront distribution to be
+# created in us-east-1, even though the S3 destination bucket stays in
+# ap-northeast-1 (var.aws_region) - see "Notes" in
+# https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/standard-logging.html.
+#------------------------------------------------------------------------------
+
+resource "aws_cloudwatch_log_delivery_source" "cloudfront" {
+  provider = aws.us_east_1
+
+  name         = local.cloudfront_log_delivery_source_name
+  log_type     = "ACCESS_LOGS"
+  resource_arn = module.cdn.distribution_arn
+
+  tags = local.common_tags
+
+  depends_on = [module.cdn]
+}
+
+resource "aws_cloudwatch_log_delivery_destination" "cloudfront_s3" {
+  provider = aws.us_east_1
+
+  name                      = "${var.project_name}-cloudfront-s3-${var.environment}"
+  delivery_destination_type = "S3"
+  output_format             = "json"
+
+  delivery_destination_configuration {
+    # Destination prefix "cloudfront": CloudFront objects land under
+    # <bucket>/cloudfront/... instead of the default AWSLogs/<account-id>/CloudFront/
+    # path, matching the bucket-policy prefix in modules/storage/main.tf.
+    destination_resource_arn = "${module.storage.access_logs_bucket_arn}/cloudfront"
+  }
+
+  tags = local.common_tags
+
+  # The destination bucket policy (module.storage) must already allow
+  # delivery.logs.amazonaws.com to write before CreateDelivery links source
+  # to destination, otherwise delivery validation fails.
+  depends_on = [module.storage]
+}
+
+resource "aws_cloudwatch_log_delivery" "cloudfront_s3" {
+  provider = aws.us_east_1
+
+  delivery_source_name     = aws_cloudwatch_log_delivery_source.cloudfront.name
+  delivery_destination_arn = aws_cloudwatch_log_delivery_destination.cloudfront_s3.arn
+
+  tags = local.common_tags
 }
 
 #------------------------------------------------------------------------------

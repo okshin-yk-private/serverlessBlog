@@ -48,20 +48,32 @@ DEVデプロイ）の承認も含む。`main` 向けはマージしない（PRD�
 ユーザーが「PRだけ」「マージしない」「draft」と指定した場合、および `main` 向けは
 マージしない（`main` 向けはマージしない）。それ以外は次を続ける。
 
-1. head SHAの全workflow実行が終わるまで待つ。重複起動で `cancelled` になった実行を
-   結果として扱わない。
-2. `All CI Checks Passed`、`Security Scan Summary`、`Dependency Update Security Gate` が
-   最新の実行で成功し、headが変わっていないことを確認する。失敗が今回の変更に起因する
-   なら修正してpushし、1から繰り返す。外部要因なら報告して止める。
-3. リポジトリのauto-mergeは無効なので `gh pr merge` は使わず、次で投入する。
-   スクリプトが base＝`develop`・必須チェック成功・head不変を再確認し、
-   満たさなければ `BLOCKED` で止まる（`--dry-run` で判定だけ行える）。
+1. PRの作成・更新直後、CIの完了を待たずに次でauto-mergeを予約する。スクリプトが
+   base＝`develop`・fork/closed/draft・Dependabot作成者を確認し、満たさなければ
+   `BLOCKED` で止まる（`--dry-run` で判定だけ行える）。
 
    ```bash
-   python3 scripts/ci/enqueue_pr.py <PR番号>
+   python3 scripts/ci/enqueue_pr.py <PR番号> --auto
    ```
 
-4. queueの `merge_group` チェックとマージ、続くDEV Deployの結果まで追跡する。
+   予約できれば、必須チェック成功時にGitHubがqueueへ自動投入する。ここでは
+   「マージ済み」「DEV Deploy成功」ではなく「auto-merge予約済み」として報告する。
+   CIが失敗すれば何もマージされない。原因を修正してpushする
+   （アプリのCI監視・Auto-fixがセッションを起こす場合がある）。
+2. `--auto` が「repository auto-merge is disabled」でBLOCKEDになった場合は、
+   従来の手順にフォールバックする。
+   1. head SHAの全workflow実行が終わるまで待つ。重複起動で `cancelled` になった
+      実行を結果として扱わない。
+   2. `All CI Checks Passed`、`Security Scan Summary`、`Dependency Update Security Gate`
+      が最新の実行で成功し、headが変わっていないことを確認する。失敗が今回の変更に
+      起因するなら修正してpushし、1から繰り返す。外部要因なら報告して止める。
+   3. `--auto` を付けずに実行し、直接queueへ投入する。
+
+      ```bash
+      python3 scripts/ci/enqueue_pr.py <PR番号>
+      ```
+3. 実際にqueueの `merge_group` チェックとマージ、続くDEV Deployの結果を観測できた
+   場合だけ、それを報告する。
 
 ## 完了
 

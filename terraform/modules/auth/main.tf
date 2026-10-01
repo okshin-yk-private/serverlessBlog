@@ -121,6 +121,12 @@ resource "aws_cognito_user_pool_client" "main" {
 
   # Session validity
   auth_session_validity = 3
+
+  # With LEGACY (the provider/service default), a direct Cognito call can
+  # distinguish "user does not exist" from "wrong password" in the error it
+  # returns, which lets an attacker enumerate registered usernames. ENABLED
+  # makes Cognito return a generic NotAuthorizedException for both cases.
+  prevent_user_existence_errors = "ENABLED"
 }
 
 # SSM Parameters for Cognito configuration (used by frontend build)

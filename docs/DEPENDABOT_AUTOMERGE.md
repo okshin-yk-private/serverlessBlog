@@ -5,6 +5,11 @@
 有効化、実際の依存更新のマージ、DEVデプロイの開始は別の承認段階です。
 `main`とPRDは対象外です。
 
+リポジトリの「Allow auto-merge」はagentのdevelop PR（`enqueue_pr.py --auto`）向けに
+有効化されています。このcontrollerはDependabot PRが既存のnative Auto-merge予約を
+持つ場合は引き続き拒否するため（`auto_merge is None`）、Dependabot PRへ`--auto`で
+予約してはいけません。
+
 ## 構成と判定条件
 
 `Dependency Update Security` は読み取り専用のPR検査です。

@@ -48,7 +48,11 @@ const PUBLISH_STATUSES = ['draft', 'published'] as const;
 const PAGE_LIMIT = 100; // ListPosts の MaxLimit
 const MAX_PAGES = 50; // nextToken が循環しても止まるための保険
 
-async function listTestPosts(
+/**
+ * `[E2E-TEST]` prefix の記事一覧を取得する (削除はしない)。
+ * `cleanup-test-data.ts` の `--dry-run` が「何を消すか」を表示するために使う。
+ */
+export async function listTestPosts(
   http: CleanupHttpClient,
   apiBase: string,
   headers: Record<string, string>
@@ -87,6 +91,23 @@ async function listTestPosts(
 }
 
 /**
+ * `[E2E-TEST]` prefix のカテゴリ一覧を取得する (削除はしない)。
+ * `/categories` は認証不要の公開エンドポイント。
+ */
+export async function listTestCategories(
+  http: CleanupHttpClient,
+  apiBase: string
+): Promise<Named[]> {
+  const catResp = await http.get(`${apiBase}/categories`);
+  if (!catResp.ok()) {
+    throw new Error(`GET /categories returned ${catResp.status()}`);
+  }
+  return ((await catResp.json()) as Named[]).filter((c) =>
+    c.name?.startsWith(E2E_TEST_PREFIX)
+  );
+}
+
+/**
  * [E2E-TEST] prefix の記事とカテゴリを削除する。
  * 記事を先に消す (カテゴリ削除が参照中の記事で拒否されないように)。
  * 個別の削除失敗は failures に集めて続行し、一覧取得の失敗は throw する。
@@ -111,13 +132,7 @@ export async function cleanupE2ETestData(
     else result.failures.push(`post ${post.id}: ${resp.status()}`);
   }
 
-  const catResp = await http.get(`${apiBase}/categories`);
-  if (!catResp.ok()) {
-    throw new Error(`GET /categories returned ${catResp.status()}`);
-  }
-  const categories = ((await catResp.json()) as Named[]).filter((c) =>
-    c.name?.startsWith(E2E_TEST_PREFIX)
-  );
+  const categories = await listTestCategories(http, apiBase);
   for (const cat of categories) {
     const resp = await http.delete(`${apiBase}/admin/categories/${cat.id}`, {
       headers,

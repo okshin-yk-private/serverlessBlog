@@ -301,6 +301,22 @@ run "image_bucket_cors" {
     condition     = length(aws_s3_bucket_cors_configuration.images.cors_rule) > 0
     error_message = "Image bucket must have CORS configuration for pre-signed URL uploads"
   }
+
+  # Issue #684 item 1: uploads use a presigned POST (with a
+  # content-length-range policy condition) instead of a presigned PUT, which
+  # cannot bound object size. CORS must allow POST for the browser upload.
+  assert {
+    condition     = contains(flatten([for r in aws_s3_bucket_cors_configuration.images.cors_rule : r.allowed_methods]), "POST")
+    error_message = "Image bucket CORS must allow POST for presigned POST uploads"
+  }
+
+  # PUT is no longer used for image uploads (see
+  # go-functions/cmd/images/get_upload_url/main.go); it must not be
+  # reintroduced without re-evaluating the upload size cap it would bypass.
+  assert {
+    condition     = !contains(flatten([for r in aws_s3_bucket_cors_configuration.images.cors_rule : r.allowed_methods]), "PUT")
+    error_message = "Image bucket CORS should not allow PUT: presigned PUT cannot enforce the upload size limit"
+  }
 }
 
 # Test 16: Verify CloudFront OAC bucket policy is conditionally created
@@ -494,5 +510,230 @@ run "public_site_missing_object_status" {
       statement.Condition.StringEquals["AWS:SourceArn"] == var.cloudfront_distribution_arn
     ])
     error_message = "Missing-object detection must be restricted to the public bucket and the configured distribution"
+  }
+}
+
+# Test 23: Verify TLS-only (non-TLS deny) statement on the image bucket policy
+# Issue #684 item 3: every bucket policy must deny requests that are not over TLS.
+run "images_bucket_policy_denies_insecure_transport" {
+  command = apply
+  variables {
+    project_name                = "serverless-blog"
+    environment                 = "dev"
+    cloudfront_distribution_arn = "arn:aws:cloudfront::123456789012:distribution/TEST"
+  }
+
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.images[0].policy).Statement :
+      statement.Sid == "DenyInsecureTransport" &&
+      statement.Effect == "Deny" &&
+      statement.Principal == "*" &&
+      statement.Action == "s3:*" &&
+      statement.Condition.Bool["aws:SecureTransport"] == "false" &&
+      contains(statement.Resource, aws_s3_bucket.images.arn) &&
+      contains(statement.Resource, "${aws_s3_bucket.images.arn}/*")
+    ])
+    error_message = "Image bucket policy must deny non-TLS access"
+  }
+
+  # The existing CloudFront OAC allow statement must still be present.
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.images[0].policy).Statement :
+      statement.Sid == "AllowCloudFrontOAC" &&
+      statement.Effect == "Allow" &&
+      statement.Principal.Service == "cloudfront.amazonaws.com"
+    ])
+    error_message = "Image bucket policy must keep the CloudFront OAC allow statement"
+  }
+}
+
+# Test 24: Verify TLS-only (non-TLS deny) statement on the public site bucket policy
+# alongside the existing OAC allow statements.
+run "public_site_bucket_policy_denies_insecure_transport" {
+  command = apply
+  variables {
+    project_name                = "serverless-blog"
+    environment                 = "dev"
+    cloudfront_distribution_arn = "arn:aws:cloudfront::123456789012:distribution/TEST"
+  }
+
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.public_site[0].policy).Statement :
+      statement.Sid == "DenyInsecureTransport" &&
+      statement.Effect == "Deny" &&
+      statement.Principal == "*" &&
+      statement.Action == "s3:*" &&
+      statement.Condition.Bool["aws:SecureTransport"] == "false" &&
+      contains(statement.Resource, aws_s3_bucket.public_site.arn) &&
+      contains(statement.Resource, "${aws_s3_bucket.public_site.arn}/*")
+    ])
+    error_message = "Public site bucket policy must deny non-TLS access"
+  }
+
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.public_site[0].policy).Statement :
+      statement.Sid == "AllowCloudFrontOAC"
+    ])
+    error_message = "Public site bucket policy must keep the CloudFront OAC allow statement"
+  }
+
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.public_site[0].policy).Statement :
+      statement.Sid == "AllowCloudFrontMissingObjectStatus"
+    ])
+    error_message = "Public site bucket policy must keep the missing-object-status allow statement"
+  }
+}
+
+# Test 25: Verify TLS-only (non-TLS deny) statement on the admin site bucket policy
+run "admin_site_bucket_policy_denies_insecure_transport" {
+  command = apply
+  variables {
+    project_name                = "serverless-blog"
+    environment                 = "dev"
+    cloudfront_distribution_arn = "arn:aws:cloudfront::123456789012:distribution/TEST"
+  }
+
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.admin_site[0].policy).Statement :
+      statement.Sid == "DenyInsecureTransport" &&
+      statement.Effect == "Deny" &&
+      statement.Principal == "*" &&
+      statement.Action == "s3:*" &&
+      statement.Condition.Bool["aws:SecureTransport"] == "false" &&
+      contains(statement.Resource, aws_s3_bucket.admin_site.arn) &&
+      contains(statement.Resource, "${aws_s3_bucket.admin_site.arn}/*")
+    ])
+    error_message = "Admin site bucket policy must deny non-TLS access"
+  }
+
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.admin_site[0].policy).Statement :
+      statement.Sid == "AllowCloudFrontOAC"
+    ])
+    error_message = "Admin site bucket policy must keep the CloudFront OAC allow statement"
+  }
+}
+
+# Test 26: Verify the access-logs bucket gets its own TLS-only deny policy
+# (this bucket previously had no bucket policy at all).
+run "access_logs_bucket_policy_denies_insecure_transport" {
+  command = apply
+  variables {
+    project_name       = "serverless-blog"
+    environment        = "prd"
+    enable_access_logs = true
+  }
+
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.access_logs[0].policy).Statement :
+      statement.Sid == "DenyInsecureTransport" &&
+      statement.Effect == "Deny" &&
+      statement.Principal == "*" &&
+      statement.Action == "s3:*" &&
+      statement.Condition.Bool["aws:SecureTransport"] == "false" &&
+      contains(statement.Resource, aws_s3_bucket.access_logs[0].arn) &&
+      contains(statement.Resource, "${aws_s3_bucket.access_logs[0].arn}/*")
+    ])
+    error_message = "Access logs bucket policy must deny non-TLS access"
+  }
+}
+
+# Test 27: Verify no bucket policy (and therefore no crash) is created for the
+# access-logs bucket when access logging is disabled.
+run "access_logs_bucket_policy_absent_when_disabled" {
+  command = plan
+  variables {
+    project_name       = "serverless-blog"
+    environment        = "dev"
+    enable_access_logs = false
+  }
+
+  assert {
+    condition     = length(aws_s3_bucket_policy.access_logs) == 0
+    error_message = "Access logs bucket policy must not be created when enable_access_logs is false"
+  }
+}
+
+# Test 28: Verify the access-logs bucket policy stays deny-only when no
+# CloudFront log delivery source ARN is configured (default: dev, and prd
+# before the delivery source exists).
+# Issue #684 item 2: CloudWatch vended-log delivery statement is opt-in.
+run "access_logs_bucket_policy_no_log_delivery_statement_by_default" {
+  command = apply
+  variables {
+    project_name       = "serverless-blog"
+    environment        = "prd"
+    enable_access_logs = true
+  }
+
+  assert {
+    condition = length([
+      for statement in jsondecode(aws_s3_bucket_policy.access_logs[0].policy).Statement :
+      statement
+      if statement.Sid == "AWSLogDeliveryWrite" || statement.Sid == "AWSLogDeliveryAclCheck"
+    ]) == 0
+    error_message = "No log-delivery Allow statement must be added when cloudfront_log_delivery_source_arns is empty"
+  }
+}
+
+# Test 29: Verify the access-logs bucket policy grants delivery.logs.amazonaws.com
+# write access, scoped to the cloudfront/ prefix and to the configured
+# delivery source ARNs, when CloudFront standard logging v2 is wired up.
+# Issue #684 item 2: CloudWatch standard logging v2 (CloudFront) to S3.
+run "access_logs_bucket_policy_allows_cloudfront_log_delivery" {
+  command = apply
+  variables {
+    project_name       = "serverless-blog"
+    environment        = "prd"
+    enable_access_logs = true
+    cloudfront_log_delivery_source_arns = [
+      "arn:aws:logs:us-east-1:123456789012:delivery-source:serverless-blog-cloudfront-prd"
+    ]
+  }
+
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.access_logs[0].policy).Statement :
+      statement.Sid == "AWSLogDeliveryWrite" &&
+      statement.Effect == "Allow" &&
+      statement.Principal.Service == "delivery.logs.amazonaws.com" &&
+      statement.Action == "s3:PutObject" &&
+      statement.Resource == "${aws_s3_bucket.access_logs[0].arn}/cloudfront/*" &&
+      statement.Condition.StringEquals["s3:x-amz-acl"] == "bucket-owner-full-control" &&
+      statement.Condition.StringEquals["aws:SourceAccount"] == data.aws_caller_identity.current.account_id &&
+      contains(statement.Condition.ArnLike["aws:SourceArn"], "arn:aws:logs:us-east-1:123456789012:delivery-source:serverless-blog-cloudfront-prd")
+    ])
+    error_message = "Access logs bucket policy must allow delivery.logs.amazonaws.com to PutObject under cloudfront/ for the configured delivery source ARNs"
+  }
+
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.access_logs[0].policy).Statement :
+      statement.Sid == "AWSLogDeliveryAclCheck" &&
+      statement.Effect == "Allow" &&
+      statement.Principal.Service == "delivery.logs.amazonaws.com" &&
+      contains(statement.Action, "s3:GetBucketAcl") &&
+      contains(statement.Action, "s3:ListBucket") &&
+      statement.Resource == aws_s3_bucket.access_logs[0].arn
+    ])
+    error_message = "Access logs bucket policy must allow delivery.logs.amazonaws.com bucket-level ACL/List checks to avoid CloudTrail AccessDenied noise"
+  }
+
+  # The existing TLS-only deny statement must be preserved.
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.access_logs[0].policy).Statement :
+      statement.Sid == "DenyInsecureTransport" && statement.Effect == "Deny"
+    ])
+    error_message = "Access logs bucket policy must keep denying non-TLS access"
   }
 }

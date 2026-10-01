@@ -211,6 +211,49 @@ variable "throttling_burst_limit" {
   default     = 200
 }
 
+# Method-level throttling for admin write endpoints (POST/PUT/PATCH/DELETE under
+# /admin/...). These share nothing with the public GET methods, which stay on the
+# stage-wide "all" setting above so the Astro SSG build (which calls the public API
+# at build time) is never throttled by admin write traffic or vice versa.
+#
+# Sizing: the admin editor autosaves with a 1.5s debounce (~0.7 rps per open editor),
+# and multi-image upload issues several upload-url requests at once (a handful of
+# requests in a burst, not sustained). 10 rps / burst 20 comfortably covers several
+# concurrent editors and a multi-image upload while capping a single abusive source
+# far below the stage-wide 100 rps / burst 200, so it can no longer exhaust the shared
+# budget and 429 every other API (including the rest of admin).
+variable "admin_write_throttling_rate_limit" {
+  description = "Throttling rate limit (requests per second) for admin write methods (POST/PUT/PATCH/DELETE under /admin/...). Must be positive and must not exceed throttling_rate_limit."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.admin_write_throttling_rate_limit > 0
+    error_message = "admin_write_throttling_rate_limit must be a positive number."
+  }
+
+  validation {
+    condition     = var.admin_write_throttling_rate_limit <= var.throttling_rate_limit
+    error_message = "admin_write_throttling_rate_limit must not exceed throttling_rate_limit (the stage-wide limit)."
+  }
+}
+
+variable "admin_write_throttling_burst_limit" {
+  description = "Throttling burst limit for admin write methods (POST/PUT/PATCH/DELETE under /admin/...). Must be positive and must not exceed throttling_burst_limit."
+  type        = number
+  default     = 20
+
+  validation {
+    condition     = var.admin_write_throttling_burst_limit > 0
+    error_message = "admin_write_throttling_burst_limit must be a positive number."
+  }
+
+  validation {
+    condition     = var.admin_write_throttling_burst_limit <= var.throttling_burst_limit
+    error_message = "admin_write_throttling_burst_limit must not exceed throttling_burst_limit (the stage-wide limit)."
+  }
+}
+
 # ======================
 # CloudWatch Logs Encryption
 # ======================

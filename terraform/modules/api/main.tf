@@ -1346,6 +1346,79 @@ resource "aws_api_gateway_method_settings" "all" {
   }
 }
 
+# Admin write methods (POST/PUT/PATCH/DELETE under /admin/...): a lower, method-level
+# throttle so one abusive/misbehaving source can no longer exhaust the shared
+# stage-wide budget above and 429 every API, including the rest of admin.
+#
+# Public GET methods (posts, categories) are intentionally NOT included here: the
+# Astro SSG build fetches all posts via the public API at build time, and adding a
+# separate low limit on those risks throttling the build. They stay on the
+# stage-wide "all" setting.
+#
+# OPTIONS (CORS preflight, NONE auth, MOCK integration) is intentionally excluded:
+# it never reaches a Lambda and throttling it would break CORS preflight for
+# browsers without reducing backend load.
+#
+# The map is keyed by a descriptive name and derives method_path from each
+# resource's own `path` attribute (trimming the leading "/", per the
+# aws_api_gateway_method_settings documentation) rather than hardcoding path
+# strings, so path parameters like "{id}" are carried through automatically.
+locals {
+  admin_write_methods = {
+    admin_posts_create = {
+      resource_path = aws_api_gateway_resource.admin_posts.path
+      http_method   = aws_api_gateway_method.admin_posts_post.http_method
+    }
+    admin_posts_update = {
+      resource_path = aws_api_gateway_resource.admin_posts_id.path
+      http_method   = aws_api_gateway_method.admin_posts_id_put.http_method
+    }
+    admin_posts_delete = {
+      resource_path = aws_api_gateway_resource.admin_posts_id.path
+      http_method   = aws_api_gateway_method.admin_posts_id_delete.http_method
+    }
+    admin_images_upload_url = {
+      resource_path = aws_api_gateway_resource.admin_images_upload_url.path
+      http_method   = aws_api_gateway_method.admin_images_upload_url_post.http_method
+    }
+    admin_images_delete = {
+      resource_path = aws_api_gateway_resource.admin_images_key.path
+      http_method   = aws_api_gateway_method.admin_images_key_delete.http_method
+    }
+    admin_categories_create = {
+      resource_path = aws_api_gateway_resource.admin_categories.path
+      http_method   = aws_api_gateway_method.admin_categories_post.http_method
+    }
+    admin_categories_update = {
+      resource_path = aws_api_gateway_resource.admin_categories_id.path
+      http_method   = aws_api_gateway_method.admin_categories_id_put.http_method
+    }
+    admin_categories_delete = {
+      resource_path = aws_api_gateway_resource.admin_categories_id.path
+      http_method   = aws_api_gateway_method.admin_categories_id_delete.http_method
+    }
+    admin_categories_sort = {
+      resource_path = aws_api_gateway_resource.admin_categories_sort.path
+      http_method   = aws_api_gateway_method.admin_categories_sort_patch.http_method
+    }
+  }
+}
+
+resource "aws_api_gateway_method_settings" "admin_write" {
+  for_each = local.admin_write_methods
+
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  stage_name  = aws_api_gateway_stage.main.stage_name
+  method_path = "${trimprefix(each.value.resource_path, "/")}/${each.value.http_method}"
+
+  settings {
+    metrics_enabled        = local.is_production
+    logging_level          = local.is_production ? "INFO" : "OFF"
+    throttling_rate_limit  = var.admin_write_throttling_rate_limit
+    throttling_burst_limit = var.admin_write_throttling_burst_limit
+  }
+}
+
 # ======================
 # CloudWatch Role (Account-level)
 # ======================

@@ -95,6 +95,96 @@ resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
   }
 }
 
+# Deny non-TLS access. S3 server access logging and CloudFront standard
+# logging (log delivery) write to this bucket over TLS via the S3 service
+# itself, so this Deny does not affect log delivery.
+#
+# Issue #684 item 2: CloudFront standard logging v2 delivers logs to this
+# bucket through CloudWatch Logs "vended logs" delivery (delivery.logs.
+# amazonaws.com), under the cloudfront/ prefix. AWS documents that it will
+# add the required bucket-policy statement automatically the first time
+# logging is enabled (see "Amazon S3 bucket resource policy" in
+# https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AWS-logs-infrastructure-V2-S3.html),
+# but that auto-add is a direct PutBucketPolicy call outside Terraform: the
+# next `terraform apply` would silently revert it, breaking log delivery.
+# Terraform therefore owns this statement directly, gated by
+# var.cloudfront_log_delivery_source_arns (empty by default, so dev and any
+# environment that hasn't wired up a delivery source get no extra access).
+resource "aws_s3_bucket_policy" "access_logs" {
+  count  = var.enable_access_logs ? 1 : 0
+  bucket = aws_s3_bucket.access_logs[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(
+      [
+        {
+          Sid       = "DenyInsecureTransport"
+          Effect    = "Deny"
+          Principal = "*"
+          Action    = "s3:*"
+          Resource = [
+            aws_s3_bucket.access_logs[0].arn,
+            "${aws_s3_bucket.access_logs[0].arn}/*"
+          ]
+          Condition = {
+            Bool = {
+              "aws:SecureTransport" = "false"
+            }
+          }
+        }
+      ],
+      # Guarded via a `for` (rather than a `? :` conditional) so the two
+      # branches don't need statically-unifiable object types: Action is a
+      # string in one statement and a list(string) in the other.
+      flatten([
+        for _ in(length(var.cloudfront_log_delivery_source_arns) > 0 ? [true] : []) : [
+          {
+            # AWS-documented statement for CloudWatch vended-log delivery to S3 (V2
+            # permissions). Scoped to the cloudfront/ prefix used by the delivery
+            # destination so other prefixes (e.g. S3 server access logs) are unaffected.
+            Sid    = "AWSLogDeliveryWrite"
+            Effect = "Allow"
+            Principal = {
+              Service = "delivery.logs.amazonaws.com"
+            }
+            Action   = "s3:PutObject"
+            Resource = "${aws_s3_bucket.access_logs[0].arn}/cloudfront/*"
+            Condition = {
+              StringEquals = {
+                "s3:x-amz-acl"      = "bucket-owner-full-control"
+                "aws:SourceAccount" = local.account_id
+              }
+              ArnLike = {
+                "aws:SourceArn" = var.cloudfront_log_delivery_source_arns
+              }
+            }
+          },
+          {
+            # Bucket-level GetBucketAcl/ListBucket, as AWS recommends, to avoid
+            # AccessDenied noise in CloudTrail from the delivery service's ACL checks.
+            Sid    = "AWSLogDeliveryAclCheck"
+            Effect = "Allow"
+            Principal = {
+              Service = "delivery.logs.amazonaws.com"
+            }
+            Action   = ["s3:GetBucketAcl", "s3:ListBucket"]
+            Resource = aws_s3_bucket.access_logs[0].arn
+            Condition = {
+              StringEquals = {
+                "aws:SourceAccount" = local.account_id
+              }
+              ArnLike = {
+                "aws:SourceArn" = var.cloudfront_log_delivery_source_arns
+              }
+            }
+          }
+        ]
+      ])
+    )
+  })
+}
+
 #------------------------------------------------------------------------------
 # Image Storage Bucket
 #------------------------------------------------------------------------------
@@ -182,13 +272,18 @@ resource "aws_s3_bucket_lifecycle_configuration" "images" {
   }
 }
 
-# CORS configuration for pre-signed URL uploads from browser
+# CORS configuration for pre-signed URL uploads from browser.
+# Uploads use a presigned POST (multipart/form-data), not PUT: a presigned
+# PUT cannot bound object size, but the POST policy's content-length-range
+# condition can (issue #684 item 1). No other caller presigns a PUT to this
+# bucket (see go-functions/cmd/images/get_upload_url/main.go), so PUT is
+# dropped rather than kept alongside POST.
 resource "aws_s3_bucket_cors_configuration" "images" {
   bucket = aws_s3_bucket.images.id
 
   cors_rule {
     allowed_headers = ["*"]
-    allowed_methods = ["PUT"]
+    allowed_methods = ["POST"]
     allowed_origins = var.cors_allow_origins
     max_age_seconds = 3000
   }
@@ -222,6 +317,22 @@ resource "aws_s3_bucket_policy" "images" {
         Condition = {
           StringEquals = {
             "AWS:SourceArn" = var.cloudfront_distribution_arn
+          }
+        }
+      },
+      {
+        # AWS FSBP S3.5: deny any request that does not use TLS.
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.images.arn,
+          "${aws_s3_bucket.images.arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
           }
         }
       }
@@ -354,6 +465,22 @@ resource "aws_s3_bucket_policy" "public_site" {
         Condition = {
           StringEquals = { "AWS:SourceArn" = var.cloudfront_distribution_arn }
         }
+      },
+      {
+        # AWS FSBP S3.5: deny any request that does not use TLS.
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.public_site.arn,
+          "${aws_s3_bucket.public_site.arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
       }
     ]
   })
@@ -464,6 +591,22 @@ resource "aws_s3_bucket_policy" "admin_site" {
         Condition = {
           StringEquals = {
             "AWS:SourceArn" = var.cloudfront_distribution_arn
+          }
+        }
+      },
+      {
+        # AWS FSBP S3.5: deny any request that does not use TLS.
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.admin_site.arn,
+          "${aws_s3_bucket.admin_site.arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
           }
         }
       }

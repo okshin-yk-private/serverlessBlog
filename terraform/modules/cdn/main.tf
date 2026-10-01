@@ -625,8 +625,12 @@ resource "aws_cloudfront_response_headers_policy" "admin_security_headers" {
 
 # Unified CloudFront Distribution
 # Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6
-#trivy:ignore:AVD-AWS-0045 WAF is not cost-effective for a personal blog
-#trivy:ignore:AVD-AWS-0011 Access logging managed separately via S3 bucket logging
+# AVD-AWS-0011 (no WAF in front of the distribution): a WAF web ACL adds cost not
+# justified for this personal blog; same justification as .trivyignore and
+# .checkov.yaml CKV_AWS_86. No CloudFront-level rate limiting exists; the only rate
+# limiting is API Gateway stage/method throttling (modules/api, #682).
+# The trivy:ignore line must stay directly above the resource to take effect.
+#trivy:ignore:AVD-AWS-0011 No WAF in front of CloudFront (cost; see comment above)
 resource "aws_cloudfront_distribution" "main" {
   enabled             = true
   is_ipv6_enabled     = true

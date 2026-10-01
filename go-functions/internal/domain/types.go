@@ -396,10 +396,19 @@ func (r *GetUploadURLRequest) Validate() error {
 }
 
 // GetUploadURLResponse represents the response for getting a presigned upload URL.
+//
+// The upload is a presigned S3 POST (not PUT): the client must submit a
+// multipart/form-data request to UploadURL, including every entry of Fields
+// as a form field (in any order) followed by the file itself under the
+// "file" field name (S3 requires the file part to come last). Fields carries
+// the POST policy signature material (policy, signature, credential, key,
+// x-amz-date, x-amz-security-token when present) needed to satisfy the
+// policy conditions (content-length-range, exact key, exact Content-Type).
 type GetUploadURLResponse struct {
-	UploadURL string `json:"uploadUrl"`
-	Key       string `json:"key"`
-	URL       string `json:"url"`
+	UploadURL string            `json:"uploadUrl"`
+	Fields    map[string]string `json:"fields"`
+	Key       string            `json:"key"`
+	URL       string            `json:"url"`
 }
 
 // isAllowedExtension checks if the file extension is allowed.

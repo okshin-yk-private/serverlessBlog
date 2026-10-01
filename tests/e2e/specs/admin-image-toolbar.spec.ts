@@ -25,7 +25,7 @@ test.describe('Admin Tiptap Editor - toolbar image button', () => {
     await adminLoginPage.navigate();
     await adminLoginPage.clearCredentials();
     await adminLoginPage.login(testCredentials.email, testCredentials.password);
-    // 画像 PUT は MSW handlers.ts の `_mock_s3_put/:filename` ハンドラが処理する。
+    // 画像 POST（presigned POST）は MSW handlers.ts の `_mock_s3_post/:filename` ハンドラが処理する。
   });
 
   test('ツールバーの画像ボタンから選んだファイルが markdown に挿入される', async ({

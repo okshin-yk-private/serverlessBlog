@@ -47,23 +47,19 @@ AVD-AWS-0025
 # Lambda Rules
 # ======================================
 
-# AVD-AWS-0066: Lambda function does not have a DLQ
-# Justification: Same as CKV_AWS_116 - synchronous Lambda functions
-# return errors to API Gateway clients directly.
+# AVD-AWS-0066: Lambda functions should have X-Ray tracing enabled (LOW)
+# Justification: X-Ray is Active only in prd (enable_xray); dev uses PassThrough
+# to reduce cost. The Lambda@Edge public-404 function cannot use X-Ray at all
+# (inline CKV_AWS_50 skip in modules/cdn/public404.tf).
 # Review-by: 2027-03-31
 AVD-AWS-0066
 
-# AVD-AWS-0067: Lambda function environment variables not encrypted
-# Justification: Same as CKV_AWS_173 - no secrets in env vars.
-# Sensitive values use Secrets Manager.
-# Review-by: 2027-03-31
-AVD-AWS-0067
+# AVD-AWS-0067: Lambda function permission has no source ARN (CRITICAL)
+# Note: NOT ignored - every aws_lambda_permission sets source_arn.
+# Never ignore this check globally.
 
-# AVD-AWS-0121: Lambda does not have tracing enabled
-# Justification: Conditionally ignored - X-Ray enabled in prd environment only.
-# This may trigger in dev environment configurations.
-# Review-by: 2027-03-31
-AVD-AWS-0121
+# Trivy has no check for Lambda DLQs (CKV_AWS_116) or Lambda environment
+# variable encryption (CKV_AWS_173); those Checkov skips have no Trivy counterpart.
 
 # ======================================
 # API Gateway Rules
@@ -75,12 +71,17 @@ AVD-AWS-0121
 # aws_api_gateway_stage.main access_log_settings), gated on local.is_production
 # so it is enabled in prd and disabled in dev to reduce cost and noise.
 
-# AVD-AWS-0004: API Gateway domain not using TLS 1.2
-# Note: NOT ignored - TLS 1.2 minimum is configured
+# AVD-AWS-0004: No unauthorized access to API Gateway methods (LOW)
+# Note: NOT ignored - public read endpoints (and CORS OPTIONS methods) are
+# intentionally unauthenticated; admin endpoints use COGNITO_USER_POOLS.
 
-# AVD-AWS-0190: API Gateway endpoint is publicly accessible
-# Justification: Same as CKV2_AWS_29 - required for CloudFront.
-# Cognito authorizers protect sensitive endpoints.
+# AVD-AWS-0005: API Gateway domain name uses outdated SSL/TLS protocols (HIGH)
+# Note: NOT ignored - no API Gateway custom domain is defined; the API is
+# reached through CloudFront (see AVD-AWS-0013).
+
+# AVD-AWS-0190: API Gateway REST API response caching not enabled (LOW)
+# Justification: Same as CKV_AWS_120 - CloudFront provides edge caching for
+# /api/* paths; API Gateway caching would duplicate it and add an hourly charge.
 # Review-by: 2027-03-31
 AVD-AWS-0190
 
@@ -88,33 +89,45 @@ AVD-AWS-0190
 # CloudFront Rules
 # ======================================
 
-# AVD-AWS-0011: CloudFront distribution does not have WAF enabled
-# Justification: Same as CKV_AWS_86 - WAF adds cost.
-# Rate limiting at CloudFront level; no PII data.
-# Review-by: 2026-10-31 (the stated rate limiting does not exist; see #682)
+# AVD-AWS-0011: CloudFront distribution does not have a WAF in front
+# Justification: Same as CKV_AWS_86 - a regional WAF web ACL adds a monthly base fee
+# plus per-rule and per-request charges, which isn't justified for this personal blog.
+# There is no CloudFront-level rate limiting (no WAF, no CloudFront rate-based rule);
+# the only rate limiting that exists is API Gateway stage/method throttling
+# (modules/api: stage-wide 100 rps / burst 200, plus a lower per-method limit on
+# admin write methods - 10 rps / burst 20 by default - added in #682). No PII data
+# is served or stored by this application.
+# Review-by: 2027-03-31
 AVD-AWS-0011
 
-# AVD-AWS-0012: CloudFront distribution logging disabled
-# Justification: Same as CKV_AWS_68 - S3 storage cost.
-# CloudWatch metrics provide sufficient visibility.
-# Review-by: 2026-10-31 (CloudFront access logging is proposed in #684)
-AVD-AWS-0012
+# AVD-AWS-0010: CloudFront distribution does not have access logging configured (MEDIUM)
+# Justification: Issue #684 item 2 - standard logging v2 (CloudWatch vended-log
+# delivery: aws_cloudwatch_log_delivery_source/_destination/_delivery in
+# terraform/environments/prd/main.tf) is enabled in prd, delivering access
+# logs to the access-log bucket (module.storage, prd only) under the
+# cloudfront/ prefix, 90-day expiration via that bucket's lifecycle rule. Dev
+# intentionally has no access-log bucket and stays without logging (low-value
+# non-production traffic). This check inspects the distribution's legacy
+# `logging_config` attribute, which standard logging v2 does not use - so it
+# still fires even though logging is enabled through the newer mechanism.
+# Review-by: 2027-03-31
+AVD-AWS-0010
 
-# AVD-AWS-0013: CloudFront does not use custom TLS certificate
-# Note: NOT ignored - CloudFront viewer certificate configured
+# AVD-AWS-0012: CloudFront distribution allows unencrypted (HTTP) communications (CRITICAL)
+# Note: NOT ignored - every cache behavior in modules/cdn uses
+# viewer_protocol_policy = "redirect-to-https". Never ignore this check globally.
 
-# AVD-AWS-0010: CloudFront uses outdated TLS version
-# Note: NOT ignored - TLSv1.2_2021 security policy configured
+# AVD-AWS-0013: CloudFront distribution uses outdated SSL/TLS protocols (HIGH)
+# Note: NOT ignored - TLSv1.2_2021 security policy configured (see CKV_AWS_174
+# in .checkov.yaml for the dev default-certificate caveat)
 
 # ======================================
 # Cognito Rules
 # ======================================
 
-# AVD-AWS-0022: Cognito User Pool does not have MFA configured
-# Justification: Conditionally ignored - MFA is set to OPTIONAL, not OFF.
-# This may trigger false positive for OPTIONAL setting.
-# Review-by: 2026-10-31 (reason predates #677 (admin MFA was unusable); revisit when MFA is enforced)
-AVD-AWS-0022
+# Trivy has no Cognito User Pool MFA check. (AVD-AWS-0022 is DocumentDB
+# customer-managed-key encryption, which does not apply here; admin MFA is
+# tracked in #677.)
 
 # ======================================
 # CloudWatch Rules

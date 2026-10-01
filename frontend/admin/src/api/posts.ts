@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { apiClient } from './client';
+import { MAX_IMAGE_BYTES } from '../utils/imageValidation';
 
 export interface Post {
   version?: number;
@@ -77,12 +78,21 @@ export const getPost = async (id: string): Promise<Post> => {
 };
 
 /**
- * 画像アップロード用のPre-signed URLを取得
+ * 画像アップロード用のPre-signed POSTを取得
+ *
+ * バックエンドは署名付き POST ポリシー（uploadUrl + fields）を返す。
+ * fields は S3 へ multipart/form-data で送るフォームフィールド
+ * （policy / signature / key など）で、`file` フィールドより前に、
+ * 全フィールドを付与しておく必要がある（S3 の仕様上 `file` は最後）。
  */
 export const getUploadUrl = async (
   filename: string,
   contentType: string
-): Promise<{ uploadUrl: string; imageUrl: string }> => {
+): Promise<{
+  uploadUrl: string;
+  fields: Record<string, string>;
+  imageUrl: string;
+}> => {
   const response = await apiClient.post('/admin/images/upload-url', {
     fileName: filename,
     contentType,
@@ -90,23 +100,58 @@ export const getUploadUrl = async (
   // バックエンドは "url" を返すが、フロントエンドは "imageUrl" を期待するためマッピング
   return {
     uploadUrl: response.data.uploadUrl,
+    fields: response.data.fields,
     imageUrl: response.data.url,
   };
+};
+
+/** S3 の EntityTooLarge エラー（content-length-range 超過）を示すXMLか判定する */
+const isEntityTooLargeError = (data: unknown): boolean => {
+  return typeof data === 'string' && data.includes('EntityTooLarge');
 };
 
 /**
  * 画像をS3にアップロード
  */
 export const uploadImage = async (file: File): Promise<string> => {
-  // Pre-signed URL取得
-  const { uploadUrl, imageUrl } = await getUploadUrl(file.name, file.type);
+  // Pre-signed POST を要求する前にサイズを確認する（無駄なリクエストを避ける）。
+  // バックエンドの content-length-range もこの MAX_IMAGE_BYTES と同じ上限
+  // (imageValidation.ts 参照)。UploadImage 拡張の validate 経由の呼び出しは
+  // 既にここで弾かれているはずだが、直接 uploadImage を呼ぶ経路のための
+  // 保険として同じ基準・同じメッセージで再チェックする。
+  if (file.size > MAX_IMAGE_BYTES) {
+    throw new Error('ファイルサイズは 5MB 以下にしてください');
+  }
 
-  // S3に直接アップロード（Pre-signed URLのため Authorization ヘッダーを付けない素の axios を使う）
-  await axios.put(uploadUrl, file, {
-    headers: {
-      'Content-Type': file.type,
-    },
-  });
+  // Pre-signed POSTポリシー取得
+  const { uploadUrl, fields, imageUrl } = await getUploadUrl(
+    file.name,
+    file.type
+  );
+
+  // S3へ multipart/form-data でアップロード。
+  // S3 の仕様上、`file` フィールドはフォームの最後に置く必要があるため、
+  // ポリシーフィールドを先に、`file` を最後に追加する。
+  // Pre-signed URL のため Authorization ヘッダーを付けない素の axios を使う。
+  // Content-Type は axios が FormData から自動設定するため手動で指定しない。
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(fields)) {
+    formData.append(key, value);
+  }
+  formData.append('file', file);
+
+  try {
+    await axios.post(uploadUrl, formData);
+  } catch (err) {
+    if (
+      axios.isAxiosError(err) &&
+      err.response?.status === 400 &&
+      isEntityTooLargeError(err.response.data)
+    ) {
+      throw new Error('ファイルサイズは 5MB 以下にしてください');
+    }
+    throw err;
+  }
 
   return imageUrl;
 };
