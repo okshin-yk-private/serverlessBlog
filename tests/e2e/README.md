@@ -178,8 +178,10 @@ bun run test:e2e:admin:ui     # 管理画面UIモード
     S3 画像掃除も動く (Issue #737 — 旧 `scripts/cleanup-test-data.js` は DynamoDB を
     直接叩いていたためこれらが起きなかった)
   - **DEV 専用ガード**: `CLEANUP_TARGET_ENV=dev` を明示的に設定しない限り拒否する
-    (未設定・`dev` 以外はすべて拒否)。加えて対象 URL が既知の本番ドメイン
-    (`boneofmyfallacy.net`) の場合は `CLEANUP_TARGET_ENV=dev` を設定していても拒否する。
+    (未設定・`dev` 以外はすべて拒否)。加えて対象 URL のホスト名が prd の配信ホスト
+    (`boneofmyfallacy.net` / `www.boneofmyfallacy.net`、prd CDN の `domain_names`) の場合は
+    `CLEANUP_TARGET_ENV=dev` を設定していても拒否する。DEV の `dev.boneofmyfallacy.net` は
+    拒否対象ではない (サフィックス一致ではなくホスト名の完全一致)。
     どちらのチェックもネットワーク呼び出しの前に行う
   - 必要な環境変数は AWS E2E / `global-teardown.ts` と共通:
     `BASE_URL` (または `ADMIN_BASE_URL`), `TEST_ADMIN_EMAIL`, `TEST_ADMIN_PASSWORD`、

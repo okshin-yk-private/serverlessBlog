@@ -64,6 +64,23 @@ describe('cleanup-test-data CLI guard (no network)', () => {
     expect(stderr).toContain('production domain');
   }, 15000);
 
+  test('lets the DEV host past the guard (stops at the credential check)', async () => {
+    // DEV is https://dev.boneofmyfallacy.net; a suffix match on the prd apex used
+    // to refuse it. Missing credentials keep this run off the network.
+    const { exitCode, stderr } = await runCli(['--dry-run'], {
+      CLEANUP_TARGET_ENV: 'dev',
+      BASE_URL: 'https://dev.boneofmyfallacy.net',
+      ADMIN_BASE_URL: undefined,
+      TEST_ADMIN_EMAIL: undefined,
+      TEST_ADMIN_PASSWORD: undefined,
+    });
+    expect(exitCode).not.toBe(0);
+    expect(stderr).not.toContain('production domain');
+    expect(stderr).toContain(
+      'TEST_ADMIN_EMAIL/TEST_ADMIN_PASSWORD must be set'
+    );
+  }, 15000);
+
   test('refuses when TEST_ADMIN_EMAIL/PASSWORD are missing, before any login', async () => {
     const { exitCode, stderr } = await runCli(['--dry-run'], {
       CLEANUP_TARGET_ENV: 'dev',
