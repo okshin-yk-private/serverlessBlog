@@ -86,7 +86,7 @@ export class AdminCategoryListPage extends BasePage {
 
   async clickNewCategoryButton(): Promise<void> {
     await this.click(this.selectors.newCategoryButton);
-    await this.page.waitForURL('**/categories/new', { timeout: 10000 });
+    await this.page.getByTestId('category-form').waitFor({ state: 'visible' });
   }
 
   async clickEditByName(name: string): Promise<void> {
@@ -98,7 +98,9 @@ export class AdminCategoryListPage extends BasePage {
       )?.trim();
       if (text === name.trim()) {
         await items.nth(i).locator(this.selectors.editButton).click();
-        await this.page.waitForURL('**/categories/edit/**', { timeout: 10000 });
+        await this.page
+          .getByTestId('category-form')
+          .waitFor({ state: 'visible' });
         return;
       }
     }
@@ -113,7 +115,8 @@ export class AdminCategoryListPage extends BasePage {
         await items.nth(i).locator(this.selectors.categoryName).textContent()
       )?.trim();
       if (text === name.trim()) {
-        await items.nth(i).locator(this.selectors.deleteButton).click();
+        await items.nth(i).locator(this.selectors.editButton).click();
+        await this.page.locator(this.selectors.deleteButton).click();
         await this.waitForElement(this.selectors.confirmYes);
         await this.click(this.selectors.confirmYes);
         return;
@@ -123,8 +126,9 @@ export class AdminCategoryListPage extends BasePage {
   }
 
   async waitForSuccessMessage(): Promise<void> {
-    await this.waitForElement(this.selectors.successMessage, {
-      timeout: 10000,
-    });
+    await this.page
+      .locator(this.selectors.successMessage)
+      .filter({ hasText: /カテゴリを.*しました/ })
+      .waitFor({ state: 'visible', timeout: 10000 });
   }
 }

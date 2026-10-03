@@ -46,6 +46,9 @@ export class AdminCategoryEditPage extends BasePage {
 
   async submitAndWaitForList(): Promise<void> {
     await this.submit();
+    await this.page
+      .locator(this.selectors.form)
+      .waitFor({ state: 'hidden', timeout: 10000 });
     await this.page.waitForURL(/\/categories(\?.*)?$/, { timeout: 10000 });
     // 一覧画面側の useEffect (fetchCategories) が完了するのを待つ
     await this.page.waitForLoadState('networkidle');

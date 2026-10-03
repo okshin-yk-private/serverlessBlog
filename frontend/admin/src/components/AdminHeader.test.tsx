@@ -82,11 +82,14 @@ describe('AdminHeader', () => {
 
     it('+ Newリンクが表示される', () => {
       renderAdminHeader();
-      expect(screen.getByRole('link', { name: '+ New' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('link', { name: '+ New article' })
+      ).toBeInTheDocument();
     });
 
     it('Logoutボタンが表示される', () => {
       renderAdminHeader();
+      fireEvent.click(screen.getByRole('button', { name: /Account/ }));
       expect(
         screen.getByRole('button', { name: 'Logout' })
       ).toBeInTheDocument();
@@ -114,7 +117,7 @@ describe('AdminHeader', () => {
 
     it('+ Newリンクが/posts/newへのリンクを持つ', () => {
       renderAdminHeader();
-      const link = screen.getByRole('link', { name: '+ New' });
+      const link = screen.getByRole('link', { name: '+ New article' });
       expect(link).toHaveAttribute('href', '/posts/new');
     });
 
@@ -174,6 +177,7 @@ describe('AdminHeader', () => {
   describe('ログアウト機能', () => {
     it('Logoutボタンをクリックするとlogout関数が呼ばれる', async () => {
       renderAdminHeader();
+      fireEvent.click(screen.getByRole('button', { name: /Account/ }));
       const logoutButton = screen.getByRole('button', { name: 'Logout' });
 
       fireEvent.click(logoutButton);
@@ -182,5 +186,41 @@ describe('AdminHeader', () => {
         expect(mockLogout).toHaveBeenCalled();
       });
     });
+  });
+  it('Admin is a non-interactive label and primary links follow task order', () => {
+    renderAdminHeader();
+    expect(screen.getByText('Admin').closest('a, button')).toBeNull();
+    expect(
+      screen.getByRole('navigation').querySelectorAll('a')[0]
+    ).toHaveTextContent('Articles');
+    expect(
+      screen.getByRole('navigation').querySelectorAll('a')[1]
+    ).toHaveTextContent('Categories');
+    expect(
+      screen.getByRole('navigation').querySelectorAll('a')[2]
+    ).toHaveTextContent('Dashboard');
+  });
+  it('Security remains accessible from Account and Escape restores focus', () => {
+    renderAdminHeader('/security');
+    const trigger = screen.getByRole('button', { name: /Account/ });
+    expect(trigger).toHaveClass('active');
+    expect(
+      screen.queryByRole('link', { name: 'Security' })
+    ).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    expect(screen.getByRole('link', { name: 'Security' })).toHaveAttribute(
+      'href',
+      '/security'
+    );
+    expect(screen.getByRole('link', { name: 'Security' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(trigger).toHaveFocus();
+    fireEvent.click(trigger);
+    fireEvent.pointerDown(document.body);
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
   });
 });
