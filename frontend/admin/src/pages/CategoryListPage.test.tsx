@@ -15,11 +15,15 @@ import { AuthProvider } from '../contexts/AuthContext';
 const {
   mockFetchCategories,
   mockDeleteCategory,
+  mockCreateCategory,
+  mockUpdateCategory,
   mockUpdateCategorySortOrders,
   mockDndContextOnDragEnd,
 } = vi.hoisted(() => ({
   mockFetchCategories: vi.fn(),
   mockDeleteCategory: vi.fn(),
+  mockCreateCategory: vi.fn(),
+  mockUpdateCategory: vi.fn(),
   mockUpdateCategorySortOrders: vi.fn(),
   mockDndContextOnDragEnd: vi.fn(),
 }));
@@ -73,8 +77,8 @@ vi.mock('@dnd-kit/sortable', async () => {
 vi.mock('../api/categories', () => ({
   fetchCategories: mockFetchCategories,
   deleteCategory: mockDeleteCategory,
-  createCategory: vi.fn(),
-  updateCategory: vi.fn(),
+  createCategory: mockCreateCategory,
+  updateCategory: mockUpdateCategory,
   updateCategorySortOrders: mockUpdateCategorySortOrders,
 }));
 
@@ -135,11 +139,12 @@ describe('CategoryListPage', () => {
         ).toBeInTheDocument();
       });
 
-      const createButton = screen.getByRole('link', {
+      const createButton = screen.getByRole('button', {
         name: /カテゴリを追加/i,
       });
       expect(createButton).toBeInTheDocument();
-      expect(createButton).toHaveAttribute('href', '/categories/new');
+      fireEvent.click(createButton);
+      expect(screen.getByTestId('category-form')).toBeInTheDocument();
     });
 
     it('カテゴリが0件のときに「カテゴリがありません」を表示する', async () => {
@@ -201,7 +206,7 @@ describe('CategoryListPage', () => {
         expect(screen.getByText('テクノロジー')).toBeInTheDocument();
         expect(screen.getByText('tech')).toBeInTheDocument();
         // sortOrderはプレフィックス付きで表示される
-        expect(screen.getByText(/sortOrder:/)).toBeInTheDocument();
+        expect(screen.getByLabelText('表示順 1')).toBeInTheDocument();
       });
     });
   });
@@ -230,281 +235,167 @@ describe('CategoryListPage', () => {
     });
   });
 
-  describe('CRUD操作UI', () => {
-    it('各カテゴリに編集ボタンを表示する', async () => {
-      const categories = [
-        {
-          id: '1',
-          name: 'テクノロジー',
-          slug: 'tech',
-          sortOrder: 1,
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-        },
-      ];
-
-      mockFetchCategories.mockResolvedValue(categories);
+  describe('一覧内での作成・編集・削除', () => {
+    const first = {
+      id: '1',
+      name: 'Tech',
+      slug: 'tech',
+      description: 'Original',
+      sortOrder: 1,
+      createdAt: '',
+      updatedAt: '',
+    };
+    const second = {
+      ...first,
+      id: '2',
+      name: 'Think',
+      slug: 'think',
+      sortOrder: 2,
+    };
+    const open = async () => {
+      mockFetchCategories.mockResolvedValue([first, second]);
       renderCategoryListPage();
-
-      await waitFor(() => {
-        const editLink = screen.getByRole('link', { name: /編集/i });
-        expect(editLink).toBeInTheDocument();
-        expect(editLink).toHaveAttribute('href', '/categories/edit/1');
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Techを編集' })
+      );
+    };
+    it('編集は画面遷移せず保存し、説明を空文字で消去できる', async () => {
+      mockUpdateCategory.mockResolvedValue({
+        ...first,
+        name: 'Renamed',
+        description: '',
+      });
+      await open();
+      const path = window.location.pathname;
+      fireEvent.change(screen.getByTestId('name-input'), {
+        target: { value: 'Renamed' },
+      });
+      fireEvent.change(screen.getByTestId('description-input'), {
+        target: { value: '' },
+      });
+      fireEvent.click(screen.getByTestId('submit-button'));
+      await screen.findByText('カテゴリを保存しました');
+      expect(mockUpdateCategory).toHaveBeenCalledWith('1', {
+        name: 'Renamed',
+        description: '',
+      });
+      expect(screen.getByText('Renamed')).toBeInTheDocument();
+      expect(screen.queryByTestId('category-form')).not.toBeInTheDocument();
+      expect(window.location.pathname).toBe(path);
+    });
+    it('作成後はAPIレスポンスを使って一覧を更新する', async () => {
+      mockFetchCategories.mockResolvedValue([]);
+      mockCreateCategory.mockResolvedValue(first);
+      renderCategoryListPage();
+      await screen.findByText('カテゴリがありません');
+      fireEvent.click(screen.getByTestId('new-category-button'));
+      fireEvent.change(screen.getByTestId('name-input'), {
+        target: { value: 'Tech' },
+      });
+      fireEvent.click(screen.getByTestId('submit-button'));
+      await screen.findByText('カテゴリを保存しました');
+      expect(screen.getByTestId('category-name')).toHaveTextContent('Tech');
+      expect(mockCreateCategory).toHaveBeenCalledWith({
+        name: 'Tech',
+        description: '',
       });
     });
-
-    it('各カテゴリに削除ボタンを表示する', async () => {
-      const categories = [
-        {
-          id: '1',
-          name: 'テクノロジー',
-          slug: 'tech',
-          sortOrder: 1,
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-        },
-      ];
-
-      mockFetchCategories.mockResolvedValue(categories);
-      renderCategoryListPage();
-
-      await waitFor(() => {
-        const deleteButton = screen.getByRole('button', { name: /削除/i });
-        expect(deleteButton).toBeInTheDocument();
+    it('保存失敗後も入力内容を保持して再試行できる', async () => {
+      mockUpdateCategory
+        .mockRejectedValueOnce({ message: '保存失敗' })
+        .mockResolvedValueOnce({ ...first, name: 'Retry' });
+      await open();
+      fireEvent.change(screen.getByTestId('name-input'), {
+        target: { value: 'Retry' },
       });
+      fireEvent.click(screen.getByTestId('submit-button'));
+      await screen.findByText('保存失敗');
+      expect(screen.getByTestId('name-input')).toHaveValue('Retry');
+      fireEvent.click(screen.getByTestId('submit-button'));
+      await screen.findByText('カテゴリを保存しました');
     });
-
-    it('削除ボタンをクリックすると確認ダイアログを表示する', async () => {
-      const categories = [
-        {
-          id: '1',
-          name: 'テクノロジー',
-          slug: 'tech',
-          sortOrder: 1,
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-        },
-      ];
-
-      mockFetchCategories.mockResolvedValue(categories);
-      renderCategoryListPage();
-
-      await waitFor(() => {
-        const deleteButton = screen.getByRole('button', { name: /削除/i });
-        expect(deleteButton).toBeInTheDocument();
-      });
-
-      const deleteButton = screen.getByRole('button', { name: /削除/i });
-      fireEvent.click(deleteButton);
-
-      // ConfirmDialogが表示されることを確認
-      await waitFor(() => {
-        expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
-      });
+    it('空白名と長すぎる名前は保存しない', async () => {
+      await open();
+      for (const name of ['   ', 'a'.repeat(101)]) {
+        fireEvent.change(screen.getByTestId('name-input'), {
+          target: { value: name },
+        });
+        fireEvent.click(screen.getByTestId('submit-button'));
+        expect(screen.getByTestId('name-error')).toBeInTheDocument();
+      }
+      expect(mockUpdateCategory).not.toHaveBeenCalled();
     });
-
-    it('削除を確認するとカテゴリを削除してリストを更新する', async () => {
-      const initialCategories = [
-        {
-          id: '1',
-          name: 'テクノロジー',
-          slug: 'tech',
-          sortOrder: 1,
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-        },
-      ];
-
-      mockFetchCategories.mockResolvedValueOnce(initialCategories);
-      mockFetchCategories.mockResolvedValueOnce([]);
+    it('編集中は他のカテゴリ選択・並び替え・追加で入力を失わない', async () => {
+      await open();
+      expect(
+        screen.getByRole('button', { name: 'Thinkを編集' })
+      ).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Techを下へ' })).toBeDisabled();
+      expect(screen.getByTestId('new-category-button')).toBeDisabled();
+      fireEvent.click(screen.getByTestId('cancel-button'));
+      expect(screen.getByRole('button', { name: 'Thinkを編集' })).toBeEnabled();
+    });
+    it('削除は編集欄から確認し、キャンセルでは削除しない', async () => {
+      mockFetchCategories.mockResolvedValue([first]);
+      renderCategoryListPage();
+      await screen.findByText('Tech');
+      expect(
+        screen.queryByTestId('delete-category-button')
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('edit-category-button'));
+      fireEvent.click(screen.getByTestId('delete-category-button'));
+      expect(screen.getByTestId('confirm-dialog')).toHaveTextContent('Tech');
+      fireEvent.click(screen.getByTestId('confirm-no'));
+      expect(mockDeleteCategory).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByTestId('delete-category-button'));
       mockDeleteCategory.mockResolvedValue(undefined);
-
-      renderCategoryListPage();
-
-      await waitFor(() => {
-        const deleteButton = screen.getByRole('button', { name: /削除/i });
-        expect(deleteButton).toBeInTheDocument();
-      });
-
-      const deleteButton = screen.getByRole('button', { name: /削除/i });
-      fireEvent.click(deleteButton);
-
-      // ConfirmDialogが表示されたら「はい」をクリック
-      await waitFor(() => {
-        expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
-      });
-
-      const confirmButton = screen.getByTestId('confirm-yes');
-      fireEvent.click(confirmButton);
-
-      await waitFor(() => {
-        expect(mockDeleteCategory).toHaveBeenCalledWith('1');
-        expect(mockFetchCategories).toHaveBeenCalledTimes(2); // 初期表示 + 削除後のリロード
-      });
+      fireEvent.click(screen.getByTestId('confirm-yes'));
+      await screen.findByText('カテゴリを削除しました');
+      expect(mockDeleteCategory).toHaveBeenCalledWith('1');
+      expect(screen.getByText('カテゴリがありません')).toBeInTheDocument();
     });
-
-    it('削除をキャンセルすると何も変更しない', async () => {
-      const categories = [
-        {
-          id: '1',
-          name: 'テクノロジー',
-          slug: 'tech',
-          sortOrder: 1,
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-        },
-      ];
-
-      mockFetchCategories.mockResolvedValue(categories);
-
-      renderCategoryListPage();
-
-      await waitFor(() => {
-        const deleteButton = screen.getByRole('button', { name: /削除/i });
-        expect(deleteButton).toBeInTheDocument();
-      });
-
-      const deleteButton = screen.getByRole('button', { name: /削除/i });
-      fireEvent.click(deleteButton);
-
-      // ConfirmDialogが表示されたら「いいえ」をクリック
-      await waitFor(() => {
-        expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
-      });
-
-      const cancelButton = screen.getByTestId('confirm-no');
-      fireEvent.click(cancelButton);
-
-      // 削除が実行されないことを確認
-      await waitFor(() => {
-        expect(mockDeleteCategory).not.toHaveBeenCalled();
-      });
-      expect(screen.getByText('テクノロジー')).toBeInTheDocument();
-    });
-
-    it('削除に失敗するとエラーメッセージを表示する', async () => {
-      const categories = [
-        {
-          id: '1',
-          name: 'テクノロジー',
-          slug: 'tech',
-          sortOrder: 1,
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-        },
-      ];
-
-      mockFetchCategories.mockResolvedValue(categories);
-      mockDeleteCategory.mockRejectedValue(new Error('Delete failed'));
-
-      renderCategoryListPage();
-
-      await waitFor(() => {
-        const deleteButton = screen.getByRole('button', { name: /削除/i });
-        expect(deleteButton).toBeInTheDocument();
-      });
-
-      const deleteButton = screen.getByRole('button', { name: /削除/i });
-      fireEvent.click(deleteButton);
-
-      // ConfirmDialogが表示されたら「はい」をクリック
-      await waitFor(() => {
-        expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
-      });
-
-      const confirmButton = screen.getByTestId('confirm-yes');
-      fireEvent.click(confirmButton);
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/カテゴリの削除に失敗しました/i)
-        ).toBeInTheDocument();
-      });
-    });
-
-    it('削除時に409 Conflict（カテゴリ使用中）のエラーメッセージを表示する', async () => {
-      const categories = [
-        {
-          id: '1',
-          name: 'テクノロジー',
-          slug: 'tech',
-          sortOrder: 1,
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-        },
-      ];
-
-      mockFetchCategories.mockResolvedValue(categories);
-      const conflictError = {
-        message: 'このカテゴリは記事で使用されているため削除できません',
+    it('記事があるカテゴリの409エラーは削除せず表示する', async () => {
+      mockDeleteCategory.mockRejectedValue({
         statusCode: 409,
-      };
-      mockDeleteCategory.mockRejectedValue(conflictError);
-
-      renderCategoryListPage();
-
-      await waitFor(() => {
-        const deleteButton = screen.getByRole('button', { name: /削除/i });
-        expect(deleteButton).toBeInTheDocument();
+        message: '記事が紐づいています',
       });
-
-      const deleteButton = screen.getByRole('button', { name: /削除/i });
-      fireEvent.click(deleteButton);
-
-      // ConfirmDialogが表示されたら「はい」をクリック
-      await waitFor(() => {
-        expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
-      });
-
-      const confirmButton = screen.getByTestId('confirm-yes');
-      fireEvent.click(confirmButton);
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(
-            /このカテゴリは記事で使用されているため削除できません/i
-          )
-        ).toBeInTheDocument();
-      });
+      await open();
+      fireEvent.click(screen.getByTestId('delete-category-button'));
+      fireEvent.click(screen.getByTestId('confirm-yes'));
+      await screen.findByText('記事が紐づいています');
+      expect(screen.getAllByTestId('category-item')).toHaveLength(2);
+      expect(screen.getByTestId('name-input')).toHaveValue('Tech');
     });
-
-    it('削除成功時に成功メッセージを表示する', async () => {
-      const categories = [
-        {
-          id: '1',
-          name: 'テクノロジー',
-          slug: 'tech',
-          sortOrder: 1,
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-        },
-      ];
-
-      mockFetchCategories.mockResolvedValueOnce(categories);
-      mockFetchCategories.mockResolvedValueOnce([]);
-      mockDeleteCategory.mockResolvedValue(undefined);
-
+    it('↑↓で保存し、保存中は多重更新を防ぎ、失敗時は順番を復元する', async () => {
+      let reject!: (error: unknown) => void;
+      mockUpdateCategorySortOrders.mockImplementationOnce(
+        () =>
+          new Promise((_, fail) => {
+            reject = fail;
+          })
+      );
+      mockFetchCategories.mockResolvedValue([first, second]);
       renderCategoryListPage();
-
-      await waitFor(() => {
-        const deleteButton = screen.getByRole('button', { name: /削除/i });
-        expect(deleteButton).toBeInTheDocument();
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Techを下へ' })
+      );
+      expect(screen.getAllByTestId('category-name')[0]).toHaveTextContent(
+        'Think'
+      );
+      expect(screen.getByRole('button', { name: 'Techを上へ' })).toBeDisabled();
+      expect(mockUpdateCategorySortOrders).toHaveBeenCalledWith({
+        orders: [
+          { id: '2', sortOrder: 1 },
+          { id: '1', sortOrder: 2 },
+        ],
       });
-
-      const deleteButton = screen.getByRole('button', { name: /削除/i });
-      fireEvent.click(deleteButton);
-
-      // ConfirmDialogが表示されたら「はい」をクリック
-      await waitFor(() => {
-        expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+      await act(async () => {
+        reject(new Error('order failed'));
       });
-
-      const confirmButton = screen.getByTestId('confirm-yes');
-      fireEvent.click(confirmButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/カテゴリを削除しました/i)).toBeInTheDocument();
-      });
+      expect(screen.getAllByTestId('category-name')[0]).toHaveTextContent(
+        'Tech'
+      );
+      expect(screen.getByRole('button', { name: 'Techを下へ' })).toBeEnabled();
     });
   });
 

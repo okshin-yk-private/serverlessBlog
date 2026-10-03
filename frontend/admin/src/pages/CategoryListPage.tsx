@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -17,222 +16,275 @@ import {
 } from '@dnd-kit/sortable';
 import {
   fetchCategories,
+  createCategory,
+  updateCategory,
   deleteCategory,
   updateCategorySortOrders,
+  type Category,
+  type APIError,
 } from '../api/categories';
-import type { Category, APIError } from '../api/categories';
-import ConfirmDialog from '../components/ConfirmDialog';
 import AdminLayout from '../components/AdminLayout';
 import SortableCategoryItem from '../components/SortableCategoryItem';
+import CategoryEditor from '../components/CategoryEditor';
+import './CategoryListPage.css';
 
 const CategoryListPage = () => {
   const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  // 削除確認ダイアログ用のstate
-  const [showConfirmDialog, setShowConfirmDialog] = useState<boolean>(false);
-  const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
-
-  // ドラッグ&ドロップのセンサー設定
+  const [editor, setEditor] = useState<Category | 'new' | null>(null);
+  const [busy, setBusy] = useState(false);
+  const mutation = useRef(false);
+  const container = useRef<HTMLDivElement>(null);
+  const addButton = useRef<HTMLButtonElement>(null);
   const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
-
-  const loadCategories = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await fetchCategories();
-      // sortOrder順でソート
-      const sorted = [...data].sort((a, b) => a.sortOrder - b.sortOrder);
-      setCategories(sorted);
-    } catch (err) {
-      console.error('カテゴリ取得エラー:', err);
-      setError('カテゴリの取得に失敗しました');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
-    loadCategories();
+    let active = true;
+    fetchCategories()
+      .then((data) => {
+        if (active)
+          setCategories([...data].sort((a, b) => a.sortOrder - b.sortOrder));
+      })
+      .catch(() => {
+        if (active) setError('カテゴリの取得に失敗しました');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const handleDeleteClick = (id: string) => {
-    setCategoryToDelete(id);
-    setShowConfirmDialog(true);
+  const openEditor = (value: Category | 'new') => {
+    if (editor || mutation.current) return;
+    setError(null);
+    setSuccessMessage(null);
+    setEditor(value);
   };
-
-  const handleDeleteConfirm = async () => {
-    if (!categoryToDelete) return;
-
+  const closeEditor = () => {
+    const id = editor && editor !== 'new' ? editor.id : null;
+    setEditor(null);
+    setError(null);
+    requestAnimationFrame(() => {
+      const button = [
+        ...(container.current?.querySelectorAll<HTMLButtonElement>(
+          '[data-category-id]'
+        ) ?? []),
+      ].find((element) => element.dataset.categoryId === id);
+      (button ?? addButton.current)?.focus({ preventScroll: true });
+    });
+  };
+  const beginMutation = () => {
+    if (mutation.current) return false;
+    mutation.current = true;
+    setBusy(true);
+    setError(null);
+    setSuccessMessage(null);
+    return true;
+  };
+  const endMutation = () => {
+    mutation.current = false;
+    setBusy(false);
+  };
+  const save = async (data: { name: string; description: string }) => {
+    if (!editor || !beginMutation()) return;
     try {
-      setError(null);
-      setSuccessMessage(null);
-      await deleteCategory(categoryToDelete);
-      setSuccessMessage('カテゴリを削除しました');
-      setShowConfirmDialog(false);
-      setCategoryToDelete(null);
-      await loadCategories();
+      const saved =
+        editor === 'new'
+          ? await createCategory(data)
+          : await updateCategory(editor.id, data);
+      setCategories((previous) =>
+        [
+          ...previous.filter((category) => category.id !== saved.id),
+          saved,
+        ].sort((a, b) => a.sortOrder - b.sortOrder)
+      );
+      closeEditor();
+      setSuccessMessage('カテゴリを保存しました');
     } catch (err) {
-      console.error('削除エラー:', err);
-      // APIErrorかどうかをチェックしてエラーメッセージを取得
-      const apiError = err as APIError;
-      if (apiError.statusCode === 409) {
-        setError(apiError.message);
-      } else {
-        setError('カテゴリの削除に失敗しました');
-      }
-      setShowConfirmDialog(false);
-      setCategoryToDelete(null);
+      setError((err as APIError).message || 'カテゴリの保存に失敗しました');
+    } finally {
+      endMutation();
     }
   };
-
-  const handleDeleteCancel = () => {
-    setShowConfirmDialog(false);
-    setCategoryToDelete(null);
+  const remove = async () => {
+    if (!editor || editor === 'new' || !beginMutation()) return;
+    try {
+      await deleteCategory(editor.id);
+      setCategories((previous) =>
+        previous.filter((category) => category.id !== editor.id)
+      );
+      closeEditor();
+      setSuccessMessage('カテゴリを削除しました');
+    } catch (err) {
+      const apiError = err as APIError;
+      setError(
+        apiError.statusCode === 409
+          ? apiError.message
+          : 'カテゴリの削除に失敗しました'
+      );
+    } finally {
+      endMutation();
+    }
   };
-
-  // ドラッグ&ドロップ完了時のハンドラー
-  const handleDragEnd = useCallback(
-    async (event: DragEndEvent) => {
-      const { active, over } = event;
-
-      if (!over || active.id === over.id) {
-        return;
-      }
-
-      // 楽観的UI更新のために現在の状態を保存
-      const previousCategories = [...categories];
-
-      // UIを即時更新（楽観的更新）
-      const oldIndex = categories.findIndex((cat) => cat.id === active.id);
-      const newIndex = categories.findIndex((cat) => cat.id === over.id);
-
-      const newCategories = arrayMove(categories, oldIndex, newIndex);
-
-      // 新しいsortOrder値を計算
-      const ordersToUpdate = newCategories.map((cat, index) => ({
-        id: cat.id,
-        sortOrder: index + 1,
-      }));
-
-      // UIを即時更新（楽観的更新）
-      const updatedCategories = newCategories.map((cat, index) => ({
-        ...cat,
-        sortOrder: index + 1,
-      }));
-      setCategories(updatedCategories);
-
-      try {
-        setError(null);
-        // APIを呼び出してsortOrderを永続化
-        await updateCategorySortOrders({ orders: ordersToUpdate });
-        setSuccessMessage('並び順を更新しました');
-      } catch (err) {
-        console.error('sortOrder更新エラー:', err);
-        // 失敗時はロールバック
-        setCategories(previousCategories);
-        const apiError = err as APIError;
-        if (apiError.message) {
-          setError(apiError.message);
-        } else {
-          setError('並び順の更新に失敗しました');
-        }
-      }
-    },
-    [categories]
+  const reorder = async (from: number, to: number) => {
+    if (
+      editor ||
+      from < 0 ||
+      to < 0 ||
+      to >= categories.length ||
+      from === to ||
+      !beginMutation()
+    )
+      return;
+    const previous = categories;
+    const next = arrayMove(previous, from, to).map((category, index) => ({
+      ...category,
+      sortOrder: index + 1,
+    }));
+    setCategories(next);
+    try {
+      await updateCategorySortOrders({
+        orders: next.map(({ id, sortOrder }) => ({ id, sortOrder })),
+      });
+      setSuccessMessage('並び順を更新しました');
+    } catch (err) {
+      setCategories(previous);
+      setError((err as APIError).message || '並び順の更新に失敗しました');
+    } finally {
+      endMutation();
+    }
+  };
+  const handleDragEnd = (event: DragEndEvent) => {
+    if (!event.over) return;
+    void reorder(
+      categories.findIndex((category) => category.id === event.active.id),
+      categories.findIndex((category) => category.id === event.over?.id)
+    );
+  };
+  const editorPanel = editor && (
+    <CategoryEditor
+      key={editor === 'new' ? 'new' : editor.id}
+      category={editor === 'new' ? null : editor}
+      busy={busy}
+      error={error}
+      onSave={save}
+      onDelete={remove}
+      onCancel={closeEditor}
+    />
   );
 
-  if (loading) {
-    return (
-      <AdminLayout title="Categories">
-        <div className="admin-loading">
-          <p>読み込み中...</p>
-        </div>
-      </AdminLayout>
-    );
-  }
-
   return (
-    <AdminLayout
-      title="Categories"
-      subtitle="カテゴリの管理・編集"
-      actions={
-        <Link
-          to="/categories/new"
-          data-testid="new-category-button"
-          className="admin-btn admin-btn-primary"
-        >
-          + カテゴリを追加
-        </Link>
-      }
-    >
-      {error && (
-        <div
-          className="admin-alert admin-alert-error"
-          data-testid="error-message"
-        >
-          {error}
-        </div>
-      )}
-
-      {successMessage && (
-        <div
-          className="admin-alert admin-alert-success"
-          data-testid="success-message"
-        >
-          {successMessage}
-        </div>
-      )}
-
-      {/* カテゴリリスト */}
-      {categories.length === 0 ? (
-        <div className="admin-card">
-          <div className="admin-empty">
-            <p className="admin-empty-title">カテゴリがありません</p>
-            <p className="admin-empty-desc">
-              「カテゴリを追加」ボタンから新しいカテゴリを作成してください。
-            </p>
+    <AdminLayout>
+      <div className="category-page" ref={container}>
+        <div className="category-heading">
+          <div>
+            <p>カテゴリの管理</p>
+            <h1>
+              Categories <span>{loading ? '' : categories.length}</span>
+            </h1>
           </div>
-        </div>
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={categories.map((cat) => cat.id)}
-            strategy={verticalListSortingStrategy}
+          <button
+            ref={addButton}
+            type="button"
+            className="admin-btn admin-btn-primary"
+            disabled={loading || busy || !!editor}
+            onClick={() => openEditor('new')}
+            data-testid="new-category-button"
           >
-            <div className="admin-list" data-testid="category-list">
-              {categories.map((category) => (
-                <SortableCategoryItem
-                  key={category.id}
-                  category={category}
-                  onDeleteClick={handleDeleteClick}
-                />
-              ))}
+            + カテゴリを追加
+          </button>
+        </div>
+        {loading ? (
+          <div className="admin-loading">読み込み中...</div>
+        ) : (
+          <>
+            {error && !editor && (
+              <p
+                role="alert"
+                className="admin-alert admin-alert-error"
+                data-testid="error-message"
+              >
+                {error}
+              </p>
+            )}
+            <div className="category-list-caption">
+              <span>表示順</span>
+              <span>ドラッグ / ↑ ↓ で変更・自動保存</span>
             </div>
-          </SortableContext>
-        </DndContext>
-      )}
-
-      {/* 削除確認ダイアログ */}
-      <ConfirmDialog
-        isOpen={showConfirmDialog}
-        message="本当にこのカテゴリを削除しますか？"
-        onConfirm={handleDeleteConfirm}
-        onCancel={handleDeleteCancel}
-      />
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={categories.map((category) => category.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div
+                  data-testid="category-list"
+                  className={`category-workspace${editor ? ' has-editor' : ''}`}
+                  style={
+                    {
+                      '--category-rows': Math.max(categories.length, 1),
+                      '--category-editor-row':
+                        editor && editor !== 'new'
+                          ? categories.findIndex(
+                              (category) => category.id === editor.id
+                            ) + 1
+                          : 1,
+                    } as React.CSSProperties
+                  }
+                >
+                  <div className="category-list">
+                    {editor === 'new' && editorPanel}
+                    {categories.length === 0 && (
+                      <p className="category-empty">カテゴリがありません</p>
+                    )}
+                    {categories.map((category, index) => (
+                      <Fragment key={category.id}>
+                        <SortableCategoryItem
+                          category={category}
+                          index={index}
+                          total={categories.length}
+                          selected={
+                            !!editor &&
+                            editor !== 'new' &&
+                            editor.id === category.id
+                          }
+                          disabled={busy || !!editor}
+                          onEdit={() => openEditor(category)}
+                          onMove={(offset) =>
+                            void reorder(index, index + offset)
+                          }
+                        />
+                        {editor &&
+                          editor !== 'new' &&
+                          editor.id === category.id &&
+                          editorPanel}
+                      </Fragment>
+                    ))}
+                  </div>
+                </div>
+              </SortableContext>
+            </DndContext>
+            <p
+              className="category-save-status"
+              role="status"
+              data-testid="success-message"
+            >
+              {busy ? '保存中…' : successMessage}
+            </p>
+          </>
+        )}
+      </div>
     </AdminLayout>
   );
 };
-
 export default CategoryListPage;
