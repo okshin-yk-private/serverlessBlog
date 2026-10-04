@@ -175,3 +175,124 @@ test.describe('Admin Categories - CRUD', () => {
     ).toContainText('保存前の本文');
   });
 });
+
+test.describe('Admin category layout (local MSW)', () => {
+  test.skip(
+    process.env.VITE_ENABLE_MSW_MOCK === 'false',
+    'Local UI checks only'
+  );
+  test.beforeEach(async ({ adminLoginPage, adminCategoryListPage }) => {
+    await adminLoginPage.navigate();
+    await adminLoginPage.clearCredentials();
+    await adminLoginPage.login('admin@example.com', 'testpassword');
+    await adminCategoryListPage.navigate();
+  });
+
+  test('編集フォームは幅変更後も入力を保持し、狭幅では選択行の直下に配置する', async ({
+    page,
+  }) => {
+    await page.getByTestId('edit-category-button').last().click();
+    await page.getByTestId('name-input').fill('幅変更中の未保存入力');
+    await page.getByTestId('description-input').fill('説明の未保存入力');
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(
+        (theme) => (document.documentElement.dataset.theme = theme),
+        theme
+      );
+      for (const width of [320, 390, 781, 1024, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await expect(page.getByTestId('name-input')).toHaveValue(
+          '幅変更中の未保存入力'
+        );
+        await expect(page.getByTestId('description-input')).toHaveValue(
+          '説明の未保存入力'
+        );
+        const layout = await page.evaluate(() => {
+          const row = document
+            .querySelector('.category-row.is-selected')!
+            .getBoundingClientRect();
+          const form = document
+            .querySelector('.category-editor')!
+            .getBoundingClientRect();
+          const available =
+            document.querySelector('.category-page')!.clientWidth;
+          return {
+            overflow: document.documentElement.scrollWidth > innerWidth,
+            available,
+            row: { left: row.left, right: row.right, bottom: row.bottom },
+            form: { left: form.left, top: form.top, right: form.right },
+          };
+        });
+        expect(layout.overflow).toBe(false);
+        if (layout.available <= 760) {
+          expect(layout.form.top).toBeGreaterThanOrEqual(layout.row.bottom);
+          expect(Math.abs(layout.form.left - layout.row.left)).toBeLessThan(2);
+        } else expect(layout.form.left).toBeGreaterThan(layout.row.right);
+      }
+    }
+    await page.getByTestId('cancel-button').click();
+    await expect(page.getByTestId('category-form')).toHaveCount(0);
+  });
+
+  test('キーボードのドラッグと上下ボタンで並び替えを保存する', async ({
+    page,
+  }) => {
+    const names = page.getByTestId('category-name');
+    const original = await names.allTextContents();
+    const handle = page.getByTestId('drag-handle').first();
+    const targetId = await page
+      .getByTestId('edit-category-button')
+      .nth(1)
+      .getAttribute('data-category-id');
+    await handle.focus();
+    await page.keyboard.press('Space');
+    await expect(handle).toHaveAttribute('aria-pressed', 'true');
+    // The sensor attaches its key listener asynchronously; let drag layout measurement settle.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+        )
+    );
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('[id^=DndLiveRegion]')).toContainText(
+      `was moved over droppable area ${targetId}.`
+    );
+    await page.keyboard.press('Space');
+    await expect(
+      page.getByRole('status').filter({ hasText: '並び順を更新しました' })
+    ).toBeVisible();
+    await expect(names.nth(1)).toHaveText(original[0]);
+    await page
+      .getByRole('button', { name: `${original[0]}を上へ`, exact: true })
+      .click();
+    await expect(names.first()).toHaveText(original[0]);
+    await expect(
+      page.getByRole('button', { name: `${original[0]}を下へ`, exact: true })
+    ).toBeEnabled();
+  });
+
+  test('Adminは非操作ラベルで、AccountからSecurityへ移動できる', async ({
+    page,
+  }) => {
+    await expect(page.locator('.admin-area-label')).toHaveText(
+      /管理画面.*Admin/s
+    );
+    expect(
+      await page
+        .locator('.admin-area-label')
+        .evaluate((el) => el.closest('a,button') === null)
+    ).toBe(true);
+    const account = page.getByRole('button', { name: 'Account' });
+    await account.click();
+    await expect(
+      page.getByRole('link', { name: 'Security', exact: true })
+    ).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(account).toBeFocused();
+    await account.click();
+    await page.getByRole('link', { name: 'Security', exact: true }).click();
+    await expect(page).toHaveURL(/\/security$/);
+    await expect(account).toHaveClass(/active/);
+  });
+});

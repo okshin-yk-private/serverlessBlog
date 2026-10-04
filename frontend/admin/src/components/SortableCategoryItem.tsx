@@ -1,17 +1,26 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Link } from 'react-router-dom';
 import type { Category } from '../api/categories';
 
-interface SortableCategoryItemProps {
+interface Props {
   category: Category;
-  onDeleteClick: (id: string) => void;
+  index: number;
+  total: number;
+  selected: boolean;
+  disabled: boolean;
+  onEdit: () => void;
+  onMove: (offset: number) => void;
 }
 
-const SortableCategoryItem = ({
+export default function SortableCategoryItem({
   category,
-  onDeleteClick,
-}: SortableCategoryItemProps) => {
+  index,
+  total,
+  selected,
+  disabled,
+  onEdit,
+  onMove,
+}: Props) {
   const {
     attributes,
     listeners,
@@ -19,115 +28,75 @@ const SortableCategoryItem = ({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: category.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
+  } = useSortable({ id: category.id, disabled });
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        gridRow: index + 1,
+      }}
       data-testid="category-item"
-      className="admin-list-item"
+      className={`category-row${selected ? ' is-selected' : ''}`}
     >
-      <div className="admin-record-row">
-        {/* ドラッグハンドル */}
+      <button
+        type="button"
+        data-testid="drag-handle"
+        className="category-drag"
+        aria-label={`${category.name}の表示順を変更`}
+        disabled={disabled}
+        {...attributes}
+        {...listeners}
+      >
+        ⠿
+      </button>
+      <span
+        className="category-order-number"
+        aria-label={`表示順 ${index + 1}`}
+      >
+        {String(index + 1).padStart(2, '0')}
+      </span>
+      <div className="category-record">
+        <h2 data-testid="category-name">{category.name}</h2>
+        <p className="category-slug">
+          <span className="category-slug-label">slug: </span>
+          <span>{category.slug}</span>
+        </p>
+        {category.description && (
+          <p className="category-description">{category.description}</p>
+        )}
+      </div>
+      <div className="category-move">
         <button
           type="button"
-          data-testid="drag-handle"
-          className="admin-drag-handle"
-          style={{
-            cursor: 'grab',
-            padding: '8px',
-            border: 'none',
-            background: 'transparent',
-            color: 'var(--color-text-muted)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-          {...attributes}
-          {...listeners}
+          disabled={disabled || index === 0}
+          aria-label={`${category.name}を上へ`}
+          onClick={() => onMove(-1)}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-          >
-            <circle cx="9" cy="6" r="1.5" />
-            <circle cx="15" cy="6" r="1.5" />
-            <circle cx="9" cy="12" r="1.5" />
-            <circle cx="15" cy="12" r="1.5" />
-            <circle cx="9" cy="18" r="1.5" />
-            <circle cx="15" cy="18" r="1.5" />
-          </svg>
+          ↑
         </button>
-
-        <div className="admin-record-content">
-          <h3
-            style={{
-              fontSize: '1.125rem',
-              fontWeight: 700,
-              color: 'var(--color-text-heading)',
-              margin: '0 0 8px 0',
-            }}
-            data-testid="category-name"
-          >
-            {category.name}
-          </h3>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              flexWrap: 'wrap',
-              fontSize: '0.875rem',
-              color: 'var(--color-text-muted)',
-            }}
-          >
-            <span className="admin-badge admin-badge-dark">
-              {category.slug}
-            </span>
-            <span>sortOrder: {category.sortOrder}</span>
-          </div>
-          {category.description && (
-            <p
-              style={{
-                marginTop: '8px',
-                fontSize: '0.875rem',
-                color: 'var(--color-text-muted)',
-              }}
-            >
-              {category.description}
-            </p>
-          )}
-        </div>
-        <div className="admin-record-actions">
-          <Link
-            to={`/categories/edit/${category.id}`}
-            data-testid="edit-category-button"
-            className="admin-btn admin-btn-secondary admin-btn-sm"
-          >
-            編集
-          </Link>
-          <button
-            onClick={() => onDeleteClick(category.id)}
-            data-testid="delete-category-button"
-            className="admin-btn admin-btn-danger admin-btn-sm"
-          >
-            削除
-          </button>
-        </div>
+        <button
+          type="button"
+          disabled={disabled || index === total - 1}
+          aria-label={`${category.name}を下へ`}
+          onClick={() => onMove(1)}
+        >
+          ↓
+        </button>
       </div>
+      <button
+        type="button"
+        className="admin-btn admin-btn-secondary admin-btn-sm"
+        disabled={disabled}
+        onClick={onEdit}
+        aria-label={`${category.name}を編集`}
+        data-testid="edit-category-button"
+        data-category-id={category.id}
+      >
+        編集
+      </button>
     </div>
   );
-};
-
-export default SortableCategoryItem;
+}

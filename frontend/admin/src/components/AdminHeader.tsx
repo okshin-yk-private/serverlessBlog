@@ -1,38 +1,47 @@
-/**
- * AdminHeader Component
- *
- * 管理画面のヘッダー（ブログトップページとデザイン統一）
- */
-
-import React from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import ThemeToggle from './ThemeToggle';
+import './AdminHeader.css';
 
-const AdminHeader: React.FC = () => {
-  const location = useLocation();
+const AdminHeader = () => {
+  const { pathname } = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const [accountOpen, setAccountOpen] = useState(false);
+  const account = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const isActive = (path: string) =>
+    pathname === path || pathname.startsWith(path + '/');
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
-
-  const isActive = (path: string) => {
-    return (
-      location.pathname === path || location.pathname.startsWith(path + '/')
-    );
-  };
+  useEffect(() => {
+    if (!accountOpen) return;
+    const outside = (event: PointerEvent) => {
+      if (!account.current?.contains(event.target as Node))
+        setAccountOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setAccountOpen(false);
+        trigger.current?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [accountOpen]);
 
   return (
-    <>
-      <header className="admin-header">
-        <div className="admin-header-container">
+    <header className="admin-header">
+      <div className="admin-header-container">
+        <div className="admin-identity">
           <Link
             to="/dashboard"
             className="admin-logo"
-            aria-label="Bone of my fallacy - Admin"
+            aria-label="Bone of my fallacy"
           >
             <img
               src="/logo-light.png"
@@ -45,252 +54,87 @@ const AdminHeader: React.FC = () => {
               aria-hidden="true"
               className="admin-logo-image admin-logo-image-dark"
             />
-            <span className="admin-badge admin-badge-header">Admin</span>
           </Link>
-          <nav className="admin-nav">
-            <Link
-              to="/dashboard"
-              className={`admin-nav-link ${isActive('/dashboard') ? 'active' : ''}`}
-            >
-              Dashboard
-            </Link>
-            <Link
-              to="/posts"
-              className={`admin-nav-link ${isActive('/posts') ? 'active' : ''}`}
-            >
-              Articles
-            </Link>
-            <Link
-              to="/categories"
-              className={`admin-nav-link ${isActive('/categories') ? 'active' : ''}`}
-            >
-              Categories
-            </Link>
-            <a
-              href="/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="admin-nav-link admin-nav-external"
-            >
-              View Site
-              <svg
-                className="external-icon"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                <polyline points="15 3 21 3 21 9" />
-                <line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
-            </a>
-            <Link to="/posts/new" className="admin-nav-link admin-nav-new">
-              + New
-            </Link>
-            <Link
-              to="/security"
-              className={`admin-nav-link ${isActive('/security') ? 'active' : ''}`}
-            >
-              Security
-            </Link>
-            <ThemeToggle />
-            <button onClick={handleLogout} className="admin-logout-btn">
-              Logout
-            </button>
-          </nav>
+          <div className="admin-area-label">
+            <span>管理画面</span>
+            <small>Admin</small>
+          </div>
         </div>
-      </header>
-
-      <style>{`
-        /* 公開サイト (public-astro) の Header.astro と同じヘッダー表現 */
-        .admin-header {
-          background: color-mix(in srgb, var(--color-bg) 88%, transparent);
-          border-bottom: 1px solid var(--color-border);
-          position: sticky;
-          top: 0;
-          z-index: 1000;
-          backdrop-filter: blur(18px);
-          -webkit-backdrop-filter: blur(18px);
-        }
-
-        .admin-header-container {
-          max-width: 1240px;
-          margin: 0 auto;
-          padding: 0 40px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          height: 84px;
-          gap: 20px;
-        }
-
-        .admin-logo {
-          text-decoration: none;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          line-height: 0;
-          flex-shrink: 0;
-          transition: opacity 0.2s ease, transform 0.2s ease;
-        }
-
-        .admin-logo:hover {
-          opacity: 0.82;
-          transform: translateY(-1px);
-        }
-
-        .admin-logo-image {
-          display: block;
-          height: 52px;
-          width: auto;
-          max-width: 230px;
-          object-fit: contain;
-        }
-
-        .admin-logo-image-light {
-          mix-blend-mode: multiply;
-        }
-
-        .admin-logo-image-dark {
-          display: none;
-        }
-
-        :root[data-theme="dark"] .admin-logo-image-light {
-          display: none;
-        }
-
-        :root[data-theme="dark"] .admin-logo-image-dark {
-          display: block;
-        }
-
-        .admin-nav {
-          min-width: 0;
-          overflow-x: auto;
-          padding: 6px;
-          display: flex;
-          gap: 8px;
-          align-items: center;
-        }
-
-        .admin-nav > * {
-          flex-shrink: 0;
-        }
-
-        .admin-nav-link {
-          color: var(--color-text-muted);
-          text-decoration: none;
-          font-family: var(--font-display);
-          font-size: 0.78rem;
-          font-weight: 500;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          transition: color 0.2s ease, background 0.2s ease;
-          padding: 10px 14px;
-          border-radius: 999px;
-          position: relative;
-        }
-
-        .admin-nav-link:hover {
-          color: var(--color-text-heading);
-          background: var(--color-primary-soft);
-        }
-
-        .admin-nav-link.active {
-          color: var(--color-primary);
-          background: var(--color-primary-soft);
-        }
-
-        .admin-nav-external {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .admin-nav-external:hover {
-          color: var(--color-accent);
-        }
-
-        .external-icon {
-          flex-shrink: 0;
-        }
-
-        .admin-nav-new {
-          border: 1px solid var(--color-border);
-          background: var(--color-surface);
-          color: var(--color-primary);
-        }
-
-        .admin-nav-new:hover {
-          border-color: var(--color-accent);
-          color: var(--color-accent);
-          background: var(--color-primary-soft);
-        }
-
-        .admin-logout-btn {
-          background: transparent;
-          border: 1px solid transparent;
-          color: var(--color-text-muted);
-          padding: 10px 14px;
-          border-radius: 999px;
-          font-family: var(--font-display);
-          font-size: 0.78rem;
-          font-weight: 500;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          cursor: pointer;
-          transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
-        }
-
-        .admin-logout-btn:hover {
-          border-color: var(--color-border);
-          color: var(--color-accent);
-          background: var(--color-surface);
-        }
-
-        @media (max-width: 768px) {
-          .admin-header-container {
-            height: 72px;
-            padding: 0 20px;
-            gap: 12px;
-          }
-
-          .admin-logo {
-            gap: 8px;
-          }
-
-          .admin-logo-image {
-            max-width: 116px;
-            height: auto;
-          }
-
-          .admin-nav {
-            gap: 2px;
-          }
-
-          .admin-nav-link,
-          .admin-logout-btn {
-            font-size: 0.68rem;
-            padding: 8px 9px;
-          }
-        }
-
-        @media (max-width: 640px) {
-          .admin-badge-header {
-            display: none;
-          }
-
-          .admin-nav-external {
-            display: none;
-          }
-        }
-      `}</style>
-    </>
+        <nav className="admin-nav" aria-label="管理画面のナビゲーション">
+          {[
+            ['/posts', 'Articles'],
+            ['/categories', 'Categories'],
+            ['/dashboard', 'Dashboard'],
+          ].map(([path, label]) => (
+            <Link
+              key={path}
+              to={path}
+              aria-current={isActive(path) ? 'page' : undefined}
+              className={`admin-nav-link ${isActive(path) ? 'active' : ''}`}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+        <div className="admin-header-tools">
+          <Link to="/posts/new" className="admin-nav-link admin-nav-new">
+            + New article
+          </Link>
+          <a
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="admin-nav-link"
+          >
+            View site <span aria-hidden="true">↗</span>
+          </a>
+          <div
+            className="admin-account"
+            ref={account}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node))
+                setAccountOpen(false);
+            }}
+          >
+            <button
+              ref={trigger}
+              type="button"
+              className={`admin-nav-link ${isActive('/security') ? 'active' : ''}`}
+              aria-expanded={accountOpen}
+              aria-controls="admin-account-panel"
+              onClick={() => setAccountOpen(!accountOpen)}
+            >
+              Account <span aria-hidden="true">▾</span>
+            </button>
+            {accountOpen && (
+              <div id="admin-account-panel" className="admin-account-panel">
+                <Link
+                  to="/security"
+                  aria-current={isActive('/security') ? 'page' : undefined}
+                  className={`admin-nav-link ${isActive('/security') ? 'active' : ''}`}
+                  onClick={() => setAccountOpen(false)}
+                >
+                  Security
+                </Link>
+                <div className="admin-account-theme">
+                  <span>外観</span>
+                  <ThemeToggle />
+                </div>
+                <button
+                  className="admin-logout-btn"
+                  onClick={async () => {
+                    await logout();
+                    navigate('/login');
+                  }}
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </header>
   );
 };
-
 export default AdminHeader;

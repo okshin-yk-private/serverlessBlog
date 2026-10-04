@@ -7,7 +7,7 @@
   - E2E が作った `[E2E-TEST]` prefix の記事・カテゴリを DEV から手動で削除する CLI。
   - `tests/e2e/utils/awsCleanup.ts` の `cleanupE2ETestData` と `global-teardown.ts` と
     同じ Cognito ログインを再利用する (API 経由なのでサイト再ビルド・S3 画像掃除も動く)。
-  - `CLEANUP_TARGET_ENV=dev` が必須で、prd (`boneofmyfallacy.net`) には実行できない
+  - `CLEANUP_TARGET_ENV=dev` が必須で、prd (`boneofmyfallacy.net` / `www.boneofmyfallacy.net`) には実行できない
     (詳細は `tests/e2e/README.md`)。
   - 例: `CLEANUP_TARGET_ENV=dev BASE_URL=https://dev.example.com TEST_ADMIN_EMAIL=... TEST_ADMIN_PASSWORD=... bun run cleanup:test-data`
   - 削除せず対象を表示するだけなら `-- --dry-run` を付ける。
