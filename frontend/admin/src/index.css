@@ -739,7 +739,10 @@
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: 8px;
+    /* clip, not hidden: hidden makes the shell a scroll container, which
+       would pin the sticky toolbar to the shell instead of the page. */
     overflow: hidden;
+    overflow: clip;
     transition:
       border-color 0.2s ease,
       box-shadow 0.2s ease;
@@ -750,7 +753,15 @@
     box-shadow: 0 0 0 4px var(--color-focus-ring);
   }
 
+  /* Stays below the sticky header and save bar while the body scrolls.
+     AdminHeader and PostEditor measure how much of the viewport top each
+     bar covers into these variables. */
   .admin-editor-toolbar {
+    position: sticky;
+    top: calc(
+      var(--admin-header-offset, 0px) + var(--admin-writing-actions-height, 0px)
+    );
+    z-index: 20;
     background: var(--color-surface-muted);
     border-bottom: 1px solid var(--color-border);
   }
@@ -1015,7 +1026,8 @@
 .admin-writing-actions {
   grid-column: 1 / -1;
   position: sticky;
-  top: 84px;
+  /* AdminHeader publishes 0 when the header is not sticky (narrow screens). */
+  top: var(--admin-header-offset, 0px);
   z-index: 30;
   display: flex;
   align-items: center;
@@ -1052,7 +1064,6 @@
     padding-top: 12px;
   }
   .admin-writing-actions {
-    top: 72px;
     gap: 8px;
     padding: 8px;
   }

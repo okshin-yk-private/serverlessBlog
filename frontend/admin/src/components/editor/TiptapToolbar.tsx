@@ -2,6 +2,13 @@ import { getMarkRange, type Editor } from '@tiptap/core';
 import { useCallback, useRef, useState, type ChangeEvent } from 'react';
 import { ALLOWED_IMAGE_MIME_TYPES } from '../../utils/imageValidation';
 import { LinkDialog, type LinkValues } from './LinkDialog';
+import {
+  TOOLBAR_SHORTCUTS,
+  formatShortcut,
+  isMacPlatform,
+  toAriaKeyShortcuts,
+  type Shortcut,
+} from './shortcuts';
 
 interface TiptapToolbarProps {
   editor: Editor | null;
@@ -14,8 +21,14 @@ interface ToolbarButtonProps {
   disabled?: boolean;
   testId: string;
   ariaLabel: string;
+  /** Keyboard shortcut shown in the tooltip and aria-keyshortcuts. */
+  shortcut?: Shortcut;
+  /** Tooltip hint for actions without a shortcut (e.g. a Markdown input rule). */
+  hint?: string;
   children: React.ReactNode;
 }
+
+const mac = isMacPlatform();
 
 function ToolbarButton({
   onClick,
@@ -23,19 +36,26 @@ function ToolbarButton({
   disabled,
   testId,
   ariaLabel,
+  shortcut,
+  hint,
   children,
 }: ToolbarButtonProps) {
+  const extra = shortcut ? formatShortcut(shortcut, mac) : hint;
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       aria-label={ariaLabel}
+      aria-keyshortcuts={
+        shortcut ? toAriaKeyShortcuts(shortcut, mac) : undefined
+      }
+      title={extra ? `${ariaLabel} (${extra})` : ariaLabel}
       aria-pressed={active}
       data-testid={testId}
       className={[
         'admin-editor-tool',
-        'inline-flex items-center justify-center min-w-[32px] h-8 px-2 text-sm',
+        'inline-flex shrink-0 items-center justify-center min-w-[32px] h-8 px-2 text-sm',
         'disabled:opacity-50 disabled:cursor-not-allowed',
         active ? 'is-active' : '',
       ].join(' ')}
@@ -173,7 +193,7 @@ export function TiptapToolbar({
   if (!editor) {
     return (
       <div
-        className="admin-editor-toolbar flex flex-wrap items-center gap-1 px-2 py-1"
+        className="admin-editor-toolbar flex flex-nowrap items-center gap-1 overflow-x-auto px-2 py-1 md:flex-wrap md:overflow-visible"
         data-testid="tiptap-toolbar"
         aria-busy="true"
       />
@@ -185,7 +205,7 @@ export function TiptapToolbar({
   return (
     <>
       <div
-        className="admin-editor-toolbar flex flex-wrap items-center gap-1 px-2 py-1"
+        className="admin-editor-toolbar flex flex-nowrap items-center gap-1 overflow-x-auto px-2 py-1 md:flex-wrap md:overflow-visible"
         data-testid="tiptap-toolbar"
         role="toolbar"
         aria-label="本文書式"
@@ -196,6 +216,7 @@ export function TiptapToolbar({
           disabled={isDisabled}
           testId="toolbar-paragraph"
           ariaLabel="段落"
+          shortcut={TOOLBAR_SHORTCUTS.paragraph}
         >
           P
         </ToolbarButton>
@@ -207,6 +228,7 @@ export function TiptapToolbar({
           disabled={isDisabled}
           testId="toolbar-h2"
           ariaLabel="見出し2"
+          shortcut={TOOLBAR_SHORTCUTS.h2}
         >
           H2
         </ToolbarButton>
@@ -218,6 +240,7 @@ export function TiptapToolbar({
           disabled={isDisabled}
           testId="toolbar-h3"
           ariaLabel="見出し3"
+          shortcut={TOOLBAR_SHORTCUTS.h3}
         >
           H3
         </ToolbarButton>
@@ -229,16 +252,21 @@ export function TiptapToolbar({
           disabled={isDisabled}
           testId="toolbar-h4"
           ariaLabel="見出し4"
+          shortcut={TOOLBAR_SHORTCUTS.h4}
         >
           H4
         </ToolbarButton>
-        <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
+        <span
+          className="admin-editor-divider w-px h-5 mx-1 shrink-0"
+          aria-hidden
+        />
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           active={editor.isActive('bold')}
           disabled={isDisabled}
           testId="toolbar-bold"
           ariaLabel="太字"
+          shortcut={TOOLBAR_SHORTCUTS.bold}
         >
           <strong>B</strong>
         </ToolbarButton>
@@ -248,6 +276,7 @@ export function TiptapToolbar({
           disabled={isDisabled}
           testId="toolbar-italic"
           ariaLabel="斜体"
+          shortcut={TOOLBAR_SHORTCUTS.italic}
         >
           <em>I</em>
         </ToolbarButton>
@@ -257,6 +286,7 @@ export function TiptapToolbar({
           disabled={isDisabled}
           testId="toolbar-strike"
           ariaLabel="取り消し線"
+          shortcut={TOOLBAR_SHORTCUTS.strike}
         >
           <s>S</s>
         </ToolbarButton>
@@ -266,16 +296,21 @@ export function TiptapToolbar({
           disabled={isDisabled}
           testId="toolbar-code"
           ariaLabel="インラインコード"
+          shortcut={TOOLBAR_SHORTCUTS.code}
         >
           {'<>'}
         </ToolbarButton>
-        <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
+        <span
+          className="admin-editor-divider w-px h-5 mx-1 shrink-0"
+          aria-hidden
+        />
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           active={editor.isActive('bulletList')}
           disabled={isDisabled}
           testId="toolbar-bullet-list"
           ariaLabel="箇条書き"
+          shortcut={TOOLBAR_SHORTCUTS.bulletList}
         >
           •
         </ToolbarButton>
@@ -285,6 +320,7 @@ export function TiptapToolbar({
           disabled={isDisabled}
           testId="toolbar-ordered-list"
           ariaLabel="番号付きリスト"
+          shortcut={TOOLBAR_SHORTCUTS.orderedList}
         >
           1.
         </ToolbarButton>
@@ -294,6 +330,7 @@ export function TiptapToolbar({
           disabled={isDisabled}
           testId="toolbar-blockquote"
           ariaLabel="引用"
+          shortcut={TOOLBAR_SHORTCUTS.blockquote}
         >
           &gt;
         </ToolbarButton>
@@ -303,6 +340,7 @@ export function TiptapToolbar({
           disabled={isDisabled}
           testId="toolbar-code-block"
           ariaLabel="コードブロック"
+          shortcut={TOOLBAR_SHORTCUTS.codeBlock}
         >
           {'{}'}
         </ToolbarButton>
@@ -311,10 +349,14 @@ export function TiptapToolbar({
           disabled={isDisabled}
           testId="toolbar-hr"
           ariaLabel="区切り線"
+          hint="行頭で ---"
         >
           ―
         </ToolbarButton>
-        <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
+        <span
+          className="admin-editor-divider w-px h-5 mx-1 shrink-0"
+          aria-hidden
+        />
         <ToolbarButton
           onClick={handleSetLink}
           active={editor.isActive('link')}
@@ -340,12 +382,16 @@ export function TiptapToolbar({
           data-testid="toolbar-image-input"
           onChange={handleFileInputChange}
         />
-        <span className="admin-editor-divider w-px h-5 mx-1" aria-hidden />
+        <span
+          className="admin-editor-divider w-px h-5 mx-1 shrink-0"
+          aria-hidden
+        />
         <ToolbarButton
           onClick={() => editor.chain().focus().undo().run()}
           disabled={isDisabled || !editor.can().undo()}
           testId="toolbar-undo"
           ariaLabel="元に戻す"
+          shortcut={TOOLBAR_SHORTCUTS.undo}
         >
           ↶
         </ToolbarButton>
@@ -354,6 +400,7 @@ export function TiptapToolbar({
           disabled={isDisabled || !editor.can().redo()}
           testId="toolbar-redo"
           ariaLabel="やり直し"
+          shortcut={TOOLBAR_SHORTCUTS.redo}
         >
           ↷
         </ToolbarButton>

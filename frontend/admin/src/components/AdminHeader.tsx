@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useStuckHeight } from '../hooks/useStuckHeight';
 import ThemeToggle from './ThemeToggle';
 import './AdminHeader.css';
 
@@ -11,6 +12,8 @@ const AdminHeader = () => {
   const [accountOpen, setAccountOpen] = useState(false);
   const account = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const header = useRef<HTMLElement>(null);
+  const stuckHeight = useStuckHeight(header);
   const isActive = (path: string) =>
     pathname === path || pathname.startsWith(path + '/');
 
@@ -34,8 +37,16 @@ const AdminHeader = () => {
     };
   }, [accountOpen]);
 
+  // Sticky bars further down the page (the writing save bar) sit below this.
+  useLayoutEffect(() => {
+    if (stuckHeight === null) return;
+    const root = document.documentElement;
+    root.style.setProperty('--admin-header-offset', `${stuckHeight}px`);
+    return () => root.style.removeProperty('--admin-header-offset');
+  }, [stuckHeight]);
+
   return (
-    <header className="admin-header">
+    <header ref={header} className="admin-header">
       <div className="admin-header-container">
         <div className="admin-identity">
           <Link
