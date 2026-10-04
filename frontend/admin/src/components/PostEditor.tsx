@@ -5,6 +5,7 @@ import {
   useRef,
   useImperativeHandle,
   forwardRef,
+  type CSSProperties,
   type FormEvent,
 } from 'react';
 import {
@@ -18,6 +19,7 @@ import { uploadImage as defaultUploadImage } from '../api/posts';
 import { Button } from './Button';
 import { TiptapEditor, type TiptapEditorHandle } from './editor';
 import { useAutosave } from './editor/hooks/useAutosave';
+import { useStuckHeight } from '../hooks/useStuckHeight';
 import { MetadataSidebar, type MetadataSidebarValue } from './MetadataSidebar';
 
 export interface PostData {
@@ -90,6 +92,9 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
     ref
   ) => {
     const tiptapRef = useRef<TiptapEditorHandle>(null);
+    // The editor toolbar sticks directly below the sticky save bar.
+    const actionsRef = useRef<HTMLDivElement>(null);
+    const actionsHeight = useStuckHeight(actionsRef);
 
     // 記事のカテゴリが一覧に存在するかチェック
     const isCategoryMissing =
@@ -309,9 +314,20 @@ export const PostEditor = forwardRef<PostEditorHandle, PostEditorProps>(
       <form
         onSubmit={handleSubmit}
         className="admin-writing-grid grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]"
+        style={
+          actionsHeight === null
+            ? undefined
+            : ({
+                '--admin-writing-actions-height': `${actionsHeight}px`,
+              } as CSSProperties)
+        }
       >
         {/* ボタン + autosave ステータス */}
-        <div className="admin-writing-actions" aria-label="記事の保存操作">
+        <div
+          ref={actionsRef}
+          className="admin-writing-actions"
+          aria-label="記事の保存操作"
+        >
           <span className="admin-writing-title" title={title}>
             {title.trim() || '無題の記事'}
           </span>
