@@ -17,7 +17,7 @@
         "@types/bun": "^1.4.2",
         "@types/js-yaml": "^4.0.9",
         "@vitest/coverage-v8": "^4.1.11",
-        "chrome-launcher": "^1.2.1",
+        "chrome-launcher": "^1.2.2",
         "js-yaml": "^4.3.2",
         "jsdom": "^29.1.1",
         "lighthouse": "^13.5.0",
@@ -531,7 +531,7 @@
 
     "chokidar": ["chokidar@4.0.3", "", { "dependencies": { "readdirp": "^4.0.1" } }, "sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA=="],
 
-    "chrome-launcher": ["chrome-launcher@1.2.1", "", { "dependencies": { "@types/node": "*", "escape-string-regexp": "^4.0.0", "is-wsl": "^2.2.0", "lighthouse-logger": "^2.0.1" }, "bin": { "print-chrome-path": "bin/print-chrome-path.cjs" } }, "sha512-qmFR5PLMzHyuNJHwOloHPAHhbaNglkfeV/xDtt5b7xiFFyU1I+AZZX0PYseMuhenJSSirgxELYIbswcoc+5H4A=="],
+    "chrome-launcher": ["chrome-launcher@1.2.2", "", { "dependencies": { "@types/node": "*", "escape-string-regexp": "^4.0.0", "is-wsl": "^2.2.0", "lighthouse-logger": "^2.0.1" }, "bin": { "print-chrome-path": "bin/print-chrome-path.cjs" } }, "sha512-sI90u5qf3854bTrWsQMMdsQfSjjMbeSn7QtxVb9zrikf+QgMfHQ71KepHW7ZfixQKrDlAFKb+qnVlSR+xepBzw=="],
 
     "chromium-bidi": ["chromium-bidi@17.0.2", "", { "dependencies": { "mitt": "^3.0.1", "zod": "^3.24.1" }, "peerDependencies": { "devtools-protocol": "*" } }, "sha512-5v9GQFhTktFvotn/OFNJBmKLKRAb6n9r0bVCwf7sHgWc3/JryK0bj1nn93L3pHFrfgcsu6Be6EWsDi+1XHTGDg=="],
 
@@ -1146,6 +1146,8 @@
     "import-in-the-middle/es-module-lexer": ["es-module-lexer@3.0.2", "", {}, "sha512-BuIB67FngDSyQ/dpQNOZybwdEBDUGJQvOqwWr4ha/ufYiqzuEwPkKO2zLhRAgay28tStRIHUeWmszZAJo3GCOg=="],
 
     "istanbul-reports/html-escaper": ["html-escaper@2.0.2", "", {}, "sha512-H2iMtd0I4Mt5eYiapRdIDjp+XzelXQ0tFE4JS7YFwFevXXMmOp9myNrUvCg0D6ws8iqkRPBfKHgbwig1SmlLfg=="],
+
+    "lighthouse/chrome-launcher": ["chrome-launcher@1.2.1", "", { "dependencies": { "@types/node": "*", "escape-string-regexp": "^4.0.0", "is-wsl": "^2.2.0", "lighthouse-logger": "^2.0.1" }, "bin": { "print-chrome-path": "bin/print-chrome-path.cjs" } }, "sha512-qmFR5PLMzHyuNJHwOloHPAHhbaNglkfeV/xDtt5b7xiFFyU1I+AZZX0PYseMuhenJSSirgxELYIbswcoc+5H4A=="],
 
     "puppeteer-core/devtools-protocol": ["devtools-protocol@0.0.1666840", "", {}, "sha512-gCcO42XCHKEs7Ag0S7aGYsnJ7hlgrO3qderYqeiY0Eqk+0GFfuvT13IA0hHreJTa2KCdDVyGMeOhdMNmrrTjVg=="],
 
