@@ -22,7 +22,8 @@
   },
   "overrides": {
     "fast-xml-builder": "^1.1.7",
-    "fast-xml-parser": "^5.5.7"
+    "fast-xml-parser": "^5.5.7",
+    "source-map-js": "^1.2.2"
   },
   "devDependencies": {
     "@types/mime-types": "^2.1.4",
