@@ -1,16 +1,16 @@
 module serverless-blog/go-functions
 
-go 1.26.6
+go 1.26.9
 
 require (
 	github.com/aws/aws-lambda-go v1.55.1
 	github.com/aws/aws-sdk-go-v2 v1.47.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.6
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.6
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.21.7
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.21.8
 	github.com/aws/aws-sdk-go-v2/service/codebuild v1.78.1
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.69.1
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.4
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.70.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.0
 	github.com/gojp/kana v0.1.0
 	github.com/google/uuid v1.6.0
 	github.com/ikawaha/kagome-dict/ipa v1.2.6
@@ -18,7 +18,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/stretchr/testify v1.12.1
 	github.com/yuin/goldmark v1.8.6
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 )
 
 require (

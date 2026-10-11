@@ -189,6 +189,46 @@ to Lighthouse 12; establish a new baseline before adding score gates.
 
 Source: [Lighthouse 13.4.1 API and runtime requirements](https://github.com/GoogleChrome/lighthouse/tree/v13.4.1).
 
+## Dependency audit follow-up (2026-10-11)
+
+Security Scan run `38095979795` used Go 1.26.6 and x/net v0.59.0.
+The dependency baseline now uses Go 1.26.9 and x/net v0.60.0, with regenerated
+Go checksums and Bun lockfiles. Bun overrides set minimum versions for
+source-map-js 1.2.2, sharp 0.35.5, smol-toml 1.9.1, and
+postcss-selector-parser 7.1.6. The selector-parser override crosses a major
+version because @tailwindcss/typography 0.5.20 still pins 6.0.10; retain the
+admin CSS build check when updating or removing this override.
+
+The http-cache-semantics 4.3.0 override needs a separate interpretation:
+[GHSA-ch52-4w7c-c8xp](https://github.com/advisories/GHSA-ch52-4w7c-c8xp)
+lists versions through 4.2.0 and no patched version. The maintainer
+[disputes the report](https://github.com/kornelski/http-cache-semantics/issues/56),
+and the [advisory database discussion](https://github.com/github/advisory-database/issues/10139)
+remains unresolved. The 4.3.0 release changes Vary handling and the response
+status API, not the disputed max-stale logic. A clean audit after this update
+means that the installed version is outside the registered affected range;
+it does **not** establish a verified security fix for this advisory.
+
+Astro 7.3.5 uses this dependency in build-time remote-image caching
+(`astro/dist/assets/build/remote.js`), calling `storable()` and `timeToLive()`
+with newly constructed image requests. The public site uses static output and
+restricts remote images to its own `/images/**` path. This bounds the observed
+use, but is not a blanket safety claim for future SSR, authenticated image
+fetches, or shared response caching. Reassess those changes and the upstream
+advisory resolution; do not add a scanner suppression to hide the uncertainty.
+
+Local validation: `bun run verify` passed (admin: 621 passed, 5 skipped;
+Astro: 424 passed; deploy: 186 passed; config: 222 passed; Go race tests
+passed). Go lint reported zero issues and all 16 Linux ARM64 Lambda builds
+passed. Admin lint/build, Typography CSS generation with parser 7.1.6, and
+sharp SVG rasterization/resize passed. Astro integration tests passed 147/147
+after rebuilding the mock articles with `astro build --force`; the first run
+had 20 failures because its build output contained no articles.
+
+All four `bun audit --json` reports were empty with exit code 0, and
+govulncheck v1.8.0 reported `No vulnerabilities found.` using Go 1.26.9.
+These are local results, not evidence of a deployed update or a new CI run.
+
 ## Enforcement rollout
 
 Scanner and upload failures block now. Findings remain non-blocking during
