@@ -1,6 +1,6 @@
 module serverless-blog/go-functions
 
-go 1.26.6
+go 1.26.9
 
 require (
 	github.com/aws/aws-lambda-go v1.55.1
@@ -18,7 +18,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/stretchr/testify v1.12.1
 	github.com/yuin/goldmark v1.8.6
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 )
 
 require (
