@@ -191,7 +191,7 @@ interface JWTPayload {
 }
 
 /**
- * JWTトークンをデコード
+ * JWT ペイロードをデコードする。署名検証や認可判定は行わない。
  */
 export const decodeToken = (token: string): JWTPayload | null => {
   try {
@@ -201,8 +201,20 @@ export const decodeToken = (token: string): JWTPayload | null => {
     }
 
     const payload = parts[1];
-    const decoded = JSON.parse(atob(payload)) as JWTPayload;
-    return decoded;
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const bytes = Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
+    const json = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const decoded: unknown = JSON.parse(json);
+    if (
+      decoded === null ||
+      typeof decoded !== 'object' ||
+      Array.isArray(decoded)
+    ) {
+      return null;
+    }
+    // 未知の追加クレームも型・値を変えずに保持する。
+    return decoded as JWTPayload;
   } catch {
     return null;
   }
@@ -214,10 +226,14 @@ export const decodeToken = (token: string): JWTPayload | null => {
 export const isTokenExpired = (token: string): boolean => {
   const decoded = decodeToken(token);
 
-  if (!decoded || !decoded.exp) {
+  if (
+    !decoded ||
+    typeof decoded.exp !== 'number' ||
+    !Number.isFinite(decoded.exp)
+  ) {
     return true;
   }
 
   const currentTime = Math.floor(Date.now() / 1000);
-  return decoded.exp < currentTime;
+  return decoded.exp <= currentTime;
 };
