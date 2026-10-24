@@ -8,9 +8,23 @@ function routingHandler(name: string, get = async () => 'r200-current') {
     'utf8'
   );
   const section = tf.split(`resource "aws_cloudfront_function" "${name}"`)[1];
+  const guard = readFileSync(
+    new URL(
+      '../../terraform/modules/cdn/functions/viewer-guard.js.tftpl',
+      import.meta.url
+    ),
+    'utf8'
+  )
+    .replaceAll('${enabled}', 'true')
+    .replaceAll(
+      '${basic_auth}',
+      JSON.stringify(`Basic ${btoa('test:password')}`)
+    )
+    .replaceAll('${session_token}', JSON.stringify('fixture-token'));
   const code = section
     .split('<<-EOF\n')[1]
     .split('\nEOF')[0]
+    .replace('${local.viewer_guard}', guard)
     .replace("import cf from 'cloudfront';", '')
     .replace('const kvs = cf.kvs();', '')
     .replace(

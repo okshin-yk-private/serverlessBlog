@@ -396,3 +396,34 @@ describe('API Module', () => {
     });
   });
 });
+
+describe('build-only DEV authentication', () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it('authenticates build fetches without exposing credentials in URLs and refuses redirects', async () => {
+    vi.stubEnv('API_URL', 'https://dev.example.com/api');
+    vi.stubEnv('BASIC_AUTH_USERNAME', 'builder');
+    vi.stubEnv('BASIC_AUTH_PASSWORD', 'secret');
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [], count: 0 }),
+    });
+    await fetchAllPosts();
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      'https://dev.example.com/api/posts?publishStatus=published&limit=100',
+      expect.objectContaining({
+        redirect: 'error',
+        headers: expect.objectContaining({
+          Authorization: 'Basic YnVpbGRlcjpzZWNyZXQ=',
+        }),
+      })
+    );
+  });
+  it('fails closed for incomplete build credentials', async () => {
+    vi.stubEnv('API_URL', 'https://dev.example.com/api');
+    vi.stubEnv('BASIC_AUTH_USERNAME', 'builder');
+    vi.stubEnv('BASIC_AUTH_PASSWORD', '');
+    await expect(fetchAllPosts()).rejects.toThrow(
+      'Incomplete build API credentials'
+    );
+  });
+});

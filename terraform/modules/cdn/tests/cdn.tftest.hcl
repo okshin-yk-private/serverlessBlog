@@ -3,7 +3,14 @@
 # Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6
 
 # Mock provider for testing without AWS credentials
-mock_provider "aws" {}
+mock_provider "aws" {
+  mock_resource "aws_cloudfront_function" {
+    override_during = plan
+    defaults = {
+      arn = "arn:aws:cloudfront::123456789012:function/test-function"
+    }
+  }
+}
 
 override_data {
   target = data.aws_caller_identity.edge
@@ -856,5 +863,41 @@ run "report_only_csp_directives" {
       strcontains(item.value, "form-action 'self'")
     ])
     error_message = "Admin policy must carry a tightened Content-Security-Policy-Report-Only header scoped to Cognito and the image bucket"
+  }
+}
+
+run "dev_origin_access_regression" {
+  command = plan
+  variables {
+    enable_basic_auth                       = true
+    basic_auth_username                     = "reviewer"
+    basic_auth_password                     = "test-password" # gitleaks:allow -- dummy credential for mocked Terraform plan only
+    api_origin_key                          = "test-origin-key-1234567890"
+    environment                             = "dev"
+    image_bucket_name                       = "test-images-bucket"
+    image_bucket_regional_domain_name       = "test-images-bucket.s3.ap-northeast-1.amazonaws.com"
+    public_site_bucket_name                 = "test-public-site-bucket"
+    public_site_bucket_regional_domain_name = "test-public-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    admin_site_bucket_name                  = "test-admin-site-bucket"
+    admin_site_bucket_regional_domain_name  = "test-admin-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    rest_api_id                             = "abc123xyz"
+    api_stage_name                          = "dev"
+    aws_region                              = "ap-northeast-1"
+  }
+  assert {
+    condition     = alltrue([for behavior in aws_cloudfront_distribution.main.ordered_cache_behavior : length(behavior.function_association) >= 1])
+    error_message = "Every path behavior, including assets, must enforce viewer authentication."
+  }
+  assert {
+    condition     = length(aws_cloudfront_distribution.main.default_cache_behavior[0].function_association) == 2
+    error_message = "Basic-authenticated page responses must issue the session cookie."
+  }
+  assert {
+    condition     = alltrue([for origin in aws_cloudfront_distribution.main.origin : length(origin.custom_header) == 1 if origin.origin_id == "api-gateway"])
+    error_message = "Only CloudFront must inject the private API origin key."
+  }
+  assert {
+    condition     = length(aws_cloudfront_function.public_combined[0].code) <= 10240 && length(aws_cloudfront_function.api_path.code) <= 10240
+    error_message = "Function code must fit CloudFront's 10 KB limit."
   }
 }

@@ -578,6 +578,13 @@ run "public_verification_auth_is_explicit_and_scoped" {
   }
   assert {
     condition = toset([
+      for variable in aws_codebuild_project.astro_build.environment[0].environment_variable : variable.name
+      if variable.type == "PARAMETER_STORE"
+    ]) == toset(["BASIC_AUTH_USERNAME", "BASIC_AUTH_PASSWORD", "SITE_VERIFY_BASIC_USER", "SITE_VERIFY_BASIC_PASSWORD"])
+    error_message = "Build API fetches and public verification must use server-only SSM credentials."
+  }
+  assert {
+    condition = toset([
       for variable in aws_codebuild_project.astro_build.environment[0].environment_variable : variable.value
       if variable.type == "PARAMETER_STORE"
       ]) == toset([

@@ -86,3 +86,8 @@ output "deployment_id" {
   value       = aws_api_gateway_deployment.main.id
   description = "Deployment ID"
 }
+
+output "cloudfront_origin_key" {
+  value     = var.require_origin_key ? aws_api_gateway_api_key.cloudfront[0].value : ""
+  sensitive = true
+}

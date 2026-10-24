@@ -241,6 +241,8 @@ resource "aws_codebuild_project" "astro_build" {
 
     dynamic "environment_variable" {
       for_each = var.verify_basic_auth ? {
+        BASIC_AUTH_USERNAME        = "/serverless-blog/${var.environment}/basic-auth/username"
+        BASIC_AUTH_PASSWORD        = "/serverless-blog/${var.environment}/basic-auth/password"
         SITE_VERIFY_BASIC_USER     = "/serverless-blog/${var.environment}/basic-auth/username"
         SITE_VERIFY_BASIC_PASSWORD = "/serverless-blog/${var.environment}/basic-auth/password"
       } : {}

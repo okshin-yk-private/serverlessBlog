@@ -110,3 +110,10 @@ variable "acm_certificate_arn" {
   default     = ""
   description = "ACM certificate ARN for custom domains. Must be in us-east-1 region."
 }
+
+variable "api_origin_key" {
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "API Gateway origin key; only CloudFront receives this credential."
+}
