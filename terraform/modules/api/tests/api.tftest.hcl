@@ -1038,3 +1038,51 @@ run "admin_write_burst_limit_must_not_exceed_stage_wide" {
     var.admin_write_throttling_burst_limit,
   ]
 }
+
+run "dev_origin_access_regression" {
+  command = plan
+  variables {
+    require_origin_key    = true
+    api_name              = "serverless-blog-api"
+    environment           = "dev"
+    stage_name            = "dev"
+    cognito_user_pool_arn = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_XXXXXXXXX"
+  }
+  assert {
+    condition = alltrue([
+      aws_api_gateway_method.admin_posts_post.api_key_required,
+      aws_api_gateway_method.admin_posts_get.api_key_required,
+      aws_api_gateway_method.admin_posts_options.api_key_required,
+      aws_api_gateway_method.admin_posts_id_get.api_key_required,
+      aws_api_gateway_method.admin_posts_id_put.api_key_required,
+      aws_api_gateway_method.admin_posts_id_delete.api_key_required,
+      aws_api_gateway_method.admin_posts_id_options.api_key_required,
+      aws_api_gateway_method.admin_posts_id_build_status_get.api_key_required,
+      aws_api_gateway_method.admin_posts_id_build_status_options.api_key_required,
+      aws_api_gateway_method.admin_images_upload_url_post.api_key_required,
+      aws_api_gateway_method.admin_images_upload_url_options.api_key_required,
+      aws_api_gateway_method.admin_images_key_delete.api_key_required,
+      aws_api_gateway_method.admin_images_key_options.api_key_required,
+      aws_api_gateway_method.posts_get.api_key_required,
+      aws_api_gateway_method.posts_options.api_key_required,
+      aws_api_gateway_method.posts_id_get.api_key_required,
+      aws_api_gateway_method.posts_id_options.api_key_required,
+      aws_api_gateway_method.posts_by_slug_value_get.api_key_required,
+      aws_api_gateway_method.posts_by_slug_value_options.api_key_required,
+      aws_api_gateway_method.categories_get.api_key_required,
+      aws_api_gateway_method.categories_options.api_key_required,
+      aws_api_gateway_method.admin_categories_post.api_key_required,
+      aws_api_gateway_method.admin_categories_options.api_key_required,
+      aws_api_gateway_method.admin_categories_id_put.api_key_required,
+      aws_api_gateway_method.admin_categories_id_delete.api_key_required,
+      aws_api_gateway_method.admin_categories_id_options.api_key_required,
+      aws_api_gateway_method.admin_categories_sort_patch.api_key_required,
+      aws_api_gateway_method.admin_categories_sort_options.api_key_required,
+    ])
+    error_message = "Every DEV API method must reject direct calls without the origin key."
+  }
+  assert {
+    condition     = length(aws_api_gateway_api_key.cloudfront) == 1 && length(aws_api_gateway_usage_plan_key.cloudfront) == 1
+    error_message = "The private origin key must be bound to the API usage plan."
+  }
+}

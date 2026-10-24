@@ -263,3 +263,9 @@ variable "log_encryption_key_arn" {
   type        = string
   default     = null
 }
+
+variable "require_origin_key" {
+  type        = bool
+  default     = false
+  description = "Require the private CloudFront origin key on every API method."
+}

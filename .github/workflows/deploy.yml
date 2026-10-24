@@ -235,7 +235,7 @@ jobs:
           echo "✓ All $TOTAL binaries verified"
 
       - name: Upload Lambda binaries
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: lambda-binaries
           path: go-functions/bin/
@@ -286,7 +286,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Download Lambda binaries
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: lambda-binaries
           path: go-functions/bin
@@ -381,7 +381,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Download Lambda binaries
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: lambda-binaries
           path: go-functions/bin
@@ -522,7 +522,7 @@ jobs:
           VITE_COGNITO_USER_POOL_CLIENT_ID: ${{ steps.cognito.outputs.client_id }}
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: frontend-admin-build
           path: frontend/admin/dist/
@@ -565,7 +565,7 @@ jobs:
           echo "✓ Retrieved deployment config from SSM"
 
       - name: Download Admin Site build
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: frontend-admin-build
           path: admin-dist/
@@ -624,7 +624,7 @@ jobs:
           echo "✓ Retrieved deployment config from SSM"
 
       - name: Download Admin Site build
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: frontend-admin-build
           path: admin-dist/
@@ -721,6 +721,15 @@ jobs:
           echo "========================================="
           echo "Building Astro SSG"
           echo "========================================="
+          # API fetching now shares the DEV environment gate. Keep credentials
+          # local to this build step; never write them to artifacts or PUBLIC_*.
+          if [ "${{ needs.detect-changes.outputs.target-env }}" = "dev" ] && [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$API_URL/posts?limit=1")" = "401" ]; then
+            BASIC_AUTH_USERNAME=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --with-decryption --query "Parameter.Value" --output text)
+            BASIC_AUTH_PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --query "Parameter.Value" --output text)
+            echo "::add-mask::$BASIC_AUTH_USERNAME"
+            echo "::add-mask::$BASIC_AUTH_PASSWORD"
+            export BASIC_AUTH_USERNAME BASIC_AUTH_PASSWORD
+          fi
           bun run build
           echo "✓ Astro build complete"
           echo ""
@@ -764,7 +773,7 @@ jobs:
 
       - name: Upload build artifact
         # Pin to specific commit SHA for security (Requirement 9.8)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: astro-build
           path: frontend/public-astro/dist/
@@ -823,7 +832,7 @@ jobs:
 
       - name: Download Astro build artifact
         # Pin to specific commit SHA (Requirement 9.8)
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: astro-build
           path: dist/
@@ -964,7 +973,7 @@ jobs:
 
       - name: Download Astro build artifact
         # Pin to specific commit SHA (Requirement 9.8)
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: astro-build
           path: dist/
@@ -1172,7 +1181,7 @@ jobs:
       # admin スイートを実行すると同じディレクトリが上書きされるため、この
       # Public 実行分は admin を走らせる前に必ずアップロードしておく。
       - name: Upload Public E2E Test Report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: playwright-report-aws-public
@@ -1199,7 +1208,7 @@ jobs:
           VITE_ENABLE_MSW_MOCK: 'false'
 
       - name: Upload Admin E2E Test Report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: playwright-report-aws-admin

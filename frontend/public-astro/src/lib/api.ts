@@ -68,6 +68,23 @@ async function fetchWithRetry<T>(
   retryCount = 0
 ): Promise<T> {
   try {
+    // Build-only credentials: never use PUBLIC_* variables or include them in URLs.
+    const username = process.env.BASIC_AUTH_USERNAME;
+    const password = process.env.BASIC_AUTH_PASSWORD;
+    if (username || password) {
+      if (!username || !password)
+        throw new ApiError(401, 'Incomplete build API credentials');
+      options = {
+        ...options,
+        redirect: 'error',
+        headers: {
+          ...options.headers,
+          Authorization:
+            'Basic ' +
+            Buffer.from(username + ':' + password).toString('base64'),
+        },
+      };
+    }
     const response = await fetch(url, options);
 
     if (!response.ok) {
