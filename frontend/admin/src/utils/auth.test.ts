@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   validateEmail,
   validatePassword,
@@ -303,4 +303,82 @@ describe('JWT関連ユーティリティ', () => {
       expect(isTokenExpired('')).toBe(true);
     });
   });
+});
+
+// UTF-8 / Base64URL fixtures independent of the browser decoder under test.
+const encodeJwt = (payload: unknown): string => {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  const encoded = btoa(
+    Array.from(bytes, (byte) => String.fromCharCode(byte)).join('')
+  )
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  return `header.${encoded}.signature`;
+};
+
+describe('JWT Base64URL と追加クレームの互換性', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('Base64URL 固有の文字と UTF-8 を正しく復元する', () => {
+    const payload = { name: '例😀 🌿', exp: 2000000000 };
+    const token = encodeJwt(payload);
+    expect(token.split('.')[1]).toContain('-');
+    expect(token.split('.')[1]).toContain('_');
+    expect(decodeToken(token)).toEqual(payload);
+  });
+
+  it.each(['a', 'ab', 'abc'])('パディングなしの各長さを扱う: %s', (sub) => {
+    const payload = { sub };
+    expect(decodeToken(encodeJwt(payload))).toEqual(payload);
+  });
+
+  it.each([{ amr: ['pwd'] }, { amr: ['pwd', 'otp', 'mfa'] }])(
+    '追加クレームと配列を保持する: %j',
+    ({ amr }) => {
+      const payload = {
+        sub: 'user-123',
+        acr: 'urn:cognito:loa:4',
+        amr,
+        future_claim: { values: [1, true, '日本語'], optional: null },
+      };
+      expect(decodeToken(encodeJwt(payload))).toEqual(payload);
+    }
+  );
+
+  it.each([null, [], 'text', 123, true].map((payload) => ({ payload })))(
+    'JSON オブジェクト以外を拒否する: %j',
+    ({ payload }) => {
+      expect(decodeToken(encodeJwt(payload))).toBeNull();
+    }
+  );
+
+  it.each(['', 'a', '%%%', 'eyJzdWIiOiL/In0', 'bm90LWpzb24'])(
+    '不正なペイロードを拒否する: %s',
+    (payload) => {
+      expect(decodeToken(`header.${payload}.signature`)).toBeNull();
+    }
+  );
+
+  it.each([-1, 0, 1])(
+    '追加クレーム付きでも期限を判定する: 差分 %i 秒',
+    (offset) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-10-17T00:00:00Z'));
+      const payload = {
+        exp: Date.now() / 1000 + offset,
+        name: '例😀 🌿',
+        acr: 'urn:cognito:loa:4',
+        amr: ['pwd', 'otp', 'mfa'],
+      };
+      expect(isTokenExpired(encodeJwt(payload))).toBe(offset <= 0);
+    }
+  );
+
+  it.each([undefined, null, '2000000000', {}, []].map((exp) => ({ exp })))(
+    '不正または欠落した exp は期限切れ扱い: %j',
+    ({ exp }) => {
+      expect(isTokenExpired(encodeJwt({ exp }))).toBe(true);
+    }
+  );
 });
