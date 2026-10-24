@@ -154,11 +154,12 @@ resource "aws_api_gateway_resource" "admin_images_key" {
 
 # --- POST /admin/posts (Cognito auth) ---
 resource "aws_api_gateway_method" "admin_posts_post" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_posts.id
-  http_method   = "POST"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_posts.id
+  http_method      = "POST"
+  authorization    = "COGNITO_USER_POOLS"
+  authorizer_id    = aws_api_gateway_authorizer.cognito.id
 }
 
 resource "aws_api_gateway_integration" "admin_posts_post" {
@@ -172,11 +173,12 @@ resource "aws_api_gateway_integration" "admin_posts_post" {
 
 # --- GET /admin/posts (Cognito auth) ---
 resource "aws_api_gateway_method" "admin_posts_get" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_posts.id
-  http_method   = "GET"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_posts.id
+  http_method      = "GET"
+  authorization    = "COGNITO_USER_POOLS"
+  authorizer_id    = aws_api_gateway_authorizer.cognito.id
 }
 
 resource "aws_api_gateway_integration" "admin_posts_get" {
@@ -190,10 +192,11 @@ resource "aws_api_gateway_integration" "admin_posts_get" {
 
 # --- OPTIONS /admin/posts (CORS) ---
 resource "aws_api_gateway_method" "admin_posts_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_posts.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_posts.id
+  http_method      = "OPTIONS"
+  authorization    = "NONE"
 }
 
 resource "aws_api_gateway_integration" "admin_posts_options" {
@@ -239,11 +242,12 @@ resource "aws_api_gateway_integration_response" "admin_posts_options" {
 
 # --- GET /admin/posts/{id} (Cognito auth) ---
 resource "aws_api_gateway_method" "admin_posts_id_get" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_posts_id.id
-  http_method   = "GET"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_posts_id.id
+  http_method      = "GET"
+  authorization    = "COGNITO_USER_POOLS"
+  authorizer_id    = aws_api_gateway_authorizer.cognito.id
 
   request_parameters = {
     "method.request.path.id" = true
@@ -261,11 +265,12 @@ resource "aws_api_gateway_integration" "admin_posts_id_get" {
 
 # --- PUT /admin/posts/{id} (Cognito auth) ---
 resource "aws_api_gateway_method" "admin_posts_id_put" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_posts_id.id
-  http_method   = "PUT"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_posts_id.id
+  http_method      = "PUT"
+  authorization    = "COGNITO_USER_POOLS"
+  authorizer_id    = aws_api_gateway_authorizer.cognito.id
 
   request_parameters = {
     "method.request.path.id" = true
@@ -283,11 +288,12 @@ resource "aws_api_gateway_integration" "admin_posts_id_put" {
 
 # --- DELETE /admin/posts/{id} (Cognito auth) ---
 resource "aws_api_gateway_method" "admin_posts_id_delete" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_posts_id.id
-  http_method   = "DELETE"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_posts_id.id
+  http_method      = "DELETE"
+  authorization    = "COGNITO_USER_POOLS"
+  authorizer_id    = aws_api_gateway_authorizer.cognito.id
 
   request_parameters = {
     "method.request.path.id" = true
@@ -305,10 +311,11 @@ resource "aws_api_gateway_integration" "admin_posts_id_delete" {
 
 # --- OPTIONS /admin/posts/{id} (CORS) ---
 resource "aws_api_gateway_method" "admin_posts_id_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_posts_id.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_posts_id.id
+  http_method      = "OPTIONS"
+  authorization    = "NONE"
 }
 
 resource "aws_api_gateway_integration" "admin_posts_id_options" {
@@ -354,6 +361,7 @@ resource "aws_api_gateway_integration_response" "admin_posts_id_options" {
 
 # --- GET /admin/posts/{id}/build-status (Cognito auth) --- (PR5b)
 resource "aws_api_gateway_method" "admin_posts_id_build_status_get" {
+  api_key_required     = var.require_origin_key
   rest_api_id          = aws_api_gateway_rest_api.main.id
   resource_id          = aws_api_gateway_resource.admin_posts_id_build_status.id
   http_method          = "GET"
@@ -377,6 +385,7 @@ resource "aws_api_gateway_integration" "admin_posts_id_build_status_get" {
 
 # --- OPTIONS /admin/posts/{id}/build-status (CORS) ---
 resource "aws_api_gateway_method" "admin_posts_id_build_status_options" {
+  api_key_required     = var.require_origin_key
   rest_api_id          = aws_api_gateway_rest_api.main.id
   resource_id          = aws_api_gateway_resource.admin_posts_id_build_status.id
   http_method          = "OPTIONS"
@@ -427,11 +436,12 @@ resource "aws_api_gateway_integration_response" "admin_posts_id_build_status_opt
 
 # --- POST /admin/images/upload-url (Cognito auth) ---
 resource "aws_api_gateway_method" "admin_images_upload_url_post" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_images_upload_url.id
-  http_method   = "POST"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_images_upload_url.id
+  http_method      = "POST"
+  authorization    = "COGNITO_USER_POOLS"
+  authorizer_id    = aws_api_gateway_authorizer.cognito.id
 }
 
 resource "aws_api_gateway_integration" "admin_images_upload_url_post" {
@@ -445,10 +455,11 @@ resource "aws_api_gateway_integration" "admin_images_upload_url_post" {
 
 # --- OPTIONS /admin/images/upload-url (CORS) ---
 resource "aws_api_gateway_method" "admin_images_upload_url_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_images_upload_url.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_images_upload_url.id
+  http_method      = "OPTIONS"
+  authorization    = "NONE"
 }
 
 resource "aws_api_gateway_integration" "admin_images_upload_url_options" {
@@ -494,11 +505,12 @@ resource "aws_api_gateway_integration_response" "admin_images_upload_url_options
 
 # --- DELETE /admin/images/{key+} (Cognito auth) ---
 resource "aws_api_gateway_method" "admin_images_key_delete" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_images_key.id
-  http_method   = "DELETE"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_images_key.id
+  http_method      = "DELETE"
+  authorization    = "COGNITO_USER_POOLS"
+  authorizer_id    = aws_api_gateway_authorizer.cognito.id
 
   request_parameters = {
     "method.request.path.key" = true
@@ -516,10 +528,11 @@ resource "aws_api_gateway_integration" "admin_images_key_delete" {
 
 # --- OPTIONS /admin/images/{key+} (CORS) ---
 resource "aws_api_gateway_method" "admin_images_key_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_images_key.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_images_key.id
+  http_method      = "OPTIONS"
+  authorization    = "NONE"
 }
 
 resource "aws_api_gateway_integration" "admin_images_key_options" {
@@ -565,10 +578,11 @@ resource "aws_api_gateway_integration_response" "admin_images_key_options" {
 
 # --- GET /posts (No auth - public) ---
 resource "aws_api_gateway_method" "posts_get" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.posts.id
-  http_method   = "GET"
-  authorization = "NONE"
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.posts.id
+  http_method      = "GET"
+  authorization    = "NONE"
 }
 
 resource "aws_api_gateway_integration" "posts_get" {
@@ -582,10 +596,11 @@ resource "aws_api_gateway_integration" "posts_get" {
 
 # --- OPTIONS /posts (CORS) ---
 resource "aws_api_gateway_method" "posts_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.posts.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.posts.id
+  http_method      = "OPTIONS"
+  authorization    = "NONE"
 }
 
 resource "aws_api_gateway_integration" "posts_options" {
@@ -631,10 +646,11 @@ resource "aws_api_gateway_integration_response" "posts_options" {
 
 # --- GET /posts/{id} (No auth - public) ---
 resource "aws_api_gateway_method" "posts_id_get" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.posts_id.id
-  http_method   = "GET"
-  authorization = "NONE"
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.posts_id.id
+  http_method      = "GET"
+  authorization    = "NONE"
 
   request_parameters = {
     "method.request.path.id" = true
@@ -652,10 +668,11 @@ resource "aws_api_gateway_integration" "posts_id_get" {
 
 # --- OPTIONS /posts/{id} (CORS) ---
 resource "aws_api_gateway_method" "posts_id_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.posts_id.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.posts_id.id
+  http_method      = "OPTIONS"
+  authorization    = "NONE"
 }
 
 resource "aws_api_gateway_integration" "posts_id_options" {
@@ -701,6 +718,7 @@ resource "aws_api_gateway_integration_response" "posts_id_options" {
 
 # --- GET /posts/by-slug/{slug} (No auth - public) --- (PR7)
 resource "aws_api_gateway_method" "posts_by_slug_value_get" {
+  api_key_required     = var.require_origin_key
   rest_api_id          = aws_api_gateway_rest_api.main.id
   resource_id          = aws_api_gateway_resource.posts_by_slug_value.id
   http_method          = "GET"
@@ -723,6 +741,7 @@ resource "aws_api_gateway_integration" "posts_by_slug_value_get" {
 
 # --- OPTIONS /posts/by-slug/{slug} (CORS) ---
 resource "aws_api_gateway_method" "posts_by_slug_value_options" {
+  api_key_required     = var.require_origin_key
   rest_api_id          = aws_api_gateway_rest_api.main.id
   resource_id          = aws_api_gateway_resource.posts_by_slug_value.id
   http_method          = "OPTIONS"
@@ -789,10 +808,11 @@ resource "aws_api_gateway_resource" "categories" {
 # Requirement 2.3: Publicly accessible without authentication
 # Requirement 2.5: CORS headers
 resource "aws_api_gateway_method" "categories_get" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.categories.id
-  http_method   = "GET"
-  authorization = "NONE"
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.categories.id
+  http_method      = "GET"
+  authorization    = "NONE"
 }
 
 resource "aws_api_gateway_integration" "categories_get" {
@@ -807,10 +827,11 @@ resource "aws_api_gateway_integration" "categories_get" {
 # --- OPTIONS /categories (CORS) ---
 # Requirement 2.5: CORS headers
 resource "aws_api_gateway_method" "categories_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.categories.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.categories.id
+  http_method      = "OPTIONS"
+  authorization    = "NONE"
 }
 
 resource "aws_api_gateway_integration" "categories_options" {
@@ -871,11 +892,12 @@ resource "aws_api_gateway_resource" "admin_categories" {
 # Requirement 3.1: Create new category
 # Requirement 3.2: Cognito Authorizer
 resource "aws_api_gateway_method" "admin_categories_post" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_categories.id
-  http_method   = "POST"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_categories.id
+  http_method      = "POST"
+  authorization    = "COGNITO_USER_POOLS"
+  authorizer_id    = aws_api_gateway_authorizer.cognito.id
 }
 
 resource "aws_api_gateway_integration" "admin_categories_post" {
@@ -889,10 +911,11 @@ resource "aws_api_gateway_integration" "admin_categories_post" {
 
 # --- OPTIONS /admin/categories (CORS) ---
 resource "aws_api_gateway_method" "admin_categories_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_categories.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_categories.id
+  http_method      = "OPTIONS"
+  authorization    = "NONE"
 }
 
 resource "aws_api_gateway_integration" "admin_categories_options" {
@@ -953,11 +976,12 @@ resource "aws_api_gateway_resource" "admin_categories_id" {
 # Requirement 4.1: Update existing category
 # Requirement 4.2: Cognito Authorizer
 resource "aws_api_gateway_method" "admin_categories_id_put" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_categories_id.id
-  http_method   = "PUT"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_categories_id.id
+  http_method      = "PUT"
+  authorization    = "COGNITO_USER_POOLS"
+  authorizer_id    = aws_api_gateway_authorizer.cognito.id
 
   request_parameters = {
     "method.request.path.id" = true
@@ -977,11 +1001,12 @@ resource "aws_api_gateway_integration" "admin_categories_id_put" {
 # Requirement 5.1: Delete existing category
 # Requirement 5.2: Cognito Authorizer
 resource "aws_api_gateway_method" "admin_categories_id_delete" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_categories_id.id
-  http_method   = "DELETE"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_categories_id.id
+  http_method      = "DELETE"
+  authorization    = "COGNITO_USER_POOLS"
+  authorizer_id    = aws_api_gateway_authorizer.cognito.id
 
   request_parameters = {
     "method.request.path.id" = true
@@ -999,10 +1024,11 @@ resource "aws_api_gateway_integration" "admin_categories_id_delete" {
 
 # --- OPTIONS /admin/categories/{id} (CORS) ---
 resource "aws_api_gateway_method" "admin_categories_id_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_categories_id.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_categories_id.id
+  http_method      = "OPTIONS"
+  authorization    = "NONE"
 }
 
 resource "aws_api_gateway_integration" "admin_categories_id_options" {
@@ -1063,11 +1089,12 @@ resource "aws_api_gateway_resource" "admin_categories_sort" {
 # Requirement 4B.1: Bulk update sortOrder
 # Requirement 4B.2: Cognito Authorizer
 resource "aws_api_gateway_method" "admin_categories_sort_patch" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_categories_sort.id
-  http_method   = "PATCH"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_categories_sort.id
+  http_method      = "PATCH"
+  authorization    = "COGNITO_USER_POOLS"
+  authorizer_id    = aws_api_gateway_authorizer.cognito.id
 }
 
 resource "aws_api_gateway_integration" "admin_categories_sort_patch" {
@@ -1081,10 +1108,11 @@ resource "aws_api_gateway_integration" "admin_categories_sort_patch" {
 
 # --- OPTIONS /admin/categories/sort (CORS) ---
 resource "aws_api_gateway_method" "admin_categories_sort_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.admin_categories_sort.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
+  api_key_required = var.require_origin_key
+  rest_api_id      = aws_api_gateway_rest_api.main.id
+  resource_id      = aws_api_gateway_resource.admin_categories_sort.id
+  http_method      = "OPTIONS"
+  authorization    = "NONE"
 }
 
 resource "aws_api_gateway_integration" "admin_categories_sort_options" {
@@ -1195,6 +1223,7 @@ resource "aws_api_gateway_deployment" "main" {
   # Trigger redeployment when resources, methods, or integrations change
   triggers = {
     redeployment = sha1(jsonencode([
+      var.require_origin_key,
       # Resources
       aws_api_gateway_resource.admin.id,
       aws_api_gateway_resource.posts.id,
@@ -1583,4 +1612,27 @@ resource "aws_lambda_permission" "delete_category" {
   function_name = var.lambda_delete_category_arn
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
+}
+
+# Additional origin gate only; Cognito remains the user authorization layer.
+resource "aws_api_gateway_api_key" "cloudfront" {
+  count   = var.require_origin_key ? 1 : 0
+  name    = "${var.api_name}-cloudfront-origin"
+  enabled = true
+}
+
+resource "aws_api_gateway_usage_plan" "cloudfront" {
+  count = var.require_origin_key ? 1 : 0
+  name  = "${var.api_name}-cloudfront-origin"
+  api_stages {
+    api_id = aws_api_gateway_rest_api.main.id
+    stage  = aws_api_gateway_stage.main.stage_name
+  }
+}
+
+resource "aws_api_gateway_usage_plan_key" "cloudfront" {
+  count         = var.require_origin_key ? 1 : 0
+  key_id        = aws_api_gateway_api_key.cloudfront[0].id
+  key_type      = "API_KEY"
+  usage_plan_id = aws_api_gateway_usage_plan.cloudfront[0].id
 }

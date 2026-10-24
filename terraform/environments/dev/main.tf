@@ -5,6 +5,8 @@
 data "aws_caller_identity" "current" {}
 
 locals {
+  # Only credential presence is public; credential values remain sensitive.
+  dev_basic_auth_enabled = nonsensitive(var.basic_auth_username != "" && var.basic_auth_password != "")
   common_tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -130,6 +132,7 @@ module "lambda" {
 module "api" {
   source = "../../modules/api"
 
+  require_origin_key    = local.dev_basic_auth_enabled
   api_name              = "${var.project_name}-api-${var.environment}"
   environment           = var.environment
   stage_name            = var.environment
@@ -196,7 +199,8 @@ module "cdn" {
   price_class                             = "PriceClass_100"
 
   # Basic Auth for dev environment protection (matches CDK configuration)
-  enable_basic_auth   = var.basic_auth_username != "" && var.basic_auth_password != ""
+  api_origin_key      = module.api.cloudfront_origin_key
+  enable_basic_auth   = local.dev_basic_auth_enabled
   basic_auth_username = var.basic_auth_username
   basic_auth_password = var.basic_auth_password
 
@@ -403,7 +407,7 @@ module "codebuild" {
   release_kvs_arn         = module.cdn.release_kvs_arn
   aws_region              = var.aws_region
   api_url                 = module.cdn.api_base_url
-  verify_basic_auth       = nonsensitive(var.basic_auth_username != "" && var.basic_auth_password != "")
+  verify_basic_auth       = local.dev_basic_auth_enabled
   site_url                = var.enable_custom_domain ? "https://${var.domain_name}" : "https://${module.cdn.distribution_domain_name}"
 
   # GitHub source configuration for Astro SSG builds
