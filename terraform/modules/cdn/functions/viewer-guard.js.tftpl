@@ -1,0 +1,20 @@
+// Shared by every viewer-request behavior, including cache hits.
+function guardRequest(request) {
+  if (!${enabled}) return;
+  var cookies = request.cookies || {};
+  var basic = request.headers.authorization && request.headers.authorization.value === ${basic_auth};
+  var session = cookies['__Host-dev-access'] && cookies['__Host-dev-access'].value === ${session_token};
+  if (!basic && !session) {
+    return {
+      statusCode: 401,
+      statusDescription: 'Unauthorized',
+      headers: {
+        'www-authenticate': { value: 'Basic realm="DEV Environment"' },
+        'cache-control': { value: 'no-store' }
+      }
+    };
+  }
+  // The environment credential must never reach API handlers or origin logs.
+  delete cookies['__Host-dev-access'];
+  if (request.uri.indexOf('/api/') === 0 && basic) delete request.headers.authorization;
+}

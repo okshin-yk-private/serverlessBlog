@@ -721,6 +721,15 @@ jobs:
           echo "========================================="
           echo "Building Astro SSG"
           echo "========================================="
+          # API fetching now shares the DEV environment gate. Keep credentials
+          # local to this build step; never write them to artifacts or PUBLIC_*.
+          if [ "${{ needs.detect-changes.outputs.target-env }}" = "dev" ] && [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$API_URL/posts?limit=1")" = "401" ]; then
+            BASIC_AUTH_USERNAME=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --with-decryption --query "Parameter.Value" --output text)
+            BASIC_AUTH_PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --query "Parameter.Value" --output text)
+            echo "::add-mask::$BASIC_AUTH_USERNAME"
+            echo "::add-mask::$BASIC_AUTH_PASSWORD"
+            export BASIC_AUTH_USERNAME BASIC_AUTH_PASSWORD
+          fi
           bun run build
           echo "✓ Astro build complete"
           echo ""

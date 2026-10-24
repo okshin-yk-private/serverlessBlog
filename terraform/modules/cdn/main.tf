@@ -5,6 +5,12 @@
 # See: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
 # See: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html
 locals {
+  viewer_guard = templatefile("${path.module}/functions/viewer-guard.js.tftpl", {
+    enabled       = var.enable_basic_auth
+    basic_auth    = jsonencode("Basic ${base64encode("${var.basic_auth_username}:${var.basic_auth_password}")}")
+    session_token = jsonencode(sha256("dev-cookie:${var.basic_auth_username}:${var.basic_auth_password}"))
+  })
+
   cache_policy_caching_optimized = "658327ea-f89d-4fab-a63d-7e88639e58f6"
   cache_policy_caching_disabled  = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
   # AllViewerExceptHostHeader - Forwards all viewer headers except Host (recommended for API Gateway)
@@ -136,27 +142,11 @@ resource "aws_cloudfront_function" "basic_auth" {
   comment = "Basic Authentication for ${var.environment} environment"
   publish = true
   code    = <<-EOF
+${local.viewer_guard}
 function handler(event) {
   var request = event.request;
-  var headers = request.headers;
-
-  // Expected credentials (embedded at deployment time)
-  var authString = 'Basic ' + btoa('${var.basic_auth_username}:${var.basic_auth_password}');
-
-  // Check if Authorization header exists
-  if (
-    typeof headers.authorization === 'undefined' ||
-    headers.authorization.value !== authString
-  ) {
-    // Return 401 Unauthorized with WWW-Authenticate header
-    return {
-      statusCode: 401,
-      statusDescription: 'Unauthorized',
-      headers: {
-        'www-authenticate': { value: 'Basic realm="DEV Environment"' },
-      },
-    };
-  }
+  var denied = guardRequest(request);
+  if (denied) return denied;
 
   // Authentication successful - forward request to origin
   return request;
@@ -168,6 +158,29 @@ EOF
   }
 }
 
+# Basic and Cognito both use Authorization. A host-only HttpOnly session cookie
+# carries the environment gate when the admin SPA sends its Cognito Bearer token.
+resource "aws_cloudfront_function" "dev_session" {
+  count   = var.enable_basic_auth ? 1 : 0
+  name    = "DevSessionFunction-${var.environment}"
+  runtime = "cloudfront-js-2.0"
+  publish = true
+  code    = <<-EOF
+function handler(event) {
+  var response = event.response;
+  var authorization = event.request.headers.authorization;
+  if (authorization && authorization.value === ${jsonencode("Basic ${base64encode("${var.basic_auth_username}:${var.basic_auth_password}")}")}) {
+    response.cookies = response.cookies || {};
+    response.cookies['__Host-dev-access'] = {
+      value: ${jsonencode(sha256("dev-cookie:${var.basic_auth_username}:${var.basic_auth_password}"))},
+      attributes: 'Path=/; Secure; HttpOnly; SameSite=Strict'
+    };
+  }
+  return response;
+}
+EOF
+}
+
 # CloudFront Function for Public Site SPA routing (production - no auth)
 resource "aws_cloudfront_function" "public_spa" {
   count   = var.enable_basic_auth ? 0 : 1
@@ -176,8 +189,11 @@ resource "aws_cloudfront_function" "public_spa" {
   comment = "SPA routing for Public site (${var.environment})"
   publish = true
   code    = <<-EOF
+${local.viewer_guard}
 function handler(event) {
   var request = event.request;
+  var denied = guardRequest(request);
+  if (denied) return denied;
   var uri = request.uri;
 
   // SPA routing: For paths without file extension, serve /index.html
@@ -211,8 +227,11 @@ resource "aws_cloudfront_function" "image_path" {
   comment = "Strips /images prefix for origin request"
   publish = true
   code    = <<-EOF
+${local.viewer_guard}
 function handler(event) {
   var request = event.request;
+  var denied = guardRequest(request);
+  if (denied) return denied;
   var uri = request.uri;
 
   // Strip /images prefix for origin request
@@ -238,25 +257,12 @@ resource "aws_cloudfront_function" "admin_combined" {
   comment = "Combined Basic Auth and SPA routing for Admin site (${var.environment})"
   publish = true
   code    = <<-EOF
+${local.viewer_guard}
 function handler(event) {
   var request = event.request;
-  var headers = request.headers;
+  var denied = guardRequest(request);
+  if (denied) return denied;
   var uri = request.uri;
-
-  // Basic Authentication check
-  var authString = 'Basic ' + btoa('${var.basic_auth_username}:${var.basic_auth_password}');
-  if (
-    typeof headers.authorization === 'undefined' ||
-    headers.authorization.value !== authString
-  ) {
-    return {
-      statusCode: 401,
-      statusDescription: 'Unauthorized',
-      headers: {
-        'www-authenticate': { value: 'Basic realm="DEV Environment"' },
-      },
-    };
-  }
 
   // SPA routing: Keep /admin prefix to avoid cache key collision with public site
   // Admin files are stored in S3 under /admin/ prefix
@@ -289,8 +295,11 @@ resource "aws_cloudfront_function" "admin_spa" {
   comment = "SPA routing for Admin site - strips /admin prefix and handles SPA routes"
   publish = true
   code    = <<-EOF
+${local.viewer_guard}
 function handler(event) {
   var request = event.request;
+  var denied = guardRequest(request);
+  if (denied) return denied;
   var uri = request.uri;
 
   // SPA routing: Keep /admin prefix to avoid cache key collision with public site
@@ -324,8 +333,11 @@ resource "aws_cloudfront_function" "api_path" {
   comment = "Strips /api prefix for API Gateway origin request"
   publish = true
   code    = <<-EOF
+${local.viewer_guard}
 function handler(event) {
   var request = event.request;
+  var denied = guardRequest(request);
+  if (denied) return denied;
   var uri = request.uri;
 
   // Strip /api prefix for origin request
@@ -363,8 +375,12 @@ resource "aws_cloudfront_function" "public_ssg" {
 import cf from 'cloudfront';
 const kvs = cf.kvs();
 
+${local.viewer_guard}
+
 async function handler(event) {
   var request = event.request;
+  var denied = guardRequest(request);
+  if (denied) return denied;
   var uri = request.uri;
 
   // Known file extensions for web assets
@@ -446,25 +462,13 @@ resource "aws_cloudfront_function" "public_combined" {
 import cf from 'cloudfront';
 const kvs = cf.kvs();
 
+${local.viewer_guard}
+
 async function handler(event) {
   var request = event.request;
-  var headers = request.headers;
+  var denied = guardRequest(request);
+  if (denied) return denied;
   var uri = request.uri;
-
-  // Basic Authentication check
-  var authString = 'Basic ' + btoa('${var.basic_auth_username}:${var.basic_auth_password}');
-  if (
-    typeof headers.authorization === 'undefined' ||
-    headers.authorization.value !== authString
-  ) {
-    return {
-      statusCode: 401,
-      statusDescription: 'Unauthorized',
-      headers: {
-        'www-authenticate': { value: 'Basic realm="DEV Environment"' },
-      },
-    };
-  }
 
   // Known file extensions for web assets
   var knownExtensions = ['html','htm','js','mjs','cjs','css','json','xml','txt','jpg','jpeg','png','gif','webp','svg','ico','avif','woff','woff2','ttf','eot','otf','pdf','mp3','mp4','webm','ogg','map','wasm'];
@@ -665,6 +669,14 @@ resource "aws_cloudfront_distribution" "main" {
       event_type   = "viewer-request"
       function_arn = var.enable_basic_auth ? aws_cloudfront_function.public_combined[0].arn : aws_cloudfront_function.public_ssg.arn
     }
+    dynamic "function_association" {
+      for_each = var.enable_basic_auth ? [1] : []
+      content {
+        event_type   = "viewer-response"
+        function_arn = aws_cloudfront_function.dev_session[0].arn
+      }
+    }
+
   }
 
   # S3 Origin: Public Site
@@ -693,6 +705,13 @@ resource "aws_cloudfront_distribution" "main" {
   origin {
     domain_name = "${var.rest_api_id}.execute-api.${var.aws_region}.amazonaws.com"
     origin_id   = "api-gateway"
+    dynamic "custom_header" {
+      for_each = var.enable_basic_auth ? [1] : []
+      content {
+        name  = "x-api-key"
+        value = var.api_origin_key
+      }
+    }
     origin_path = "/${var.api_stage_name}"
 
     custom_origin_config {
@@ -714,7 +733,10 @@ resource "aws_cloudfront_distribution" "main" {
     compress                   = true
     cache_policy_id            = aws_cloudfront_cache_policy.astro_assets.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
-    # No function association - static assets don't need URL rewriting
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.public_ssg.arn
+    }
   }
 
   # /admin/* behavior
@@ -733,6 +755,14 @@ resource "aws_cloudfront_distribution" "main" {
       event_type   = "viewer-request"
       function_arn = var.enable_basic_auth ? aws_cloudfront_function.admin_combined[0].arn : aws_cloudfront_function.admin_spa[0].arn
     }
+    dynamic "function_association" {
+      for_each = var.enable_basic_auth ? [1] : []
+      content {
+        event_type   = "viewer-response"
+        function_arn = aws_cloudfront_function.dev_session[0].arn
+      }
+    }
+
   }
 
   # /images/* behavior
