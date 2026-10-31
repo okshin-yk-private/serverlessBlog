@@ -392,6 +392,34 @@ module "monitoring" {
 }
 
 #------------------------------------------------------------------------------
+# Content Backup (cross-region Markdown export)
+# Dependencies: database
+# GOVERNANCE mode with a 1-day lock so dev exercises the same Object Lock path
+# while staying removable (force_destroy bypasses GOVERNANCE locks).
+#------------------------------------------------------------------------------
+
+module "content_backup" {
+  source = "../../modules/content-backup"
+
+  project_name          = var.project_name
+  environment           = var.environment
+  source_region         = var.aws_region
+  backup_region         = "ap-northeast-3"
+  posts_table_name      = module.database.table_name
+  posts_table_arn       = module.database.table_arn
+  categories_table_name = module.database.categories_table_name
+  categories_table_arn  = module.database.categories_table_arn
+  go_binary_path        = "${path.module}/../../../go-functions/bin"
+  object_lock_mode      = "GOVERNANCE"
+  retention_days        = 1
+  force_destroy         = true
+
+  tags = local.common_tags
+
+  depends_on = [module.database]
+}
+
+#------------------------------------------------------------------------------
 # Module 8: CodeBuild (Astro SSG Build)
 # Dependencies: storage (for S3 bucket), cdn (for CloudFront distribution)
 # Requirements: 8.5, 9.5, 9.6 (Astro SSG Migration spec)

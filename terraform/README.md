@@ -67,7 +67,8 @@ terraform/
 │   ├── api/                     # API Gateway
 │   ├── lambda/                  # Lambda関数
 │   ├── cdn/                     # CloudFront
-│   └── monitoring/              # CloudWatch
+│   ├── monitoring/              # CloudWatch
+│   └── content-backup/          # 記事のリージョン外バックアップ
 ├── environments/                # 環境別設定
 │   ├── dev/                     # 開発環境
 │   │   ├── main.tf
@@ -139,6 +140,7 @@ terraform apply
 | [lambda](./modules/lambda/README.md) | Lambda関数 | 11個のGo Lambda関数 |
 | [cdn](./modules/cdn/README.md) | CloudFront | 統合ディストリビューション |
 | [monitoring](./modules/monitoring/README.md) | 監視 | CloudWatch Alarms、Dashboard |
+| content-backup | 記事のリージョン外バックアップ | 大阪リージョンの Object Lock バケット、日次エクスポート Lambda（[運用手順](../docs/content-backup.md)） |
 
 ## 環境別設定
 
