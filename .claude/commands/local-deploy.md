@@ -71,7 +71,7 @@ posts-update, posts-delete, images-get_upload_url, images-delete
 ## Prerequisites
 
 - AWS CLI (認証済み)
-- Go 1.26.5（`go-functions/go.mod`と一致）
+- Go（`go-functions/go.mod`の版と一致させる）
 - Terraform 1.14+
 - Bun
 - Node.js 22+

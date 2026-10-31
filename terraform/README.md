@@ -67,7 +67,8 @@ terraform/
 │   ├── api/                     # API Gateway
 │   ├── lambda/                  # Lambda関数
 │   ├── cdn/                     # CloudFront
-│   └── monitoring/              # CloudWatch
+│   ├── monitoring/              # CloudWatch
+│   └── content-backup/          # 記事のリージョン外バックアップ
 ├── environments/                # 環境別設定
 │   ├── dev/                     # 開発環境
 │   │   ├── main.tf
@@ -95,7 +96,7 @@ terraform/
 
 - **Terraform**: >= 1.14.0
 - **AWS CLI**: 設定済み（適切なIAM権限）
-- **Go**: 1.26.5（Lambda関数ビルド用。固定値は`go-functions/go.mod`を参照）
+- **Go**: `go-functions/go.mod` の版（Lambda関数ビルド用。完全なパッチ版は go.mod が唯一の参照元）
 - **jq**: JSON処理用
 
 ## クイックスタート
@@ -139,6 +140,7 @@ terraform apply
 | [lambda](./modules/lambda/README.md) | Lambda関数 | 11個のGo Lambda関数 |
 | [cdn](./modules/cdn/README.md) | CloudFront | 統合ディストリビューション |
 | [monitoring](./modules/monitoring/README.md) | 監視 | CloudWatch Alarms、Dashboard |
+| content-backup | 記事のリージョン外バックアップ | 大阪リージョンの Object Lock バケット、日次エクスポート Lambda（[運用手順](../docs/content-backup.md)） |
 
 ## 環境別設定
 
@@ -169,7 +171,7 @@ GitHub Actionsによる自動化:
 - **mainブランチ**: 承認後に本番デプロイ
 - **セキュリティスキャン**: Checkov（CI）、Trivy（ローカル）
 
-詳細は [.github/workflows/terraform.yml](../.github/workflows/terraform.yml) を参照。
+詳細は [ci.yml](../.github/workflows/ci.yml)（PR の検証）と [deploy.yml](../.github/workflows/deploy.yml)（デプロイ）を参照。
 
 ## セキュリティ
 
@@ -256,7 +258,7 @@ terraform init
 |--------------|-----------|
 | Terraform | ~> 1.14 |
 | AWS Provider | ~> 6.0 |
-| Go | 1.26.5 |
+| Go | `go-functions/go.mod` の版 |
 
 ## ライセンス
 

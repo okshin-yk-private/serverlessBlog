@@ -7,497 +7,78 @@
 - 本番の `serverless-blog-public-5xx` は10件以上/5分で5xxが1%以上、3期間中2期間を検知。`serverless-blog-public-traffic` は1,000件超/5分が3期間中2期間で通知する。遮断は行わない。CloudFrontメトリクスと通知先SNSはus-east-1に置く。新SNSメール購読の確認が必要。
 - Lambda同時実行クォータは実効10に対する希望100。Service Quotas APIが標準1000との比較で拒否する場合はSupport Centerから申請する。申請完了とAWSによる反映完了は分けて記録する。
 
-以下は既存の監視資料。古いツール・構成の例は現行Terraformと照合すること。
-
 # 監視とロギング
 
-> **⚠️ 要更新**: このドキュメントの一部はCDK/Node.js Lambda Powertools時代のものです。
-> 現在のLambda関数はGoで実装されており、ログ/トレース/メトリクスは`go-functions/internal/middleware/`で管理されています。
-> インフラはTerraformで管理されています（`terraform/modules/monitoring/`）。
+Lambda は Go で実装し、監視設定は Terraform（`terraform/modules/monitoring/`、PRD の
+`terraform/environments/prd/edge-monitoring.tf`）で管理する。以前この節にあった
+Lambda Powertools for TypeScript と CDK の `MonitoringStack` の説明は、現行構成に存在しないため削除した。
 
-## 概要
+## ログ
 
-このドキュメントでは、Serverless Blog Platformの監視とロギングの実装について説明します。
+- Lambda は `go-functions/internal/middleware/` の `slog` JSON ハンドラで構造化ログを出す。
+  記録する項目、マスク対象、記録しない内容は [structured-logging.md](./structured-logging.md) を参照。
+- 共通フィールドは `requestId`（API Gateway のリクエスト ID）、`lambdaRequestId`、`traceId`、
+  `coldStart`。HTTP 呼び出しの完了時に `msg = "request completed"` と `statusCode`・`durationMs` を 1 件記録する。
+- ロググループの保持期間は PRD 90 日、DEV 14 日（`terraform/modules/lambda/main.tf` の `log_retention_days`）。
+- API Gateway のアクセスログと実行ログ（`INFO`）は PRD のみ有効（`terraform/modules/api/main.tf`）。
+- CloudFront の標準ログ（v2）は PRD のみ、アクセスログ用バケットの `cloudfront/` に 90 日保存する。
 
-**Task 10.1: 監視とロギングの統合検証**に基づき、以下の機能を提供しています：
+### CloudWatch Logs Insights の例
 
-- CloudWatch Logsによる集中ロギング
-- X-Rayトレーシングによる分散トレーシング
-- Lambda Powertoolsによる構造化ロギング
-- CloudWatchアラームによる自動監視
-- CloudWatch Dashboardによる統合ビュー
-- SNSによるアラーム通知
-
-## Lambda Powertools統合
-
-### 概要
-
-すべてのLambda関数は[AWS Lambda Powertools for TypeScript](https://docs.powertools.aws.dev/lambda/typescript/latest/)を使用しています。
-
-- **Logger**: 構造化ロギング
-- **Tracer**: X-Ray統合トレーシング
-- **Metrics**: カスタムメトリクス収集
-
-### Logger（構造化ロギング）
-
-#### 基本的な使い方
-
-```typescript
-import { Logger } from '@aws-lambda-powertools/logger';
-
-const logger = new Logger({
-  serviceName: 'createPost',
-  logLevel: 'INFO'
-});
-
-// 情報ログ
-logger.info('記事を作成中', { postId: '123' });
-
-// 警告ログ
-logger.warn('バリデーションエラー', { error: 'title is required' });
-
-// エラーログ
-logger.error('記事の作成に失敗しました', { error });
 ```
-
-#### 構造化ログの形式
-
-すべてのログは以下の構造化フォーマットで出力されます：
-
-```json
-{
-  "level": "INFO",
-  "message": "記事を作成中",
-  "service": "createPost",
-  "timestamp": "2025-01-09T12:34:56.789Z",
-  "cold_start": false,
-  "function_arn": "arn:aws:lambda:us-east-1:123456789012:function:createPost",
-  "function_memory_size": "512",
-  "function_name": "createPost",
-  "function_request_id": "abc123",
-  "postId": "123"
-}
-```
-
-#### CloudWatch Logsでのログ確認
-
-1. AWS Management Consoleで**CloudWatch**を開く
-2. 左メニューから**Logs** > **Log groups**を選択
-3. `/aws/lambda/<function-name>`ログ グループを選択
-4. 最新のログストリームを選択してログを確認
-
-**CloudWatch Logs Insightsクエリ例**:
-
-```sql
-# エラーログのみを抽出
-fields @timestamp, @message, level, error
+# エラーのみ
+fields @timestamp, requestId, msg, error
 | filter level = "ERROR"
 | sort @timestamp desc
-| limit 20
 
-# 特定のrequestIdでログを追跡
-fields @timestamp, @message, service, postId
-| filter function_request_id = "abc123"
-| sort @timestamp asc
+# 特定のリクエストを追跡
+fields @timestamp, level, msg
+| filter requestId = "<API Gateway のリクエスト ID>"
 
-# レイテンシが高いリクエストを抽出
-fields @timestamp, service, @duration
-| filter @duration > 1000
-| sort @duration desc
-| limit 10
+# 遅いリクエスト
+fields @timestamp, requestId, statusCode, durationMs
+| filter msg = "request completed" and durationMs > 1000
+| sort durationMs desc
 ```
 
-### Tracer（X-Rayトレーシング）
+## トレース
 
-#### 基本的な使い方
+- Lambda の X-Ray は `enable_xray` で切り替える。PRD は `Active`、DEV は `PassThrough`。
+- API Gateway ステージの X-Ray は PRD のみ有効。
+- Go 側で独自のサブセグメントは作っていない。`traceId` はランタイムの `_X_AMZN_TRACE_ID` をログに残す用途。
 
-```typescript
-import { Tracer } from '@aws-lambda-powertools/tracer';
+## メトリクスとアラーム
 
-const tracer = new Tracer({ serviceName: 'createPost' });
+アラームは `enable_alarms = true` の環境（PRD のみ）で作成し、SNS トピックからメール（`alarm_email`）へ通知する。
+カスタムメトリクス（EMF）は使っていない。すべて AWS 標準メトリクス。
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  // 自動的にX-Rayセグメントが生成される
-  const segment = tracer.getSegment();
+| アラーム | メトリクス | 条件 |
+| --- | --- | --- |
+| `<project>-Lambda-AllErrors` | 全関数の `AWS/Lambda Errors` 合計 | 5 分で 5 件超（1 期間） |
+| `<project>-Lambda-AllDuration` | 全関数の `Duration` 最大 | 10,000 ms 超が 2 期間 |
+| `<project>-Lambda-AllThrottles` | 全関数の `Throttles` 合計 | 5 分で 3 件超（1 期間） |
+| `<table>-ReadThrottles` / `-WriteThrottles` | DynamoDB のスロットリング | 5 分で 1 件以上 |
+| `<api>-4XXError` | API Gateway 4XX | 5 分で 10 件超 |
+| `<api>-5XXError` | API Gateway 5XX | 5 分で 5 件超 |
+| `<api>-Latency` | API Gateway 平均レイテンシ | 2,000 ms 超が 2 期間 |
+| `serverless-blog-public-5xx` | CloudFront 5xx 率（us-east-1） | 冒頭の節を参照 |
+| `serverless-blog-public-traffic` | CloudFront リクエスト数（us-east-1） | 冒頭の節を参照 |
 
-  // サブセグメントを作成（カスタムトレーシング）
-  const subsegment = segment.addNewSubsegment('validateInput');
-  try {
-    // バリデーション処理
-    validateInput(body);
-    subsegment.close();
-  } catch (error) {
-    subsegment.addError(error);
-    subsegment.close();
-    throw error;
-  }
+閾値と評価期間の正は Terraform。変更したらこの表も更新する。
 
-  // DynamoDBクライアントも自動的にトレースされる
-  await dynamoDBClient.send(new PutCommand({ ...params }));
-};
-```
+### 監視していないもの（既知の穴）
 
-#### X-Rayトレースの確認
+- サイトビルド（CodeBuild）の失敗と、ビルド状態の再整合用 DLQ（`terraform/modules/lambda/sitebuild_events.tf`）に溜まったメッセージ。
+  管理画面のビルド状態でしか気づけない。
+- 費用。AWS Budgets は未導入。Cost Anomaly Detection は導入済みだが、このリポジトリの Terraform では管理していない。
 
-1. AWS Management Consoleで**X-Ray**を開く
-2. 左メニューから**Traces**を選択
-3. トレースをクリックして詳細を表示
+## ダッシュボード
 
-**X-Rayで確認できる情報**:
-- API Gateway → Lambda → DynamoDBの呼び出しフロー
-- 各サービスのレイテンシ
-- エラーが発生したセグメント
-- サービスマップ（アーキテクチャの可視化）
+PRD に `BlogPlatform-Monitoring` を作成する。関数ごとの Errors / Invocations / Duration / Throttles、
+DynamoDB のスロットリング、API Gateway の 4XX / 5XX / Latency を表示する。
 
-### Metrics（カスタムメトリクス）
+## 通知が届かないとき
 
-#### 基本的な使い方
-
-```typescript
-import { Metrics, MetricUnit } from '@aws-lambda-powertools/metrics';
-
-const metrics = new Metrics({
-  namespace: 'BlogPlatform',
-  serviceName: 'createPost'
-});
-
-// カウントメトリクス
-metrics.addMetric('PostCreated', MetricUnit.Count, 1);
-
-// ディメンション付きメトリクス
-metrics.addDimension('PublishStatus', 'published');
-metrics.addMetric('PublishedPostCreated', MetricUnit.Count, 1);
-
-// メトリクスを送信（自動的にCloudWatchに送信される）
-```
-
-#### CloudWatchメトリクスの確認
-
-1. AWS Management Consoleで**CloudWatch**を開く
-2. 左メニューから**Metrics** > **All metrics**を選択
-3. **BlogPlatform**ネームスペースを選択
-4. メトリクスを選択してグラフを表示
-
-## CloudWatchアラーム
-
-### アラーム一覧
-
-#### Lambda関数のアラーム
-
-| アラーム名 | メトリクス | しきい値 | 説明 |
-|-----------|-----------|---------|------|
-| `{FunctionId}-ErrorRate` | Errors | 1 (5分間) | Lambda関数のエラー率が高い |
-| `{FunctionId}-Duration` | Duration | 10秒 (平均, 2期間) | Lambda関数の実行時間が長い |
-| `{FunctionId}-Throttles` | Throttles | 1 (5分間) | Lambda関数がスロットルされている |
-
-#### DynamoDBテーブルのアラーム
-
-| アラーム名 | メトリクス | しきい値 | 説明 |
-|-----------|-----------|---------|------|
-| `{TableId}-ReadThrottles` | ReadThrottleEvents | 1 (5分間) | DynamoDB読み取りスロットル発生 |
-| `{TableId}-WriteThrottles` | WriteThrottleEvents | 1 (5分間) | DynamoDB書き込みスロットル発生 |
-
-#### API Gatewayのアラーム
-
-| アラーム名 | メトリクス | しきい値 | 説明 |
-|-----------|-----------|---------|------|
-| `{ApiId}-4XXError` | 4XXError | 10 (5分間) | API Gatewayの4xxエラーが多い |
-| `{ApiId}-5XXError` | 5XXError | 5 (5分間) | API Gatewayの5xxエラーが多い |
-| `{ApiId}-Latency` | Latency | 2秒 (平均, 2期間) | API Gatewayのレイテンシが高い |
-
-### アラーム通知
-
-すべてのアラームは **SNSトピック** (`BlogPlatform-Alarms`) に通知を送信します。
-
-**通知先メールアドレスの設定**:
-
-`infrastructure/bin/blog-app.ts`で設定：
-
-```typescript
-const monitoringStack = new MonitoringStack(app, 'MonitoringStack', {
-  lambdaFunctions: [...],
-  dynamodbTables: [...],
-  apiGateways: [...],
-  alarmEmail: 'your-email@example.com', // ← ここで設定
-});
-```
-
-**アラームメール通知の内容**:
-- アラーム名
-- アラーム説明
-- 現在の状態（ALARM / OK）
-- アラームがトリガーされた理由
-- メトリクスの値
-
-### アラームの確認
-
-1. AWS Management Consoleで**CloudWatch**を開く
-2. 左メニューから**Alarms** > **All alarms**を選択
-3. アラーム状態を確認：
-   - **OK**: 正常
-   - **ALARM**: アラーム発火中
-   - **INSUFFICIENT_DATA**: データ不足
-
-## CloudWatch Dashboard
-
-### ダッシュボード概要
-
-すべてのメトリクスを一元的に監視するための**CloudWatch Dashboard**が自動的に作成されます。
-
-**ダッシュボード名**: `BlogPlatform-Monitoring`
-
-### ダッシュボードの内容
-
-#### Lambda関数メトリクス
-
-各Lambda関数ごとに2つのウィジェット:
-
-1. **Errors & Invocations**
-   - エラー数
-   - 実行回数
-
-2. **Duration & Throttles**
-   - 実行時間
-   - スロットル数
-
-#### DynamoDBメトリクス
-
-各テーブルごとに1つのウィジェット:
-
-- **Throttles**
-  - 読み取りスロットル数
-  - 書き込みスロットル数
-
-#### API Gatewayメトリクス
-
-各APIごとに2つのウィジェット:
-
-1. **Errors**
-   - 4xxエラー数
-   - 5xxエラー数
-
-2. **Latency**
-   - レイテンシ（平均）
-
-### ダッシュボードの確認
-
-1. AWS Management Consoleで**CloudWatch**を開く
-2. 左メニューから**Dashboards**を選択
-3. **BlogPlatform-Monitoring**を選択
-
-**ダッシュボードのカスタマイズ**:
-- ウィジェットの追加/削除
-- 時間範囲の変更（1時間、3時間、1日、1週間など）
-- 自動更新の設定
-
-## CDK実装
-
-### MonitoringStack
-
-監視インフラは`infrastructure/lib/monitoring-stack.ts`で定義されています。
-
-#### スタックプロパティ
-
-```typescript
-export interface MonitoringStackProps extends cdk.StackProps {
-  lambdaFunctions: lambda.IFunction[];  // 監視対象のLambda関数
-  dynamodbTables: dynamodb.ITable[];    // 監視対象のDynamoDBテーブル
-  apiGateways: apigateway.IRestApi[];   // 監視対象のAPI Gateway
-  alarmEmail: string;                   // アラーム通知先メールアドレス
-}
-```
-
-#### スタックの使用例
-
-```typescript
-import { MonitoringStack } from '../lib/monitoring-stack';
-
-const monitoringStack = new MonitoringStack(app, 'MonitoringStack', {
-  lambdaFunctions: [
-    createPostFunction,
-    getPostFunction,
-    listPostsFunction,
-    // ...
-  ],
-  dynamodbTables: [
-    postsTable,
-    usersTable,
-  ],
-  apiGateways: [
-    blogApi,
-  ],
-  alarmEmail: 'admin@example.com',
-});
-```
-
-### CDKスタックテスト
-
-`infrastructure/test/monitoring-stack.test.ts`に16のユニットテストがあります。
-
-**テスト実行**:
-
-```bash
-cd infrastructure
-npm test -- monitoring-stack.test.ts
-```
-
-**テストカバレッジ**:
-- SNSトピックとメールサブスクリプション
-- Lambda関数のアラーム（エラー率、実行時間、スロットル）
-- DynamoDBのアラーム（読み取り/書き込みスロットル）
-- API Gatewayのアラーム（4xx、5xx、レイテンシ）
-- アラームアクション（SNS通知）
-- CloudWatch Dashboard（ウィジェット確認）
-- スナップショットテスト
-
-## ベストプラクティス
-
-### ログレベルの使い分け
-
-| ログレベル | 用途 | 例 |
-|-----------|------|-----|
-| **DEBUG** | 開発時のデバッグ情報 | 変数の値、内部処理の詳細 |
-| **INFO** | 通常の動作情報 | リクエスト受付、処理開始/完了 |
-| **WARN** | 警告（エラーではない） | バリデーションエラー、リトライ |
-| **ERROR** | エラー | 例外、処理失敗 |
-
-**本番環境**: `INFO`以上
-**開発環境**: `DEBUG`以上
-
-### 構造化ロギングのベストプラクティス
-
-1. **コンテキスト情報を常に含める**:
-   ```typescript
-   logger.info('記事を作成中', {
-     postId: post.id,
-     userId: user.id,
-     category: post.category
-   });
-   ```
-
-2. **エラー時は詳細情報を記録**:
-   ```typescript
-   logger.error('記事の作成に失敗しました', {
-     error: error.message,
-     stack: error.stack,
-     input: body
-   });
-   ```
-
-3. **機密情報をログに含めない**:
-   - パスワード
-   - トークン
-   - クレジットカード情報
-   - 個人識別情報（PII）
-
-### X-Rayトレーシングのベストプラクティス
-
-1. **カスタムサブセグメントで重要な処理をトレース**:
-   ```typescript
-   const subsegment = tracer.getSegment().addNewSubsegment('expensiveOperation');
-   try {
-     await performExpensiveOperation();
-     subsegment.close();
-   } catch (error) {
-     subsegment.addError(error);
-     subsegment.close();
-     throw error;
-   }
-   ```
-
-2. **メタデータとアノテーションを追加**:
-   ```typescript
-   subsegment.addMetadata('input', { postId: '123' });
-   subsegment.addAnnotation('operation', 'createPost');
-   ```
-
-3. **AWS SDKクライアントでトレーシングを有効化**:
-   ```typescript
-   import { captureAWSv3Client } from 'aws-xray-sdk-core';
-
-   const dynamoDBClient = captureAWSv3Client(new DynamoDBClient({}));
-   ```
-
-### アラームのベストプラクティス
-
-1. **適切なしきい値を設定**:
-   - 本番環境の正常な動作を基準に設定
-   - 誤検知を減らすため、2期間の評価を使用
-
-2. **アラーム通知を整理**:
-   - 重要度に応じてSNSトピックを分ける
-   - アラーム名から問題を特定できるようにする
-
-3. **定期的にアラームを見直す**:
-   - アプリケーションの成長に応じてしきい値を調整
-   - 不要になったアラームを削除
-
-## トラブルシューティング
-
-### ログが表示されない
-
-**原因**: Lambda関数の実行ロールにCloudWatch Logsへの書き込み権限がない
-
-**解決策**:
-```typescript
-const lambdaRole = new iam.Role(this, 'LambdaRole', {
-  assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-  managedPolicies: [
-    iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole'),
-  ],
-});
-```
-
-### X-Rayトレースが表示されない
-
-**原因**: Lambda関数でX-Rayトレーシングが有効化されていない
-
-**解決策**:
-```typescript
-const fn = new lambda.Function(this, 'MyFunction', {
-  // ...
-  tracing: lambda.Tracing.ACTIVE, // ← これを追加
-});
-```
-
-### アラームメールが届かない
-
-**原因**: SNSサブスクリプションが未確認
-
-**解決策**:
-1. SNSトピックのサブスクリプション確認メールを確認
-2. メール内の**Confirm subscription**リンクをクリック
-3. サブスクリプションが**Confirmed**状態になることを確認
-
-### カスタムメトリクスが表示されない
-
-**原因**: メトリクスの送信に失敗している
-
-**解決策**:
-1. Lambda関数のCloudWatch Logsでエラーを確認
-2. Lambda実行ロールに`cloudwatch:PutMetricData`権限があることを確認
-   ```typescript
-   lambdaRole.addToPolicy(new iam.PolicyStatement({
-     actions: ['cloudwatch:PutMetricData'],
-     resources: ['*'],
-   }));
-   ```
-
-## 参考リンク
-
-- [AWS Lambda Powertools for TypeScript](https://docs.powertools.aws.dev/lambda/typescript/latest/)
-- [CloudWatch Logs Insights クエリ構文](https://docs.aws.amazon.com/ja_jp/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html)
-- [AWS X-Ray 開発者ガイド](https://docs.aws.amazon.com/ja_jp/xray/latest/devguide/aws-xray.html)
-- [CloudWatch アラームの作成](https://docs.aws.amazon.com/ja_jp/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html)
-- [CloudWatch Dashboards](https://docs.aws.amazon.com/ja_jp/AmazonCloudWatch/latest/monitoring/CloudWatch_Dashboards.html)
-
-## まとめ
-
-- **Lambda Powertools**: Logger、Tracer、Metricsで構造化ロギング、X-Rayトレーシング、カスタムメトリクスを実現
-- **CloudWatch Logs**: すべてのLambda関数のログを集中管理
-- **X-Ray**: 分散トレーシングでリクエストフローを可視化
-- **CloudWatchアラーム**: Lambda、DynamoDB、API Gatewayを自動監視
-- **CloudWatch Dashboard**: すべてのメトリクスを統合ビューで確認
-- **SNS通知**: アラーム発火時にメール通知
-
-これらの監視とロギング機能により、本番環境での問題の早期発見と迅速な対応が可能になります。
+1. SNS のメール購読が「確認済み」か確認する。Terraform で作った購読は、届いたメールのリンクを開くまで有効にならない。
+2. `alarm_email` が PRD のデプロイで渡っているか確認する。
+3. CloudFront のアラームと SNS は us-east-1 にある。ap-northeast-1 だけを見ていないか確認する。

@@ -196,14 +196,18 @@ skip-check:
   - CKV_AWS_174
 
   # CKV_AWS_86: Ensure CloudFront distribution has WAF enabled
-  # Justification: A regional WAF web ACL adds a monthly base fee plus per-rule and
-  # per-request charges, which isn't justified for this blog application. There is
-  # no CloudFront-level rate limiting (no WAF, no CloudFront rate-based rule). The
-  # only rate limiting that exists is API Gateway stage/method throttling
-  # (modules/api: stage-wide 100 rps / burst 200, plus a lower per-method limit on
-  # admin write methods added in #682). No sensitive financial or PII data.
-  # Phase 2 consideration for production hardening.
-  # Mitigation: API Gateway stage/method throttling; monitoring
+  # Justification: Decision and re-evaluation triggers are recorded in
+  # docs/SECURITY.md ("AWS WAF は導入しない"). A CLOUDFRONT-scope web ACL (us-east-1)
+  # costs about $7/month at minimum (web ACL + Core rule set + one rate-based
+  # rule), and the CloudFront flat-rate plans that bundle WAF do not support this
+  # distribution's KeyValueStore, standard logging and custom policies below the
+  # Business tier. There is no public user-input form; the admin API requires
+  # Cognito (MFA required in prd). No CloudFront-level rate limiting exists
+  # without WAF.
+  # Mitigation: Shield Standard (L3/L4); viewer-guard rejects known scanner
+  # paths at the edge (#682); API Gateway stage throttling 100 rps / burst 200
+  # and 10 rps / burst 20 on admin write methods; CloudFront request-count alarm
+  # and Cost Anomaly Detection for Denial-of-Wallet detection.
   # Review-by: 2027-03-31
   - CKV_AWS_86
 
