@@ -7,7 +7,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const workflow = readFileSync('.github/workflows/security-scan.yml', 'utf8');
@@ -109,10 +109,24 @@ describe('security scan uses immutable branch targets', () => {
 });
 
 describe('dependency audit distinguishes findings from tool errors', () => {
-  const script = scriptAfter('      - name: Audit all Bun lockfiles');
+  const script = `python3 '${resolve('scripts/ci/security_gate.py')}' bun`;
   for (const [output, status, expected] of [
     ['{}', 0, 0],
-    ['{"package":[{"severity":"high"}]}', 1, 0],
+    [
+      '{"package":[{"severity":"moderate","url":"https://github.com/advisories/GHSA-test"}]}',
+      1,
+      0,
+    ],
+    [
+      '{"package":[{"severity":"critical","url":"https://github.com/advisories/GHSA-test"}]}',
+      1,
+      1,
+    ],
+    [
+      '{"package":[{"severity":"high","url":"https://github.com/advisories/GHSA-test"}]}',
+      1,
+      1,
+    ],
     ['', 1, 1],
     ['{"error":"registry unavailable"}', 1, 1],
     ['{}', 1, 1],
@@ -167,5 +181,125 @@ describe('security aggregate fails closed', () => {
         }
       }
     });
+  });
+});
+
+describe('security enforcement keeps evidence and fails closed', () => {
+  const gate = resolve('scripts/ci/security_gate.py');
+  test('Trivy gates severity, not duplicate locations, and rejects missing reports', () => {
+    fixture((directory) => {
+      const report = join(directory, 'trivy.json');
+      const summary = join(directory, 'summary');
+      const command = `python3 '${gate}' trivy '${report}'`;
+      expect(execute(command, directory, {}).status).toBe(1);
+      for (const severity of ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']) {
+        writeFileSync(
+          report,
+          JSON.stringify({
+            version: '2.1.0',
+            runs: [
+              {
+                tool: {
+                  driver: {
+                    name: 'Trivy',
+                    rules: [
+                      { id: 'CVE-test', properties: { tags: [severity] } },
+                    ],
+                  },
+                },
+                results: [{ ruleId: 'CVE-test' }, { ruleId: 'CVE-test' }],
+              },
+            ],
+          })
+        );
+        const result = execute(command, directory, {
+          GITHUB_STEP_SUMMARY: summary,
+        });
+        expect(result.status).toBe(
+          ['HIGH', 'CRITICAL'].includes(severity) ? 1 : 0
+        );
+        expect(result.stdout).toContain('2 result locations, 1 distinct rules');
+      }
+      for (const invalid of ['{}', '{"runs":[]}', 'not json']) {
+        writeFileSync(report, invalid);
+        expect(execute(command, directory, {}).status).toBe(1);
+      }
+    });
+  });
+  test('Go blocks reachable findings and tool failures but preserves package-only details', () => {
+    fixture((directory) => {
+      mkdirSync(join(directory, 'go-functions'));
+      writeFileSync(
+        join(directory, 'bin/govulncheck'),
+        '#!/bin/sh\nprintf "%s" "$REPORT"\nexit "$STATUS"\n',
+        { mode: 0o755 }
+      );
+      for (const [status, report, expected] of [
+        [0, 'No vulnerabilities found.', 0],
+        [
+          0,
+          'Your code is affected by 0 vulnerabilities.\nThis scan also found 2 vulnerabilities in packages you import',
+          0,
+        ],
+        [3, 'Your code is affected by 1 vulnerability.', 1],
+        [0, 'Your code is affected by 1 vulnerability.', 1],
+        [0, '', 1],
+        [1, 'network failure', 1],
+      ] as const) {
+        expect(
+          execute(`python3 '${gate}' go`, directory, {
+            STATUS: String(status),
+            REPORT: report,
+          }).status
+        ).toBe(expected);
+        expect(readFileSync(join(directory, 'govulncheck.txt'), 'utf8')).toBe(
+          report
+        );
+      }
+    });
+  });
+  test('Bun collects all four reports even when findings fail', () => {
+    fixture((directory) => {
+      for (const path of [
+        '.',
+        'frontend/admin',
+        'frontend/public-astro',
+        'scripts/deploy',
+      ]) {
+        mkdirSync(join(directory, path), { recursive: true });
+        writeFileSync(join(directory, path, 'bun.lock'), '{}');
+      }
+      writeFileSync(
+        join(directory, 'bin/bun'),
+        '#!/bin/sh\nprintf \'%s\' \'{"p":[{"severity":"high","url":"https://github.com/advisories/GHSA-test"}]}\'\nexit 1\n',
+        { mode: 0o755 }
+      );
+      const result = execute(`python3 '${gate}' bun`, directory, {});
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain(
+        '4 records, 1 distinct advisories, 1 distinct High/Critical'
+      );
+      for (const name of [
+        'root',
+        'frontend-admin',
+        'frontend-public-astro',
+        'scripts-deploy',
+      ])
+        expect(
+          readFileSync(join(directory, `bun-audit-${name}.json`), 'utf8')
+        ).toContain('GHSA-test');
+    });
+  });
+  test('workflow preserves reports on failure and aggregate consumes gate job', () => {
+    expect(workflow).toContain(
+      'run: python3 scripts/ci/security_gate.py trivy trivy-fs.sarif'
+    );
+    expect(workflow).toContain('python3 scripts/ci/security_gate.py go');
+    expect(workflow).toContain(
+      '- name: Preserve dependency reports\n        if: always()'
+    );
+    expect(workflow).toContain(
+      'needs: [scan-targets, gitleaks, codeql, trivy-fs, zizmor, dependency-audit]'
+    );
   });
 });
