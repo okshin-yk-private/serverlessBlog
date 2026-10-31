@@ -447,6 +447,37 @@ module "monitoring" {
 }
 
 #------------------------------------------------------------------------------
+# Content Backup (cross-region Markdown export)
+# Dependencies: database, monitoring
+# COMPLIANCE mode: locked snapshots cannot be deleted by anyone, root included,
+# until they expire, so terraform destroy fails until the last snapshot is
+# older than retention_days. See docs/content-backup.md.
+#------------------------------------------------------------------------------
+
+module "content_backup" {
+  source = "../../modules/content-backup"
+
+  project_name          = var.project_name
+  environment           = var.environment
+  source_region         = var.aws_region
+  backup_region         = "ap-northeast-3"
+  posts_table_name      = module.database.table_name
+  posts_table_arn       = module.database.table_arn
+  categories_table_name = module.database.categories_table_name
+  categories_table_arn  = module.database.categories_table_arn
+  go_binary_path        = "${path.module}/../../../go-functions/bin"
+  object_lock_mode      = "COMPLIANCE"
+  retention_days        = 30
+  enable_xray           = true
+  enable_alarm          = true
+  alarm_topic_arn       = module.monitoring.alarm_topic_arn
+
+  tags = local.common_tags
+
+  depends_on = [module.database, module.monitoring]
+}
+
+#------------------------------------------------------------------------------
 # Custom Domain Configuration (Optional)
 # Dependencies: cdn (for CloudFront domain)
 # Enable with: enable_custom_domain = true
