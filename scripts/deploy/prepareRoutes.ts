@@ -7,6 +7,7 @@ import {
 } from '@aws-sdk/client-cloudfront-keyvaluestore';
 import {
   createKeyValueStoreClient,
+  isKvsConflict,
   verifyRetainedRelease,
 } from './atomicDeploy';
 import { createRouteIndex } from './routeIndex';
@@ -48,11 +49,6 @@ for (let attempt = 0; attempt < 3; attempt++) {
     console.log(`Prepared route index for ${revision}; pointer unchanged`);
     break;
   } catch (error) {
-    if (
-      !(error instanceof Error) ||
-      error.name !== 'ConflictException' ||
-      attempt === 2
-    )
-      throw error;
+    if (!isKvsConflict(error) || attempt === 2) throw error;
   }
 }
