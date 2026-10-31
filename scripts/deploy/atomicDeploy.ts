@@ -262,6 +262,17 @@ function isNotFound(error: unknown): boolean {
   );
 }
 
+// KVS returns ValidationException for an ETag precondition failure in practice.
+// Retry only that condition, never arbitrary malformed updates.
+export function isKvsConflict(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === 'ConflictException' ||
+      (error.name === 'ValidationException' &&
+        /pre.condition.*fail/i.test(error.message)))
+  );
+}
+
 export function digest(body: Uint8Array): string {
   return createHash('sha256').update(body).digest('base64');
 }
@@ -575,7 +586,7 @@ export async function promoteRelease(
       );
       return { previousRevision, promoted: true };
     } catch (error) {
-      if (!(error instanceof Error) || error.name !== 'ConflictException') {
+      if (!isKvsConflict(error)) {
         throw error;
       }
       if (attempt === MAX_PROMOTION_ATTEMPTS) throw error;
@@ -910,11 +921,7 @@ export async function rollbackRelease(config: RollbackConfig): Promise<void> {
         await verifyPublicRelease(config.publicVerification, manifest);
       return;
     } catch (error) {
-      if (
-        !(error instanceof Error) ||
-        error.name !== 'ConflictException' ||
-        attempt === MAX_PROMOTION_ATTEMPTS
-      )
+      if (!isKvsConflict(error) || attempt === MAX_PROMOTION_ATTEMPTS)
         throw error;
     }
   }
