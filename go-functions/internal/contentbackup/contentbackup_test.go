@@ -15,6 +15,7 @@ import (
 	dynamotypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/google/uuid"
 
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/sitebuild"
@@ -124,7 +125,15 @@ func TestRunWritesPostsCategoriesAndManifestLast(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	prefix := "snapshots/2026-10-31T180005Z"
+	prefix := manifest.Prefix
+	const timestampPrefix = "snapshots/2026-10-31T180005Z-"
+	if !strings.HasPrefix(prefix, timestampPrefix) {
+		t.Fatalf("prefix does not preserve UTC timestamp: %q", prefix)
+	}
+	runID, err := uuid.Parse(strings.TrimPrefix(prefix, timestampPrefix))
+	if err != nil || runID.Version() != 4 {
+		t.Fatalf("prefix must include a random UUID: %q", prefix)
+	}
 	wantKeys := []string{
 		prefix + "/posts/a-pub.md",
 		prefix + "/posts/b-draft.md",
