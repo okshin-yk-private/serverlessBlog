@@ -3,9 +3,9 @@
 //
 // Each run writes a new, self-contained prefix:
 //
-//	snapshots/<UTC timestamp>/posts/<post id>.md
-//	snapshots/<UTC timestamp>/categories.json
-//	snapshots/<UTC timestamp>/manifest.json
+//	snapshots/<UTC timestamp>-<random UUID>/posts/<post id>.md
+//	snapshots/<UTC timestamp>-<random UUID>/categories.json
+//	snapshots/<UTC timestamp>-<random UUID>/manifest.json
 //
 // The manifest is written last, so a prefix without manifest.json is an
 // incomplete run and must not be used for a restore. Drafts are included:
@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/google/uuid"
 
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/sitebuild"
@@ -82,9 +83,15 @@ type Exporter struct {
 	Now      func() time.Time
 }
 
-// SnapshotPrefix returns the prefix for a snapshot taken at t.
-func SnapshotPrefix(t time.Time) string {
-	return path.Join(SnapshotPrefixRoot, t.UTC().Format("2006-01-02T150405Z"))
+// SnapshotPrefix allocates a fresh prefix on every attempt, including concurrent
+// deliveries and retries with the same timestamp. Do not derive the suffix from
+// the scheduler event ID: duplicate deliveries must not share a destination.
+func SnapshotPrefix(t time.Time) (string, error) {
+	runID, err := uuid.NewRandom()
+	if err != nil {
+		return "", fmt.Errorf("generate snapshot ID: %w", err)
+	}
+	return path.Join(SnapshotPrefixRoot, t.UTC().Format("2006-01-02T150405Z")+"-"+runID.String()), nil
 }
 
 // Run exports every post and category and returns the written manifest.
@@ -97,7 +104,10 @@ func (e *Exporter) Run(ctx context.Context) (*Manifest, error) {
 		now = e.Now
 	}
 	generatedAt := now().UTC()
-	prefix := SnapshotPrefix(generatedAt)
+	prefix, err := SnapshotPrefix(generatedAt)
+	if err != nil {
+		return nil, err
+	}
 
 	posts, err := scanAll[domain.BlogPost](ctx, e.DynamoDB, e.Config.PostsTableName)
 	if err != nil {
