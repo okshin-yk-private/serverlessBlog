@@ -95,7 +95,7 @@ terraform/
 
 - **Terraform**: >= 1.14.0
 - **AWS CLI**: 設定済み（適切なIAM権限）
-- **Go**: 1.26.5（Lambda関数ビルド用。固定値は`go-functions/go.mod`を参照）
+- **Go**: `go-functions/go.mod` の版（Lambda関数ビルド用。完全なパッチ版は go.mod が唯一の参照元）
 - **jq**: JSON処理用
 
 ## クイックスタート
@@ -169,7 +169,7 @@ GitHub Actionsによる自動化:
 - **mainブランチ**: 承認後に本番デプロイ
 - **セキュリティスキャン**: Checkov（CI）、Trivy（ローカル）
 
-詳細は [.github/workflows/terraform.yml](../.github/workflows/terraform.yml) を参照。
+詳細は [ci.yml](../.github/workflows/ci.yml)（PR の検証）と [deploy.yml](../.github/workflows/deploy.yml)（デプロイ）を参照。
 
 ## セキュリティ
 
@@ -256,7 +256,7 @@ terraform init
 |--------------|-----------|
 | Terraform | ~> 1.14 |
 | AWS Provider | ~> 6.0 |
-| Go | 1.26.5 |
+| Go | `go-functions/go.mod` の版 |
 
 ## ライセンス
 

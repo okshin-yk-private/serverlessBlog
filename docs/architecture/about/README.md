@@ -40,7 +40,7 @@
 | Cloudflare / Route 53                | 本番 Cloudflare の DNS-only records と証明書検証。DEV の Route 53 zone、A / AAAA alias、証明書検証 records。Route 53 は図の下部に注記。Cloudflare 側の DEV 委任設定も外部 DNS に集約                 |
 | GitHub                               | リポジトリと Actions。AWS リソースではないがソース取得・デプロイ元として表示                                                                                                                         |
 
-VPC 接続を持たない Lambda とリージョンサービスとして描画しています。呼び出されていない `agentcore` モジュールや、定義のない WAF / ALB / Step Functions などは含めていません。データソース・タグ・個別ポリシー文・API メソッドは独立したアイコンにはしていません。
+VPC 接続を持たない Lambda とリージョンサービスとして描画しています。定義のない WAF / ALB / Step Functions などは含めていません（未使用だった `agentcore` モジュールは削除済み）。データソース・タグ・個別ポリシー文・API メソッドは独立したアイコンにはしていません。
 
 ## 矢印を省略した関係
 

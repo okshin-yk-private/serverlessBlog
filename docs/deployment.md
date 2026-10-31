@@ -12,7 +12,7 @@
 
 ### 必要なツール
 - **Bun**: パッケージマネージャー兼ランタイム
-- **Go 1.26.5**: Lambda関数のビルド（固定値は`go-functions/go.mod`を参照）
+- **Go**（版は`go-functions/go.mod`が唯一の参照元）: Lambda関数のビルド
 - **Terraform**: インフラストラクチャ管理
 - **AWS CLI**: AWSアカウントへのアクセス設定済み
 - **Git**: バージョン管理
@@ -477,5 +477,6 @@ dev環境へのデプロイ後、以下の項目を確認します。
 - [Terraform ドキュメント](https://developer.hashicorp.com/terraform/docs)
 - [GitHub Actions OIDC認証](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
 - [監視ガイド](./monitoring.md) - CloudWatch、X-Ray、Lambda Powertoolsの使用方法
-- [セキュリティ検証ガイド](./security-validation.md) - Checkov、Trivy、IAM、暗号化の検証
+- [セキュリティスキャン運用](./SECURITY_SCANNING.md) - Checkov、Trivy、gitleaks、govulncheck の運用
+- [セキュリティ](./SECURITY.md) - 実装済みの対策と、見送った対策の判断
 - [パフォーマンス最適化ガイド](./performance-optimization.md) - Lambda、DynamoDB、CloudFrontの最適化
