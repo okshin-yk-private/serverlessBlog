@@ -5,6 +5,7 @@
 # See: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
 # See: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html
 locals {
+  public_response = file("${path.module}/functions/public-response.js.tftpl")
   viewer_guard = templatefile("${path.module}/functions/viewer-guard.js.tftpl", {
     enabled       = var.enable_basic_auth
     basic_auth    = jsonencode("Basic ${base64encode("${var.basic_auth_username}:${var.basic_auth_password}")}")
@@ -166,8 +167,9 @@ resource "aws_cloudfront_function" "dev_session" {
   runtime = "cloudfront-js-2.0"
   publish = true
   code    = <<-EOF
+${local.public_response}
 function handler(event) {
-  var response = event.response;
+  var response = publicResponse(event);
   var authorization = event.request.headers.authorization;
   if (authorization && authorization.value === ${jsonencode("Basic ${base64encode("${var.basic_auth_username}:${var.basic_auth_password}")}")}) {
     response.cookies = response.cookies || {};
@@ -178,6 +180,16 @@ function handler(event) {
   }
   return response;
 }
+EOF
+}
+
+resource "aws_cloudfront_function" "public_response" {
+  name    = "PublicResponseFunction-${var.environment}"
+  runtime = "cloudfront-js-2.0"
+  publish = true
+  code    = <<-EOF
+${local.public_response}
+function handler(event) { return publicResponse(event); }
 EOF
 }
 
@@ -382,6 +394,9 @@ async function handler(event) {
   var denied = guardRequest(request);
   if (denied) return denied;
   var uri = request.uri;
+  // A missing bucket is an incomplete/unavailable release, never proof of 404.
+  // All 32 immutable buckets are published atomically with activeRevision.
+  delete request.headers['x-blog-public-not-found'];
 
   // Known file extensions for web assets
   var knownExtensions = ['html','htm','js','mjs','cjs','css','json','xml','txt','jpg','jpeg','png','gif','webp','svg','ico','avif','woff','woff2','ttf','eot','otf','pdf','mp3','mp4','webm','ogg','map','wasm'];
@@ -435,6 +450,22 @@ async function handler(event) {
   try {
     var revision = await kvs.get('activeRevision');
     if (/^r\d+(?:-[a-z0-9][a-z0-9._-]*)?$/.test(revision)) {
+      var objectPath = decodeURIComponent(request.uri);
+      var hash = 2166136261;
+      for (var j = 0; j < objectPath.length; j++) {
+        hash ^= objectPath.charCodeAt(j);
+        hash = Math.imul(hash, 16777619);
+      }
+      var rawPaths = await kvs.get('routes:v1:' + revision + ':' + ((hash >>> 0) % 32));
+      var paths = JSON.parse(rawPaths);
+      if (!Array.isArray(paths)) throw new Error('Invalid route index');
+      if (paths.indexOf(objectPath) === -1) {
+        request.uri = '/404.html';
+        request.headers['x-blog-public-not-found'] = { value: '1' };
+        // The shared 404 object must produce a complete 200/HEAD before conversion.
+        var conditional = ['if-none-match','if-modified-since','if-match','if-unmodified-since','range','if-range'];
+        for (var h = 0; h < conditional.length; h++) delete request.headers[conditional[h]];
+      }
       request.uri = '/releases/' + revision + request.uri;
       return request;
     }
@@ -469,6 +500,9 @@ async function handler(event) {
   var denied = guardRequest(request);
   if (denied) return denied;
   var uri = request.uri;
+  // A missing bucket is an incomplete/unavailable release, never proof of 404.
+  // All 32 immutable buckets are published atomically with activeRevision.
+  delete request.headers['x-blog-public-not-found'];
 
   // Known file extensions for web assets
   var knownExtensions = ['html','htm','js','mjs','cjs','css','json','xml','txt','jpg','jpeg','png','gif','webp','svg','ico','avif','woff','woff2','ttf','eot','otf','pdf','mp3','mp4','webm','ogg','map','wasm'];
@@ -519,6 +553,22 @@ async function handler(event) {
   try {
     var revision = await kvs.get('activeRevision');
     if (/^r\d+(?:-[a-z0-9][a-z0-9._-]*)?$/.test(revision)) {
+      var objectPath = decodeURIComponent(request.uri);
+      var hash = 2166136261;
+      for (var j = 0; j < objectPath.length; j++) {
+        hash ^= objectPath.charCodeAt(j);
+        hash = Math.imul(hash, 16777619);
+      }
+      var rawPaths = await kvs.get('routes:v1:' + revision + ':' + ((hash >>> 0) % 32));
+      var paths = JSON.parse(rawPaths);
+      if (!Array.isArray(paths)) throw new Error('Invalid route index');
+      if (paths.indexOf(objectPath) === -1) {
+        request.uri = '/404.html';
+        request.headers['x-blog-public-not-found'] = { value: '1' };
+        // The shared 404 object must produce a complete 200/HEAD before conversion.
+        var conditional = ['if-none-match','if-modified-since','if-match','if-unmodified-since','range','if-range'];
+        for (var h = 0; h < conditional.length; h++) delete request.headers[conditional[h]];
+      }
       request.uri = '/releases/' + revision + request.uri;
       return request;
     }
@@ -658,23 +708,16 @@ resource "aws_cloudfront_distribution" "main" {
     cache_policy_id            = aws_cloudfront_cache_policy.html_pages.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
 
-    lambda_function_association {
-      event_type   = "origin-response"
-      lambda_arn   = aws_lambda_function.public_404.qualified_arn
-      include_body = false
-    }
+    # Public 404s are served from the selected release without Lambda@Edge.
 
     # Use combined function (auth + SSG) for dev, SSG-only for production
     function_association {
       event_type   = "viewer-request"
       function_arn = var.enable_basic_auth ? aws_cloudfront_function.public_combined[0].arn : aws_cloudfront_function.public_ssg.arn
     }
-    dynamic "function_association" {
-      for_each = var.enable_basic_auth ? [1] : []
-      content {
-        event_type   = "viewer-response"
-        function_arn = aws_cloudfront_function.dev_session[0].arn
-      }
+    function_association {
+      event_type   = "viewer-response"
+      function_arn = var.enable_basic_auth ? aws_cloudfront_function.dev_session[0].arn : aws_cloudfront_function.public_response.arn
     }
 
   }

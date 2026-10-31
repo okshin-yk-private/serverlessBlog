@@ -329,6 +329,18 @@ describe('atomicDeploy', () => {
       ].sort()
     );
     expect(commandNames.at(-1)).toBe('UpdateKeysCommand');
+    const updates = kvsSend.mock.calls
+      .map(([command]) => command)
+      .filter(
+        (command) => command instanceof UpdateKeysCommand
+      ) as UpdateKeysCommand[];
+    expect(updates).toHaveLength(1);
+    expect(updates[0].input.Puts).toHaveLength(34);
+    expect(
+      updates[0].input.Puts?.filter((entry) =>
+        entry.Key?.startsWith('routes:v1:r21-abcdef0:')
+      )
+    ).toHaveLength(32);
   });
 
   test('bounds parallel work and verifies every asset before documents and promotion', async () => {
