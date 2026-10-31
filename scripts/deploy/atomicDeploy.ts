@@ -1,3 +1,4 @@
+import { createRouteIndex } from './routeIndex';
 /**
  * Atomic deployment for the public Astro site.
  *
@@ -503,7 +504,8 @@ export async function promoteRelease(
   client: CommandClient,
   keyValueStoreArn: string,
   revision: string,
-  dryRun = false
+  dryRun = false,
+  paths?: string[]
 ): Promise<{ previousRevision?: string; promoted: boolean }> {
   let previousRevision: string | undefined;
 
@@ -565,6 +567,7 @@ export async function promoteRelease(
           KvsARN: keyValueStoreArn,
           IfMatch: description.ETag,
           Puts: [
+            ...(paths ? createRouteIndex(revision, paths) : []),
             { Key: ACTIVE_REVISION_KEY, Value: revision },
             { Key: HIGH_WATER_REVISION_KEY, Value: revision },
           ],
@@ -627,6 +630,11 @@ export async function atomicDeploy(
 
     const files = await listFiles(config.distPath);
     const manifest = createManifest(revision, files);
+    // Validate the index before any release upload.
+    createRouteIndex(
+      revision,
+      files.map((file) => file.relativePath)
+    );
     console.log(
       `Uploading ${files.length} files to ${getVersionPrefix(revision)} (shared assets remain under _astro/)`
     );
@@ -663,7 +671,13 @@ export async function atomicDeploy(
     let promotion: { previousRevision?: string; promoted: boolean };
     try {
       promotion = await timedDeploymentPhase('promote', revision, () =>
-        promoteRelease(clients.kvs, config.keyValueStoreArn, revision, dryRun)
+        promoteRelease(
+          clients.kvs,
+          config.keyValueStoreArn,
+          revision,
+          dryRun,
+          files.map((file) => file.relativePath)
+        )
       );
     } catch (error) {
       if (error instanceof DeployError) throw error;
@@ -726,7 +740,8 @@ export async function atomicDeploy(
 export async function verifyRetainedRelease(
   client: CommandClient,
   bucketName: string,
-  revision: string
+  revision: string,
+  verifySharedAssets = true
 ): Promise<ReleaseManifest> {
   if (!validateRevision(revision)) {
     throw new DeployError(
@@ -790,6 +805,7 @@ export async function verifyRetainedRelease(
   }
   // Sequential verification keeps recovery requests bounded and easy to audit.
   for (const file of manifest.files) {
+    if (!verifySharedAssets && file.path.startsWith('_astro/')) continue;
     if (
       (await verifyObject(
         client,
@@ -873,6 +889,10 @@ export async function rollbackRelease(config: RollbackConfig): Promise<void> {
           KvsARN: config.keyValueStoreArn,
           IfMatch: description.ETag,
           Puts: [
+            ...createRouteIndex(
+              config.revision,
+              manifest.files.map((file) => file.path)
+            ),
             { Key: ACTIVE_REVISION_KEY, Value: config.revision },
             // Preserve ordering even when rolling back a pre-manifest publisher.
             {

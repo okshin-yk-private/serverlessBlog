@@ -1,5 +1,22 @@
 // Shared by every viewer-request behavior, including cache hits.
 function guardRequest(request) {
+  // Reject known scanner targets before cache/origin access. Never match query text.
+  var path = request.uri;
+  try {
+    for (var decode = 0; decode < 3; decode++) {
+      var next = decodeURIComponent(path);
+      if (next === path) break;
+      path = next;
+    }
+  } catch (error) { path = '/.env'; }
+  path = path.toLowerCase();
+  if (/(^|\/)(\.env(?:[./_-]|$)|\.git(?:\/|$)|\.aws(?:\/|$))/.test(path) ||
+      /^\/(?:wp-admin|wp-content)(?:\/|$)/.test(path) ||
+      /^\/(?:wp-login|xmlrpc)\.php(?:\/|$)/.test(path) ||
+      /(^|\/)\.{1,2}(\/|$)/.test(path)) {
+    return { statusCode: 404, statusDescription: 'Not Found',
+      headers: { 'cache-control': { value: 'no-store' } } };
+  }
   if (!${enabled}) return;
   var cookies = request.cookies || {};
   var basic = request.headers.authorization && request.headers.authorization.value === ${basic_auth};

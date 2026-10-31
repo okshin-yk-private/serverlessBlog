@@ -18,7 +18,10 @@ const token = 'test-session-token';
 function handler(
   name: string,
   enabled = true,
-  getRevision: () => Promise<string> = async () => 'r123-test'
+  getRevision: (key: string) => Promise<string> = async (key) =>
+    key === 'activeRevision'
+      ? 'r123-test'
+      : JSON.stringify(['/posts/example/index.html'])
 ) {
   const resource = cdn.split(
     `resource "aws_cloudfront_function" "${name}" {`
@@ -28,7 +31,18 @@ function handler(
     .replace('${enabled}', String(enabled))
     .replace('${basic_auth}', JSON.stringify(basic))
     .replace('${session_token}', JSON.stringify(token));
-  code = code.replace('${local.viewer_guard}', guard);
+  code = code
+    .replace('${local.viewer_guard}', guard)
+    .replace(
+      '${local.public_response}',
+      readFileSync(
+        new URL(
+          '../../../../terraform/modules/cdn/functions/public-response.js.tftpl',
+          import.meta.url
+        ),
+        'utf8'
+      )
+    );
   // Terraform jsonencode/base64encode/sha256 produce these values; the actual JS
   // handler body is executed, not a duplicated model of its authorization logic.
   code = code.replace(
