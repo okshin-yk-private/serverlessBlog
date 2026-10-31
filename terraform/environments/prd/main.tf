@@ -435,16 +435,23 @@ resource "aws_cloudwatch_log_delivery" "cloudfront_s3" {
 module "monitoring" {
   source = "../../modules/monitoring"
 
-  environment            = var.environment
-  project_name           = var.project_name
-  alarm_email            = var.alarm_email
-  lambda_function_names  = module.lambda.function_names
-  dynamodb_table_names   = [module.database.table_name]
-  api_gateway_name       = "${var.project_name}-api-${var.environment}"
-  api_gateway_stage      = var.environment
-  enable_alarms          = true # Alarms enabled for prd
-  codebuild_project_name = "${var.project_name}-astro-build-${var.environment}"
-  sitebuild_dlq_name     = "${var.project_name}-astro-build-${var.environment}-reconcile-dlq"
+  environment                      = var.environment
+  project_name                     = var.project_name
+  alarm_email                      = var.alarm_email
+  lambda_function_names            = module.lambda.function_names
+  dynamodb_table_names             = [module.database.table_name]
+  api_gateway_name                 = "${var.project_name}-api-${var.environment}"
+  api_gateway_stage                = var.environment
+  enable_alarms                    = true # Alarms enabled for prd
+  codebuild_project_name           = "${var.project_name}-astro-build-${var.environment}"
+  sitebuild_dlq_name               = "${var.project_name}-astro-build-${var.environment}-reconcile-dlq"
+  enable_publication_observability = true
+  publication_lambda_log_groups = [
+    "/aws/lambda/blog-create-post-go",
+    "/aws/lambda/blog-update-post-go",
+    "/aws/lambda/blog-delete-post-go",
+    "/aws/lambda/blog-reconcile-build-post-go",
+  ]
 
   tags = local.common_tags
 

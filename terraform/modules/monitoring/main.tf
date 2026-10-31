@@ -305,14 +305,16 @@ resource "aws_cloudwatch_dashboard" "main" {
   dashboard_name = "BlogPlatform-Monitoring"
 
   dashboard_body = jsonencode({
+    start = var.enable_publication_observability ? "-PT30H" : "-PT3H"
     widgets = concat(
+      local.publication_widgets,
       # Lambda Widgets
       flatten([
         for fn in var.lambda_function_names : [
           {
             type   = "metric"
             x      = 0
-            y      = index(var.lambda_function_names, fn) * 6
+            y      = local.publication_height + index(var.lambda_function_names, fn) * 6
             width  = 12
             height = 6
             properties = {
@@ -327,7 +329,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           {
             type   = "metric"
             x      = 12
-            y      = index(var.lambda_function_names, fn) * 6
+            y      = local.publication_height + index(var.lambda_function_names, fn) * 6
             width  = 12
             height = 6
             properties = {
@@ -347,7 +349,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           {
             type   = "metric"
             x      = 0
-            y      = length(var.lambda_function_names) * 6 + index(var.dynamodb_table_names, table) * 6
+            y      = local.publication_height + length(var.lambda_function_names) * 6 + index(var.dynamodb_table_names, table) * 6
             width  = 12
             height = 6
             properties = {
@@ -366,7 +368,7 @@ resource "aws_cloudwatch_dashboard" "main" {
         {
           type   = "metric"
           x      = 0
-          y      = length(var.lambda_function_names) * 6 + length(var.dynamodb_table_names) * 6
+          y      = local.publication_height + length(var.lambda_function_names) * 6 + length(var.dynamodb_table_names) * 6
           width  = 12
           height = 6
           properties = {
@@ -381,7 +383,7 @@ resource "aws_cloudwatch_dashboard" "main" {
         {
           type   = "metric"
           x      = 12
-          y      = length(var.lambda_function_names) * 6 + length(var.dynamodb_table_names) * 6
+          y      = local.publication_height + length(var.lambda_function_names) * 6 + length(var.dynamodb_table_names) * 6
           width  = 12
           height = 6
           properties = {

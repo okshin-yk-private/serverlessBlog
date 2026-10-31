@@ -178,3 +178,52 @@ run "publication_signals_opt_in" {
     error_message = "Other module callers must not get alarms for nonexistent projects/queues."
   }
 }
+
+run "publication_observability_reuses_existing_dashboard" {
+  command = plan
+  variables {
+    enable_publication_observability = true
+    codebuild_project_name           = "blog-astro-build-prd"
+    publication_lambda_log_groups    = ["/aws/lambda/blog-create-post-go", "/aws/lambda/blog-reconcile-build-post-go"]
+  }
+  assert {
+    condition     = jsondecode(aws_cloudwatch_dashboard.main[0].dashboard_body).start == "-PT30H" && length(aws_cloudwatch_dashboard.main) == 1
+    error_message = "Reuse one dashboard with a bounded window covering a daily backup."
+  }
+  assert {
+    condition     = length([for widget in jsondecode(aws_cloudwatch_dashboard.main[0].dashboard_body).widgets : widget if widget.type == "log"]) == 4
+    error_message = "Only four scoped log queries should execute when the dashboard refreshes."
+  }
+  assert {
+    condition     = alltrue([for widget in jsondecode(aws_cloudwatch_dashboard.main[0].dashboard_body).widgets : !strcontains(jsonencode(widget), "SOURCE logGroups")])
+    error_message = "Never use account-wide prefix discovery for these queries."
+  }
+  assert {
+    condition     = strcontains(local.publication_timing_query, "site-public-confirmed") && strcontains(local.publication_timing_query, "min(o.confirmedAtMs)") && strcontains(local.publication_timing_query, "(confirmedAtMs - requestedAtMs) / 1000")
+    error_message = "Measure explicit first public confirmation, not successful CodeBuild completion."
+  }
+  assert {
+    condition     = strcontains(local.admin_latency_query, "resourcePath like /^\\/admin\\//") && !strcontains(local.admin_latency_query, "sourceIp") && !strcontains(local.admin_errors_query, "userAgent")
+    error_message = "API widgets must be admin-scoped aggregates without personal data columns."
+  }
+  assert {
+    condition     = strcontains(local.admin_latency_query, "toNumber(responseLatency)") && strcontains(local.admin_errors_query, "toNumber(status)")
+    error_message = "API access-log numeric strings must be converted before aggregation/filtering."
+  }
+  assert {
+    condition     = alltrue([for metric in jsondecode(aws_cloudwatch_dashboard.main[0].dashboard_body).widgets[2].properties.metrics : length(metric) == 4 && metric[2] == "ProjectName"])
+    error_message = "CodeBuild metrics must use project-level dimensions, not revision/build IDs."
+  }
+  assert {
+    condition     = jsondecode(aws_cloudwatch_dashboard.main[0].dashboard_body).widgets[6].y == 27
+    error_message = "Existing Lambda widgets must move below the new section without overlapping."
+  }
+}
+
+run "publication_observability_opt_in" {
+  command = plan
+  assert {
+    condition     = length([for widget in jsondecode(aws_cloudwatch_dashboard.main[0].dashboard_body).widgets : widget if widget.type == "log"]) == 0 && jsondecode(aws_cloudwatch_dashboard.main[0].dashboard_body).start == "-PT3H"
+    error_message = "Existing callers must not acquire log queries by default."
+  }
+}

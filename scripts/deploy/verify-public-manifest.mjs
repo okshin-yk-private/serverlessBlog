@@ -3,9 +3,11 @@ import process from 'node:process';
 import console from 'node:console';
 import { setTimeout, clearTimeout } from 'node:timers';
 import { URL } from 'node:url';
+import { publicationObservation } from './publicationObservation.mjs';
 
 process.exitCode = 1;
-const expiresAt = Date.now() + 90_000;
+const verificationStartedAt = Date.now();
+const expiresAt = verificationStartedAt + 90_000;
 let reason = 'invalidArguments';
 let attempts = 0;
 const deadline = setTimeout(() => {
@@ -93,4 +95,17 @@ try {
   );
 } finally {
   clearTimeout(deadline);
+  console.log(
+    JSON.stringify(
+      publicationObservation({
+        confirmed: process.exitCode === 0,
+        releaseRevision: process.argv[3],
+        buildId: process.env.CODEBUILD_BUILD_ID,
+        contentRevision: process.env.CONTENT_REVISION,
+        startedAt: verificationStartedAt,
+        now: Date.now(),
+        attempts,
+      })
+    )
+  );
 }
