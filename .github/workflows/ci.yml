@@ -182,6 +182,10 @@ jobs:
       - name: Test CI configuration guards
         run: bun run test:unit:config
 
+      # Runs documented restore commands against a local fake AWS CLI only.
+      - name: Test backup restore runbook
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/docs -v
+
       - name: Lint frontend
         working-directory: frontend/admin
         run: bun run lint

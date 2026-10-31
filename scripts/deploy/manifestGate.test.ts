@@ -70,6 +70,9 @@ describe('independent public manifest gate', () => {
           FIXTURE_MODE: mode,
           SITE_VERIFY_BASIC_USER: '',
           SITE_VERIFY_BASIC_PASSWORD: '',
+          CONTENT_REVISION: '42',
+          CODEBUILD_BUILD_ID:
+            'blog-project:00000000-1111-2222-3333-444444444444',
         },
       }
     );
@@ -78,6 +81,23 @@ describe('independent public manifest gate', () => {
     expect(result.status).toBe(succeeds ? 0 : 1);
     expect(result.stdout.includes('Public manifest confirmed')).toBe(succeeds);
     expect(result.stderr).not.toContain('DO_NOT_LOG');
+    const observation = JSON.parse(
+      result.stdout.split('\n').find((line) => line.startsWith('{"event":'))!
+    );
+    expect(observation.event).toBe(
+      succeeds ? 'site-public-confirmed' : 'site-public-unconfirmed'
+    );
+    expect(observation.contentRevision).toBe(42);
+    expect(observation.buildId).toBe(
+      'blog-project:00000000-1111-2222-3333-444444444444'
+    );
+    expect('confirmedAtMs' in observation).toBe(succeeds);
+    if (succeeds)
+      expect(observation.publicCheckMs).toBe(mode === 'success' ? 0 : 4000);
+    else {
+      expect(observation.publicCheckMs).toBeGreaterThanOrEqual(90000);
+      expect(observation.publicCheckMs).toBeLessThan(95000);
+    }
     if (reason) expect(result.stderr).toContain(`reason=${reason}`);
     expect(result.stdout).toContain(
       `fixtureCalls=${mode === 'success' ? 1 : succeeds ? 3 : 45}`

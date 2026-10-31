@@ -20,9 +20,8 @@ locals {
   # Issue #680 phase 1: stricter per-surface CSP strings shipped as
   # Content-Security-Policy-Report-Only (violations are only reported to the
   # browser console; nothing is blocked). The enforced Content-Security-Policy
-  # header on both response headers policies below is intentionally left
-  # byte-for-byte unchanged. Phase 2 (a later PR) will enforce these once DEV
-  # shows zero report-only violations.
+  # header stays unchanged by default. Promote each surface independently
+  # only after DEV evidence; see docs/csp-rollout.md.
   csp_report_only_public = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
 
   # admin connects to same-origin /api, Cognito, and the presigned S3 PUT
@@ -611,7 +610,7 @@ resource "aws_cloudfront_response_headers_policy" "security_headers" {
     }
 
     content_security_policy {
-      content_security_policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.amazonaws.com"
+      content_security_policy = var.enforce_strict_csp_public ? local.csp_report_only_public : "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.amazonaws.com"
       override                = true
     }
 
@@ -659,7 +658,7 @@ resource "aws_cloudfront_response_headers_policy" "admin_security_headers" {
     }
 
     content_security_policy {
-      content_security_policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://*.amazonaws.com"
+      content_security_policy = var.enforce_strict_csp_admin ? local.csp_report_only_admin : "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://*.amazonaws.com"
       override                = true
     }
 

@@ -9,9 +9,9 @@ import { test as base, expect } from './index';
  * DEV 実環境 (VITE_ENABLE_MSW_MOCK=false) でこのフィクスチャを使う spec を
  * 実行し、違反が 0 件であることを継続的に確認する。
  *
- * - ローカルの MSW 実行（CloudFront を経由しないため CSP ヘッダー自体が
- *   付かない）では違反が発生しようがないため、このフィクスチャは自動的に
- *   trivially pass する。
+ * - 通常のローカル開発サーバーでは本番相当の CSP は検証できない。
+ *   playwright.csp-local.config.ts はビルド済み画面へ Terraform の厳格 CSP を
+ *   付けて検証する（外部通信と実 AWS 認証は対象外）。
  * - `securitypolicyviolation` DOM イベントと、ブラウザがコンソールに出す
  *   "Content-Security-Policy(-Report-Only)" を含むメッセージの両方を監視する
  *   （ブラウザ実装によって通知経路が異なるため両方を見る）。

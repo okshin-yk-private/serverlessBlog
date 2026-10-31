@@ -81,3 +81,14 @@ variable "enable_passkeys" {
   default     = true
   description = "Enable passkey sign-in after the WebAuthn MFA bootstrap; false only for initial tier preparation."
 }
+
+variable "enforce_strict_csp_public" {
+  type        = bool
+  default     = false
+  description = "Explicit promotion of public CSP after DEV acceptance; default remains Report-Only"
+}
+variable "enforce_strict_csp_admin" {
+  type        = bool
+  default     = false
+  description = "Explicit promotion of admin CSP after DEV Cognito/upload acceptance; default remains Report-Only"
+}

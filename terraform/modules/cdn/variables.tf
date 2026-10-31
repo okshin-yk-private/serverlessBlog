@@ -117,3 +117,15 @@ variable "api_origin_key" {
   sensitive   = true
   description = "API Gateway origin key; only CloudFront receives this credential."
 }
+
+variable "enforce_strict_csp_public" {
+  type        = bool
+  default     = false
+  description = "Promote the public Report-Only policy after approved DEV verification (#680)"
+}
+
+variable "enforce_strict_csp_admin" {
+  type        = bool
+  default     = false
+  description = "Promote the admin Report-Only policy after Cognito/S3 DEV verification (#680)"
+}
