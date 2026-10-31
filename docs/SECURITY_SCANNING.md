@@ -6,17 +6,17 @@ is not proof that the other dependency trees or deployed versions are safe.
 
 ## Scanner inventory
 
-| Scanner | Scope | Findings | Execution/reporting failures | Evidence |
-| --- | --- | --- | --- | --- |
-| Gitleaks 8.24.3 | Full reachable Git history of the scanned SHA | Visible, non-blocking while baseline is reviewed | Blocking | Code scanning `gitleaks`, redacted artifact |
-| CodeQL | Go and JS/TS source, security-and-quality queries | Code scanning rules | Blocking | `/language:go`, `/language:javascript-typescript` |
-| Trivy 0.70.0 | Dependencies (including dev) and secrets, all severities | Visible, non-blocking during baseline review | Blocking | `trivy-fs`, SARIF artifact |
-| Bun audit 1.3.11 | Root, admin, public-astro, deploy scripts; all dependencies | Warning plus JSON artifact | Missing/malformed reports and command errors block | `dependency-audit-*` artifact |
-| govulncheck 1.8.0 | Go call paths, including standard library | Exit 3 produces a warning and report | Other nonzero exits block | `govulncheck.txt` artifact |
-| Checkov | Terraform-labeled PRs after fmt succeeds | `soft_fail: true` | Existing CI policy | `checkov-terraform` |
-| zizmor 1.30.1 | `.github/` workflows, actions, Dependabot config | High fails; all findings visible | Blocking | Code scanning `zizmor` |
-| Local gitleaks / Trivy config | Commit secrets / changed Terraform | Blocking per pre-commit config | Blocking | Local output |
-| Dependabot | Scheduled package version updates | PRs | Check updater logs | Dependency graph / PRs |
+| Scanner                       | Scope                                                       | Findings                                                            | Execution/reporting failures                       | Evidence                                          |
+| ----------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------- |
+| Gitleaks 8.24.3               | Full reachable Git history of the scanned SHA               | Visible, non-blocking while baseline is reviewed                    | Blocking                                           | Code scanning `gitleaks`, redacted artifact       |
+| CodeQL                        | Go and JS/TS source, security-and-quality queries           | Code scanning rules                                                 | Blocking                                           | `/language:go`, `/language:javascript-typescript` |
+| Trivy 0.70.0                  | Dependencies (including dev) and secrets, all severities    | High/Critical block; all severities retained                        | Blocking, including missing/malformed SARIF        | `trivy-fs`, SARIF artifact                        |
+| Bun audit 1.3.11              | Root, admin, public-astro, deploy scripts; all dependencies | High/Critical block; Moderate/Low remain visible                    | Missing/malformed reports and command errors block | `dependency-audit-*` artifact                     |
+| govulncheck 1.8.0             | Go call paths, including standard library                   | Reachable findings (exit 3) block; package-only findings summarized | Other nonzero exits and incomplete reports block   | `govulncheck.txt` artifact                        |
+| Checkov                       | Terraform-labeled PRs after fmt succeeds                    | `soft_fail: true`                                                   | Existing CI policy                                 | `checkov-terraform`                               |
+| zizmor 1.30.1                 | `.github/` workflows, actions, Dependabot config            | High fails; all findings visible                                    | Blocking                                           | Code scanning `zizmor`                            |
+| Local gitleaks / Trivy config | Commit secrets / changed Terraform                          | Blocking per pre-commit config                                      | Blocking                                           | Local output                                      |
+| Dependabot                    | Scheduled package version updates                           | PRs                                                                 | Check updater logs                                 | Dependency graph / PRs                            |
 
 The weekly Security Scan resolves **develop and main to immutable SHAs**, then
 scans each separately. PRs scan the event merge SHA; pushes and manual runs scan
@@ -250,10 +250,10 @@ linux/arm64 with CGO_ENABLED=0, both exited 0 and reported **0 reachable
 vulnerabilities**. They still reported these two package-level findings in
 `golang.org/x/net v0.61.0`, both fixed in v0.62.0:
 
-| Finding | Affected operation | Current evidence |
-| --- | --- | --- |
-| [GO-2026-6866](https://pkg.go.dev/vuln/GO-2026-6866) | `html.Render`: incomplete checking of ancestor namespace transitions can change the interpretation of rendered raw text | Runtime Markdown uses Goldmark's renderer and bluemonday's tokenizer-based sanitization; the affected x/net Render call was not found in the reviewed runtime paths or the call-path scan |
-| [GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860) | `html.Parse` / `ParseFragment` and option variants: quadratic work coalescing text nodes from adversarial HTML | The direct Parse call in `internal/markdown/linkbutton_test.go` examines generated test fixtures; runtime bluemonday v1.0.27 uses `html.NewTokenizer`, not this tree parser. No affected runtime call was reported |
+| Finding                                              | Affected operation                                                                                                      | Current evidence                                                                                                                                                                                                   |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [GO-2026-6866](https://pkg.go.dev/vuln/GO-2026-6866) | `html.Render`: incomplete checking of ancestor namespace transitions can change the interpretation of rendered raw text | Runtime Markdown uses Goldmark's renderer and bluemonday's tokenizer-based sanitization; the affected x/net Render call was not found in the reviewed runtime paths or the call-path scan                          |
+| [GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860) | `html.Parse` / `ParseFragment` and option variants: quadratic work coalescing text nodes from adversarial HTML          | The direct Parse call in `internal/markdown/linkbutton_test.go` examines generated test fixtures; runtime bluemonday v1.0.27 uses `html.NewTokenizer`, not this tree parser. No affected runtime call was reported |
 
 These are package-level findings, not a claim that all dependencies are free of
 vulnerabilities. Static call analysis has limitations. No application exploit
@@ -269,20 +269,64 @@ reachability. HTTPS clients still justify patching the standard library rather
 than rewriting formatting code to silence a trace.
 
 These results are local validation, not proof of an updated AWS runtime.
-Compiled Lambda binaries require a separately approved deployment. The existing
-non-blocking findings policy remains unchanged; promotion to a required gate is
-a separate decision.
+Compiled Lambda binaries require a separately approved deployment. That Go-only patch retained the non-blocking policy; the dependency
+enforcement below supersedes it.
 
-## Enforcement rollout
+## Dependency enforcement (2026-10-31)
 
-Scanner and upload failures block now. Findings remain non-blocking during
-baseline review so an unrevoked historical credential or unpatched upstream
-library is not silently hidden to make CI green.
+Bun and Trivy now block High/Critical findings. govulncheck blocks reachable
+findings and preserves verbose package-only findings in its report and summary.
+All scanner errors, invalid/missing reports, and upload failures remain blocking.
+Bun scans all four lockfiles even if an earlier one fails; Go runs independently
+of a failed Bun audit. SARIF and raw audit output are uploaded with `always()`.
+Trivy intentionally emits all severities with exit zero, then `security_gate.py`
+validates the SARIF and enforces High/Critical; this is not a warning-only scan.
+Fixture tests cover clean, Moderate/Low, High/Critical, duplicate, malformed,
+missing, and tool-error results without introducing vulnerable application code.
 
-After a reviewed baseline and two weeks of stable scans, separately enable gates
-for new secrets and new Critical/High dependency findings, then tighten existing
-findings with explicit, expiring exceptions if needed. Require **Security Scan
-Summary** in branch protection only after validating its live behavior. Record
-remaining upstream/operational risks rather than interpreting the waiting period
-as approval to accept them. Monitoring main on a schedule prevents new advisories
-from being missed between production releases.
+The existing required **Security Scan Summary** consumes both scanner jobs and
+fails on failure, cancellation, or skips. develop already requires this check,
+All CI Checks Passed, and Dependency Update Security Gate. No new required check
+or branch-protection change is needed. The separate dependency-diff gate compares
+new findings to the base; it does not replace the absolute High/Critical gate.
+
+CodeQL analysis/upload success is not proof that Code scanning has no alerts:
+its alert/ruleset evaluation is separate. Existing branch instances, fixed or
+historical alerts, and lower-severity findings may remain visible after a green
+run. Gitleaks' historical-secret baseline and Terraform Checkov soft-fail policy
+are unchanged by this dependency-specific rollout; zizmor already blocks High.
+
+### Scoped dependency remediation
+
+The baseline run 41219080111 contained 35 Bun advisory records, 26 distinct GHSA
+IDs (11 High, 11 Moderate, 4 Low). Eight duplicate records described undici's
+7.x and 8.x paths; minimatch appeared in two lockfiles. Count distinct advisory
+IDs separately from locations, versions, and lockfiles.
+
+Updates retain each runtime dependency's major: markdown-it 14.3.3,
+follow-redirects 1.16.2, fast-uri 3.1.9, undici 7.30.1 and 8.12.2, Zod 4.6.6,
+and x/net 0.62.0. The deploy-test Vite override requires at least 8.3.3.
+Lighthouse remains 13.5.0; Puppeteer Core 25.13.0 (within Lighthouse's ^25.9.0)
+uses its own compatible Chromium BiDi/Zod 4 tree, removing Zod 3 without forcing
+a Zod major override. The Puppeteer override is a security floor pinned for this
+verification; revisit when Lighthouse naturally resolves this or a newer version.
+See [Puppeteer manifest](https://registry.npmjs.org/puppeteer-core/25.13.0).
+
+The remaining minimatch advisory
+[GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249)
+is Moderate and stays visible, not ignored. ESLint uses 3.x and typescript-eslint
+uses 10.x; globally forcing 11.0.1 would change the callable CommonJS API used by
+3.x consumers. Follow upstream compatible releases separately. The described
+attack requires attacker-controlled glob patterns and optimizationLevel >= 2;
+this review does not establish exploitation through the blog's public interface.
+
+Local validation and clean dependency scans do not update running AWS resources.
+Merge/deployment remains a separate approval, and successful local scans do not
+prove the version of deployed binaries or browser assets.
+
+Validation for this rollout: Bun audit fell to 2 records / 1 distinct Moderate
+advisory (minimatch), with zero High/Critical. Linux ARM64 govulncheck with
+Go 1.26.10 reports zero reachable and zero package-only findings. Full verification,
+Go lint, local Astro fixture build, admin build and four local MSW editor E2E
+tests passed. Lighthouse collection exercises the updated Puppeteer tree locally.
+These counts describe the database at review time, not a permanent absence of risk.
