@@ -1,3 +1,14 @@
+# 公開サイトの入口制御と404監視（2026-10）
+
+- 公開ページはKVSの `routes:v1:<revision>:<bucket>`（32分割）で完全一致判定し、未知のURLを同一リリースの404へ書き換える。viewer-responseで内部マーカー付き200を404へ変換する。API・管理画面・画像・共有 `/_astro/` は従来の経路を維持する。
+- 新規公開・ロールバックは32個の索引と公開ポインターを一つの条件付きUpdateKeysで更新する。既存リリースの移行は `bun scripts/deploy/prepareRoutes.ts BUCKET KVS_ARN` をインフラ切替前に実行する。公開ポインターは変更しない。
+- 一つの索引値が1,024バイトを超える場合、公開前に失敗する。KVS全体は5MB上限があり、古いリリースの索引を保持するため将来の容量整理が必要。上限時も現在の公開ポインターを変更しない。
+- 旧404 Lambda/IAMは関連付け解除後も一時保持する。Edge replicaの自動削除を確認してから別変更で整理する。
+- 本番の `serverless-blog-public-5xx` は10件以上/5分で5xxが1%以上、3期間中2期間を検知。`serverless-blog-public-traffic` は1,000件超/5分が3期間中2期間で通知する。遮断は行わない。CloudFrontメトリクスと通知先SNSはus-east-1に置く。新SNSメール購読の確認が必要。
+- Lambda同時実行クォータは実効10に対する希望100。Service Quotas APIが標準1000との比較で拒否する場合はSupport Centerから申請する。申請完了とAWSによる反映完了は分けて記録する。
+
+以下は既存の監視資料。古いツール・構成の例は現行Terraformと照合すること。
+
 # 監視とロギング
 
 > **⚠️ 要更新**: このドキュメントの一部はCDK/Node.js Lambda Powertools時代のものです。

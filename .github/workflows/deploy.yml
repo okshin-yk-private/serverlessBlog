@@ -328,6 +328,19 @@ jobs:
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           terraform init -backend-config="bucket=terraform-state-${ACCOUNT_ID}"
 
+      - name: Setup Bun for route migration
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: scripts/deploy
+
+      - name: Prepare active release routing before edge cutover
+        env:
+          TARGET_ENV: dev
+        run: |
+          BUCKET=$(aws ssm get-parameter --name "/serverless-blog/$TARGET_ENV/storage/public-site-bucket-name" --query 'Parameter.Value' --output text)
+          KVS=$(aws ssm get-parameter --name "/serverless-blog/$TARGET_ENV/cdn/release-kvs-arn" --query 'Parameter.Value' --output text)
+          bun scripts/deploy/prepareRoutes.ts "$BUCKET" "$KVS"
+
       # Bootstrap WebAuthn MFA, then make a fresh plan and reject MFA overwrites.
       # The API bootstrap is separately verified; it is not represented in a PR plan.
       - name: Terraform Apply
@@ -414,6 +427,19 @@ jobs:
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           terraform init -backend-config="bucket=terraform-state-${ACCOUNT_ID}"
+
+      - name: Setup Bun for route migration
+        uses: ./.github/actions/setup-bun-deps
+        with:
+          working-directory: scripts/deploy
+
+      - name: Prepare active release routing before edge cutover
+        env:
+          TARGET_ENV: prd
+        run: |
+          BUCKET=$(aws ssm get-parameter --name "/serverless-blog/$TARGET_ENV/storage/public-site-bucket-name" --query 'Parameter.Value' --output text)
+          KVS=$(aws ssm get-parameter --name "/serverless-blog/$TARGET_ENV/cdn/release-kvs-arn" --query 'Parameter.Value' --output text)
+          bun scripts/deploy/prepareRoutes.ts "$BUCKET" "$KVS"
 
       # Bootstrap WebAuthn MFA, then make a fresh plan and reject MFA overwrites.
       # The API bootstrap is separately verified; it is not represented in a PR plan.

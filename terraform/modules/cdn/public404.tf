@@ -1,4 +1,6 @@
-# Origin-response is required: CloudFront's internal custom error page fetch does
+# Retained temporarily after detaching the origin-response association. AWS
+# removes replicas asynchronously; do not destroy this function during cutover.
+# Previous origin-response implementation: CloudFront's internal custom error page fetch does
 # not reliably follow the viewer-request KVS rewrite. Use the failed request's
 # already selected release, without another pointer read.
 data "aws_caller_identity" "edge" {}
