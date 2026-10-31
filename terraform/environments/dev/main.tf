@@ -186,6 +186,9 @@ module "api" {
 module "cdn" {
   source = "../../modules/cdn"
 
+  enforce_strict_csp_public = var.enforce_strict_csp_public
+  enforce_strict_csp_admin  = var.enforce_strict_csp_admin
+
   environment                             = var.environment
   image_bucket_name                       = module.storage.image_bucket_name
   image_bucket_regional_domain_name       = module.storage.image_bucket_regional_domain_name

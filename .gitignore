@@ -338,3 +338,6 @@ test-results-passkeys/
 
 # Python bytecode from scripts/ci tests
 __pycache__/
+
+# Local-only CSP browser build (contains test mocks)
+/frontend/admin/dist-csp-test/

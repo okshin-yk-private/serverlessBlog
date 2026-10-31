@@ -52,3 +52,15 @@ variable "tags" {
   default     = {}
   description = "Additional tags for resources"
 }
+
+variable "codebuild_project_name" {
+  type        = string
+  default     = ""
+  description = "Optional publishing CodeBuild project to monitor; empty disables its alarm"
+}
+
+variable "sitebuild_dlq_name" {
+  type        = string
+  default     = ""
+  description = "Optional existing reconciliation DLQ name; empty disables its alarm"
+}

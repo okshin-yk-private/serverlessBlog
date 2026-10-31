@@ -143,3 +143,38 @@ run "verify_alarms_disabled" {
     error_message = "Dashboard must not be created when alarms are disabled"
   }
 }
+
+run "publication_signals" {
+  command = plan
+  variables {
+    codebuild_project_name = "blog-astro-build-prd"
+    sitebuild_dlq_name     = "blog-astro-build-prd-reconcile-dlq"
+  }
+  assert {
+    condition     = aws_cloudwatch_metric_alarm.codebuild_failures[0].dimensions.ProjectName == "blog-astro-build-prd" && aws_cloudwatch_metric_alarm.codebuild_failures[0].threshold == 1 && aws_cloudwatch_metric_alarm.codebuild_failures[0].treat_missing_data == "notBreaching"
+    error_message = "A failed build must notify, but an idle project must not."
+  }
+  assert {
+    condition     = aws_cloudwatch_metric_alarm.sitebuild_dlq[0].dimensions.QueueName == "blog-astro-build-prd-reconcile-dlq" && aws_cloudwatch_metric_alarm.sitebuild_dlq[0].datapoints_to_alarm == 2 && aws_cloudwatch_metric_alarm.sitebuild_dlq[0].period == 300
+    error_message = "Only persistent DLQ backlog should notify."
+  }
+}
+run "publication_signals_disabled" {
+  command = plan
+  variables {
+    enable_alarms          = false
+    codebuild_project_name = "blog-astro-build-dev"
+    sitebuild_dlq_name     = "blog-astro-build-dev-reconcile-dlq"
+  }
+  assert {
+    condition     = length(aws_cloudwatch_metric_alarm.codebuild_failures) == 0 && length(aws_cloudwatch_metric_alarm.sitebuild_dlq) == 0
+    error_message = "Disabled monitoring must not create publication alarms."
+  }
+}
+run "publication_signals_opt_in" {
+  command = plan
+  assert {
+    condition     = length(aws_cloudwatch_metric_alarm.codebuild_failures) == 0 && length(aws_cloudwatch_metric_alarm.sitebuild_dlq) == 0
+    error_message = "Other module callers must not get alarms for nonexistent projects/queues."
+  }
+}

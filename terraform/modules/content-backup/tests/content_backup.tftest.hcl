@@ -245,3 +245,35 @@ run "rejects_backup_in_source_region" {
 
   expect_failures = [var.backup_region]
 }
+
+run "completion_freshness" {
+  command = plan
+  assert {
+    condition     = aws_cloudwatch_log_metric_filter.completed[0].pattern == "{ $.msg = \"content backup completed\" }"
+    error_message = "Only the actual structured completion message counts as success."
+  }
+  assert {
+    condition     = aws_cloudwatch_metric_alarm.freshness[0].evaluation_periods == 26 && aws_cloudwatch_metric_alarm.freshness[0].datapoints_to_alarm == 26 && aws_cloudwatch_metric_alarm.freshness[0].threshold == 1 && !aws_cloudwatch_metric_alarm.freshness[0].actions_enabled
+    error_message = "Initial deployment must observe 26 hourly buckets with notifications disabled until the first success."
+  }
+  assert {
+    condition     = anytrue([for q in aws_cloudwatch_metric_alarm.freshness[0].metric_query : q.expression == "FILL(completed, 0)" && q.return_data])
+    error_message = "Missing success metrics must explicitly become zeros."
+  }
+}
+run "completion_freshness_notifications_opt_in" {
+  command = plan
+  variables { freshness_alarm_actions_enabled = true }
+  assert {
+    condition     = aws_cloudwatch_metric_alarm.freshness[0].actions_enabled && aws_cloudwatch_metric_alarm.freshness[0].alarm_actions == toset([var.alarm_topic_arn])
+    error_message = "After first success, notifications must use the existing SNS topic."
+  }
+}
+run "completion_freshness_disabled" {
+  command = plan
+  variables { enable_alarm = false }
+  assert {
+    condition     = length(aws_cloudwatch_metric_alarm.freshness) == 0 && length(aws_cloudwatch_log_metric_filter.completed) == 0
+    error_message = "DEV default must not create paid monitoring resources."
+  }
+}

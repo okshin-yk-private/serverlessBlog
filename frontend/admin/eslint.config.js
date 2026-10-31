@@ -13,6 +13,7 @@ export default tseslint.config(
     // rewrote the tracked file again (Issue #693).
     ignores: [
       'dist',
+      'dist-csp-test',
       'node_modules',
       'vite.config.ts',
       'public/mockServiceWorker.js',

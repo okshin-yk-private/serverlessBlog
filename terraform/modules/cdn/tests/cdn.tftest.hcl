@@ -901,3 +901,81 @@ run "dev_origin_access_regression" {
     error_message = "Function code must fit CloudFront's 10 KB limit."
   }
 }
+
+run "csp_promotion_true_false" {
+  command = plan
+  variables {
+    environment                             = "dev"
+    image_bucket_name                       = "test-images-bucket"
+    image_bucket_regional_domain_name       = "test-images-bucket.s3.ap-northeast-1.amazonaws.com"
+    public_site_bucket_name                 = "test-public-site-bucket"
+    public_site_bucket_regional_domain_name = "test-public-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    admin_site_bucket_name                  = "test-admin-site-bucket"
+    admin_site_bucket_regional_domain_name  = "test-admin-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    rest_api_id                             = "abc123xyz"
+    api_stage_name                          = "dev"
+    aws_region                              = "ap-northeast-1"
+    enforce_strict_csp_public               = true
+    enforce_strict_csp_admin                = false
+  }
+  assert {
+    condition     = strcontains(aws_cloudfront_response_headers_policy.security_headers.security_headers_config[0].content_security_policy[0].content_security_policy, "script-src 'self';") == true
+    error_message = "Promoting one surface must not promote the other."
+  }
+  assert {
+    condition     = strcontains(aws_cloudfront_response_headers_policy.admin_security_headers.security_headers_config[0].content_security_policy[0].content_security_policy, "script-src 'self';") == false
+    error_message = "Promoting one surface must not promote the other."
+  }
+}
+
+run "csp_promotion_false_true" {
+  command = plan
+  variables {
+    environment                             = "dev"
+    image_bucket_name                       = "test-images-bucket"
+    image_bucket_regional_domain_name       = "test-images-bucket.s3.ap-northeast-1.amazonaws.com"
+    public_site_bucket_name                 = "test-public-site-bucket"
+    public_site_bucket_regional_domain_name = "test-public-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    admin_site_bucket_name                  = "test-admin-site-bucket"
+    admin_site_bucket_regional_domain_name  = "test-admin-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    rest_api_id                             = "abc123xyz"
+    api_stage_name                          = "dev"
+    aws_region                              = "ap-northeast-1"
+    enforce_strict_csp_public               = false
+    enforce_strict_csp_admin                = true
+  }
+  assert {
+    condition     = strcontains(aws_cloudfront_response_headers_policy.security_headers.security_headers_config[0].content_security_policy[0].content_security_policy, "script-src 'self';") == false
+    error_message = "Promoting one surface must not promote the other."
+  }
+  assert {
+    condition     = strcontains(aws_cloudfront_response_headers_policy.admin_security_headers.security_headers_config[0].content_security_policy[0].content_security_policy, "script-src 'self';") == true
+    error_message = "Promoting one surface must not promote the other."
+  }
+}
+
+run "csp_promotion_true_true" {
+  command = plan
+  variables {
+    environment                             = "dev"
+    image_bucket_name                       = "test-images-bucket"
+    image_bucket_regional_domain_name       = "test-images-bucket.s3.ap-northeast-1.amazonaws.com"
+    public_site_bucket_name                 = "test-public-site-bucket"
+    public_site_bucket_regional_domain_name = "test-public-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    admin_site_bucket_name                  = "test-admin-site-bucket"
+    admin_site_bucket_regional_domain_name  = "test-admin-site-bucket.s3.ap-northeast-1.amazonaws.com"
+    rest_api_id                             = "abc123xyz"
+    api_stage_name                          = "dev"
+    aws_region                              = "ap-northeast-1"
+    enforce_strict_csp_public               = true
+    enforce_strict_csp_admin                = true
+  }
+  assert {
+    condition     = strcontains(aws_cloudfront_response_headers_policy.security_headers.security_headers_config[0].content_security_policy[0].content_security_policy, "script-src 'self';") == true
+    error_message = "Promoting one surface must not promote the other."
+  }
+  assert {
+    condition     = strcontains(aws_cloudfront_response_headers_policy.admin_security_headers.security_headers_config[0].content_security_policy[0].content_security_policy, "script-src 'self';") == true
+    error_message = "Promoting one surface must not promote the other."
+  }
+}

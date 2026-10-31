@@ -178,6 +178,9 @@ module "api" {
 module "cdn" {
   source = "../../modules/cdn"
 
+  enforce_strict_csp_public = var.enforce_strict_csp_public
+  enforce_strict_csp_admin  = var.enforce_strict_csp_admin
+
   environment                             = var.environment
   image_bucket_name                       = module.storage.image_bucket_name
   image_bucket_regional_domain_name       = module.storage.image_bucket_regional_domain_name
@@ -432,14 +435,16 @@ resource "aws_cloudwatch_log_delivery" "cloudfront_s3" {
 module "monitoring" {
   source = "../../modules/monitoring"
 
-  environment           = var.environment
-  project_name          = var.project_name
-  alarm_email           = var.alarm_email
-  lambda_function_names = module.lambda.function_names
-  dynamodb_table_names  = [module.database.table_name]
-  api_gateway_name      = "${var.project_name}-api-${var.environment}"
-  api_gateway_stage     = var.environment
-  enable_alarms         = true # Alarms enabled for prd
+  environment            = var.environment
+  project_name           = var.project_name
+  alarm_email            = var.alarm_email
+  lambda_function_names  = module.lambda.function_names
+  dynamodb_table_names   = [module.database.table_name]
+  api_gateway_name       = "${var.project_name}-api-${var.environment}"
+  api_gateway_stage      = var.environment
+  enable_alarms          = true # Alarms enabled for prd
+  codebuild_project_name = "${var.project_name}-astro-build-${var.environment}"
+  sitebuild_dlq_name     = "${var.project_name}-astro-build-${var.environment}-reconcile-dlq"
 
   tags = local.common_tags
 
@@ -457,20 +462,21 @@ module "monitoring" {
 module "content_backup" {
   source = "../../modules/content-backup"
 
-  project_name          = var.project_name
-  environment           = var.environment
-  source_region         = var.aws_region
-  backup_region         = "ap-northeast-3"
-  posts_table_name      = module.database.table_name
-  posts_table_arn       = module.database.table_arn
-  categories_table_name = module.database.categories_table_name
-  categories_table_arn  = module.database.categories_table_arn
-  go_binary_path        = "${path.module}/../../../go-functions/bin"
-  object_lock_mode      = "COMPLIANCE"
-  retention_days        = 30
-  enable_xray           = true
-  enable_alarm          = true
-  alarm_topic_arn       = module.monitoring.alarm_topic_arn
+  project_name                    = var.project_name
+  environment                     = var.environment
+  source_region                   = var.aws_region
+  backup_region                   = "ap-northeast-3"
+  posts_table_name                = module.database.table_name
+  posts_table_arn                 = module.database.table_arn
+  categories_table_name           = module.database.categories_table_name
+  categories_table_arn            = module.database.categories_table_arn
+  go_binary_path                  = "${path.module}/../../../go-functions/bin"
+  object_lock_mode                = "COMPLIANCE"
+  retention_days                  = 30
+  enable_xray                     = true
+  enable_alarm                    = true
+  freshness_alarm_actions_enabled = var.backup_freshness_alarm_actions_enabled
+  alarm_topic_arn                 = module.monitoring.alarm_topic_arn
 
   tags = local.common_tags
 

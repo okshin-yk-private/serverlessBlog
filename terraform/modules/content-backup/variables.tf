@@ -121,3 +121,9 @@ variable "tags" {
   default     = {}
   description = "Additional tags for all resources"
 }
+
+variable "freshness_alarm_actions_enabled" {
+  type        = bool
+  default     = false
+  description = "Enable freshness notifications only after observing the first completion metric. The alarm and metric are still created when enable_alarm is true."
+}
