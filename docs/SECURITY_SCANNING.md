@@ -229,6 +229,50 @@ All four `bun audit --json` reports were empty with exit code 0, and
 govulncheck v1.8.0 reported `No vulnerabilities found.` using Go 1.26.9.
 These are local results, not evidence of a deployed update or a new CI run.
 
+## Go 1.26.10 security patch review (2026-10-31)
+
+The earlier Go 1.26.9 scan result above is historical. A fresh govulncheck
+v1.8.0 scan with Go 1.26.9 now reports
+[GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809) in `crypto/x509`, fixed in
+Go 1.26.10. Update the single toolchain source, `go-functions/go.mod`, to
+1.26.10. CI, Deploy, CodeQL and nightly use `go-version-file`; the Lambda
+binary cache keys include go.mod. No dependency versions, scanner suppressions
+or enforcement settings are changed by this patch.
+
+Local verification used the actual Go 1.26.10 toolchain, not merely an edited
+version declaration. Go lint and race/coverage tests passed. All **17** Lambda
+functions from `make print-functions` rebuilt successfully; `go version -m`
+confirmed Go 1.26.10, GOOS=linux, GOARCH=arm64 and CGO_ENABLED=0 for every
+bootstrap. The build artifacts are ignored local output, not committed.
+
+Source scans with govulncheck v1.8.0 and Go 1.26.10, targeting linux/amd64 and
+linux/arm64 with CGO_ENABLED=0, both exited 0 and reported **0 reachable
+vulnerabilities**. They still reported these two package-level findings in
+`golang.org/x/net v0.61.0`, both fixed in v0.62.0:
+
+| Finding | Affected operation | Current evidence |
+| --- | --- | --- |
+| [GO-2026-6866](https://pkg.go.dev/vuln/GO-2026-6866) | `html.Render`: incomplete checking of ancestor namespace transitions can change the interpretation of rendered raw text | Runtime Markdown uses Goldmark's renderer and bluemonday's tokenizer-based sanitization; the affected x/net Render call was not found in the reviewed runtime paths or the call-path scan |
+| [GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860) | `html.Parse` / `ParseFragment` and option variants: quadratic work coalescing text nodes from adversarial HTML | The direct Parse call in `internal/markdown/linkbutton_test.go` examines generated test fixtures; runtime bluemonday v1.0.27 uses `html.NewTokenizer`, not this tree parser. No affected runtime call was reported |
+
+These are package-level findings, not a claim that all dependencies are free of
+vulnerabilities. Static call analysis has limitations. No application exploit
+was demonstrated, and the advisories do not supply a numerical severity score.
+Recommend a separate, narrowly scoped x/net v0.62.0 update with Markdown,
+sanitizer and link-button regressions; do not silently fold dependency updates
+into the standard-library patch or suppress these findings.
+
+The old example path from RenderPost through fmt.Fprintf to Certificate.Verify
+is not proof that formatting text verifies certificates: that call writes
+string/byte arguments to a bytes.Buffer. Interface-call analysis can overstate
+reachability. HTTPS clients still justify patching the standard library rather
+than rewriting formatting code to silence a trace.
+
+These results are local validation, not proof of an updated AWS runtime.
+Compiled Lambda binaries require a separately approved deployment. The existing
+non-blocking findings policy remains unchanged; promotion to a required gate is
+a separate decision.
+
 ## Enforcement rollout
 
 Scanner and upload failures block now. Findings remain non-blocking during
