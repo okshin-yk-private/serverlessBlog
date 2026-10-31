@@ -1,0 +1,18 @@
+// Viewer-response runs after the shared cached 200 body is selected.
+// The request marker is removed from every viewer request before routing.
+// eslint-disable-next-line no-unused-vars -- Terraform embeds this helper in deployed handlers.
+function publicResponse(event) {
+  var response = event.response;
+  if (
+    event.request.headers['x-blog-public-not-found'] &&
+    event.request.headers['x-blog-public-not-found'].value === '1' &&
+    response.statusCode === 200
+  ) {
+    response.statusCode = 404;
+    response.statusDescription = 'Not Found';
+    response.headers['cache-control'] = { value: 'no-store' };
+    delete response.headers.etag;
+    delete response.headers['last-modified'];
+  }
+  return response;
+}

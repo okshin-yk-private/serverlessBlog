@@ -459,8 +459,8 @@ run "ssg_404_error_response" {
     error_message = "Lambda@Edge must publish an x86_64 version in us-east-1"
   }
   assert {
-    condition     = length(aws_cloudfront_distribution.main.default_cache_behavior[0].lambda_function_association) == 1
-    error_message = "Public origin responses must use the release-aware 404 Lambda"
+    condition     = length(aws_cloudfront_distribution.main.default_cache_behavior[0].lambda_function_association) == 0
+    error_message = "Public routing must not consume Lambda@Edge concurrency"
   }
   assert {
     condition     = jsondecode(aws_iam_role_policy.public_404.policy).Statement[0].Resource == "arn:aws:s3:::test-public-site-bucket/releases/*/404.html"
