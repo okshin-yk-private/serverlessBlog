@@ -1,7 +1,7 @@
 import process from 'node:process';
 import { URL } from 'node:url';
 import { createServer } from 'node:http';
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve, extname, sep } from 'node:path';
 
 // Read the proposed Terraform policies so browser checks cannot drift from them.
@@ -54,12 +54,17 @@ const server = createServer((req, res) => {
       res.writeHead(403).end();
       return;
     }
+    // Read directly rather than checking a path and then reopening it (TOCTOU).
+    let body;
     try {
-      if (statSync(path).isDirectory()) path = resolve(path, 'index.html');
-    } catch {
-      if (admin && !extname(path)) path = resolve(root, 'index.html');
+      body = readFileSync(path);
+    } catch (error) {
+      if (error.code === 'EISDIR') path = resolve(path, 'index.html');
+      else if (error.code === 'ENOENT' && admin && !extname(path)) {
+        path = resolve(root, 'index.html');
+      } else throw error;
+      body = readFileSync(path);
     }
-    const body = readFileSync(path);
     res.writeHead(200, {
       'Content-Type': types[extname(path)] || 'application/octet-stream',
       'Content-Security-Policy': policies[surface],
