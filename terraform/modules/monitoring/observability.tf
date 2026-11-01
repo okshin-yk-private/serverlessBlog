@@ -11,7 +11,8 @@ locals {
     | fields jsonParse(payload) as o
     | filter o.event in ["site-build-accepted", "site-public-confirmed", "site-public-unconfirmed"] and ispresent(o.buildId) and ispresent(o.contentRevision)
     | stats min(o.requestedAtMs) as requestedAtMs, min(o.confirmedAtMs) as confirmedAtMs, latest(o.releaseRevision) as releaseRevision, latest(o.event) as lastEvent by o.buildId as buildId, o.contentRevision as contentRevision
-    | fields buildId, contentRevision, releaseRevision, lastEvent, requestedAtMs, confirmedAtMs, (confirmedAtMs - requestedAtMs) / 1000 as saveToPublicSeconds
+    | fields (confirmedAtMs - requestedAtMs) / 1000 as saveToPublicSeconds
+    | display buildId, contentRevision, releaseRevision, lastEvent, requestedAtMs, confirmedAtMs, saveToPublicSeconds
     | sort confirmedAtMs desc
     | limit 50
   QUERY
