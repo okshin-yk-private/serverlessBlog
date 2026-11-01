@@ -25,7 +25,7 @@
     "@astrojs/sitemap": "^3.7.4",
     "@fontsource/zen-kaku-gothic-new": "5.3.1",
     "@fontsource/zen-old-mincho": "5.3.1",
-    "astro": "^7.4.2"
+    "astro": "^7.4.4"
   },
   "overrides": {
     "ajv": "^8.18.0",
