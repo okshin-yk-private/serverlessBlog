@@ -1,0 +1,65 @@
+{
+  "events": [
+    {
+      "event": "site-build-accepted",
+      "buildId": "fixture-a",
+      "contentRevision": 7,
+      "requestedAtMs": 1000
+    },
+    {
+      "event": "site-public-confirmed",
+      "buildId": "fixture-a",
+      "contentRevision": 7,
+      "confirmedAtMs": 6000
+    },
+    {
+      "event": "site-public-confirmed",
+      "buildId": "fixture-a",
+      "contentRevision": 7,
+      "confirmedAtMs": 9000
+    },
+    {
+      "event": "site-build-accepted",
+      "buildId": "fixture-b",
+      "contentRevision": 7,
+      "requestedAtMs": 2000
+    },
+    {
+      "event": "site-public-unconfirmed",
+      "buildId": "fixture-b",
+      "contentRevision": 7,
+      "observedAtMs": 9000
+    },
+    {
+      "event": "site-public-confirmed",
+      "buildId": "fixture-c",
+      "contentRevision": 7,
+      "confirmedAtMs": 8000
+    },
+    {
+      "event": "site-build-accepted",
+      "buildId": "fixture-a",
+      "contentRevision": 8,
+      "requestedAtMs": 10000
+    },
+    {
+      "event": "site-public-confirmed",
+      "buildId": "fixture-a",
+      "contentRevision": 8,
+      "confirmedAtMs": 12500
+    },
+    { "event": "site-public-confirmed", "confirmedAtMs": 5000 },
+    {
+      "event": "codebuild-success",
+      "buildId": "fixture-b",
+      "contentRevision": 7,
+      "confirmedAtMs": 7000
+    }
+  ],
+  "expectedSeconds": {
+    "fixture-a/7": 5,
+    "fixture-b/7": null,
+    "fixture-c/7": null,
+    "fixture-a/8": 2.5
+  }
+}
