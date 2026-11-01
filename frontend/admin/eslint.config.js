@@ -13,6 +13,7 @@ export default tseslint.config(
     // rewrote the tracked file again (Issue #693).
     ignores: [
       'dist',
+      'dist-csp-test',
       'node_modules',
       'vite.config.ts',
       'public/mockServiceWorker.js',
@@ -39,7 +40,12 @@ export default tseslint.config(
       prettier: prettierPlugin,
     },
     rules: {
-      ...reactHooks.configs.recommended.rules,
+      // Preserve the ESLint 9 default alongside the pinned @eslint/js rule set.
+      'no-shadow-restricted-names': ['error', { reportGlobalThis: false }],
+      // Preserve the two Hooks rules enabled before the ESLint 10 migration.
+      // The v7 recommended preset also enables React Compiler rules.
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
       ...prettierConfig.rules,
       'prettier/prettier': 'error',
       'react-refresh/only-export-components': [

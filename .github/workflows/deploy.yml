@@ -74,7 +74,7 @@ permissions:
 env:
   TERRAFORM_VERSION: '1.14.0'
   # BUN_VERSION は削除済み: どのジョブからも参照されておらず、
-  # ./.github/actions/setup-bun-deps 側のデフォルト値 (1.3.11) がそのまま使われる。
+  # ./.github/actions/setup-bun-deps 側のデフォルト値 (1.4.4) がそのまま使われる。
   AWS_REGION: 'ap-northeast-1'
 
 jobs:
@@ -83,7 +83,7 @@ jobs:
   # =======================================
   detect-changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -176,7 +176,7 @@ jobs:
   # =======================================
   restore-lambda-binaries:
     name: Restore or Build Lambda Binaries
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     needs: [detect-changes]
     if: needs.detect-changes.outputs.deploy-infrastructure == 'true'
@@ -270,7 +270,7 @@ jobs:
       contents: read
       id-token: write # AWS OIDC authentication
     name: Deploy Infrastructure (DEV)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     needs: [detect-changes, restore-lambda-binaries]
     environment: dev
@@ -376,7 +376,7 @@ jobs:
       contents: read
       id-token: write # AWS OIDC authentication
     name: Deploy Infrastructure (PRD)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     needs: [detect-changes, restore-lambda-binaries]
     environment:
@@ -477,7 +477,7 @@ jobs:
       contents: read
       id-token: write # AWS OIDC authentication
     name: Build Frontend (Admin)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     needs: [detect-changes, deploy-infrastructure-dev, deploy-infrastructure-prd]
     environment: ${{ needs.detect-changes.outputs.github-env }}
@@ -563,7 +563,7 @@ jobs:
       contents: read
       id-token: write # AWS OIDC authentication
     name: Deploy Admin (DEV)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     needs: [detect-changes, build-frontend-admin, deploy-infrastructure-dev]
     environment: dev
@@ -621,7 +621,7 @@ jobs:
       contents: read
       id-token: write # AWS OIDC authentication
     name: Deploy Admin (PRD)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     needs: [detect-changes, build-frontend-admin, deploy-infrastructure-prd]
     environment:
@@ -680,7 +680,7 @@ jobs:
       contents: read
       id-token: write # AWS OIDC authentication
     name: Build Astro SSG
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     outputs:
       revision: ${{ steps.revision.outputs.value }}
@@ -814,7 +814,7 @@ jobs:
       contents: read
       id-token: write # AWS OIDC authentication
     name: Deploy Astro SSG (DEV)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     needs: [detect-changes, build-astro, deploy-infrastructure-dev]
     environment: dev
@@ -954,7 +954,7 @@ jobs:
       contents: read
       id-token: write # AWS OIDC authentication
     name: Deploy Astro SSG (PRD)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     needs: [detect-changes, build-astro, deploy-infrastructure-prd]
     environment:
@@ -1087,7 +1087,7 @@ jobs:
       contents: read
       id-token: write # AWS OIDC authentication
     name: Post-Deploy E2E Tests (DEV)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     needs: [detect-changes, deploy-infrastructure-dev, deploy-admin-dev, deploy-astro-dev]
     environment: dev
@@ -1262,7 +1262,7 @@ jobs:
   # =======================================
   post-deploy-smoke-prd:
     name: Post-Deploy Smoke Test (PRD)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     needs: [detect-changes, deploy-admin-prd, deploy-astro-prd]
     if: |
@@ -1391,7 +1391,7 @@ jobs:
   # =======================================
   deploy-summary:
     name: Deployment Summary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     needs:
       - detect-changes

@@ -227,6 +227,8 @@ func (c *Coordinator) StartPending(ctx context.Context) (Request, error) {
 		return Request{TargetRevision: revision, Status: StatusFailed}, err
 	}
 
+	logBuildAccepted(ctx, state, revision, buildID, c.now())
+
 	_, err = c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                aws.String(c.tableName),
 		Key:                      map[string]dynamodbtypes.AttributeValue{"id": &dynamodbtypes.AttributeValueMemberS{Value: StateItemID}},

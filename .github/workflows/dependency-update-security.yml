@@ -18,7 +18,7 @@ concurrency:
 jobs:
   dependency-security:
     name: Dependency Update Security Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - name: Use an isolated scanner cache

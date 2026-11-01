@@ -16,6 +16,7 @@ import { defineConfig, devices } from '@playwright/test';
  */
 
 export default defineConfig({
+  testIgnore: ['**/csp-local/**'],
   testDir: './tests/e2e',
 
   // グローバルセットアップ・ティアダウン（テストデータ管理）

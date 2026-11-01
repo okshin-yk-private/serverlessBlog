@@ -547,17 +547,17 @@ run "buildspec_installs_pinned_verified_bun" {
   }
 
   assert {
-    condition     = strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "https://github.com/oven-sh/bun/releases/download/bun-v1.3.11/bun-linux-aarch64.zip")
+    condition     = strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "https://github.com/oven-sh/bun/releases/download/bun-v1.4.4/bun-linux-aarch64.zip")
     error_message = "BuildSpec must download the pinned Bun release asset"
   }
 
   assert {
-    condition     = strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "d13944da12a53ecc74bf6a720bd1d04c4555c038dfe422365356a7be47691fdf") && strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "sha256sum -c")
+    condition     = strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "baa6bb36f51d6e58561e02bbea825038a9df454f673d6d776e8bbf86f8c7850e") && strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "sha256sum -c")
     error_message = "BuildSpec must verify the Bun archive against a pinned SHA256"
   }
 
   assert {
-    condition     = strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "test \"$(bun --version)\" = \"1.3.11\"")
+    condition     = strcontains(aws_codebuild_project.astro_build.source[0].buildspec, "test \"$(bun --version)\" = \"1.4.4\"")
     error_message = "BuildSpec must fail when the installed Bun is not the pinned version"
   }
 }

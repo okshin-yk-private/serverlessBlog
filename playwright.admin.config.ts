@@ -15,6 +15,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   // テストディレクトリ
+  testIgnore: ['**/csp-local/**'],
   testDir: './tests/e2e',
 
   // 管理画面テストのみを実行
