@@ -249,3 +249,59 @@ S3 の保存料・PUT 料金・東京→大阪のデータ転送料を合わせ�
 ## 継続検証と運用
 
 ローカルの復元手順テストは必須CIに組み込む。[監視・DEV合成データ復元演習](reliability-operations.md)で検証範囲と別承認の実環境手順を確認する。
+
+## Preventing accidental bucket replacement
+
+The bucket has `prevent_destroy = true`. A backup bucket is persistent even in
+DEV; `force_destroy` does not override this Terraform plan protection. Do not
+remove the lifecycle guard or empty the bucket to make an unrelated deploy pass.
+The root module uses precise input references, not a module-wide `depends_on`:
+otherwise upstream monitoring changes can defer caller identity until apply,
+turn the account-derived bucket name unknown, and request a replacement.
+
+Both PR plans and the saved deployment plan pass through
+`scripts/ci/check_backup_plan.py`. It rejects deletion, replacement, or state
+removal of the bucket and its protection resources, and unknown bucket names.
+This catches removal of the resource declaration too, where `prevent_destroy`
+alone would no longer apply. Other plan changes remain visible.
+
+After a failed apply, never assume rollback. Read the current state and AWS
+configuration first. In particular, provider deletion of Object Lock configuration
+removes the **default retention rule**, not existing version retention. Read
+versioning, bucket/account public access blocks, policy, encryption, lifecycle,
+and every version created during the incident window. Restore the default rule
+and missing guards on the same bucket; a new default does not retroactively
+protect versions already written without retention.
+
+Create a fresh plan using the correct deployment inputs and binaries. Require
+zero backup bucket replacements/deletions and review every other change before
+seeking production approval. Do not run `deploy_passkey_infrastructure.sh` merely
+to obtain a plan: it can configure Cognito and apply. Plan-only investigation uses
+`terraform plan` directly and must not persist refreshed remote state. A read-only
+plan without a state lock must be bracketed by state version checks and discarded
+if another deployment changed the state. Never apply an investigation plan without
+a fresh, approved, locked plan and a complete review.
+
+### 2026-11-01 production recovery record
+
+Run [41266382757](https://github.com/okshin-yk-private/serverlessBlog/actions/runs/41266382757)
+requested a bucket replacement after broad module dependencies deferred caller
+identity. Six bucket configuration resources were removed before `DeleteBucket`
+failed with `BucketNotEmpty`. A failed apply did not roll those removals back.
+
+At 03:14 UTC, an explicitly approved, fresh locked targeted plan restored those
+six configurations on the existing bucket: 30-day COMPLIANCE default retention,
+all four public access blocks, the HTTPS/retention-change deny policy, lifecycle
+(current versions 31 days, noncurrent versions 1 day, incomplete uploads 1 day),
+versioning and SSE-S3 encryption. Terraform reported **6 added, 0 changed,
+0 destroyed**. AWS reads confirmed every setting; all eight existing version IDs
+and exact COMPLIANCE retention deadlines were unchanged. No versions were created
+during the observed incident window. State serial after recovery was 166.
+
+This was protection recovery only. Lambda and monitoring updates were not applied.
+The earlier full investigation plan contained 10 additions and 21 updates; six
+of those additions were the restored configurations. Obtain a fresh full plan to
+review the remaining changes. Do not resume normal production deployment until
+the dependency fix and plan guards reach `main`; successful PR checks alone do
+not establish that production uses the fix. No synthetic backup/restore write was
+performed during this recovery.

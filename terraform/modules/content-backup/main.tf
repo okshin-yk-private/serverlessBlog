@@ -33,6 +33,10 @@ resource "aws_s3_bucket" "backup" {
   object_lock_enabled = true
   force_destroy       = var.force_destroy
 
+  lifecycle {
+    prevent_destroy = true
+  }
+
   tags = merge(local.common_tags, {
     Name = local.bucket_name
     Type = "content-backup"

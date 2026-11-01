@@ -419,7 +419,8 @@ module "content_backup" {
 
   tags = local.common_tags
 
-  depends_on = [module.database]
+  # Input references carry precise dependencies; a module-wide dependency
+  # defers caller identity and makes the permanent bucket name unknown.
 }
 
 #------------------------------------------------------------------------------

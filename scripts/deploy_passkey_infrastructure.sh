@@ -14,6 +14,7 @@ PLAN_DIR=$(mktemp -d)
 trap 'rm -rf "$PLAN_DIR"' EXIT
 apply_checked_plan() {
   terraform -chdir="$TF_DIR" plan "$LOCK_TIMEOUT" "$@" -out="$PLAN_DIR/plan"
+  terraform -chdir="$TF_DIR" show -json "$PLAN_DIR/plan" | python3 "$ROOT_DIR/scripts/ci/check_backup_plan.py"
   terraform -chdir="$TF_DIR" show -json "$PLAN_DIR/plan" | python3 "$HELPER" --environment "$TARGET_ENV" --check-plan
   terraform -chdir="$TF_DIR" apply "$LOCK_TIMEOUT" -auto-approve "$PLAN_DIR/plan"
 }
