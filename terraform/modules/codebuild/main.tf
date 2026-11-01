@@ -23,8 +23,8 @@ locals {
   # alone is not enough. Keep the version in step with the default in
   # .github/actions/setup-bun-deps/action.yml, and when bumping it take the
   # hash from the release's SHASUMS256.txt.
-  bun_version              = "1.3.11"
-  bun_linux_aarch64_sha256 = "d13944da12a53ecc74bf6a720bd1d04c4555c038dfe422365356a7be47691fdf"
+  bun_version              = "1.4.4"
+  bun_linux_aarch64_sha256 = "baa6bb36f51d6e58561e02bbea825038a9df454f673d6d776e8bbf86f8c7850e"
 
   # Common tags
   common_tags = merge(

@@ -13,11 +13,10 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
  */
 
 const BASE_URL = 'https://example.cloudfront.net';
+let originalBaseUrl: string | undefined;
+let originalAdminBaseUrl: string | undefined;
 
 describe('playwright.aws.config.ts', () => {
-  let originalBaseUrl: string | undefined;
-  let originalAdminBaseUrl: string | undefined;
-
   beforeAll(() => {
     originalBaseUrl = process.env.BASE_URL;
     originalAdminBaseUrl = process.env.ADMIN_BASE_URL;
@@ -26,8 +25,12 @@ describe('playwright.aws.config.ts', () => {
   });
 
   afterAll(() => {
-    process.env.BASE_URL = originalBaseUrl;
-    process.env.ADMIN_BASE_URL = originalAdminBaseUrl;
+    // Assigning undefined creates the string "undefined" in process.env.
+    // Preserve absence so later CLI tests do not inherit an invalid URL.
+    if (originalBaseUrl === undefined) delete process.env.BASE_URL;
+    else process.env.BASE_URL = originalBaseUrl;
+    if (originalAdminBaseUrl === undefined) delete process.env.ADMIN_BASE_URL;
+    else process.env.ADMIN_BASE_URL = originalAdminBaseUrl;
   });
 
   test('should have admin-chromium project', async () => {
@@ -108,4 +111,9 @@ describe('playwright.aws.config.ts', () => {
     expect(script).not.toContain('admin-crud.spec.ts');
     expect(script).not.toContain('admin-unauthorized-access.spec.ts');
   });
+});
+
+test('AWS config tests restore the original URL environment, including absence', () => {
+  expect(process.env.BASE_URL).toBe(originalBaseUrl);
+  expect(process.env.ADMIN_BASE_URL).toBe(originalAdminBaseUrl);
 });
