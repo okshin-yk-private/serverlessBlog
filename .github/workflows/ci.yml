@@ -54,7 +54,7 @@ env:
 jobs:
   verify-go-toolchain:
     name: Verify Go Toolchain Configuration
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -65,7 +65,7 @@ jobs:
   # Issue #694: keep pinned tool versions in step and scanner exceptions reviewed.
   verify-config-guards:
     name: Verify Bun Pins and Security Exceptions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Checkout code
@@ -84,7 +84,7 @@ jobs:
   # =======================================
   setup-labels:
     name: Auto-label and Detect Changed Components
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       pull-requests: write # actions/labeler adds labels
@@ -154,7 +154,7 @@ jobs:
   # =======================================
   lint:
     name: ESLint & Prettier Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
 
     steps:
@@ -197,7 +197,7 @@ jobs:
   # =======================================
   typecheck:
     name: Type Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
 
     steps:
@@ -246,7 +246,7 @@ jobs:
   go-lint:
     needs: [setup-labels]
     name: Go Lint (golangci-lint)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     if: needs.setup-labels.outputs.has-go == 'true'
 
@@ -277,7 +277,7 @@ jobs:
   go-tests-coverage:
     needs: [setup-labels]
     name: Go Tests (Coverage)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     if: needs.setup-labels.outputs.has-go == 'true'
 
@@ -364,7 +364,7 @@ jobs:
   go-tests-race:
     needs: [setup-labels]
     name: Go Tests (Race Detection)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     # NOTE: the base_ref == develop/main clause that used to live here was dead:
     # on.pull_request.branches already restricts this workflow to
@@ -407,7 +407,7 @@ jobs:
   go-tests:
     needs: [setup-labels, go-tests-coverage, go-tests-race]
     name: Go Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     if: |
       always() &&
@@ -448,7 +448,7 @@ jobs:
   terraform-fmt:
     needs: [setup-labels]
     name: Terraform Format Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     if: needs.setup-labels.outputs.has-terraform == 'true'
     outputs:
@@ -477,7 +477,7 @@ jobs:
   # =======================================
   terraform-build-lambdas:
     name: Build Lambda Binaries
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     needs: [setup-labels]
     # Only terraform-plan-dev/prd consume these binaries, and both require
@@ -564,7 +564,7 @@ jobs:
   # =======================================
   terraform-validate-dev:
     name: Terraform Validate (DEV)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     needs: [setup-labels, terraform-fmt]
     if: |
@@ -597,7 +597,7 @@ jobs:
   # =======================================
   terraform-validate-prd:
     name: Terraform Validate (PRD)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     needs: [setup-labels, terraform-fmt]
     if: |
@@ -630,7 +630,7 @@ jobs:
   # =======================================
   terraform-security-scan:
     name: Checkov Security Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     needs: [setup-labels, terraform-fmt]
     if: |
@@ -692,7 +692,7 @@ jobs:
   # =======================================
   terraform-test-matrix-prep:
     name: Terraform Test - Determine Targets
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     needs: [setup-labels, terraform-fmt]
     if: |
@@ -732,7 +732,7 @@ jobs:
   # =======================================
   terraform-test:
     name: Terraform Test (${{ matrix.dir }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     needs: [setup-labels, terraform-test-matrix-prep]
     if: needs.terraform-test-matrix-prep.outputs.has-targets == 'true'
@@ -764,7 +764,7 @@ jobs:
   # =======================================
   terraform-plan-dev:
     name: Terraform Plan (DEV)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write # AWS OIDC authentication
@@ -885,7 +885,7 @@ jobs:
   # =======================================
   terraform-plan-prd:
     name: Terraform Plan (PRD)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write # AWS OIDC authentication
@@ -1014,7 +1014,7 @@ jobs:
   frontend-astro-tests:
     needs: [setup-labels]
     name: Frontend Tests (Public Site - Astro)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     if: needs.setup-labels.outputs.has-astro == 'true'
 
@@ -1065,7 +1065,7 @@ jobs:
   frontend-admin-tests:
     needs: [setup-labels]
     name: Frontend Tests (Admin)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     if: needs.setup-labels.outputs.has-admin == 'true'
 
@@ -1106,7 +1106,7 @@ jobs:
   # =======================================
   e2e-public-tests:
     name: E2E Tests (Public Site)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     needs: [frontend-astro-tests]
     if: |
@@ -1187,7 +1187,7 @@ jobs:
   # =======================================
   e2e-admin-tests:
     name: E2E Tests (Admin - Full Suite)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     needs: [frontend-admin-tests]
     if: |
@@ -1282,7 +1282,7 @@ jobs:
   deploy-scripts-tests:
     needs: [setup-labels]
     name: Deploy Scripts Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     if: needs.setup-labels.outputs.has-deploy-scripts == 'true'
 
@@ -1313,7 +1313,7 @@ jobs:
   # =======================================
   coverage-check:
     name: Coverage Badges
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     needs:
       - go-tests
@@ -1372,7 +1372,7 @@ jobs:
   # =======================================
   ci-success:
     name: All CI Checks Passed
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     needs:
       - verify-go-toolchain

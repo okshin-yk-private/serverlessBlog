@@ -35,7 +35,7 @@ jobs:
   scan-targets:
     name: Select immutable scan targets
     timeout-minutes: 5
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       targets: ${{ steps.targets.outputs.targets }}
     steps:
@@ -72,7 +72,7 @@ jobs:
   gitleaks:
     name: Gitleaks (secrets)
     needs: scan-targets
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -138,7 +138,7 @@ jobs:
   codeql:
     name: CodeQL (${{ matrix.language }})
     needs: scan-targets
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -181,7 +181,7 @@ jobs:
   trivy-fs:
     name: Trivy (filesystem)
     needs: scan-targets
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -238,7 +238,7 @@ jobs:
   zizmor:
     name: zizmor (GitHub Actions)
     needs: scan-targets
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -278,7 +278,7 @@ jobs:
   dependency-audit:
     name: Bun and Go dependency audit
     needs: scan-targets
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -327,7 +327,7 @@ jobs:
   # =======================================
   security-scan-summary:
     name: Security Scan Summary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     needs: [scan-targets, gitleaks, codeql, trivy-fs, zizmor, dependency-audit]
     if: always()
