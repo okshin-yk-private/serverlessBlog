@@ -38,3 +38,20 @@
 - 1週間程度の実際のログ量・クエリスキャン量と、画面で必要な時間範囲を見て調整する。
 
 参考: [ダッシュボード構文](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/CloudWatch-Dashboard-Body-Structure.html)、[更新間隔](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/change_dashboard_refresh_interval.html)、[CodeBuildメトリクス](https://docs.aws.amazon.com/codebuild/latest/userguide/cloudwatch_metrics-codebuild.html)、[Logs Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html)。
+
+## クエリ回帰検証
+
+`stats` で定義した列を `fields` で再定義すると `Ephemeral field is already defined: buildId` になる。計算だけを `fields` に置き、既存列の選択は `display` を使う。
+
+CI の `bun run test:unit:config` は列の再定義を検出し、fixture が本番の filter / stats / 計算 / display をそのまま利用することと、検証器が空結果・誤った時間を失敗にすることを確認する。Terraform mock でも表示列の契約を検査する。これらのオフライン検査だけでは AWS の構文実行を証明しない。
+
+読み取りクエリを実行する承認と既存認証がある場合に限り、次を実行する。
+
+```sh
+AWS_PROFILE=prod python3 scripts/ci/publication_query_fixture.py \
+  --verify --log-group /aws/lambda/blog-reconcile-build-post-go
+```
+
+1ロググループ・直近5分の既存イベントを種に、クエリ内だけで合成イベントを展開する。ログ書き込み、ダッシュボード変更、記事公開はしない。5秒・2.5秒の計算、重複確認の最初の時刻、異なるrevisionの分離、開始/確認欠落の空欄、対象外イベントの除外を AWS エンジンで検証する。種となるログがない場合も失敗とし、成功扱いにしない。`limit` はスキャン量を制限しないため、時間範囲を広げて回避しない。
+
+2026-11-01 の実行では4グループが期待値と一致し、スキャンは4イベント・834バイトだった。これは集計部分の検証であり、実ログの取り込み・JSON抽出、同時刻イベントの `lastEvent` 順序、実際の記事保存から公開確認までの一連の動作は別途確認が必要。CI から AWS クエリは実行しない。
