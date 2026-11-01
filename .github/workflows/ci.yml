@@ -843,9 +843,11 @@ jobs:
           terraform plan -out=tfplan.binary -lock-timeout=5m -detailed-exitcode -no-color 2>&1 | tee tfplan_output.txt || exitcode=$?
           terraform show -json tfplan.binary > tfplan.json
           terraform show -no-color tfplan.binary > tfplan.txt
+          python3 ../../../scripts/ci/check_backup_plan.py < tfplan.json
           echo "exitcode=${exitcode:-0}" >> $GITHUB_OUTPUT
 
       - name: Upload Plan Artifact
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terraform-plan-dev
@@ -957,9 +959,11 @@ jobs:
           terraform plan -out=tfplan.binary -lock-timeout=5m -detailed-exitcode -no-color 2>&1 | tee tfplan_output.txt || exitcode=$?
           terraform show -json tfplan.binary > tfplan.json
           terraform show -no-color tfplan.binary > tfplan.txt
+          python3 ../../../scripts/ci/check_backup_plan.py < tfplan.json
           echo "exitcode=${exitcode:-0}" >> $GITHUB_OUTPUT
 
       - name: Upload Plan Artifact
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: terraform-plan-prd
