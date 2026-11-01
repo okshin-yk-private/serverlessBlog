@@ -11,7 +11,7 @@ is not proof that the other dependency trees or deployed versions are safe.
 | Gitleaks 8.24.3               | Full reachable Git history of the scanned SHA               | Visible, non-blocking while baseline is reviewed                    | Blocking                                           | Code scanning `gitleaks`, redacted artifact       |
 | CodeQL                        | Go and JS/TS source, security-and-quality queries           | Code scanning rules                                                 | Blocking                                           | `/language:go`, `/language:javascript-typescript` |
 | Trivy 0.70.0                  | Dependencies (including dev) and secrets, all severities    | High/Critical block; all severities retained                        | Blocking, including missing/malformed SARIF        | `trivy-fs`, SARIF artifact                        |
-| Bun audit 1.3.11              | Root, admin, public-astro, deploy scripts; all dependencies | High/Critical block; Moderate/Low remain visible                    | Missing/malformed reports and command errors block | `dependency-audit-*` artifact                     |
+| Bun audit 1.4.4              | Root, admin, public-astro, deploy scripts; all dependencies | High/Critical block; Moderate/Low remain visible                    | Missing/malformed reports and command errors block | `dependency-audit-*` artifact                     |
 | govulncheck 1.8.0             | Go call paths, including standard library                   | Reachable findings (exit 3) block; package-only findings summarized | Other nonzero exits and incomplete reports block   | `govulncheck.txt` artifact                        |
 | Checkov                       | Terraform-labeled PRs after fmt succeeds                    | `soft_fail: true`                                                   | Existing CI policy                                 | `checkov-terraform`                               |
 | zizmor 1.30.1                 | `.github/` workflows, actions, Dependabot config            | High fails; all findings visible                                    | Blocking                                           | Code scanning `zizmor`                            |
@@ -88,6 +88,29 @@ own local state, so the import runs separately in each account context).
 
 Sources: [GitHub supported ecosystems](https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories),
 [Bun audit](https://bun.com/docs/install/audit).
+
+## minimatch remediation (#841)
+
+Root and admin use ESLint 10.14.0 and a version-scoped override from minimatch
+10.x requests to 11.0.3. ESLint 10 removes the legacy eslintrc path; the unused
+eslint-plugin-import dependency is removed. No 3.x consumer is forcibly given
+the incompatible 11.x API, and no advisory exception is added.
+
+The override requires Bun 1.4.4 and produces lockfileVersion 3 for root/admin.
+Use the pinned Bun for local installs, CI and CodeBuild. The other two lockfiles
+remain unchanged and are supported by Bun 1.4.4. CodeBuild's release SHA256 is
+updated together with its version; `scripts/ci/verify-bun-version.sh --online`
+checks both against the official release.
+
+The ESLint engine update preserves the previous rule policy: @eslint/js 9.39.5
+is explicitly pinned, React Hooks 7.1.1 enables the same two Hooks rules, and
+the changed `reportGlobalThis` default is explicitly kept at its prior value.
+CLI and lint-staged commands select their config explicitly to preserve the
+old file selection despite ESLint 10's per-file config lookup. Regression tests
+cover complete enabled rule configurations, ignores, diagnostics, glob matching
+and typed project-service selection. Reassess these pins and the override when
+upstream dependencies adopt minimatch 11; changes to rule policy should be reviewed
+separately. This remediation preserves the High/Critical and reachable-Go gates from #840.
 
 ## Triage and exceptions
 

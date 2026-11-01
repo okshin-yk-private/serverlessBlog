@@ -46,6 +46,14 @@ repos:
   # installed trivy binary, so declare it as a local hook instead.
   - repo: local
     hooks:
+      # Use the same audited, locked ESLint as CI and lint-staged. An isolated
+      # mirrors-eslint@9 environment would retain the legacy minimatch path.
+      - id: eslint
+        name: ESLint (project lockfile)
+        entry: bun run eslint --config eslint.config.js
+        language: system
+        files: \.(ts|tsx|js|jsx)$
+        exclude: ^(node_modules|dist|build|\.next)/
       - id: trivy-config
         name: trivy-terraform-scan
         entry: trivy config
@@ -65,17 +73,6 @@ repos:
     rev: v8.24.3
     hooks:
       - id: gitleaks
-
-  # TypeScript/JavaScript hooks (for CDK and frontend)
-  - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: v9.17.0
-    hooks:
-      - id: eslint
-        files: \.(ts|tsx|js|jsx)$
-        exclude: ^(node_modules|dist|build|\.next)/
-        additional_dependencies:
-          - eslint@9
-          - typescript
 
   # Go hooks (for Lambda functions)
   - repo: https://github.com/dnephin/pre-commit-golang

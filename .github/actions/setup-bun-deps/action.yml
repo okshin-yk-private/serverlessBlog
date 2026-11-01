@@ -3,7 +3,7 @@ description: 'Setup Bun runtime and install frontend dependencies with caching'
 inputs:
   bun-version:
     description: 'Bun version to install'
-    default: '1.3.11'
+    default: '1.4.4'
   working-directory:
     description: 'Directory containing package.json'
     default: 'frontend'

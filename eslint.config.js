@@ -5,7 +5,12 @@ import prettierPlugin from 'eslint-plugin-prettier';
 import prettierConfig from 'eslint-config-prettier';
 
 export default [
+  // Keep @eslint/js 9's rule set while migrating the engine to ESLint 10.
   js.configs.recommended,
+  {
+    // ESLint 10 changed this default; preserve the existing rule behavior.
+    rules: { 'no-shadow-restricted-names': ['error', { reportGlobalThis: false }] },
+  },
   {
     ignores: [
       '**/node_modules/**',
