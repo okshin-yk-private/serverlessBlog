@@ -37,6 +37,25 @@ mock_provider "aws" {
 
 mock_provider "cloudflare" {}
 
+# The backup data sources now evaluate during plan instead of being deferred by
+# a broad module dependency. Keep root tests independent of built binaries and
+# provide a valid policy instead of the AWS mock's random string.
+override_data {
+  target = module.content_backup.data.aws_iam_policy_document.lambda_assume_role
+  values = {
+    json = "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+  }
+}
+
+override_data {
+  target = module.content_backup.data.archive_file.export
+  values = {
+    output_path         = "mock-backup.zip"
+    output_base64sha256 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+  }
+}
+
+
 run "cloudfront_log_delivery_source_collects_access_logs" {
   command = plan
 

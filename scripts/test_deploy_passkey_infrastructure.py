@@ -17,11 +17,13 @@ class DeploymentOrderTest(unittest.TestCase):
         for call in locking:
             self.assertIn('-lock-timeout=10m', call)
 
-    def run_deploy(self, environment='dev', unsafe=False, fail_bootstrap=False):
+    def run_deploy(self, environment='dev', unsafe=False, fail_bootstrap=False, unsafe_backup=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / 'scripts').mkdir()
             (root / 'bin').mkdir()
+            (root / 'scripts/ci').mkdir()
+            shutil.copy(Path(__file__).parent / 'ci/check_backup_plan.py', root / 'scripts/ci/check_backup_plan.py')
             for name in ('deploy_passkey_infrastructure.sh', 'configure_passkey_mfa.py'):
                 shutil.copy(Path(__file__).parent / name, root / 'scripts' / name)
             wrapper = '''import json, os, subprocess, sys
@@ -33,7 +35,7 @@ with open(os.environ['CALL_LOG'], 'a') as log:
 if kind == 'python3':
     if '--require-production-mfa' in args and os.environ['FAIL_MFA_BOOTSTRAP'] == 'true':
         sys.exit(1)
-    if '--check-plan' in args or '--check-sms-recovery-plan' in args:
+    if '--check-plan' in args or '--check-sms-recovery-plan' in args or args[0].endswith('check_backup_plan.py'):
         sys.exit(subprocess.call([os.environ['REAL_PYTHON'], *args]))
     print('false' if '--inspect-tier' in args else '{}')
 elif 'show' in args:
@@ -45,7 +47,9 @@ elif 'show' in args:
     else:
         changes = [{'address': 'module.auth.aws_cognito_user_pool.main', 'change': {
             'actions': ['no-op'], 'before': {'mfa_configuration': 'ON'}, 'after': {'mfa_configuration': 'ON'}}}]
-    print(json.dumps({'resource_changes': changes}))
+    if os.environ['UNSAFE_BACKUP'] == 'true':
+        changes.append({'address': 'module.content_backup.aws_s3_bucket.backup', 'type': 'aws_s3_bucket', 'change': {'actions': ['delete', 'create']}})
+    print(json.dumps({'format_version': '1.2', 'resource_changes': changes}))
 '''
             for name in ('terraform', 'python3'):
                 executable = root / 'bin' / name
@@ -55,6 +59,7 @@ elif 'show' in args:
             result = subprocess.run(['bash', str(root / 'scripts/deploy_passkey_infrastructure.sh'), environment],
                 env={**os.environ, 'PATH': f'{root / "bin"}{os.pathsep}{os.environ["PATH"]}',
                      'REAL_PYTHON': sys.executable, 'CALL_LOG': str(log), 'UNSAFE_PLAN': str(unsafe).lower(),
+                     'UNSAFE_BACKUP': str(unsafe_backup).lower(),
                      'FAIL_MFA_BOOTSTRAP': str(fail_bootstrap).lower()},
                 capture_output=True, text=True)
             return result, [json.loads(line) for line in log.read_text().splitlines()]
@@ -86,6 +91,12 @@ elif 'show' in args:
         inspect = next(i for i, call in enumerate(calls) if '--inspect-tier' in call)
         self.assertLess(bootstrap, inspect)
         self.assert_waits_for_state_lock(calls)
+
+    def test_backup_replacement_stops_before_production_apply(self):
+        result, calls = self.run_deploy(environment='prd', unsafe_backup=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Backup deletion/replacement/state removal forbidden', result.stderr)
+        self.assertFalse(any(call[0] == 'terraform' and 'apply' in call for call in calls))
 
     def test_production_bootstrap_failure_stops_before_terraform_and_passkeys(self):
         result, calls = self.run_deploy(environment='prd', fail_bootstrap=True)
