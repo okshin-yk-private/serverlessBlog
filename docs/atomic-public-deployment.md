@@ -62,6 +62,35 @@ DEV の Basic Auth がある場合、CLI は呼出し元が明示的に渡す
 カスタマー管理 KMS キーで暗号化している場合は、別途そのキーの復号権限が必要です。
 GitHub Actions とローカルスクリプトは対象が 401 を返した場合に既存パラメータを取得します。
 
+### 公開検証が失敗した場合の診断
+
+`site-public-verification` の JSON ログに試行番号、経過ミリ秒、結果
+(`retry` / `succeeded` / `timed-out`) を残す。失敗理由は HTTP status、通信失敗、
+リクエスト timeout、本文読取り失敗、manifest 不一致、本文ハッシュ不一致などを区別し、
+検証箇所は `manifest-before` / `content` / `not-found` / `manifest-after` で示す。
+最終 timeout にも最後の理由を残す。90秒の期限・既存の検証対象・完全一致条件は変えない。
+
+revision と route は SHA-256（Base64）で照合する。例えば run の revision を
+`printf '%s' '<revision>' | openssl dgst -sha256 -binary | openssl base64 -A`
+で計算すると `revisionSha256` に対応する。route はURLエンコード後のパスのみ
+（originなし、`/`を含む）を同様に計算する。ハッシュ不一致時は期待/取得ハッシュと
+サイズ、HTTP応答があればstatusを記録する。`Age`、`X-Cache`、`x-amz-cf-pop` は
+形式を限定して採用する。本文、記事slug、認証ヘッダー、cookie、Location、例外の
+メッセージ/stack/cause、レスポンス全体は記録しない。
+
+まず失敗した試行の種類と前後の `site-deploy-phase` を確認し、既存権限でKVSの
+現在の `activeRevision` と公開manifestを読み取る。後の一致やKVSの現在値だけでは
+失敗時の全エッジ状態は証明できない。viewer の `Cache-Control: no-cache` は
+CloudFrontのorigin再取得を強制しないため、伝播遅延を原因と断定しない。
+[GetKey仕様](https://docs.aws.amazon.com/cloudfront/latest/APIReference/API_kvs_GetKey.html)、
+[CloudFrontキャッシュ仕様](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Expiration.html)。
+自動rollbackは追加しない。再デプロイ/rollbackは現在値と影響を確認して別途承認する。
+
+2026-11-02 の run 41392111740 は昇格後の検証が失敗したが、当時の細かな理由は
+旧実装が破棄しており未特定。後の読み取り検証では対象revision
+`r1793596184-bb83cfd1aceb-41392111740-1` の既存probeが約7.8秒・1試行で成功した。
+これはその時点・観測経路の証拠であり、当時の失敗原因や全地域の動作証明ではない。
+
 ## ロールバック
 
 対象環境への操作権限を確認してから実行します。以下は値を置き換える手順例であり、
