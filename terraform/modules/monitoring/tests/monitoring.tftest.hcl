@@ -203,6 +203,10 @@ run "publication_observability_reuses_existing_dashboard" {
     error_message = "Measure explicit first public confirmation, not successful CodeBuild completion."
   }
   assert {
+    condition     = strcontains(local.publication_timing_query, "| display buildId, contentRevision, releaseRevision, lastEvent, requestedAtMs, confirmedAtMs, saveToPublicSeconds") && !strcontains(local.publication_timing_query, "| fields buildId")
+    error_message = "Display aggregated columns without redefining ephemeral fields."
+  }
+  assert {
     condition     = strcontains(local.admin_latency_query, "resourcePath like /^\\/admin\\//") && !strcontains(local.admin_latency_query, "sourceIp") && !strcontains(local.admin_errors_query, "userAgent")
     error_message = "API widgets must be admin-scoped aggregates without personal data columns."
   }
