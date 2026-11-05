@@ -1,0 +1,21 @@
+name: Cache Astro image transformations
+description: Reuse only generated image assets, isolated from dependency and content caches
+inputs:
+  scope:
+    description: Separate fixtures, dev and prd image sources
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Cache generated images
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        # Do not restore .astro/content or a previous dist/release. The loader
+        # must still fetch a fresh public snapshot, including unpublishing.
+        path: frontend/public-astro/node_modules/.astro/assets
+        # A unique save key lets this run persist newly transformed images.
+        # Keep restore scoped to the same environment, OS, architecture,
+        # dependency lock and Astro configuration (image service/allowlist).
+        key: astro-images-v1-${{ inputs.scope }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/public-astro/bun.lock', 'frontend/public-astro/astro.config.mjs') }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: |
+          astro-images-v1-${{ inputs.scope }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/public-astro/bun.lock', 'frontend/public-astro/astro.config.mjs') }}-

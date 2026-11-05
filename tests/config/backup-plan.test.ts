@@ -96,7 +96,9 @@ describe('backup recovery plan safety', () => {
       )?.length
     ).toBe(2);
     expect(
-      ci.match(/name: Upload Plan Artifact\n {8}if: always\(\)/g)?.length
+      ci.match(
+        /name: Upload Plan Summary\n {8}if: steps.plan.outcome == 'success'/g
+      )?.length
     ).toBe(2);
   });
 });

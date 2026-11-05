@@ -93,6 +93,7 @@ describe('complete push and PR component detection', () => {
 
   for (const [path, astro, admin, infrastructure] of [
     ['frontend/admin/src/App.tsx', 'false', 'true', 'false'],
+    ['.github/actions/cache-astro-images/action.yml', 'true', 'false', 'false'],
     ['frontend/public-astro/src/styles/global.css', 'true', 'false', 'false'],
     ['frontend/shared-ui/src/styles/post-content.css', 'true', 'true', 'false'],
     ['package.json', 'true', 'true', 'false'],
@@ -197,6 +198,7 @@ describe('complete push and PR component detection', () => {
     ['tests/e2e/pages/AdminLoginPage.ts', 'true', 'true'],
     ['tests/e2e/global-setup.ts', 'true', 'true'],
     ['.github/actions/setup-bun-deps/action.yml', 'true', 'true'],
+    ['.github/actions/cache-astro-images/action.yml', 'true', 'false'],
     ['.github/workflows/ci.yml', 'true', 'true'],
   ]) {
     test(`CI selects consumers of ${path}`, () => {

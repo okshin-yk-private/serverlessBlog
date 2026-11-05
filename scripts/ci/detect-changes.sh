@@ -34,7 +34,7 @@ while IFS= read -r -d '' CHANGED_PATH; do
     scripts/configure_passkey_mfa.py|scripts/deploy_passkey_infrastructure.sh) INFRASTRUCTURE=true; ADMIN=true ;;
     terraform/*|.terraform-version) INFRASTRUCTURE=true; TERRAFORM=true ;;
     go-functions/*) INFRASTRUCTURE=true; GO=true ;;
-    frontend/public-astro/*) ASTRO=true ;;
+    frontend/public-astro/*|.github/actions/cache-astro-images/*) ASTRO=true ;;
     frontend/admin/*) ADMIN=true ;;
     frontend/shared-ui/*|package.json|bun.lock|bunfig.toml|tsconfig*.json)
       ASTRO=true; ADMIN=true ;;
