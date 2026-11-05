@@ -33,6 +33,7 @@ on:
       - 'scripts/ci/verify-public-contract.sh'
       - 'scripts/ci/verify_public_contract.py'
       - '.github/workflows/deploy.yml'
+      - '.github/actions/cache-astro-images/**'
       - 'tests/e2e/**'
       - 'tests/config/**'
       - 'playwright.aws.config.ts'
@@ -731,6 +732,11 @@ jobs:
         with:
           working-directory: frontend/public-astro
 
+      - name: Cache public image transformations
+        uses: ./.github/actions/cache-astro-images
+        with:
+          scope: ${{ needs.detect-changes.outputs.target-env }}
+
       - name: Set site URL
         id: site
         run: |
@@ -786,14 +792,8 @@ jobs:
             fi
           done
 
-          # Check dist size < 50MB (Requirement 6.8)
-          DIST_SIZE_BYTES=$(du -sb dist/ | cut -f1)
-          MAX_SIZE=$((50 * 1024 * 1024))
-          if [ "$DIST_SIZE_BYTES" -gt "$MAX_SIZE" ]; then
-            echo "❌ Build size exceeds 50MB limit: $DIST_SIZE_BYTES bytes"
-            exit 1
-          fi
-          echo "✓ Build size within 50MB limit"
+          # Use the same gzip JS and total artifact budget as PR builds.
+          bun run validate:build
 
           echo "✓ Build validation passed"
 

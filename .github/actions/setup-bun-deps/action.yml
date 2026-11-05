@@ -22,13 +22,15 @@ runs:
       # any future project moves.
       # Restore only an exact lockfile match: Bun can leave obsolete nested
       # packages in node_modules after a fallback restore. v2 discards caches
-      # previously populated from a different lockfile.
+      # previously populated from a different lockfile. v3 excludes Astro image
+      # transforms: the dedicated image cache owns those independently.
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ${{ inputs.working-directory }}/node_modules
+          !${{ inputs.working-directory }}/node_modules/.astro
           ~/.bun/install/cache
-        key: bun-deps-v2-${{ runner.os }}-${{ inputs.working-directory }}-${{ hashFiles(format('{0}/bun.lock', inputs.working-directory)) }}
+        key: bun-deps-v3-${{ runner.os }}-${{ inputs.working-directory }}-${{ hashFiles(format('{0}/bun.lock', inputs.working-directory)) }}
     - name: Install dependencies
       shell: bash
       working-directory: ${{ inputs.working-directory }}
