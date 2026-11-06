@@ -181,7 +181,13 @@ class DeploymentOutputTests(unittest.TestCase):
             (root / "bin").mkdir()
             for script in ("deploy_passkey_infrastructure.sh", "ci/check_backup_plan.py", "ci/summarize_plan.py"):
                 shutil.copyfile(Path("scripts") / script, root / "scripts" / script)
-            (root / "scripts/configure_passkey_mfa.py").write_text("import sys\nif '--inspect-tier' in sys.argv: print('false')\n")
+            # Model the real guard's consumption of the entire JSON plan. An
+            # early-exiting reader races the writer's flush on Linux (exit 120).
+            (root / "scripts/configure_passkey_mfa.py").write_text(
+                "import sys\n"
+                "if '--inspect-tier' in sys.argv: print('false')\n"
+                "if '--check-plan' in sys.argv or '--check-sms-recovery-plan' in sys.argv: sys.stdin.read()\n"
+            )
             (root / "scripts/rotate_dev_access.py").write_text("import sys\nsys.stdin.read()\n")
             fake = root / "bin/terraform"
             fake.write_text('''#!/usr/bin/env python3
