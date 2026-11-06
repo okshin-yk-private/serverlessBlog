@@ -22,6 +22,10 @@ import urllib.request
 PREFIX = "/serverless-blog/dev"
 DEV_ACCOUNT = "881302602065"
 PROBE_PATHS = ("/", "/admin/", "/api/posts", "/images/__rotation_check__", "/_astro/__rotation_check__")
+E2E_PASSWORD = "module.auth.random_password.e2e_admin[0]"
+E2E_USER = "module.auth.aws_cognito_user.e2e_admin[0]"
+ORIGIN_KEY = "module.api.aws_api_gateway_api_key.cloudfront[0]"
+ORIGIN_BINDING = "module.api.aws_api_gateway_usage_plan_key.cloudfront[0]"
 
 
 class RotationError(Exception):
@@ -114,11 +118,50 @@ def prepare(receipt):
     print("DEV password updated in SSM; edge invalidation is NOT complete until verification passes")
 
 
+def capture_plan(receipt, plan):
+    changes = {item["address"]: item["change"] for item in plan["resource_changes"]}
+    for address in (E2E_PASSWORD, ORIGIN_KEY, ORIGIN_BINDING):
+        require(set(changes.get(address, {}).get("actions", [])) == {"create", "delete"},
+                "Rotation plan must replace exactly the expected credential resources")
+    require(changes.get(E2E_USER, {}).get("actions") == ["update"],
+            "Rotation must update the existing E2E user, never replace the user/pool")
+    require(all("delete" not in change["actions"] or address in (E2E_PASSWORD, ORIGIN_KEY, ORIGIN_BINDING)
+                for address, change in changes.items()), "Unexpected deletion in rotation plan")
+    old_password = changes[E2E_PASSWORD]["before"]["result"]
+    require(old_password and parameter("/e2e/admin-password") == old_password,
+            "E2E password drift must be resolved before rotation")
+    data = json.loads(receipt.read_text())
+    data.update({"old_e2e_password": old_password,
+                 "old_api_key_id": changes[ORIGIN_KEY]["before"]["id"],
+                 "e2e_username": changes[E2E_USER]["before"]["username"],
+                 "user_pool_id": changes[E2E_USER]["before"]["user_pool_id"]})
+    require(all(data.get(key) for key in ("old_api_key_id", "e2e_username", "user_pool_id")),
+            "Rotation plan is missing existing credential identifiers")
+    receipt.write_text(json.dumps(data))
+    print("Rotation plan verified: replace DEV E2E password and origin key; preserve Cognito user/pool")
+
+
+def verify_other_credentials(data):
+    # Only an explicit NotFound response proves deletion; access denied/timeouts
+    # must not be mistaken for revocation. Do not request or log the key's value.
+    result = subprocess.run(["aws", "apigateway", "get-api-key", "--api-key", data["old_api_key_id"],
+                             "--no-include-value", "--no-cli-pager"], capture_output=True, text=True, timeout=60)
+    require(result.returncode != 0 and "(NotFoundException)" in result.stderr,
+            "Old API origin key deletion has not been verified")
+    new_password = parameter("/e2e/admin-password")
+    require(new_password and new_password != data["old_e2e_password"], "E2E password was not rotated")
+    aws("cognito-idp", "admin-user-global-sign-out", "--user-pool-id", data["user_pool_id"],
+        "--username", data["e2e_username"])
+    print("Old origin key deleted; E2E SSM password changed and global sign-out completed")
+    print("Existing JWTs may remain usable at offline verifiers until expiry; post-deploy E2E must verify new login")
+
+
 def verify(receipt):
     data = json.loads(receipt.read_text())
     require(parameter("/basic-auth/password") == data["new_password"], "SSM password changed during deployment")
     require(parameter("/basic-auth/username") == data["username"], "SSM username changed during deployment")
     aws("cloudfront", "wait", "distribution-deployed", "--id", data["distribution"], timeout=600)
+    verify_other_credentials(data)
     old_basic = {"Authorization": authorization(data["username"], data["old_password"])}
     old_cookie = {"Cookie": "__Host-dev-access=" + cookie(data["username"], data["old_password"])}
     new_basic = {"Authorization": authorization(data["username"], data["new_password"])}
@@ -131,7 +174,8 @@ def verify(receipt):
         home_status, _ = probe(data["url"] + "/", new_basic)
         admin_status, issued_cookie = probe(data["url"] + "/admin/", new_basic)
         cookie_status, _ = probe(data["url"] + "/admin/", {"Cookie": expected_cookie})
-        if rejected and home_status == admin_status == cookie_status == 200 and expected_cookie in [part.strip() for part in issued_cookie.split(";")]:
+        api_status, _ = probe(data["url"] + "/api/posts", new_basic)
+        if rejected and home_status == admin_status == cookie_status == api_status == 200 and expected_cookie in [part.strip() for part in issued_cookie.split(";")]:
             print("DEV rotation verified: distribution Deployed; old Basic/cookie rejected; new Basic/cookie accepted")
             return
         if attempt < 11:
@@ -141,12 +185,15 @@ def verify(receipt):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("prepare", "verify", "cleanup"))
+    parser.add_argument("operation", choices=("prepare", "capture-plan", "verify", "cleanup"))
     operation = parser.parse_args().operation
     if operation == "cleanup":
         (Path(os.environ["RUNNER_TEMP"]) / "dev-access-rotation.json").unlink(missing_ok=True)
         return
     receipt = context()
+    if operation == "capture-plan":
+        capture_plan(receipt, json.load(sys.stdin))
+        return
     (prepare if operation == "prepare" else verify)(receipt)
 
 

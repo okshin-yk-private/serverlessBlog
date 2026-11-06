@@ -59,7 +59,7 @@ on:
           - frontend
           - astro
       rotate_dev_access:
-        description: 'Rotate DEV Basic password and invalidate existing DEV sessions (develop + infrastructure/all only)'
+        description: 'Rotate DEV Basic, E2E admin password and API origin key (develop + infrastructure/all only)'
         type: boolean
         default: false
 
@@ -363,6 +363,8 @@ jobs:
       # The API bootstrap is separately verified; it is not represented in a PR plan.
       - name: Terraform Apply
         working-directory: terraform/environments/dev
+        env:
+          ROTATE_DEV_ACCESS: ${{ inputs.rotate_dev_access }}
         run: |
           echo "========================================="
           echo "Deploying to DEV Environment"
