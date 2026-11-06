@@ -31,7 +31,7 @@ GO=false
 TERRAFORM=false
 while IFS= read -r -d '' CHANGED_PATH; do
   case "$CHANGED_PATH" in
-    scripts/configure_passkey_mfa.py|scripts/deploy_passkey_infrastructure.sh) INFRASTRUCTURE=true; ADMIN=true ;;
+    scripts/configure_passkey_mfa.py|scripts/deploy_passkey_infrastructure.sh|scripts/rotate_dev_access.py) INFRASTRUCTURE=true; ADMIN=true ;;
     terraform/*|.terraform-version) INFRASTRUCTURE=true; TERRAFORM=true ;;
     go-functions/*) INFRASTRUCTURE=true; GO=true ;;
     frontend/public-astro/*|.github/actions/cache-astro-images/*) ASTRO=true ;;
@@ -46,7 +46,7 @@ while IFS= read -r -d '' CHANGED_PATH; do
         ASTRO=true ;;
       playwright.admin.config.ts|playwright.passkey.config.ts|tests/e2e/passkeys/*|tests/e2e/specs/admin-*)
         ADMIN=true ;;
-      tests/e2e/*|playwright.aws.config.ts|.github/workflows/ci.yml|.github/actions/setup-bun-deps/*|scripts/ci/*|tests/config/*|.prettierrc*|.prettierignore)
+      tests/e2e/*|playwright.aws.config.ts|.github/workflows/ci-secure.yml|.github/actions/setup-bun-deps/*|scripts/ci/*|tests/config/*|.prettierrc*|.prettierignore)
         ASTRO=true; ADMIN=true ;;
     esac
     # Changes to the workflow itself, its composite actions or the CI scripts
@@ -54,7 +54,7 @@ while IFS= read -r -d '' CHANGED_PATH; do
     # path changed. Fail closed by running both (mirrors the astro/admin rule
     # above for the same paths).
     case "$CHANGED_PATH" in
-      .github/workflows/ci.yml|.github/actions/*|scripts/ci/*)
+      .github/workflows/ci-secure.yml|.github/actions/*|scripts/ci/*)
         GO=true; TERRAFORM=true ;;
     esac
   fi

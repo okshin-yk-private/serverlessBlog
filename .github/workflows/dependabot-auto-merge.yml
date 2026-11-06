@@ -5,7 +5,7 @@ name: Dependabot Auto Merge
 # no persisted credentials) and never executes PR code, artifacts or caches.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
-    workflows: [CI, Security Scan, Dependency Update Security]
+    workflows: [CI Secure, Security Scan, Dependency Update Security]
     types: [completed]
   workflow_dispatch:
     inputs:

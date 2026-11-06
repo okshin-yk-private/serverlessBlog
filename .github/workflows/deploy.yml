@@ -28,6 +28,7 @@ on:
       - 'scripts/deploy/**'
       - 'scripts/configure_passkey_mfa.py'
       - 'scripts/deploy_passkey_infrastructure.sh'
+      - 'scripts/rotate_dev_access.py'
       - 'scripts/ci/detect-changes.sh'
       - 'scripts/ci/deploy-base.sh'
       - 'scripts/ci/verify-public-contract.sh'
@@ -57,6 +58,10 @@ on:
           - infrastructure
           - frontend
           - astro
+      rotate_dev_access:
+        description: 'Rotate DEV Basic password and invalidate existing DEV sessions (develop + infrastructure/all only)'
+        type: boolean
+        default: false
 
 # develop/main への連続 push で terraform apply が同じ S3/DynamoDB state に対して
 # 同時に走らないよう、実行中の apply を cancel-in-progress で打ち切らず、キューイング
@@ -105,6 +110,12 @@ jobs:
       - name: Detect changed paths
         id: changes
         run: |
+          if [ "$ROTATE_DEV_ACCESS" == "true" ]; then
+            if [ "$EVENT_NAME" != "workflow_dispatch" ] || [ "$GITHUB_REF" != "refs/heads/develop" ] || [ "$INPUT_ENVIRONMENT" != "dev" ] || { [ "$COMPONENTS" != "all" ] && [ "$COMPONENTS" != "infrastructure" ]; }; then
+              echo "DEV rotation requires workflow_dispatch on develop, environment dev, and infrastructure/all"
+              exit 1
+            fi
+          fi
           if [ "$EVENT_NAME" == "workflow_dispatch" ]; then
             # Manual dispatch - check components input
             if [ "$COMPONENTS" == "all" ]; then
@@ -146,6 +157,8 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           COMPONENTS: ${{ github.event.inputs.components }}
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          ROTATE_DEV_ACCESS: ${{ inputs.rotate_dev_access }}
           AFTER_SHA: ${{ github.sha }}
           BRANCH: ${{ github.ref_name }}
           REPOSITORY: ${{ github.repository }}
@@ -245,7 +258,7 @@ jobs:
       - name: Save Lambda binaries to cache
         if: steps.cache.outputs.cache-hit != 'true'
         # このジョブが lambda-all-${{ runner.os }}-<hash> を読む唯一の場所で
-        # あり、ci.yml の terraform-build-lambdas も同じ key で書くが、
+        # あり、ci-secure.yml の terraform-build-lambdas も同じ key で書くが、
         # pull_request でのみ実行される。GitHub Actions のキャッシュは
         # ワークフロー実行の ref にスコープされるため、develop/main への
         # push は PR ref で書かれたキャッシュを読めない。deploy.yml 自身が
@@ -304,17 +317,6 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: GitHubActions-TerraformApply-DEV
 
-      - name: Get Basic Auth Credentials from SSM
-        run: |
-          # Use --with-decryption for both (safe for non-SecureString too)
-          USERNAME=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --with-decryption --query "Parameter.Value" --output text)
-          PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --query "Parameter.Value" --output text)
-          echo "::add-mask::$USERNAME"
-          echo "::add-mask::$PASSWORD"
-          echo "TF_VAR_basic_auth_username=$USERNAME" >> $GITHUB_ENV
-          echo "TF_VAR_basic_auth_password=$PASSWORD" >> $GITHUB_ENV
-          echo "✓ Basic Auth credentials loaded from SSM"
-
       - name: Get Cloudflare API Token from SSM
         run: |
           CLOUDFLARE_TOKEN=$(aws ssm get-parameter --name "/serverless-blog/dev/cloudflare/apikey" --with-decryption --query "Parameter.Value" --output text)
@@ -342,6 +344,21 @@ jobs:
           KVS=$(aws ssm get-parameter --name "/serverless-blog/$TARGET_ENV/cdn/release-kvs-arn" --query 'Parameter.Value' --output text)
           bun scripts/deploy/prepareRoutes.ts "$BUCKET" "$KVS"
 
+      - name: Rotate DEV access password in SSM
+        if: github.event_name == 'workflow_dispatch' && inputs.rotate_dev_access == true
+        run: python3 scripts/rotate_dev_access.py prepare
+
+      - name: Get Basic Auth Credentials from SSM
+        run: |
+          # Use --with-decryption for both (safe for non-SecureString too)
+          USERNAME=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --with-decryption --query "Parameter.Value" --output text)
+          PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --query "Parameter.Value" --output text)
+          echo "::add-mask::$USERNAME"
+          echo "::add-mask::$PASSWORD"
+          echo "TF_VAR_basic_auth_username=$USERNAME" >> $GITHUB_ENV
+          echo "TF_VAR_basic_auth_password=$PASSWORD" >> $GITHUB_ENV
+          echo "✓ Basic Auth credentials loaded from SSM"
+
       # Bootstrap WebAuthn MFA, then make a fresh plan and reject MFA overwrites.
       # The API bootstrap is separately verified; it is not represented in a PR plan.
       - name: Terraform Apply
@@ -352,6 +369,14 @@ jobs:
           echo "========================================="
           bash ../../../scripts/deploy_passkey_infrastructure.sh dev
           echo "✓ DEV deployment complete"
+
+      - name: Verify old DEV credentials are rejected
+        if: github.event_name == 'workflow_dispatch' && inputs.rotate_dev_access == true
+        run: python3 scripts/rotate_dev_access.py verify
+
+      - name: Remove private DEV rotation receipt
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.rotate_dev_access == true
+        run: python3 scripts/rotate_dev_access.py cleanup
 
       - name: Get Outputs
         id: outputs
@@ -1216,7 +1241,7 @@ jobs:
 
       # デプロイされた admin が実際に動くかの smoke (admin-auth のみ)。
       # /admin 配下での配信・実 Cognito 認証・API 到達をここで確かめる。
-      # エディタや画像アップロードなど UI の振る舞いは ci.yml が MSW 環境で
+      # エディタや画像アップロードなど UI の振る舞いは ci-secure.yml が MSW 環境で
       # PR ごとに全 spec ゲートしており、ここで二重に持たない (Issue #520)。
       #
       # public 側と同じく continue-on-error は付けない。post-deploy 検証が

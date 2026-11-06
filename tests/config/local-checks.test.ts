@@ -24,7 +24,7 @@ const expectedBun = read('.github/actions/setup-bun-deps/action.yml').match(
   /bun-version:[\s\S]*?default: '([\d.]+)'/
 )![1];
 const expectedGo = read('go-functions/go.mod').match(/^go (\S+)$/m)![1];
-const expectedTerraform = read('.github/workflows/ci.yml').match(
+const expectedTerraform = read('.github/workflows/ci-secure.yml').match(
   /TERRAFORM_VERSION: '([\d.]+)'/
 )![1];
 

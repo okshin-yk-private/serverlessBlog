@@ -70,7 +70,7 @@ describe('public build budget executable gate', () => {
 
   test('PR and deployment enforce the gate before publishing artifacts', () => {
     for (const [file, jobName, artifact] of [
-      ['ci.yml', 'frontend-astro-tests', 'Upload Astro build output'],
+      ['ci-secure.yml', 'frontend-astro-tests', 'Upload Astro build output'],
       ['deploy.yml', 'build-astro', 'Upload build artifact'],
     ]) {
       const workflow = readFileSync(`.github/workflows/${file}`, 'utf8');
@@ -109,7 +109,7 @@ describe('Astro cache isolation', () => {
     expect(restore).toContain('${{ inputs.scope }}');
     expect(restore).toContain('frontend/public-astro/bun.lock');
     expect(restore).toContain('frontend/public-astro/astro.config.mjs');
-    expect(readFileSync('.github/workflows/ci.yml', 'utf8')).toContain(
+    expect(readFileSync('.github/workflows/ci-secure.yml', 'utf8')).toContain(
       'scope: fixtures'
     );
     expect(readFileSync('.github/workflows/deploy.yml', 'utf8')).toContain(

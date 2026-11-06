@@ -105,7 +105,7 @@ describe('public Terraform plan summary', () => {
 });
 
 describe('plan publishing boundary in both CI environments', () => {
-  const workflow = readFileSync('.github/workflows/ci.yml', 'utf8');
+  const workflow = readFileSync('.github/workflows/ci-secure.yml', 'utf8');
   for (const env of ['dev', 'prd']) {
     test(`${env} uploads/comments only the allowlisted summary and cleans raw files on failure`, () => {
       const job = workflow
@@ -138,7 +138,7 @@ describe('plan publishing boundary in both CI environments', () => {
 });
 
 describe('actual Plan workflow shell with a fake Terraform executable', () => {
-  const workflow = readFileSync('.github/workflows/ci.yml', 'utf8');
+  const workflow = readFileSync('.github/workflows/ci-secure.yml', 'utf8');
   const job = workflow
     .split('\n  terraform-plan-dev:\n')[1]
     .split('\n  terraform-plan-prd:')[0];
