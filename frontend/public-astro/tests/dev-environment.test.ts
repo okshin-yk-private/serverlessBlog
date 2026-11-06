@@ -130,10 +130,10 @@ describe('Task 8.3: Development Environment and Build Validation', () => {
   // Requirement 13.6: CI Failure Blocks Deployment
   // =====================================
   describe('Requirement 13.6: CI Failure Blocks Deployment', () => {
-    describe('CI Workflow (ci.yml)', () => {
-      const ciPath = join(workflowDir, 'ci.yml');
+    describe('CI Workflow (ci-secure.yml)', () => {
+      const ciPath = join(workflowDir, 'ci-secure.yml');
 
-      it('should have ci.yml workflow file', () => {
+      it('should have ci-secure.yml workflow file', () => {
         expect(existsSync(ciPath)).toBe(true);
       });
 
@@ -247,7 +247,7 @@ describe('Task 8.3: Development Environment and Build Validation', () => {
 
     describe('Branch Protection Integration', () => {
       it('should run CI on pull requests to main', () => {
-        const ciPath = join(workflowDir, 'ci.yml');
+        const ciPath = join(workflowDir, 'ci-secure.yml');
         const content = readFileSync(ciPath, 'utf-8');
         const workflow = yaml.load(content) as Record<string, unknown>;
 
@@ -259,7 +259,7 @@ describe('Task 8.3: Development Environment and Build Validation', () => {
       });
 
       it('should run CI on pull requests to develop', () => {
-        const ciPath = join(workflowDir, 'ci.yml');
+        const ciPath = join(workflowDir, 'ci-secure.yml');
         const content = readFileSync(ciPath, 'utf-8');
         const workflow = yaml.load(content) as Record<string, unknown>;
 
