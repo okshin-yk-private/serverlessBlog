@@ -11,7 +11,7 @@ from pathlib import Path
 
 BOT_ID = 49699333
 WORKFLOWS = {
-    "ci.yml": "All CI Checks Passed",
+    "ci-secure.yml": "All CI Checks Passed",
     "security-scan.yml": "Security Scan Summary",
     "dependency-update-security.yml": "Dependency Update Security Gate",
 }

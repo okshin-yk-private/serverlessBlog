@@ -1,7 +1,7 @@
 # Repository-wide vulnerability scanning workflow.
 #
 # Scope: secrets (gitleaks), SAST (CodeQL), dependency vulns + secrets (Trivy fs).
-# Checkov for Terraform stays in ci.yml (label-conditional) and uploads its own SARIF.
+# Checkov for Terraform stays in ci-secure.yml (label-conditional) and uploads its own SARIF.
 #
 # Dependency High/Critical and reachable Go findings block; all reports stay visible.
 # Scanner and upload errors fail. Historical Gitleaks policy is separate.

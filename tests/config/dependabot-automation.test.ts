@@ -83,7 +83,7 @@ test('terraform updates are a single grouped Thursday entry covering every direc
 
 test('every required-check workflow also reports on the merge queue', () => {
   for (const file of [
-    'ci.yml',
+    'ci-secure.yml',
     'security-scan.yml',
     'dependency-update-security.yml',
   ]) {
@@ -93,7 +93,7 @@ test('every required-check workflow also reports on the merge queue', () => {
     );
   }
   // Merge groups have no PR payload: base branch comes from setup-labels.
-  const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+  const ci = readFileSync('.github/workflows/ci-secure.yml', 'utf8');
   expect(ci).not.toContain('github.base_ref ==');
   expect(ci).toContain('github.event.merge_group.head_ref');
 });

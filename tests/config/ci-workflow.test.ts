@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
-const workflow = readFileSync('.github/workflows/ci.yml', 'utf8');
+const workflow = readFileSync('.github/workflows/ci-secure.yml', 'utf8');
 const finalJob = workflow.slice(workflow.indexOf('  ci-success:'));
 const gate = finalJob.split(
   '      - name: Verify required checks\n        run: |\n'
@@ -164,7 +164,7 @@ describe('job gating no longer depends on PR labels', () => {
 // runs on every PR. The unpinned, continue-on-error duplicate in go-lint was
 // pure overhead with no gating value.
 describe('go-lint no longer duplicates govulncheck', () => {
-  test('the unpinned, ignored govulncheck step has been removed from ci.yml', () => {
+  test('the unpinned, ignored govulncheck step has been removed from ci-secure.yml', () => {
     expect(workflow).not.toContain('govulncheck@latest');
     expect(workflow).not.toContain('Go vulnerability check');
   });

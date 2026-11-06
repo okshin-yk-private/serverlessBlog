@@ -134,7 +134,7 @@ describe('atomic release workflow contracts', () => {
 // Issue #743 item 4: post-deploy-e2e-dev used to run
 // `bunx playwright install --with-deps chromium` unconditionally on every
 // DEV deploy (~27s, run 36176816604). It now uses the same cache-then-
-// install-deps-on-hit pattern as ci.yml's E2E jobs, keyed on the
+// install-deps-on-hit pattern as ci-secure.yml's E2E jobs, keyed on the
 // @playwright/test version so a cache hit skips the full browser download.
 describe('post-deploy-e2e-dev caches Playwright browsers', () => {
   const job = workflow

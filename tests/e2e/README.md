@@ -239,7 +239,7 @@ export TEST_ADMIN_PASSWORD=$(aws ssm get-parameter --name /serverless-blog/dev/e
 
 ## CI/CD統合
 
-### PR時（ci.yml）
+### PR時（ci-secure.yml）
 
 ```
 Job 6: e2e-public-tests → 公開サイト全 spec (3 / 7 tests)

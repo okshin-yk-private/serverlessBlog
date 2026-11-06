@@ -228,7 +228,7 @@ describe('workflow permissions and wiring', () => {
 
   test('CI and deploy grant write scopes only to the jobs that need them', () => {
     for (const file of [
-      '.github/workflows/ci.yml',
+      '.github/workflows/ci-secure.yml',
       '.github/workflows/deploy.yml',
     ]) {
       const workflow = read(file);
@@ -244,7 +244,7 @@ describe('workflow permissions and wiring', () => {
         }
       }
     }
-    const ci = jobs(read('.github/workflows/ci.yml'));
+    const ci = jobs(read('.github/workflows/ci-secure.yml'));
     expect(ci['setup-labels']).toContain('pull-requests: write');
   });
 
@@ -258,7 +258,7 @@ describe('workflow permissions and wiring', () => {
   });
 
   test('CI checks the pins and exceptions, nightly fails on overdue reviews', () => {
-    const guard = jobs(read('.github/workflows/ci.yml'))[
+    const guard = jobs(read('.github/workflows/ci-secure.yml'))[
       'verify-config-guards'
     ];
     expect(guard).toContain('scripts/ci/verify-bun-version.sh --online');
@@ -303,7 +303,7 @@ describe('workflow permissions and wiring', () => {
 
     test('every Lambda cache restore/save uses the toolchain- and flag-aware key', () => {
       for (const file of [
-        '.github/workflows/ci.yml',
+        '.github/workflows/ci-secure.yml',
         '.github/workflows/deploy.yml',
       ]) {
         const keys = read(file).match(/key: lambda-all-.*$/gm) ?? [];
@@ -312,8 +312,8 @@ describe('workflow permissions and wiring', () => {
       }
     });
 
-    test('ci.yml builds Lambda binaries in a single job with an exact-match cache, not a matrix', () => {
-      const ci = jobs(read('.github/workflows/ci.yml'));
+    test('ci-secure.yml builds Lambda binaries in a single job with an exact-match cache, not a matrix', () => {
+      const ci = jobs(read('.github/workflows/ci-secure.yml'));
       const build = ci['terraform-build-lambdas'];
       expect(build).toBeDefined();
       expect(build).not.toContain('strategy:');
@@ -342,7 +342,7 @@ describe('workflow permissions and wiring', () => {
 
     test('no workflow hardcodes the Lambda function list; go-functions/Makefile is the single source', () => {
       for (const file of [
-        '.github/workflows/ci.yml',
+        '.github/workflows/ci-secure.yml',
         '.github/workflows/deploy.yml',
       ]) {
         const workflow = read(file);
@@ -352,7 +352,9 @@ describe('workflow permissions and wiring', () => {
     });
 
     test('ci-success still fail-closed gates the Lambda build job', () => {
-      const ciSuccess = jobs(read('.github/workflows/ci.yml'))['ci-success'];
+      const ciSuccess = jobs(read('.github/workflows/ci-secure.yml'))[
+        'ci-success'
+      ];
       expect(ciSuccess).toContain('- terraform-build-lambdas');
       expect(ciSuccess).not.toContain('terraform-merge-artifacts');
       expect(ciSuccess).toContain(

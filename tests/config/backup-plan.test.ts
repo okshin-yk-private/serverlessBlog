@@ -89,14 +89,16 @@ describe('backup recovery plan safety', () => {
     expect(source.indexOf('scripts/ci/check_backup_plan.py')).toBeLessThan(
       source.indexOf('apply "$LOCK_TIMEOUT" -auto-approve "$PLAN_DIR/plan"')
     );
-    const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+    const ci = readFileSync('.github/workflows/ci-secure.yml', 'utf8');
     expect(
       ci.match(
         /python3 \.\.\/\.\.\/\.\.\/scripts\/ci\/check_backup_plan.py < tfplan.json/g
       )?.length
     ).toBe(2);
     expect(
-      ci.match(/name: Upload Plan Artifact\n {8}if: always\(\)/g)?.length
+      ci.match(
+        /name: Upload Plan Summary\n {8}if: steps.plan.outcome == 'success'/g
+      )?.length
     ).toBe(2);
   });
 });
