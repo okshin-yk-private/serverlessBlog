@@ -6,6 +6,7 @@ import stat
 import subprocess
 import tempfile
 import unittest
+import shutil
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location("rotation", "scripts/rotate_dev_access.py")
@@ -82,6 +83,7 @@ class RotationTests(unittest.TestCase):
             return 401, ""
         with patch.object(rotation, "parameter", side_effect=lambda key: self.values[key]), \
              patch.object(rotation, "aws", return_value={}) as aws, \
+             patch.object(rotation, "verify_other_credentials"), \
              patch.object(rotation, "probe", side_effect=probe), patch.object(rotation.time, "sleep"):
             rotation.verify(self.receipt)
         aws.assert_called_once_with("cloudfront", "wait", "distribution-deployed", "--id", "TEST", timeout=600)
@@ -122,6 +124,107 @@ class RotationTests(unittest.TestCase):
 
     def test_redirects_never_forward_credentials(self):
         self.assertIsNone(rotation.NoRedirect().redirect_request(None, None, 302, "", {}, "https://other.invalid"))
+
+    def plan(self):
+        return {"resource_changes": [
+            {"address": rotation.E2E_PASSWORD, "change": {"actions": ["delete", "create"], "before": {"result": "old-e2e-value"}}},
+            {"address": rotation.ORIGIN_KEY, "change": {"actions": ["delete", "create"], "before": {"id": "old-key-id"}}},
+            {"address": rotation.ORIGIN_BINDING, "change": {"actions": ["delete", "create"]}},
+            {"address": rotation.E2E_USER, "change": {"actions": ["update"], "before": {"username": "test-user", "user_pool_id": "test-pool"}}},
+        ]}
+
+    def test_capture_requires_expected_replacements_and_preserves_private_mode(self):
+        self.prepare()
+        with patch.object(rotation, "parameter", return_value="old-e2e-value"):
+            rotation.capture_plan(self.receipt, self.plan())
+        data = json.loads(self.receipt.read_text())
+        self.assertEqual(data["old_api_key_id"], "old-key-id")
+        self.assertEqual(stat.S_IMODE(self.receipt.stat().st_mode), 0o600)
+
+    def test_capture_rejects_user_replacement_or_unrelated_deletion(self):
+        self.prepare()
+        for address in (rotation.E2E_USER, "module.database.aws_dynamodb_table.main"):
+            plan = self.plan()
+            plan["resource_changes"].append({"address": address, "change": {"actions": ["delete", "create"]}})
+            with patch.object(rotation, "parameter", return_value="old-e2e-value"), self.assertRaises(rotation.RotationError):
+                rotation.capture_plan(self.receipt, plan)
+
+    def test_capture_rejects_noop_credentials(self):
+        self.prepare()
+        plan = self.plan()
+        plan["resource_changes"][0]["change"]["actions"] = ["no-op"]
+        with self.assertRaises(rotation.RotationError):
+            rotation.capture_plan(self.receipt, plan)
+
+    def test_deleted_key_and_changed_password_are_required_before_signout(self):
+        data = {"old_api_key_id": "old-key-id", "old_e2e_password": "old-password", "user_pool_id": "pool", "e2e_username": "test-user"}
+        for returncode, error, password, success in ((1, "(NotFoundException)", "new-password", True),
+                (1, "(AccessDeniedException)", "new-password", False), (0, "", "new-password", False),
+                (1, "(NotFoundException)", "old-password", False)):
+            with patch.object(rotation.subprocess, "run", return_value=subprocess.CompletedProcess([], returncode, "", error)), \
+                 patch.object(rotation, "parameter", return_value=password), patch.object(rotation, "aws") as aws:
+                if success:
+                    rotation.verify_other_credentials(data)
+                    aws.assert_called_once()
+                else:
+                    with self.assertRaises(rotation.RotationError):
+                        rotation.verify_other_credentials(data)
+                    aws.assert_not_called()
+
+
+class DeploymentOutputTests(unittest.TestCase):
+    def run_helper(self, rotate=False, fail="", target="dev"):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "scripts/ci").mkdir(parents=True)
+            (root / "terraform/environments/dev").mkdir(parents=True)
+            (root / "bin").mkdir()
+            for script in ("deploy_passkey_infrastructure.sh", "ci/check_backup_plan.py", "ci/summarize_plan.py"):
+                shutil.copyfile(Path("scripts") / script, root / "scripts" / script)
+            (root / "scripts/configure_passkey_mfa.py").write_text("import sys\nif '--inspect-tier' in sys.argv: print('false')\n")
+            (root / "scripts/rotate_dev_access.py").write_text("import sys\nsys.stdin.read()\n")
+            fake = root / "bin/terraform"
+            fake.write_text('''#!/usr/bin/env python3
+import json, os, sys
+with open(os.environ['COMMAND_LOG'], 'a') as f: f.write(json.dumps(sys.argv[1:]) + '\\n')
+operation = sys.argv[2]
+if operation == 'show': print(json.dumps({'format_version':'1.2','resource_changes':[]}))
+else:
+ print('CANARY-UNMARKED-CREDENTIAL')
+ if operation == os.environ.get('FAIL_OPERATION'): sys.exit(1)
+''')
+            fake.chmod(0o700)
+            log = root / "commands"
+            result = subprocess.run(["bash", str(root / "scripts/deploy_passkey_infrastructure.sh"), target],
+                env={**os.environ, "PATH": str(root / "bin") + os.pathsep + os.environ["PATH"],
+                     "ROTATE_DEV_ACCESS": str(rotate).lower(), "COMMAND_LOG": str(log), "FAIL_OPERATION": fail},
+                capture_output=True, text=True)
+            commands = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+            self.assertNotIn("CANARY-UNMARKED-CREDENTIAL", result.stdout + result.stderr)
+            return result, commands
+
+    def test_normal_deploy_suppresses_provider_values_and_does_not_rotate(self):
+        result, commands = self.run_helper()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(any(arg.startswith('-replace=') for command in commands for arg in command))
+
+    def test_rotation_replaces_only_credentials_in_final_plan(self):
+        result, commands = self.run_helper(rotate=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        replaced = [command for command in commands if any(arg.startswith('-replace=') for arg in command)]
+        self.assertEqual(len(replaced), 1)
+        self.assertEqual({arg for arg in replaced[0] if arg.startswith('-replace=')},
+                         {'-replace=' + rotation.E2E_PASSWORD, '-replace=' + rotation.ORIGIN_KEY})
+
+    def test_failures_are_fatal_without_leaking_diagnostics(self):
+        for operation in ("plan", "apply"):
+            result, _ = self.run_helper(fail=operation)
+            self.assertNotEqual(result.returncode, 0)
+
+    def test_production_rotation_aborts_before_terraform(self):
+        result, commands = self.run_helper(rotate=True, target="prd")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(commands, [])
 
 
 if __name__ == "__main__":
