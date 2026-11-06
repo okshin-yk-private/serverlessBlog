@@ -40,7 +40,7 @@ provider 設定にのみ使用する値であり、plan と保存済み plan の
 PRD・他ブランチ・frontend/astro のみの指定では、変更前に停止する。
 
 1. 現在の SSM 認証値で DEV の `/admin/` が 200 を返すことを確認する。
-2. ユーザー名は維持し、パスワードを暗号学的乱数で更新する。旧・新値の検証用ファイルは runner の一時領域に mode 0600 で置く。
+2. ユーザー名は維持し、パスワードを暗号学的乱数で更新する。AWS CLI への JSON 入力は mode 0600 の実ファイルを使い、呼び出し終了時に削除する（利用中の CLI では `/dev/stdin` 経由の入力が JSON として受理されなかった）。旧・新値の検証用ファイルは runner の一時領域に mode 0600 で置く。
 3. SSM の新値で既存の Terraform deploy を実行する。明示的な更新操作に限り、`module.auth.random_password.e2e_admin[0]` と `module.api.aws_api_gateway_api_key.cloudfront[0]` を `-replace` で再生成する。Cognito ユーザーはパスワード更新だけとし、対象キー・usage-plan association・生成パスワード以外の削除が計画されていたら停止する。既存の backup / MFA ガードも維持する。
 4. CloudFront distribution が `Deployed` になるまで待つ。公開・管理・API・画像・Astro の各パスで未認証・旧 Basic・旧 Cookie が 401、新 Basic と新 Cookie が管理画面にアクセスできることを確認する。
 5. 旧 API key ID の取得が明示的な NotFound となること、新しい origin key 経由で公開 API が 200 を返すこと、E2E パスワードの SSM 値が変わったことを確認する。E2E ユーザーを global sign-out し、後続の E2E で新しいパスワードによるログインを確認する。既発行 JWT をオフライン検証する側では有効期限まで受理され得るため、全 JWT の即時失効とは扱わない。
@@ -63,7 +63,7 @@ Basic 認証値と Cookie の受理値は CloudFront Function のコードに埋
 4. **中:** state の S3 アクセス権・暗号化・旧バージョン保持を確認する。復旧用履歴を一律削除せず、必要な証跡を保持して失効を優先する。
 5. **設計変更:** Basic 認証のコード埋め込みを廃止する場合は別設計が必要。今回のローテーションと Cloudflare ephemeral 化だけでは解決しない。
 
-API Gateway usage-plan key の `value` は AWS provider 6.70.0 で Sensitive が付かない属性である。通常の deploy でも Plan／Apply の生出力を一時ファイルに抑止し、公開するのは操作件数と成否だけにする。失敗時も診断文を公開せず、一時ファイルは終了時に削除する。
+API Gateway usage-plan key の `value` は AWS provider 6.70.0 で Sensitive が付かない属性である。通常の deploy でも Plan／Apply の生出力を一時ファイルに抑止し、公開するのは操作件数・成否・許可リストにある AWS エラー分類だけにする。失敗時も生の診断文を公開せず、一時ファイルは終了時に削除する。
 
 ## 一次資料
 
