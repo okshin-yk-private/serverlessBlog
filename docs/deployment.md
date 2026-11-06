@@ -236,7 +236,7 @@ git push origin develop
 ```
 
 GitHub Actionsが自動的に：
-1. CI/CDテストを実行（`.github/workflows/ci.yml`）
+1. CI/CDテストを実行（`.github/workflows/ci-secure.yml`）
 2. すべてのテストが成功した場合、dev環境へデプロイ（`.github/workflows/deploy.yml`）
    - Go Lambdaビルド（並列マトリクス）
    - `terraform apply` in `terraform/environments/dev`

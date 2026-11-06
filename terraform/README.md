@@ -171,7 +171,7 @@ GitHub Actionsによる自動化:
 - **mainブランチ**: 承認後に本番デプロイ
 - **セキュリティスキャン**: Checkov（CI）、Trivy（ローカル）
 
-詳細は [ci.yml](../.github/workflows/ci.yml)（PR の検証）と [deploy.yml](../.github/workflows/deploy.yml)（デプロイ）を参照。
+詳細は [ci-secure.yml](../.github/workflows/ci-secure.yml)（PR の検証）と [deploy.yml](../.github/workflows/deploy.yml)（デプロイ）を参照。
 
 ## セキュリティ
 

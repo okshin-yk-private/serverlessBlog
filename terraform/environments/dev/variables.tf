@@ -71,8 +71,9 @@ variable "parent_domain" {
 
 variable "cloudflare_api_token" {
   type        = string
-  description = "Cloudflare API token for DNS management"
+  description = "Cloudflare API token for DNS management (supplied again at apply; never stored in plans/state)"
   sensitive   = true
+  ephemeral   = true
   default     = ""
 }
 

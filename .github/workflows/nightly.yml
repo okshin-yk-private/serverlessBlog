@@ -1,6 +1,6 @@
 # Nightly full-suite workflow.
 #
-# PR CI (ci.yml) deliberately samples instead of running full suites, to keep
+# PR CI (ci-secure.yml) deliberately samples instead of running full suites, to keep
 # PR turnaround fast:
 #   - terraform-test-matrix-prep filters to `--changed` dirs, so a typical PR
 #     only re-runs a handful of the 232 total `run` blocks across the 12
@@ -9,7 +9,7 @@
 #     (`grep -v '/tests/benchmark$'`) and runs nowhere else.
 #
 # Admin E2E はここには無い。全 spec でも 26 秒で終わるため PR ごとに
-# ci.yml でゲートしており、毎晩同じものを再実行する意味がない (Issue #520)。
+# ci-secure.yml でゲートしており、毎晩同じものを再実行する意味がない (Issue #520)。
 #
 # This workflow runs the unsampled versions on a schedule so gaps are still
 # observed, without slowing down every PR.
@@ -36,7 +36,7 @@ env:
 jobs:
   # =======================================
   # Job: Terraform Test Full - Determine Targets
-  # ci.yml の terraform-test-matrix-prep は `--changed` で対象を絞るため、
+  # ci-secure.yml の terraform-test-matrix-prep は `--changed` で対象を絞るため、
   # 通常の PR では 12 の terraform test 対象ディレクトリのごく一部しか
   # 実行されない (過去実績で 232 run blocks 中 22 のみ)。ここでは絞り込み無しの
   # 全対象を毎晩実行する。
@@ -160,5 +160,5 @@ jobs:
             echo "| Go Lambda Benchmark | ${{ needs.go-benchmark.result }} |"
             echo "| Security exception review dates | ${{ needs.security-exception-review.result }} |"
             echo ""
-            echo "Admin E2E はここでは実行しない。ci.yml の e2e-admin-tests が PR ごとに全 spec をゲートしているため (Issue #520)。"
+            echo "Admin E2E はここでは実行しない。ci-secure.yml の e2e-admin-tests が PR ごとに全 spec をゲートしているため (Issue #520)。"
           } >> "$GITHUB_STEP_SUMMARY"

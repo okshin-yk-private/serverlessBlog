@@ -20,7 +20,7 @@ lint_version="$(tr -d '[:space:]' < "$lint_version_file")"
 [[ "$lint_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || \
   fail "go-functions/.golangci-version must contain a complete vX.Y.Z version; found '${lint_version:-missing}'."
 
-for workflow in ci.yml deploy.yml security-scan.yml nightly.yml; do
+for workflow in ci-secure.yml deploy.yml security-scan.yml nightly.yml; do
   workflow_path="$project_root/.github/workflows/$workflow"
   grep -Fq 'go-version-file: go-functions/go.mod' "$workflow_path" || \
     fail "$workflow must use go-functions/go.mod as its Go version source."
@@ -31,7 +31,7 @@ done
 
 grep -Fq 'GO_MODULE_FILE="$PROJECT_ROOT/go-functions/go.mod"' "$project_root/scripts/local-deploy.sh" || \
   fail "scripts/local-deploy.sh must derive its Go version from go-functions/go.mod."
-grep -Fq "version: $lint_version" "$project_root/.github/workflows/ci.yml" || \
-  fail "ci.yml golangci-lint version must match go-functions/.golangci-version ($lint_version)."
+grep -Fq "version: $lint_version" "$project_root/.github/workflows/ci-secure.yml" || \
+  fail "ci-secure.yml golangci-lint version must match go-functions/.golangci-version ($lint_version)."
 
 echo "Go toolchain configuration is consistent: Go $go_version, golangci-lint $lint_version"

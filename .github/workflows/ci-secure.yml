@@ -1,3 +1,4 @@
+# Legacy ci.yml remains disabled to block unsafe historical reruns (#861).
 # Unified CI Workflow with Label-based Conditional Execution
 # Requirement R31: GitHub Actions CI/CD
 # Requirement R45: 継続的テスト
@@ -12,7 +13,7 @@
 # - 'frontend' label: Frontend tests, E2E tests
 # - 'infrastructure' label: CDK tests, diff (legacy)
 
-name: CI
+name: CI Secure
 
 on:
   pull_request:
@@ -840,21 +841,30 @@ jobs:
         run: |
           # -lock-timeout lets concurrent PR plans wait for the shared DynamoDB
           # state lock instead of failing immediately with "Error acquiring the state lock".
-          terraform plan -out=tfplan.binary -lock-timeout=5m -detailed-exitcode -no-color 2>&1 | tee tfplan_output.txt || exitcode=$?
-          terraform show -json tfplan.binary > tfplan.json
-          terraform show -no-color tfplan.binary > tfplan.txt
-          python3 ../../../scripts/ci/check_backup_plan.py < tfplan.json
-          echo "exitcode=${exitcode:-0}" >> $GITHUB_OUTPUT
+          # Saved plans and JSON contain sensitive values. Keep them runner-local;
+          # publish only the allowlisted action counts, never plan values/addresses.
+          exitcode=0
+          terraform plan -out=tfplan.binary -lock-timeout=5m -detailed-exitcode -no-color > tfplan_output.txt 2>&1 || exitcode=$?
+          if [ "$exitcode" != 0 ] && [ "$exitcode" != 2 ]; then
+            echo "Terraform plan failed (exit $exitcode). Raw diagnostics are not published."
+            exit 1
+          fi
+          terraform show -json tfplan.binary > tfplan.json 2>> tfplan_output.txt
+          if ! python3 ../../../scripts/ci/check_backup_plan.py < tfplan.json >> tfplan_output.txt 2>&1; then
+            echo "Backup protection rejected the plan. No summary will be published."
+            exit 1
+          fi
+          python3 ../../../scripts/ci/summarize_plan.py < tfplan.json > tfplan-summary.md
+          cat tfplan-summary.md
+          echo "exitcode=$exitcode" >> "$GITHUB_OUTPUT"
 
-      - name: Upload Plan Artifact
-        if: always()
+      - name: Upload Plan Summary
+        if: steps.plan.outcome == 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: terraform-plan-dev
-          path: |
-            terraform/environments/dev/tfplan.binary
-            terraform/environments/dev/tfplan.json
-            terraform/environments/dev/tfplan.txt
+          name: terraform-plan-summary-dev
+          path: terraform/environments/dev/tfplan-summary.md
+          if-no-files-found: error
           retention-days: 3
 
       - name: Comment Plan on PR
@@ -863,17 +873,8 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const planPath = 'terraform/environments/dev/tfplan.txt';
-            let plan = fs.existsSync(planPath) ? fs.readFileSync(planPath, 'utf8') : 'Plan not available';
-            if (plan.length > 60000) {
-              plan = plan.substring(0, 60000) + '\n\n... (truncated)';
-            }
-            const summaryMatch = plan.match(/Plan: (\d+) to add, (\d+) to change, (\d+) to destroy/);
-            const summary = summaryMatch
-              ? `**${summaryMatch[1]}** to add, **${summaryMatch[2]}** to change, **${summaryMatch[3]}** to destroy`
-              : plan.includes('No changes') ? '✅ No changes' : 'Summary not available';
-
-            const output = `## 📋 Terraform Plan (DEV)\n\n### Summary\n${summary}\n\n<details>\n<summary>Show Plan Details</summary>\n\n\`\`\`hcl\n${plan}\n\`\`\`\n\n</details>`;
+            const summary = fs.readFileSync('terraform/environments/dev/tfplan-summary.md', 'utf8');
+            const output = `## Terraform Plan (DEV)\n\n${summary}`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -881,6 +882,11 @@ jobs:
               repo: context.repo.repo,
               body: output
             });
+
+      - name: Remove raw plan files
+        if: always()
+        working-directory: terraform/environments/dev
+        run: rm -f tfplan.binary tfplan.json tfplan.txt tfplan_output.txt
 
   # =======================================
   # Job: Terraform Plan (PRD)
@@ -956,21 +962,30 @@ jobs:
         run: |
           # -lock-timeout lets concurrent PR plans wait for the shared DynamoDB
           # state lock instead of failing immediately with "Error acquiring the state lock".
-          terraform plan -out=tfplan.binary -lock-timeout=5m -detailed-exitcode -no-color 2>&1 | tee tfplan_output.txt || exitcode=$?
-          terraform show -json tfplan.binary > tfplan.json
-          terraform show -no-color tfplan.binary > tfplan.txt
-          python3 ../../../scripts/ci/check_backup_plan.py < tfplan.json
-          echo "exitcode=${exitcode:-0}" >> $GITHUB_OUTPUT
+          # Saved plans and JSON contain sensitive values. Keep them runner-local;
+          # publish only the allowlisted action counts, never plan values/addresses.
+          exitcode=0
+          terraform plan -out=tfplan.binary -lock-timeout=5m -detailed-exitcode -no-color > tfplan_output.txt 2>&1 || exitcode=$?
+          if [ "$exitcode" != 0 ] && [ "$exitcode" != 2 ]; then
+            echo "Terraform plan failed (exit $exitcode). Raw diagnostics are not published."
+            exit 1
+          fi
+          terraform show -json tfplan.binary > tfplan.json 2>> tfplan_output.txt
+          if ! python3 ../../../scripts/ci/check_backup_plan.py < tfplan.json >> tfplan_output.txt 2>&1; then
+            echo "Backup protection rejected the plan. No summary will be published."
+            exit 1
+          fi
+          python3 ../../../scripts/ci/summarize_plan.py < tfplan.json > tfplan-summary.md
+          cat tfplan-summary.md
+          echo "exitcode=$exitcode" >> "$GITHUB_OUTPUT"
 
-      - name: Upload Plan Artifact
-        if: always()
+      - name: Upload Plan Summary
+        if: steps.plan.outcome == 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: terraform-plan-prd
-          path: |
-            terraform/environments/prd/tfplan.binary
-            terraform/environments/prd/tfplan.json
-            terraform/environments/prd/tfplan.txt
+          name: terraform-plan-summary-prd
+          path: terraform/environments/prd/tfplan-summary.md
+          if-no-files-found: error
           retention-days: 3
 
       - name: Comment Plan on PR
@@ -979,17 +994,8 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const planPath = 'terraform/environments/prd/tfplan.txt';
-            let plan = fs.existsSync(planPath) ? fs.readFileSync(planPath, 'utf8') : 'Plan not available';
-            if (plan.length > 60000) {
-              plan = plan.substring(0, 60000) + '\n\n... (truncated)';
-            }
-            const summaryMatch = plan.match(/Plan: (\d+) to add, (\d+) to change, (\d+) to destroy/);
-            const summary = summaryMatch
-              ? `**${summaryMatch[1]}** to add, **${summaryMatch[2]}** to change, **${summaryMatch[3]}** to destroy`
-              : plan.includes('No changes') ? '✅ No changes' : 'Summary not available';
-
-            const output = `## 🚨 Terraform Plan (PRD) - PRODUCTION\n\n### Summary\n${summary}\n\n> ⚠️ **This plan affects PRODUCTION infrastructure!**\n\n<details>\n<summary>Show Plan Details</summary>\n\n\`\`\`hcl\n${plan}\n\`\`\`\n\n</details>`;
+            const summary = fs.readFileSync('terraform/environments/prd/tfplan-summary.md', 'utf8');
+            const output = `## Terraform Plan (PRD) - PRODUCTION\n\n${summary}`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -997,6 +1003,11 @@ jobs:
               repo: context.repo.repo,
               body: output
             });
+
+      - name: Remove raw plan files
+        if: always()
+        working-directory: terraform/environments/prd
+        run: rm -f tfplan.binary tfplan.json tfplan.txt tfplan_output.txt
 
   # =======================================
   # CDK Infrastructure Jobs - REMOVED
@@ -1033,6 +1044,11 @@ jobs:
         with:
           working-directory: frontend/public-astro
 
+      - name: Cache public image transformations (fixtures)
+        uses: ./.github/actions/cache-astro-images
+        with:
+          scope: fixtures
+
       - name: Run frontend (public-astro) unit tests with coverage
         working-directory: frontend/public-astro
         run: bun run test:coverage -- --run
@@ -1046,6 +1062,10 @@ jobs:
         run: bash tests/build-with-mock.sh
         env:
           CI: true
+
+      - name: Validate public performance budget
+        working-directory: frontend/public-astro
+        run: bun run validate:build
 
       # e2e-public-tests needs this exact same build (astro preview serves
       # dist/), so publish it here instead of letting that job rebuild it

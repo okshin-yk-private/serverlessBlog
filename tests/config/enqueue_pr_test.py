@@ -96,7 +96,7 @@ class EnqueueTests(unittest.TestCase):
     def test_refuses_until_required_checks_succeed(self):
         for conclusion in ("failure", "cancelled", "skipped", None):
             api = FakeAPI()
-            api.runs["ci.yml"][0]["conclusion"] = conclusion
+            api.runs["ci-secure.yml"][0]["conclusion"] = conclusion
             with self.subTest(conclusion=conclusion), self.assertRaises(enqueue_pr.core.Blocked):
                 enqueue_pr.process(api, REPO, 1)
             self.assertEqual(api.writes, [])
@@ -136,8 +136,8 @@ class AutoModeTests(unittest.TestCase):
     def test_auto_enables_auto_merge_for_a_pending_develop_pr(self):
         api = FakeAPI()
         # Checks are still pending; --auto must not require readiness.
-        api.runs["ci.yml"][0]["conclusion"] = None
-        api.runs["ci.yml"][0]["status"] = "in_progress"
+        api.runs["ci-secure.yml"][0]["conclusion"] = None
+        api.runs["ci-secure.yml"][0]["status"] = "in_progress"
         enqueue_pr.process_auto(api, REPO, 1)
         self.assertEqual(api.writes, [{"id": "PR_node", "head": "head"}])
 
