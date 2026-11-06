@@ -1,3 +1,4 @@
+# Legacy ci.yml remains disabled to block unsafe historical reruns (#861).
 # Unified CI Workflow with Label-based Conditional Execution
 # Requirement R31: GitHub Actions CI/CD
 # Requirement R45: 継続的テスト
@@ -12,7 +13,7 @@
 # - 'frontend' label: Frontend tests, E2E tests
 # - 'infrastructure' label: CDK tests, diff (legacy)
 
-name: CI
+name: CI Secure
 
 on:
   pull_request:

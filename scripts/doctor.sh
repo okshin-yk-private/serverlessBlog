@@ -8,7 +8,7 @@
 # Expected versions are read from the files CI uses, never duplicated here:
 #   bun       .github/actions/setup-bun-deps/action.yml (default bun-version)
 #   go        go-functions/go.mod (go directive)
-#   terraform .github/workflows/ci.yml (TERRAFORM_VERSION, major.minor)
+#   terraform .github/workflows/ci-secure.yml (TERRAFORM_VERSION, major.minor)
 
 set -uo pipefail
 
@@ -58,7 +58,7 @@ else
 fi
 
 expected_tf=$(sed -n "s/^ *TERRAFORM_VERSION: *'\{0,1\}\([0-9][0-9.]*\)'\{0,1\}.*/\1/p" \
-  "$repo_root/.github/workflows/ci.yml" | head -n 1)
+  "$repo_root/.github/workflows/ci-secure.yml" | head -n 1)
 if command -v terraform >/dev/null 2>&1; then
   actual_tf=$(terraform version 2>/dev/null | sed -n '1s/^Terraform v\([0-9][0-9.]*\).*/\1/p')
   if [ "${actual_tf%.*}" = "${expected_tf%.*}" ]; then

@@ -199,7 +199,7 @@ describe('complete push and PR component detection', () => {
     ['tests/e2e/global-setup.ts', 'true', 'true'],
     ['.github/actions/setup-bun-deps/action.yml', 'true', 'true'],
     ['.github/actions/cache-astro-images/action.yml', 'true', 'false'],
-    ['.github/workflows/ci.yml', 'true', 'true'],
+    ['.github/workflows/ci-secure.yml', 'true', 'true'],
   ]) {
     test(`CI selects consumers of ${path}`, () => {
       const repo = fixture();
@@ -225,7 +225,7 @@ describe('complete push and PR component detection', () => {
   }
 
   for (const path of [
-    '.github/workflows/ci.yml',
+    '.github/workflows/ci-secure.yml',
     '.github/actions/setup-bun-deps/action.yml',
     '.github/actions/setup-terraform-cached/action.yml',
     'scripts/ci/detect-changes.sh',

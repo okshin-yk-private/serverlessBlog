@@ -185,9 +185,9 @@ class ReleaseTests(unittest.TestCase):
     def test_latest_failed_run_overrides_old_success(self):
         api = API()
         state = release.prepare(api, REPO, '123', NOW)
-        run = copy.deepcopy(api.runs['ci.yml'][0])
+        run = copy.deepcopy(api.runs['ci-secure.yml'][0])
         run.update(id=99, conclusion='failure')
-        api.runs['ci.yml'].append(run)
+        api.runs['ci-secure.yml'].append(run)
         with self.assertRaises(release.Blocked):
             release.ready(api, state, REPO)
 
@@ -195,7 +195,7 @@ class ReleaseTests(unittest.TestCase):
         for field, value in [('head_sha', 'other'), ('pull_requests', [{'number': 43}])]:
             api = API()
             state = release.prepare(api, REPO, '123', NOW)
-            api.runs['ci.yml'][0][field] = value
+            api.runs['ci-secure.yml'][0][field] = value
             with self.subTest(field=field), self.assertRaises(release.Pending):
                 release.ready(api, state, REPO)
 
