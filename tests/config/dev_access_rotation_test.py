@@ -113,14 +113,23 @@ class RotationTests(unittest.TestCase):
             with self.assertRaises(rotation.RotationError):
                 rotation.context()
 
-    def test_aws_passes_secret_on_stdin_and_suppresses_error_body(self):
-        result = subprocess.CompletedProcess([], 1, stdout="secret-response", stderr="secret-error")
-        with patch.object(rotation.subprocess, "run", return_value=result) as run:
+    def test_aws_uses_private_input_file_cleans_it_and_suppresses_error_body(self):
+        input_paths = []
+        def run(command, **kwargs):
+            self.assertNotIn("test-sensitive-value", " ".join(command))
+            path = Path(command[command.index("--cli-input-json") + 1].removeprefix("file://"))
+            self.assertNotEqual(str(path), "/dev/stdin")
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+            self.assertEqual(json.loads(path.read_text()), {"Value": "test-sensitive-value"})
+            input_paths.append(path)
+            return subprocess.CompletedProcess([], 1, stdout="secret-response", stderr="(AccessDeniedException) secret-error")
+        with patch.object(rotation.subprocess, "run", side_effect=run):
             with self.assertRaises(rotation.RotationError) as raised:
                 rotation.aws("ssm", "put-parameter", payload={"Value": "test-sensitive-value"})
-            self.assertNotIn("test-sensitive-value", " ".join(run.call_args.args[0]))
-            self.assertIn("test-sensitive-value", run.call_args.kwargs["input"])
+            self.assertIn("ssm/put-parameter failed (AccessDeniedException)", str(raised.exception))
             self.assertNotIn("secret-", str(raised.exception))
+        self.assertTrue(input_paths)
+        self.assertFalse(any(path.exists() for path in input_paths))
 
     def test_redirects_never_forward_credentials(self):
         self.assertIsNone(rotation.NoRedirect().redirect_request(None, None, 302, "", {}, "https://other.invalid"))

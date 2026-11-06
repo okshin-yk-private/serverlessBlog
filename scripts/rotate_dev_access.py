@@ -7,6 +7,7 @@ must be recovered by deploying the NEW SSM value, never restoring an exposed one
 
 import argparse
 import base64
+from contextlib import ExitStack
 import hashlib
 import json
 import os
@@ -14,6 +15,7 @@ from pathlib import Path
 import secrets
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -39,13 +41,25 @@ def require(condition, message):
 
 def aws(*args, payload=None, timeout=60):
     command = ["aws", *args, "--output", "json", "--no-cli-pager"]
-    if payload is not None:
-        command += ["--cli-input-json", "file:///dev/stdin"]
     try:
-        result = subprocess.run(command, input=None if payload is None else json.dumps(payload),
-                                text=True, capture_output=True, timeout=timeout, check=False)
-        require(result.returncode == 0, "AWS operation failed; response suppressed to protect credentials")
-        return json.loads(result.stdout or "{}")
+        with ExitStack() as stack:
+            if payload is not None:
+                # The AWS CLI rejects cli-input-json via /dev/stdin. A real,
+                # mode-0600 file is supported; only its path enters argv.
+                stream = stack.enter_context(tempfile.NamedTemporaryFile(
+                    mode="w", prefix="dev-rotation-", suffix=".json", dir=os.environ.get("RUNNER_TEMP")))
+                json.dump(payload, stream)
+                stream.flush()
+                command += ["--cli-input-json", "file://" + stream.name]
+            result = subprocess.run(command, text=True, capture_output=True, timeout=timeout, check=False)
+            category = "unclassified"
+            for code in ("AccessDeniedException", "AccessDenied", "ValidationException", "ParamValidation",
+                         "ParameterNotFound", "InvalidKeyId", "ThrottlingException", "ExpiredTokenException"):
+                if "(" + code + ")" in result.stderr:
+                    category = code
+                    break
+            require(result.returncode == 0, f"AWS {args[0]}/{args[1]} failed ({category}); response suppressed")
+            return json.loads(result.stdout or "{}")
     except (OSError, subprocess.TimeoutExpired, ValueError) as error:
         raise RotationError("AWS operation failed; details suppressed") from error
 
