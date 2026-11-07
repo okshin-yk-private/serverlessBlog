@@ -40,9 +40,9 @@ the impact cannot be bounded; it does not include E2E or Terraform verification.
 - There is no root `test` script. Unit tests live per package: `frontend/admin`,
   `frontend/public-astro` (vitest), `scripts/deploy`, `tests/config` (bun test),
   and `go-functions` (`make test`).
-- The root `eslint.config.js` ignores `frontend/**`; `frontend/admin` has its own config.
-  `frontend/public-astro` is currently not covered by ESLint —
-  Prettier (root glob) is the only automated style check there.
+- The root `eslint.config.js` ignores `frontend/**`; admin and public-astro each have
+  their own config. `bun run lint` includes public Astro pages, shared components and
+  scripts through `lint:astro`; CI also runs the existing admin lint separately.
 - CI runs `typecheck` on every PR (no gate). Every other component job (Go, Terraform,
   frontend, deploy-scripts) is gated by `scripts/ci/detect-changes.sh ci`'s changed-path
   detection, not PR labels — labels applied by `actions/labeler` are display-only and do

@@ -43,3 +43,16 @@ GitHub Actions の検証・デプロイ経路で反映できる修正から段�
 - [HashiCorp: saved plan](https://developer.hashicorp.com/terraform/cli/commands/plan#out-filename): 保存済みPlanは端末で伏せる機密値も含む（公式仕様）。
 - [Astro: asset caching](https://docs.astro.build/en/guides/images/#asset-caching): 画像キャッシュとリモート画像の再検証（公式仕様）。
 - [GitHub: dependency caching](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#cache-action-usage): キャッシュの不変性と復元キー（公式仕様）。
+
+## 後続実装（Issue #865）
+
+本文画像、管理画面の遅延読込、Astro共通コンポーネントのLintを実装した。適用環境・PR/CI/Deployの完了状態は [Issue #865](https://github.com/okshin-yk-private/serverlessBlog/issues/865) を参照する。
+
+- 本文HTMLは既存のGoサニタイズを前提に、HTMLパーサーで実際のimg要素だけを変換する。非画像部分は保持し、生成属性は許可リストとエスケープで制限。同一originの `/images/` のJPEG/PNG/WebPだけをWebP・複数幅へ変換する。外部画像、GIF/SVG、取得失敗は元のsrcを維持する。先頭画像がない記事の最初の本文画像はeager、それ以外はlazyとする。実寸を超える拡大はしない。
+- 管理画面の各ページを遅延読込し、pathnameごとの待機表示と読込失敗時の再読み込み導線を追加した。AuthProviderの状態はページ間で維持する。
+- `bun run lint` は公開Astroのページ・共通コンポーネント・TypeScript・埋込ブラウザースクリプトを検査する。既存CIの同コマンドから実行される。管理画面Lintは既存の独立設定を維持する。
+- 同一のfixture環境変数とproduction buildで、entryとLoginPageの静的依存closureのJSをファイルごとgzip圧縮して合計した。変更前420,221 bytes、ページ分割後162,027 bytes（約61%減）。全JS合計は420,221→429,207 bytes（約2%増）。これは初期JSの比較であり、CSS・画像・実回線での転送量やLCP改善率ではない。最終の待機表示修正による微小なサイズ差はあり得る。
+- ローカル検証: 全体verify（Lint/書式/型/ユニット/Go）成功。管理画面645件成功・5件既存skip、公開サイト457件、deploy209件、構成272件成功。本文画像の実ビルド検証4件、管理画面E2E8件成功。
+- DEV画像にはBasic認証があり、Astroの画像取得が401になれば元画像へfallbackする。fixtureでの画像変換成功を本番・DEVの全画像最適化済みと読み替えない。画像変換のビルド時間・キャッシュ効果・実環境LCP/CLSは引き続き計測対象。
+
+ローカル専用ビルド/verifyの別問題、IAM方針変更、CodeBuildキャッシュ変更、Lambda並列化、一覧・検索索引の再設計は今回も保留する。

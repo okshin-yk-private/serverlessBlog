@@ -42,7 +42,7 @@ describe('article image and prefetch build output', () => {
                 ...mockPosts[0],
                 slug: 'responsive-image-post',
                 contentHtml:
-                  '<p>本文は変更しない</p><img src="/images/body.png" alt="本文画像">',
+                  '<p>本文は変更しない</p><img src="/images/body.png" alt="本文画像 &amp; 引用 &quot;"><img src="/images/small.png" width="120" alt="小さい画像"><img src="/images/missing.png" alt="取得失敗"><img src="https://external.invalid/body.png" alt="外部"><img src="/images/animation.gif" alt="アニメーション"><pre>&lt;img src="/images/example.png"&gt;</pre>',
                 imageUrls: [
                   `${origin}/images/large.png`,
                   '/images/small.png',
@@ -51,14 +51,22 @@ describe('article image and prefetch build output', () => {
                   '/images/animation.gif',
                 ],
               },
-              mockPosts[1],
+              {
+                ...mockPosts[1],
+                contentHtml:
+                  '<p>No hero</p><img src="/images/body.png" alt="First body image"><img src="/images/small.png" alt="Second body image">',
+              },
             ],
             count: 2,
           })
         );
-      } else if (path === '/images/large.png' || path === '/images/small.png') {
+      } else if (
+        ['/images/large.png', '/images/small.png', '/images/body.png'].includes(
+          path
+        )
+      ) {
         res.setHeader('Content-Type', 'image/png');
-        res.end(path.endsWith('large.png') ? large : small);
+        res.end(path.endsWith('small.png') ? small : large);
       } else {
         res.writeHead(404);
         res.end();
@@ -123,7 +131,7 @@ describe('article image and prefetch build output', () => {
     }
   });
 
-  it('preserves unsupported/missing images, raw body HTML and posts without images', async () => {
+  it('preserves unsupported/missing images, non-image body HTML and hero absence', async () => {
     const doc = await documentAt('posts/responsive-image-post/index.html');
     for (const src of [
       '/images/missing.png',
@@ -134,13 +142,64 @@ describe('article image and prefetch build output', () => {
       expect(image).not.toBeNull();
       expect(image!.hasAttribute('srcset')).toBe(false);
     }
-    expect(doc.querySelector('.post-content img')?.getAttribute('src')).toBe(
-      '/images/body.png'
+    expect(doc.querySelector('.post-content p')?.textContent).toBe(
+      '本文は変更しない'
     );
+    expect(doc.querySelector('.post-content pre')?.textContent).toBe(
+      '<img src="/images/example.png">'
+    );
+    for (const src of [
+      '/images/missing.png',
+      'https://external.invalid/body.png',
+      '/images/animation.gif',
+    ]) {
+      const image = doc.querySelector(`.post-content img[src="${src}"]`)!;
+      expect(image).not.toBeNull();
+      expect(image.hasAttribute('srcset')).toBe(false);
+      expect(image.getAttribute('loading')).toBe('lazy');
+    }
     expect(buildLog).toContain('[post-image]');
     const noImages = await documentAt('posts/post-2/index.html');
     expect(noImages.querySelector('.hero-image')).toBeNull();
     expect(noImages.querySelector('.image-gallery')).toBeNull();
+  });
+
+  it('optimizes body images with intrinsic dimensions, alt text and bounded variants', async () => {
+    const doc = await documentAt('posts/responsive-image-post/index.html');
+    const images = doc.querySelectorAll('.post-content img');
+    expect(images.length).toBe(5);
+    const image = images[0];
+    expect(image.getAttribute('alt')).toBe('本文画像 & 引用 "');
+    expect(image.getAttribute('width')).toBe('1200');
+    expect(image.getAttribute('height')).toBe('800');
+    expect(image.getAttribute('loading')).toBe('lazy');
+    const candidates = image
+      .getAttribute('srcset')!
+      .split(',')
+      .map((part) => part.trim().split(/\s+/));
+    expect(candidates.map(([, width]) => width)).toEqual([
+      '400w',
+      '800w',
+      '1200w',
+    ]);
+    for (const [url, descriptor] of candidates) {
+      const bytes = await readFile(resolve(dist, url.slice(1)));
+      const metadata = await sharp(bytes).metadata();
+      expect(metadata.width).toBe(parseInt(descriptor));
+      expect(metadata.height).toBe(
+        Math.round((parseInt(descriptor) * 800) / 1200)
+      );
+      expect(metadata.format).toBe('webp');
+    }
+    expect(images[1].getAttribute('width')).toBe('120');
+    expect(images[1].getAttribute('height')).toBe('80');
+    expect(images[1].getAttribute('srcset')!.split(',')).toHaveLength(1);
+    const noHero = await documentAt('posts/post-2/index.html');
+    expect(
+      [...noHero.querySelectorAll('.post-content img')].map((img) =>
+        img.getAttribute('loading')
+      )
+    ).toEqual(['eager', 'lazy']);
   });
 
   it('opts only article navigation links into hover prefetch', async () => {

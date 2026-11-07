@@ -1,0 +1,52 @@
+---
+import { getImage, imageConfig, inferRemoteSize } from 'astro:assets';
+import { optimizePostContentImages } from '../lib/postContentImages';
+import { postImageWidths } from '../lib/postImage';
+
+interface Props {
+  html: string;
+  hasHero: boolean;
+}
+const { html, hasHero } = Astro.props;
+const contentHtml = await optimizePostContentImages(
+  html,
+  Astro.site,
+  hasHero,
+  async (source, authoredWidth, authoredHeight) => {
+    let dimensions;
+    try {
+      dimensions = await inferRemoteSize(source, imageConfig);
+    } catch {
+      console.warn(
+        '[post-content-image] Could not read dimensions; keeping original image'
+      );
+      return undefined;
+    }
+    const displayWidth =
+      authoredWidth ??
+      (authoredHeight
+        ? Math.round((authoredHeight * dimensions.width) / dimensions.height)
+        : dimensions.width);
+    const widths = postImageWidths(
+      Math.min(dimensions.width, displayWidth),
+      true
+    );
+    const width = widths[widths.length - 1];
+    const height = Math.max(
+      1,
+      Math.round((width * dimensions.height) / dimensions.width)
+    );
+    // Errors after registration fail the build rather than publishing broken assets.
+    const image = await getImage({
+      src: source,
+      width,
+      height,
+      widths,
+      format: 'webp',
+    });
+    return { src: image.src, srcset: image.srcSet.attribute, width, height };
+  }
+);
+---
+
+<Fragment set:html={contentHtml} />
