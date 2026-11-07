@@ -8,6 +8,7 @@
  */
 import Layout from '../../layouts/Layout.astro';
 import PostImage from '../../components/PostImage.astro';
+import PostContent from '../../components/PostContent.astro';
 import { publicationDate } from '../../lib/publicationCalendar';
 import { getCollection } from 'astro:content';
 import type { Post } from '../../lib/api';
@@ -110,11 +111,9 @@ const jsonLdPost: JsonLdPost = {
     }
 
     {/* Article Content - Sanitized HTML */}
-    <div
-      class="post-content"
-      data-testid="article-content"
-      set:html={post.contentHtml}
-    />
+    <div class="post-content" data-testid="article-content">
+      <PostContent html={post.contentHtml} hasHero={!!firstImage} />
+    </div>
 
     {/* Article Images Gallery (if multiple images) */}
     {

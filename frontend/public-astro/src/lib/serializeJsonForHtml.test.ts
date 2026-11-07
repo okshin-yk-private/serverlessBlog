@@ -27,15 +27,16 @@ describe('serializeJsonForHtml', () => {
 // Issue #695: every set:html in the public site bypasses Astro's escaping, so
 // each one must be a known-safe source. A new set:html fails here until it is
 // reviewed and listed below with the reason it is safe.
-const allowed: { pattern: RegExp; reason: string }[] = [
+const allowed: { pattern: RegExp; reason: string; file?: string }[] = [
   {
     pattern: /^serializeJsonForHtml\(/,
     reason: 'JSON for an inline script element, "<" escaped',
   },
   {
-    pattern: /^post\.contentHtml$/,
+    pattern: /^contentHtml$/,
+    file: 'components/PostContent.astro',
     reason:
-      'sanitized by the Go handlers before storage (go-functions/internal/sanitizer)',
+      'Go-sanitized HTML, PostContent transforms only img tags with allowlisted and escaped attributes',
   },
   {
     pattern: /^paragraph\.replace\(\/\\n\/g, '<br \/>'\)$/,
@@ -75,7 +76,13 @@ describe('set:html guard', () => {
     const unreviewed: string[] = [];
     for (const file of astroFiles(root)) {
       for (const expression of setHtmlExpressions(readFileSync(file, 'utf8'))) {
-        if (!allowed.some(({ pattern }) => pattern.test(expression))) {
+        if (
+          !allowed.some(
+            ({ pattern, file: reviewedFile }) =>
+              pattern.test(expression) &&
+              (!reviewedFile || relative(root, file) === reviewedFile)
+          )
+        ) {
           unreviewed.push(`${relative(root, file)}: set:html={${expression}}`);
         }
       }

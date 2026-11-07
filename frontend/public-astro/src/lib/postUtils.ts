@@ -22,7 +22,6 @@ import type { Post } from './api';
  */
 export function stripHtml(html: string): string {
   let result = html;
-  // eslint-disable-next-line no-cond-assign
   while (result !== (result = result.replace(/<[^>]*>/g, '')));
   return result.trim();
 }
