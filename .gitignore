@@ -341,3 +341,6 @@ __pycache__/
 
 # Local-only CSP browser build (contains test mocks)
 /frontend/admin/dist-csp-test/
+
+# Public Astro ESLint configuration is source, not generated JavaScript.
+!frontend/public-astro/eslint.config.js
