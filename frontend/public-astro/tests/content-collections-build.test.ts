@@ -7,6 +7,7 @@ import { relative, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { mockPosts } from './mock-api-server';
+import { extractLocUrls } from '../src/lib/sitemapUtils';
 
 const project = resolve(import.meta.dirname, '..');
 const workspace = resolve(project, 'test-results/content-collections');
@@ -74,6 +75,9 @@ describe.sequential('Content Collections build lifecycle', () => {
       article,
       mockPosts[1],
       { ...mockPosts[2], publishStatus: 'published', title: 'Deleted article' },
+      { ...mockPosts[1], id: '11111111-2222-4333-8444-555555555555' },
+      { ...mockPosts[1], id: 'empty-slug', slug: '' },
+      { ...mockPosts[1], id: 'same-id-and-slug', slug: 'same-id-and-slug' },
     ];
     requests = [];
     await run('check');
@@ -95,6 +99,23 @@ describe.sequential('Content Collections build lifecycle', () => {
     );
     expect(await output('posts/post-1/index.html')).toContain(
       '/posts/original-slug/'
+    );
+    const sitemapUrls = extractLocUrls(await output('sitemap-0.xml'));
+    expect(sitemapUrls).not.toContain('https://example.com/posts/post-1/');
+    for (const path of [
+      '',
+      'about/',
+      'articles/',
+      'posts/original-slug/',
+      'posts/post-2/',
+      'posts/11111111-2222-4333-8444-555555555555/',
+      'posts/empty-slug/',
+      'posts/same-id-and-slug/',
+    ]) {
+      expect(sitemapUrls).toContain(`https://example.com/${path}`);
+    }
+    expect(sitemapUrls.filter((url) => url.includes('/posts/'))).toHaveLength(
+      6
     );
   }, 90000);
 
@@ -122,6 +143,11 @@ describe.sequential('Content Collections build lifecycle', () => {
       expect(html).not.toContain(mockPosts[1].title);
       expect(html).not.toContain('/posts/post-3/');
     }
+    expect(
+      extractLocUrls(await output('sitemap-0.xml')).filter((url) =>
+        url.includes('/posts/')
+      )
+    ).toEqual(['https://example.com/posts/renamed-slug/']);
   }, 90000);
 
   it('fails with cached content when the API is unavailable', async () => {

@@ -1,7 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
-import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
+import { canonicalPostSitemap } from './src/integrations/canonicalPostSitemap';
 
 // Deploy builds (CodeBuild / GitHub Actions) must set SITE_URL explicitly:
 // the https://example.com fallback would ship broken sitemap / canonical /
@@ -78,8 +78,8 @@ export default defineConfig({
     contentPhase,
     // Fail a CI/CodeBuild build that forgot SITE_URL (Issue #463)
     requireSiteUrl,
-    // Sitemap generation
-    sitemap(),
+    // Preserve legacy ID pages without advertising duplicate post URLs.
+    ...canonicalPostSitemap(siteUrl),
   ],
 
   // Vite configuration
