@@ -8,6 +8,14 @@ export interface ContentImage {
   height: number;
 }
 
+export interface ContentImageStats {
+  total: number;
+  registered: number;
+  unsupported: number;
+  fallback: number;
+  skipped: number;
+}
+
 type Element = DefaultTreeAdapterMap['element'];
 type Node = DefaultTreeAdapterMap['node'];
 
@@ -43,7 +51,8 @@ export async function optimizePostContentImages(
     source: string,
     width?: number,
     height?: number
-  ) => Promise<ContentImage | undefined>
+  ) => Promise<ContentImage | undefined>,
+  report?: (stats: ContentImageStats) => void
 ): Promise<string> {
   const images: Element[] = [];
   function visit(node: Node) {
@@ -56,16 +65,30 @@ export async function optimizePostContentImages(
     if ('childNodes' in node) node.childNodes.forEach(visit);
   }
   visit(parseFragment(html, { sourceCodeLocationInfo: true }));
+  // Counts are image occurrences per render, not unique sources or emitted files.
+  const stats: ContentImageStats = {
+    total: images.length,
+    registered: 0,
+    unsupported: 0,
+    fallback: 0,
+    skipped: 0,
+  };
   const cache = new Map<string, Promise<ContentImage | undefined>>();
   const replacements: { start: number; end: number; value: string }[] = [];
   // Sequential registration bounds network pressure for image-heavy articles.
   for (const [index, image] of images.entries()) {
     const location = image.sourceCodeLocation?.startTag;
-    if (!location) continue;
+    if (!location) {
+      stats.skipped++;
+      continue;
+    }
     const attrs = Object.fromEntries(
       image.attrs.map(({ name, value }) => [name, value])
     );
-    if (!attrs.src) continue;
+    if (!attrs.src) {
+      stats.skipped++;
+      continue;
+    }
     const source = resolvePostImageSource(attrs.src, site);
     const width = dimension(attrs.width);
     const height = dimension(attrs.height);
@@ -75,6 +98,9 @@ export async function optimizePostContentImages(
       if (!cache.has(key)) cache.set(key, transform(source, width, height));
       optimized = await cache.get(key);
     }
+    if (optimized) stats.registered++;
+    else if (source) stats.fallback++;
+    else stats.unsupported++;
     const eager = !hasHero && index === 0;
     const output: Record<string, string | number> = {
       src: optimized?.src ?? attrs.src,
@@ -103,5 +129,6 @@ export async function optimizePostContentImages(
   }
   for (const { start, end, value } of replacements.reverse())
     html = html.slice(0, start) + value + html.slice(end);
+  report?.(stats);
   return html;
 }

@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:e2e": "vite --mode test",
     "build": "vite build",
+    "verify:budget": "node scripts/verify-budget.mjs",
     "verify:bundle": "node scripts/verify-bundle.mjs",
     "type-check": "tsc --noEmit",
     "test": "vitest",

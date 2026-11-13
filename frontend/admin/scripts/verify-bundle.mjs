@@ -23,7 +23,7 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 // @aws-amplify/core のシングルトンが未設定時に出す文言。
-// 1 バンドルにつき 1 回だけ現れるはずで、複数あればコピーが複数含まれている。
+// 全チャンクを通して 1 回だけ現れるはず。依存更新で文言が変われば検査を見直す。
 const SINGLETON_MARKER = 'Amplify has not been configured';
 
 const distDir = process.argv[2] ?? 'dist';
@@ -96,6 +96,13 @@ if (markerTotal === 0) {
     `Marker: "${SINGLETON_MARKER}"`,
     'Amplify likely changed this message on upgrade. Update SINGLETON_MARKER',
     'in this script so the duplicate-instance check keeps working.'
+  );
+}
+
+if (markerTotal > 1) {
+  fail(
+    `Multiple Amplify singleton markers across bundles (${markerTotal})`,
+    'Check resolve.dedupe and duplicated @aws-amplify/core dependencies.'
   );
 }
 

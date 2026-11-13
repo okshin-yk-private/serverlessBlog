@@ -156,3 +156,26 @@ describe('sanitized body image enhancement', () => {
     ).rejects.toThrow('transform failed');
   });
 });
+
+it('reports occurrence counts without source URLs and includes cached fallbacks', async () => {
+  const report = vi.fn();
+  const transform = vi.fn(async (source: string) =>
+    source.endsWith('/ok.png') ? transformed : undefined
+  );
+  await optimizePostContentImages(
+    '<img src="/images/ok.png"><img src="/images/ok.png"><img src="/images/broken.png"><img src="/images/broken.png"><img src="https://other.example/private.png"><img>',
+    site,
+    true,
+    transform,
+    report
+  );
+  expect(transform).toHaveBeenCalledTimes(2);
+  expect(report).toHaveBeenCalledExactlyOnceWith({
+    total: 6,
+    registered: 2,
+    fallback: 2,
+    unsupported: 1,
+    skipped: 1,
+  });
+  expect(JSON.stringify(report.mock.calls)).not.toContain('private.png');
+});
