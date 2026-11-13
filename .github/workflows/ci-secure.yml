@@ -1097,7 +1097,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      # No setup-node here: this job only runs `bun run test:coverage`.
+      # Build checks below use Bun directly; no separate Node installation needed.
       - name: Setup Bun + Install Dependencies (root)
         uses: ./.github/actions/setup-bun-deps
         with:
@@ -1113,6 +1113,21 @@ jobs:
         run: bun run test:coverage
         env:
           CI: true
+
+      - name: Build and verify admin production assets
+        working-directory: frontend/admin
+        run: |
+          bun run build
+          bun scripts/verify-bundle.mjs
+          bun scripts/verify-budget.mjs
+        env:
+          NODE_ENV: production
+          VITE_COGNITO_USER_POOL_ID: ap-northeast-1_fixture
+          VITE_COGNITO_USER_POOL_CLIENT_ID: fixture-client
+          VITE_ENABLE_PASSKEY: 'true'
+          VITE_MFA_REQUIRED: 'true'
+          VITE_CLOUDFRONT_URL: https://fixture.example
+          VITE_API_URL: /api
 
       - name: Upload frontend (admin) coverage reports
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -159,6 +159,21 @@ describe('article image and prefetch build output', () => {
       expect(image.getAttribute('loading')).toBe('lazy');
     }
     expect(buildLog).toContain('[post-image]');
+    const metrics = buildLog
+      .split('\n')
+      .filter((line) => line.includes('[post-content-images]'));
+    expect(metrics.length).toBeGreaterThan(0);
+    expect(
+      metrics.some((line) =>
+        line.includes(
+          '"total":5,"registered":2,"unsupported":2,"fallback":1,"skipped":0'
+        )
+      )
+    ).toBe(true);
+    for (const line of metrics) {
+      expect(line).not.toContain('/images/');
+      expect(line).not.toContain('http');
+    }
     const noImages = await documentAt('posts/post-2/index.html');
     expect(noImages.querySelector('.hero-image')).toBeNull();
     expect(noImages.querySelector('.image-gallery')).toBeNull();
