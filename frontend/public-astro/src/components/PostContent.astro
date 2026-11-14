@@ -45,6 +45,11 @@ const contentHtml = await optimizePostContentImages(
       format: 'webp',
     });
     return { src: image.src, srcset: image.srcSet.attribute, width, height };
+  },
+  (stats) => {
+    // No URLs, titles, HTML or credentials in this diagnostic.
+    if (stats.total > 0)
+      console.info('[post-content-images] ' + JSON.stringify(stats));
   }
 );
 ---

@@ -23,6 +23,9 @@ export default defineConfig(({ command }) => ({
     },
   },
   build: {
+    manifest: true,
+    // Keep font subsets cacheable; do not embed them in the shared stylesheet.
+    assetsInlineLimit: (file) => (/\.woff2?$/i.test(file) ? false : undefined),
     rollupOptions: {
       // MSWと関連する依存関係を外部化（プロダクションビルドから除外）
       external: (id) => {

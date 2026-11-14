@@ -570,7 +570,9 @@ jobs:
       # 漏れ / Amplify シングルトンの重複) を、デプロイ前に成果物から検出する
       - name: Verify build artifact
         working-directory: frontend/admin
-        run: bun run verify:bundle
+        run: |
+          bun run verify:bundle
+          bun run verify:budget
         env:
           VITE_COGNITO_USER_POOL_ID: ${{ steps.cognito.outputs.user_pool_id }}
           VITE_COGNITO_USER_POOL_CLIENT_ID: ${{ steps.cognito.outputs.client_id }}
