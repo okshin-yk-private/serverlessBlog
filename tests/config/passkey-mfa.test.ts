@@ -27,9 +27,12 @@ test('both deployments use staged MFA migration and frontend builds require read
   expect(workflow).toContain(
     'bash ../../../scripts/deploy_passkey_infrastructure.sh prd'
   );
+  expect(workflow).toContain(
+    'TARGET_ENV: ${{ needs.detect-changes.outputs.target-env }}'
+  );
   expect(workflow).toContain('VITE_ENABLE_PASSKEY: "true"');
   expect(workflow).toContain(
-    'configure_passkey_mfa.py --environment "${{ needs.detect-changes.outputs.target-env }}" --check-only'
+    'configure_passkey_mfa.py --environment "${TARGET_ENV}" --check-only'
   );
 });
 

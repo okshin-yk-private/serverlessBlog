@@ -9,7 +9,7 @@ locals {
   viewer_guard = templatefile("${path.module}/functions/viewer-guard.js.tftpl", {
     enabled       = var.enable_basic_auth
     basic_auth    = jsonencode("Basic ${base64encode("${var.basic_auth_username}:${var.basic_auth_password}")}")
-    session_token = jsonencode(sha256("dev-cookie:${var.basic_auth_username}:${var.basic_auth_password}"))
+    session_token = jsonencode(var.basic_auth_session_token)
   })
 
   cache_policy_caching_optimized = "658327ea-f89d-4fab-a63d-7e88639e58f6"
@@ -127,7 +127,7 @@ function handler(event) {
   if (authorization && authorization.value === ${jsonencode("Basic ${base64encode("${var.basic_auth_username}:${var.basic_auth_password}")}")}) {
     response.cookies = response.cookies || {};
     response.cookies['__Host-dev-access'] = {
-      value: ${jsonencode(sha256("dev-cookie:${var.basic_auth_username}:${var.basic_auth_password}"))},
+      value: ${jsonencode(var.basic_auth_session_token)},
       attributes: 'Path=/; Max-Age=28800; Secure; HttpOnly; SameSite=Strict'
     };
   }

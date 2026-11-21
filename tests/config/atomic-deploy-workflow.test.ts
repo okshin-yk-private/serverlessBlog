@@ -66,10 +66,10 @@ describe('atomic release workflow contracts', () => {
         .split(`  deploy-astro-${environment}:`)[1]
         .split('\n  # =======================================')[0];
       expect(job).toContain(
-        'REVISION="${{ needs.build-astro.outputs.revision }}"'
+        'BUILD_REVISION: ${{ needs.build-astro.outputs.revision }}'
       );
       expect(job).toContain(
-        '--site-url "${{ steps.config.outputs.public_url }}"'
+        'PUBLIC_URL: ${{ steps.config.outputs.public_url }}'
       );
       expect(job).not.toContain('REVISION="r${START_TIME}');
       expect(job).not.toContain('sync --delete');
@@ -94,12 +94,7 @@ describe('atomic release workflow contracts', () => {
         .split('\n      - name:')[0]
         .split('\n')
         .map((line) => line.slice(10))
-        .join('\n')
-        .replace(
-          /\$\{\{\s*needs.build-astro.outputs.revision\s*\}\}/g,
-          'r20-test'
-        )
-        .replace(/\$\{\{[^}]+\}\}/g, 'https://site.test');
+        .join('\n');
       for (const verifierExit of ['0', '1']) {
         const result = spawnSync(
           'bash',
@@ -111,7 +106,7 @@ describe('atomic release workflow contracts', () => {
         node() {
           if [ "$1" = "--import" ]; then return 0; fi
           [ "$1" = "verify-public-manifest.mjs" ] || return 99
-          [ "$3" = "r20-test" ] || return 98
+          [ "$2" = "https://site.test" ] && [ "$3" = "r20-test" ] || return 98
           return "$VERIFIER_EXIT"
         }
         ${script}
@@ -119,7 +114,15 @@ describe('atomic release workflow contracts', () => {
           ],
           {
             encoding: 'utf8',
-            env: { ...process.env, VERIFIER_EXIT: verifierExit },
+            env: {
+              ...process.env,
+              VERIFIER_EXIT: verifierExit,
+              BUILD_REVISION: 'r20-test',
+              PUBLIC_URL: 'https://site.test',
+              PUBLIC_BUCKET: 'test-bucket',
+              KVS_ARN: 'test-kvs-arn',
+              AWS_REGION: 'ap-northeast-1',
+            },
           }
         );
         expect(result.status).toBe(Number(verifierExit));

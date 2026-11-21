@@ -9,8 +9,7 @@ const buildScript = workflow
   .split('        env:')[0]
   .split('\n')
   .map((line) => line.slice(10))
-  .join('\n')
-  .replaceAll('${{ needs.detect-changes.outputs.target-env }}', 'dev');
+  .join('\n');
 
 test.each(['401', '200'])(
   'DEV build loads scoped API credentials only for protected API (%s)',
@@ -39,6 +38,7 @@ test.each(['401', '200'])(
         env: {
           ...process.env,
           TEST_HTTP_STATUS: status,
+          TARGET_ENV: 'dev',
           BASIC_AUTH_USERNAME: '',
           BASIC_AUTH_PASSWORD: '',
           API_URL: 'https://fixture.test/api',
