@@ -52,6 +52,7 @@ const PostListPage = () => {
         publishStatus,
         nextToken: token,
         limit: 100,
+        includeCount: false,
       });
       setPosts(response.posts);
       setNextToken(response.nextToken);

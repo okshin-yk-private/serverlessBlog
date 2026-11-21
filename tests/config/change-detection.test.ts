@@ -440,4 +440,39 @@ describe('deploy summary accurately reports detection failures', () => {
       });
     }
   }
+
+  test('skipped required DEV deploy or E2E job fails deploy-summary', () => {
+    expect(
+      runSummary({
+        'needs.detect-changes.result': 'success',
+        'needs.detect-changes.outputs.target-env': 'dev',
+        'needs.detect-changes.outputs.deploy-astro': 'true',
+        'needs.build-astro.result': 'success',
+        'needs.deploy-astro-dev.result': 'skipped',
+        'needs.post-deploy-e2e-dev.result': 'success',
+      }).status
+    ).toBe(1);
+
+    expect(
+      runSummary({
+        'needs.detect-changes.result': 'success',
+        'needs.detect-changes.outputs.target-env': 'dev',
+        'needs.detect-changes.outputs.deploy-astro': 'true',
+        'needs.build-astro.result': 'success',
+        'needs.deploy-astro-dev.result': 'success',
+        'needs.post-deploy-e2e-dev.result': 'skipped',
+      }).status
+    ).toBe(1);
+
+    expect(
+      runSummary({
+        'needs.detect-changes.result': 'success',
+        'needs.detect-changes.outputs.target-env': 'dev',
+        'needs.detect-changes.outputs.deploy-astro': 'true',
+        'needs.build-astro.result': 'success',
+        'needs.deploy-astro-dev.result': 'success',
+        'needs.post-deploy-e2e-dev.result': 'success',
+      }).status
+    ).toBe(0);
+  });
 });

@@ -1237,3 +1237,135 @@ func TestHandler_NonAdminForbidden(t *testing.T) {
 		t.Errorf("StatusCode = %d, want 403", resp.StatusCode)
 	}
 }
+
+func TestHandler_RejectsSlugRenameOver97PostsWithoutWriting(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	existingCat := createExistingCategory()
+	existingAV, _ := attributevalue.MarshalMap(existingCat)
+
+	postItems := make([]map[string]types.AttributeValue, 98)
+	for i := range postItems {
+		postItems[i] = map[string]types.AttributeValue{
+			"id": &types.AttributeValueMemberS{Value: "post-" + string(rune('a'+i/26)) + string(rune('a'+i%26))},
+		}
+	}
+
+	transactCalled := false
+	mockClient := &MockDynamoDBClient{
+		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			return &dynamodb.GetItemOutput{Item: existingAV}, nil
+		},
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			if params.IndexName != nil && *params.IndexName == testSlugIndex {
+				return &dynamodb.QueryOutput{Count: 0}, nil
+			}
+			return &dynamodb.QueryOutput{Items: postItems, Count: int32(len(postItems))}, nil
+		},
+		TransactWriteFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			transactCalled = true
+			return &dynamodb.TransactWriteItemsOutput{}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+
+	resp, err := Handler(context.Background(), createAuthenticatedRequest(testCategoryID, `{"slug":"new-slug"}`))
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+	if resp.StatusCode != 409 {
+		t.Fatalf("StatusCode = %d, want 409 (body: %s)", resp.StatusCode, resp.Body)
+	}
+	if transactCalled {
+		t.Error("expected TransactWriteItems not to be called when post count exceeds 97")
+	}
+}
+
+func TestHandler_ConditionalUpdateGuardsCategoryAndPosts(t *testing.T) {
+	t.Run("non-slug update guards existence and unchanged slug and maps conflict to 409", func(t *testing.T) {
+		cleanup := setupTest(t)
+		defer cleanup()
+
+		existingCat := createExistingCategory()
+		existingAV, _ := attributevalue.MarshalMap(existingCat)
+
+		var captured *dynamodb.PutItemInput
+		mockClient := &MockDynamoDBClient{
+			GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+				return &dynamodb.GetItemOutput{Item: existingAV}, nil
+			},
+			PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+				captured = params
+				return nil, &types.ConditionalCheckFailedException{}
+			},
+		}
+		dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+
+		resp, err := Handler(context.Background(), createAuthenticatedRequest(testCategoryID, `{"name":"Renamed"}`))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if resp.StatusCode != 409 {
+			t.Fatalf("StatusCode = %d, want 409 (body: %s)", resp.StatusCode, resp.Body)
+		}
+		if captured == nil || aws.ToString(captured.ConditionExpression) != "attribute_exists(id) AND slug = :expectedSlug" {
+			t.Errorf("PutItem ConditionExpression = %q, want attribute_exists(id) AND slug = :expectedSlug", aws.ToString(captured.ConditionExpression))
+		}
+	})
+
+	t.Run("slug update guards category, old reservation ownership, and post existence/old category", func(t *testing.T) {
+		cleanup := setupTest(t)
+		defer cleanup()
+
+		existingCat := createExistingCategory()
+		existingAV, _ := attributevalue.MarshalMap(existingCat)
+
+		var captured *dynamodb.TransactWriteItemsInput
+		mockClient := &MockDynamoDBClient{
+			GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+				return &dynamodb.GetItemOutput{Item: existingAV}, nil
+			},
+			QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+				if params.IndexName != nil && *params.IndexName == testSlugIndex {
+					return &dynamodb.QueryOutput{Count: 0}, nil
+				}
+				return &dynamodb.QueryOutput{
+					Items: []map[string]types.AttributeValue{
+						{"id": &types.AttributeValueMemberS{Value: "post-1"}},
+					},
+					Count: 1,
+				}, nil
+			},
+			TransactWriteFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+				captured = params
+				return nil, &types.TransactionCanceledException{
+					CancellationReasons: []types.CancellationReason{
+						{Code: aws.String("ConditionalCheckFailed")},
+					},
+				}
+			},
+		}
+		dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+
+		resp, err := Handler(context.Background(), createAuthenticatedRequest(testCategoryID, `{"slug":"new-slug"}`))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if resp.StatusCode != 409 {
+			t.Fatalf("StatusCode = %d, want 409 (body: %s)", resp.StatusCode, resp.Body)
+		}
+		if captured == nil || len(captured.TransactItems) != 4 {
+			t.Fatalf("expected 4 transact items, got %v", captured)
+		}
+		if got := aws.ToString(captured.TransactItems[0].Put.ConditionExpression); got != "attribute_exists(id) AND slug = :oldSlug" {
+			t.Errorf("category Put condition = %q", got)
+		}
+		if got := aws.ToString(captured.TransactItems[1].Delete.ConditionExpression); got != "attribute_not_exists(id) OR categoryId = :categoryId" {
+			t.Errorf("old slug Delete condition = %q", got)
+		}
+		if got := aws.ToString(captured.TransactItems[3].Update.ConditionExpression); got != "attribute_exists(id) AND category = :oldCategory" {
+			t.Errorf("post Update condition = %q", got)
+		}
+	})
+}

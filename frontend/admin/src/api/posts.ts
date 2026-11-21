@@ -165,6 +165,7 @@ export interface GetPostsParams {
   publishStatus?: 'draft' | 'published';
   limit?: number;
   nextToken?: string;
+  includeCount?: boolean;
 }
 
 export interface GetPostsResponse {
@@ -189,6 +190,9 @@ export const getPosts = async (
   }
   if (params?.nextToken) {
     queryParams.append('nextToken', params.nextToken);
+  }
+  if (params?.includeCount === false) {
+    queryParams.append('includeCount', 'false');
   }
 
   const response = await apiClient.get(

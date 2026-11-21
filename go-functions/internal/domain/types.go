@@ -289,8 +289,8 @@ func (r *CreatePostRequest) Validate() error {
 	if err := validateRuneLength(r.ContentMarkdown, "contentMarkdown", PostContentMarkdownMaxLength); err != nil {
 		return err
 	}
-	if r.Category == "" && r.SaveMode != SaveModeAutosave {
-		return errors.New("category is required")
+	if err := validatePostCategory(r.Category, r.SaveMode); err != nil {
+		return err
 	}
 	if err := validateSaveMode(r.SaveMode); err != nil {
 		return err
@@ -298,19 +298,33 @@ func (r *CreatePostRequest) Validate() error {
 	if r.SaveMode == SaveModeAutosave && r.PublishStatus != nil && *r.PublishStatus == PublishStatusPublished {
 		return errors.New("autosave cannot publish a post")
 	}
-	if err := validateOptionalExcerpt(r.Excerpt); err != nil {
+	return validatePostOptionalFields(r.Excerpt, r.Tags, r.Slug, r.ImageURLs, r.CoverImageURL)
+}
+
+func validatePostCategory(category, saveMode string) error {
+	if category == "" {
+		if saveMode != SaveModeAutosave {
+			return errors.New("category is required")
+		}
+		return nil
+	}
+	return validateRuneLength(category, "category", CategorySlugMaxLength)
+}
+
+func validatePostOptionalFields(excerpt *string, tags []string, slug *string, imageURLs []string, coverImageURL *string) error {
+	if err := validateOptionalExcerpt(excerpt); err != nil {
 		return err
 	}
-	if err := validatePostTags(r.Tags); err != nil {
+	if err := validatePostTags(tags); err != nil {
 		return err
 	}
-	if err := validateOptionalSlug(r.Slug); err != nil {
+	if err := validateOptionalSlug(slug); err != nil {
 		return err
 	}
-	if err := validateImageURLs(r.ImageURLs); err != nil {
+	if err := validateImageURLs(imageURLs); err != nil {
 		return err
 	}
-	return validateOptionalCoverImageURL(r.CoverImageURL)
+	return validateOptionalCoverImageURL(coverImageURL)
 }
 
 // UpdatePostRequest represents the request body for updating a post.
@@ -341,6 +355,11 @@ func (r *UpdatePostRequest) Validate() error {
 	}
 	if r.Category != nil && *r.Category == "" && r.SaveMode != SaveModeAutosave {
 		return errors.New("category cannot be empty when provided")
+	}
+	if r.Category != nil && *r.Category != "" {
+		if err := validateRuneLength(*r.Category, "category", CategorySlugMaxLength); err != nil {
+			return err
+		}
 	}
 	if err := validateSaveMode(r.SaveMode); err != nil {
 		return err
@@ -541,6 +560,10 @@ type CreateCategoryRequest struct {
 	SortOrder   *int    `json:"sortOrder,omitempty"`
 }
 
+// CategorySlugMaxLength bounds category slugs and post category references so
+// CategoryIndex keys stay well within DynamoDB and pagination token limits.
+const CategorySlugMaxLength = 128
+
 // slugPattern is a regex pattern for valid slugs (alphanumeric and hyphens only)
 var slugPattern = regexp.MustCompile(`^[a-z0-9-]+$`)
 
@@ -561,11 +584,14 @@ func (r *CreateCategoryRequest) Validate() error {
 		return err
 	}
 
-	// Requirement 9.4: slug format check (if provided)
+	// Requirement 9.4: slug format and length check (if provided)
 	if r.Slug != nil {
 		// Reject explicitly empty slugs
 		if *r.Slug == "" {
 			return errors.New("slug cannot be empty when provided")
+		}
+		if err := validateRuneLength(*r.Slug, "slug", CategorySlugMaxLength); err != nil {
+			return err
 		}
 		if !slugPattern.MatchString(*r.Slug) {
 			return errors.New("slug must contain only lowercase alphanumeric characters and hyphens")
@@ -602,11 +628,14 @@ func (r *UpdateCategoryRequest) Validate() error {
 		}
 	}
 
-	// Requirement 9.4: slug format check (if provided)
+	// Requirement 9.4: slug format and length check (if provided)
 	if r.Slug != nil {
 		// Reject explicitly empty slugs
 		if *r.Slug == "" {
 			return errors.New("slug cannot be empty when provided")
+		}
+		if err := validateRuneLength(*r.Slug, "slug", CategorySlugMaxLength); err != nil {
+			return err
 		}
 		if !slugPattern.MatchString(*r.Slug) {
 			return errors.New("slug must contain only lowercase alphanumeric characters and hyphens")

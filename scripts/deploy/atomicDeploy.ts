@@ -1,4 +1,4 @@
-import { createRouteIndex } from './routeIndex';
+import { createRouteIndex, measureRouteIndexBuckets } from './routeIndex';
 /**
  * Atomic deployment for the public Astro site.
  *
@@ -742,11 +742,20 @@ export async function atomicDeploy(
 
     const files = await listFiles(config.distPath);
     const manifest = createManifest(revision, files);
-    // Validate the index before any release upload.
-    createRouteIndex(
+    // Validate the index before any release upload and report bucket saturation.
+    const routeIndex = createRouteIndex(
       revision,
       files.map((file) => file.relativePath)
     );
+    const routeStats = measureRouteIndexBuckets(routeIndex);
+    console.log(
+      `[atomicDeploy] KVS route index: maxBucket=${routeStats.maxBucket} (${routeStats.maxBytes}/${routeStats.limitBytes} bytes, ${routeStats.totalPaths} paths)`
+    );
+    if (routeStats.nearLimit) {
+      console.warn(
+        `[atomicDeploy] WARNING: KVS route index bucket ${routeStats.maxBucket} is at ${routeStats.maxBytes}/${routeStats.limitBytes} bytes (>= 80%). Plan migration to routes:v2 (issue #903).`
+      );
+    }
     console.log(
       `Uploading ${files.length} files to ${getVersionPrefix(revision)} (shared assets remain under _astro/)`
     );
