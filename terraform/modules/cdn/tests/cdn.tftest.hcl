@@ -871,7 +871,8 @@ run "dev_origin_access_regression" {
   variables {
     enable_basic_auth                       = true
     basic_auth_username                     = "reviewer"
-    basic_auth_password                     = "test-password" # gitleaks:allow -- dummy credential for mocked Terraform plan only
+    basic_auth_password                     = "test-password"                                    # gitleaks:allow -- dummy credential for mocked Terraform plan only
+    basic_auth_session_token                = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" # gitleaks:allow -- dummy token for mocked Terraform plan only
     api_origin_key                          = "test-origin-key-1234567890"
     environment                             = "dev"
     image_bucket_name                       = "test-images-bucket"
@@ -891,6 +892,17 @@ run "dev_origin_access_regression" {
   assert {
     condition     = length(aws_cloudfront_distribution.main.default_cache_behavior[0].function_association) == 2
     error_message = "Basic-authenticated page responses must issue the session cookie."
+  }
+  assert {
+    condition = alltrue([
+      for code in [
+        aws_cloudfront_function.dev_session[0].code,
+        aws_cloudfront_function.public_combined[0].code,
+        aws_cloudfront_function.admin_combined[0].code,
+        aws_cloudfront_function.api_path.code,
+      ] : strcontains(code, jsonencode(var.basic_auth_session_token))
+    ])
+    error_message = "The DEV cookie issuer and protected routes must use the same independent token."
   }
   assert {
     condition     = alltrue([for origin in aws_cloudfront_distribution.main.origin : length(origin.custom_header) == 1 if origin.origin_id == "api-gateway"])

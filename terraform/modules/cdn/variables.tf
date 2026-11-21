@@ -92,6 +92,18 @@ variable "basic_auth_password" {
   sensitive   = true
 }
 
+variable "basic_auth_session_token" {
+  type        = string
+  default     = ""
+  description = "Independent bearer token for the DEV access cookie"
+  sensitive   = true
+
+  validation {
+    condition     = !var.enable_basic_auth || can(regex("^[A-Za-z0-9]{48}$", var.basic_auth_session_token))
+    error_message = "Basic Auth requires an independently generated 48-character alphanumeric session token."
+  }
+}
+
 # Custom Domain Configuration
 variable "use_custom_domain" {
   type        = bool

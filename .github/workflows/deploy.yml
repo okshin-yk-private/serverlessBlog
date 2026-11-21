@@ -182,7 +182,11 @@ jobs:
           else
             TARGET_ENV="dev"
           fi
-          echo "target-env=${TARGET_ENV}" >> $GITHUB_OUTPUT
+          case "$TARGET_ENV" in
+            dev|prd) ;;
+            *) echo "Unsupported deployment environment" >&2; exit 1 ;;
+          esac
+          echo "target-env=${TARGET_ENV}" >> "$GITHUB_OUTPUT"
           # GitHub Environment name mapping (prd -> prod for approval gates)
           if [ "$TARGET_ENV" == "prd" ]; then
             echo "github-env=prod" >> $GITHUB_OUTPUT
@@ -315,7 +319,7 @@ jobs:
           path: go-functions/bin
 
       - name: Setup Terraform (cached)
-        uses: ./.github/actions/setup-terraform-cached
+        uses: $/.github/actions/setup-terraform-cached
         with:
           terraform-version: ${{ env.TERRAFORM_VERSION }}
 
@@ -341,7 +345,7 @@ jobs:
           terraform init -backend-config="bucket=terraform-state-${ACCOUNT_ID}"
 
       - name: Setup Bun for route migration
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: scripts/deploy
 
@@ -397,13 +401,16 @@ jobs:
           echo "api_endpoint=$(terraform output -raw api_endpoint 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
 
       - name: Deployment Summary
+        env:
+          CLOUDFRONT_DOMAIN: ${{ steps.outputs.outputs.cloudfront_domain }}
+          API_ENDPOINT: ${{ steps.outputs.outputs.api_endpoint }}
         run: |
           echo "========================================="
           echo "✓ DEV Infrastructure Deployment Complete"
           echo "========================================="
           echo ""
-          echo "CloudFront: ${{ steps.outputs.outputs.cloudfront_domain }}"
-          echo "API: ${{ steps.outputs.outputs.api_endpoint }}"
+          echo "CloudFront: ${CLOUDFRONT_DOMAIN}"
+          echo "API: ${API_ENDPOINT}"
 
   # =======================================
   # Deploy Infrastructure (PRD) - Requires Approval
@@ -439,7 +446,7 @@ jobs:
           path: go-functions/bin
 
       - name: Setup Terraform (cached)
-        uses: ./.github/actions/setup-terraform-cached
+        uses: $/.github/actions/setup-terraform-cached
         with:
           terraform-version: ${{ env.TERRAFORM_VERSION }}
 
@@ -468,7 +475,7 @@ jobs:
           terraform init -backend-config="bucket=terraform-state-${ACCOUNT_ID}"
 
       - name: Setup Bun for route migration
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: scripts/deploy
 
@@ -499,13 +506,16 @@ jobs:
           echo "api_endpoint=$(terraform output -raw api_endpoint 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
 
       - name: Deployment Summary
+        env:
+          CLOUDFRONT_DOMAIN: ${{ steps.outputs.outputs.cloudfront_domain }}
+          API_ENDPOINT: ${{ steps.outputs.outputs.api_endpoint }}
         run: |
           echo "========================================="
           echo "✓ PRODUCTION Infrastructure Deployment Complete"
           echo "========================================="
           echo ""
-          echo "CloudFront: ${{ steps.outputs.outputs.cloudfront_domain }}"
-          echo "API: ${{ steps.outputs.outputs.api_endpoint }}"
+          echo "CloudFront: ${CLOUDFRONT_DOMAIN}"
+          echo "API: ${API_ENDPOINT}"
 
   # =======================================
   # Build Frontend (Admin Site)
@@ -540,12 +550,14 @@ jobs:
 
       - name: Get Cognito Config from SSM
         id: cognito
+        env:
+          TARGET_ENV: ${{ needs.detect-changes.outputs.target-env }}
         run: |
-          POOL_ID=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/cognito/user-pool-id" --query "Parameter.Value" --output text)
-          CLIENT_ID=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/cognito/user-pool-client-id" --query "Parameter.Value" --output text)
+          POOL_ID=$(aws ssm get-parameter --name "/serverless-blog/${TARGET_ENV}/cognito/user-pool-id" --query "Parameter.Value" --output text)
+          CLIENT_ID=$(aws ssm get-parameter --name "/serverless-blog/${TARGET_ENV}/cognito/user-pool-client-id" --query "Parameter.Value" --output text)
           echo "user_pool_id=$POOL_ID" >> $GITHUB_OUTPUT
           echo "client_id=$CLIENT_ID" >> $GITHUB_OUTPUT
-          AUTH_CONFIG=$(python3 scripts/configure_passkey_mfa.py --environment "${{ needs.detect-changes.outputs.target-env }}" --check-only)
+          AUTH_CONFIG=$(python3 scripts/configure_passkey_mfa.py --environment "${TARGET_ENV}" --check-only)
           echo "mfa_required=$(echo "$AUTH_CONFIG" | jq -r .mfa_required)" >> $GITHUB_OUTPUT
 
       - name: Setup Node.js
@@ -554,14 +566,16 @@ jobs:
           node-version: '22'
 
       - name: Setup Bun + Install Dependencies (admin)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: frontend/admin
 
       - name: Set CloudFront URL
         id: cloudfront
+        env:
+          TARGET_ENV: ${{ needs.detect-changes.outputs.target-env }}
         run: |
-          if [ "${{ needs.detect-changes.outputs.target-env }}" == "prd" ]; then
+          if [ "${TARGET_ENV}" == "prd" ]; then
             echo "url=https://boneofmyfallacy.net" >> $GITHUB_OUTPUT
           else
             echo "url=https://dev.boneofmyfallacy.net" >> $GITHUB_OUTPUT
@@ -626,9 +640,11 @@ jobs:
 
       - name: Get deployment config from SSM
         id: config
+        env:
+          TARGET_ENV: ${{ needs.detect-changes.outputs.target-env }}
         run: |
-          ADMIN_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/admin-site-bucket-name" --query "Parameter.Value" --output text)
-          DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/cdn/distribution-id" --query "Parameter.Value" --output text)
+          ADMIN_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${TARGET_ENV}/storage/admin-site-bucket-name" --query "Parameter.Value" --output text)
+          DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/${TARGET_ENV}/cdn/distribution-id" --query "Parameter.Value" --output text)
           echo "admin_bucket=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
           echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
           echo "✓ Retrieved deployment config from SSM"
@@ -649,10 +665,12 @@ jobs:
           echo "✓ Admin site deployed to ${ADMIN_BUCKET}/admin/"
 
       - name: Invalidate CloudFront Cache (Admin paths only)
+        env:
+          DISTRIBUTION_ID: ${{ steps.config.outputs.distribution_id }}
         run: |
-          if [ -n "${{ steps.config.outputs.distribution_id }}" ]; then
-            aws cloudfront create-invalidation --distribution-id "${{ steps.config.outputs.distribution_id }}" --paths "/admin/*"
-            echo "✓ CloudFront cache invalidated for /admin/* (Distribution: ${{ steps.config.outputs.distribution_id }})"
+          if [ -n "${DISTRIBUTION_ID}" ]; then
+            aws cloudfront create-invalidation --distribution-id "${DISTRIBUTION_ID}" --paths "/admin/*"
+            echo "✓ CloudFront cache invalidated for /admin/* (Distribution: ${DISTRIBUTION_ID})"
           else
             echo "⚠ CloudFront distribution ID not found in SSM, skipping invalidation"
           fi
@@ -687,9 +705,11 @@ jobs:
 
       - name: Get deployment config from SSM
         id: config
+        env:
+          TARGET_ENV: ${{ needs.detect-changes.outputs.target-env }}
         run: |
-          ADMIN_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/storage/admin-site-bucket-name" --query "Parameter.Value" --output text)
-          DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/cdn/distribution-id" --query "Parameter.Value" --output text)
+          ADMIN_BUCKET=$(aws ssm get-parameter --name "/serverless-blog/${TARGET_ENV}/storage/admin-site-bucket-name" --query "Parameter.Value" --output text)
+          DIST_ID=$(aws ssm get-parameter --name "/serverless-blog/${TARGET_ENV}/cdn/distribution-id" --query "Parameter.Value" --output text)
           echo "admin_bucket=$ADMIN_BUCKET" >> $GITHUB_OUTPUT
           echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
           echo "✓ Retrieved deployment config from SSM"
@@ -710,10 +730,12 @@ jobs:
           echo "✓ Admin site deployed to ${ADMIN_BUCKET}/admin/"
 
       - name: Invalidate CloudFront Cache (Admin paths only)
+        env:
+          DISTRIBUTION_ID: ${{ steps.config.outputs.distribution_id }}
         run: |
-          if [ -n "${{ steps.config.outputs.distribution_id }}" ]; then
-            aws cloudfront create-invalidation --distribution-id "${{ steps.config.outputs.distribution_id }}" --paths "/admin/*"
-            echo "✓ CloudFront cache invalidated for /admin/* (Distribution: ${{ steps.config.outputs.distribution_id }})"
+          if [ -n "${DISTRIBUTION_ID}" ]; then
+            aws cloudfront create-invalidation --distribution-id "${DISTRIBUTION_ID}" --paths "/admin/*"
+            echo "✓ CloudFront cache invalidated for /admin/* (Distribution: ${DISTRIBUTION_ID})"
           else
             echo "⚠ CloudFront distribution ID not found in SSM, skipping invalidation"
           fi
@@ -761,9 +783,11 @@ jobs:
 
       - name: Get API URL from SSM
         id: api
+        env:
+          TARGET_ENV: ${{ needs.detect-changes.outputs.target-env }}
         run: |
           # Retrieve API URL and mask sensitive values (Requirement 9.7)
-          API_URL=$(aws ssm get-parameter --name "/serverless-blog/${{ needs.detect-changes.outputs.target-env }}/api/endpoint" --query "Parameter.Value" --output text 2>/dev/null || echo "/api")
+          API_URL=$(aws ssm get-parameter --name "/serverless-blog/${TARGET_ENV}/api/endpoint" --query "Parameter.Value" --output text 2>/dev/null || echo "/api")
           echo "::add-mask::$API_URL"
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "✓ API URL retrieved from SSM"
@@ -776,19 +800,21 @@ jobs:
 
       - name: Setup Bun + Install Dependencies (public-astro)
         # Pin to specific commit SHA for security (Requirement 9.8)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: frontend/public-astro
 
       - name: Cache public image transformations
-        uses: ./.github/actions/cache-astro-images
+        uses: $/.github/actions/cache-astro-images
         with:
           scope: ${{ needs.detect-changes.outputs.target-env }}
 
       - name: Set site URL
         id: site
+        env:
+          TARGET_ENV: ${{ needs.detect-changes.outputs.target-env }}
         run: |
-          if [ "${{ needs.detect-changes.outputs.target-env }}" == "prd" ]; then
+          if [ "${TARGET_ENV}" == "prd" ]; then
             echo "url=https://boneofmyfallacy.net" >> $GITHUB_OUTPUT
           else
             echo "url=https://dev.boneofmyfallacy.net" >> $GITHUB_OUTPUT
@@ -803,7 +829,7 @@ jobs:
           echo "========================================="
           # API fetching now shares the DEV environment gate. Keep credentials
           # local to this build step; never write them to artifacts or PUBLIC_*.
-          if [ "${{ needs.detect-changes.outputs.target-env }}" = "dev" ] && [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$API_URL/posts?limit=1")" = "401" ]; then
+          if [ "${TARGET_ENV}" = "dev" ] && [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$API_URL/posts?limit=1")" = "401" ]; then
             BASIC_AUTH_USERNAME=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --with-decryption --query "Parameter.Value" --output text)
             BASIC_AUTH_PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --query "Parameter.Value" --output text)
             echo "::add-mask::$BASIC_AUTH_USERNAME"
@@ -819,6 +845,7 @@ jobs:
           DIST_SIZE=$(du -sh dist/ | cut -f1)
           echo "Total size: $DIST_SIZE"
         env:
+          TARGET_ENV: ${{ needs.detect-changes.outputs.target-env }}
           NODE_ENV: production
           PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
           API_URL: ${{ steps.api.outputs.api_url }}
@@ -921,13 +948,18 @@ jobs:
 
       - name: Setup Bun + Install Dependencies (deploy scripts)
         # Pin to specific commit SHA (Requirement 9.8)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: scripts/deploy
 
       - name: Deploy to S3 (Atomic Deployment)
         id: deploy
         working-directory: scripts/deploy
+        env:
+          BUILD_REVISION: ${{ needs.build-astro.outputs.revision }}
+          PUBLIC_URL: ${{ steps.config.outputs.public_url }}
+          PUBLIC_BUCKET: ${{ steps.config.outputs.bucket }}
+          KVS_ARN: ${{ steps.config.outputs.kvs_arn }}
         run: |
           echo "========================================="
           echo "Deploying Astro SSG to DEV"
@@ -938,9 +970,9 @@ jobs:
           START_TIME=$(date +%s)
 
           # Keep the build-start revision when publishing the artifact.
-          REVISION="${{ needs.build-astro.outputs.revision }}"
+          REVISION="${BUILD_REVISION}"
 
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "${{ steps.config.outputs.public_url }}/")" = "401" ]; then
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "${PUBLIC_URL}/")" = "401" ]; then
             SITE_VERIFY_BASIC_USER=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --with-decryption --query "Parameter.Value" --output text)
             SITE_VERIFY_BASIC_PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --query "Parameter.Value" --output text)
             echo "::add-mask::$SITE_VERIFY_BASIC_USER"
@@ -949,15 +981,15 @@ jobs:
           fi
 
           node --import tsx cli.ts \
-            --bucket "${{ steps.config.outputs.bucket }}" \
-            --kvs-arn "${{ steps.config.outputs.kvs_arn }}" \
+            --bucket "${PUBLIC_BUCKET}" \
+            --kvs-arn "${KVS_ARN}" \
             --dist "../../dist" \
-            --region "${{ env.AWS_REGION }}" \
+            --region "${AWS_REGION}" \
             --revision "$REVISION" \
-            --site-url "${{ steps.config.outputs.public_url }}"
+            --site-url "${PUBLIC_URL}"
 
           # Require observable publication even if the publisher exits prematurely.
-          node verify-public-manifest.mjs "${{ steps.config.outputs.public_url }}" "$REVISION"
+          node verify-public-manifest.mjs "${PUBLIC_URL}" "$REVISION"
 
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - START_TIME))
@@ -974,12 +1006,14 @@ jobs:
 
       - name: Invalidate CloudFront Cache
         # Requirement 9.9: Invalidate changed paths
+        env:
+          DISTRIBUTION_ID: ${{ steps.config.outputs.distribution_id }}
         run: |
-          if [ -n "${{ steps.config.outputs.distribution_id }}" ]; then
+          if [ -n "${DISTRIBUTION_ID}" ]; then
             echo "Creating CloudFront invalidation..."
             # For SSG, we invalidate common paths instead of /*
             aws cloudfront create-invalidation \
-              --distribution-id "${{ steps.config.outputs.distribution_id }}" \
+              --distribution-id "${DISTRIBUTION_ID}" \
               --paths "/" "/index.html" "/about/*" "/posts/*" "/sitemap*.xml" "/rss.xml"
             echo "✓ CloudFront cache invalidated"
           else
@@ -987,13 +1021,16 @@ jobs:
           fi
 
       - name: Deployment Summary
+        env:
+          PUBLIC_BUCKET: ${{ steps.config.outputs.bucket }}
+          DISTRIBUTION_ID: ${{ steps.config.outputs.distribution_id }}
         run: |
           echo "========================================="
           echo "✓ Astro SSG DEV Deployment Complete"
           echo "========================================="
           echo ""
-          echo "Bucket: ${{ steps.config.outputs.bucket }}"
-          echo "Distribution: ${{ steps.config.outputs.distribution_id }}"
+          echo "Bucket: ${PUBLIC_BUCKET}"
+          echo "Distribution: ${DISTRIBUTION_ID}"
 
   # =======================================
   # Deploy Astro SSG (PRD) - Requires Approval
@@ -1064,13 +1101,18 @@ jobs:
 
       - name: Setup Bun + Install Dependencies (deploy scripts)
         # Pin to specific commit SHA (Requirement 9.8)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: scripts/deploy
 
       - name: Deploy to S3 (Atomic Deployment)
         id: deploy
         working-directory: scripts/deploy
+        env:
+          BUILD_REVISION: ${{ needs.build-astro.outputs.revision }}
+          PUBLIC_BUCKET: ${{ steps.config.outputs.bucket }}
+          KVS_ARN: ${{ steps.config.outputs.kvs_arn }}
+          PUBLIC_URL: ${{ steps.config.outputs.public_url }}
         run: |
           echo "========================================="
           echo "⚠️ Deploying Astro SSG to PRODUCTION"
@@ -1081,18 +1123,18 @@ jobs:
           START_TIME=$(date +%s)
 
           # Keep the build-start revision when publishing the artifact.
-          REVISION="${{ needs.build-astro.outputs.revision }}"
+          REVISION="${BUILD_REVISION}"
 
           node --import tsx cli.ts \
-            --bucket "${{ steps.config.outputs.bucket }}" \
-            --kvs-arn "${{ steps.config.outputs.kvs_arn }}" \
+            --bucket "${PUBLIC_BUCKET}" \
+            --kvs-arn "${KVS_ARN}" \
             --dist "../../dist" \
-            --region "${{ env.AWS_REGION }}" \
+            --region "${AWS_REGION}" \
             --revision "$REVISION" \
-            --site-url "${{ steps.config.outputs.public_url }}"
+            --site-url "${PUBLIC_URL}"
 
           # Require observable publication even if the publisher exits prematurely.
-          node verify-public-manifest.mjs "${{ steps.config.outputs.public_url }}" "$REVISION"
+          node verify-public-manifest.mjs "${PUBLIC_URL}" "$REVISION"
 
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - START_TIME))
@@ -1109,12 +1151,14 @@ jobs:
 
       - name: Invalidate CloudFront Cache
         # Requirement 9.9: Invalidate changed paths
+        env:
+          DISTRIBUTION_ID: ${{ steps.config.outputs.distribution_id }}
         run: |
-          if [ -n "${{ steps.config.outputs.distribution_id }}" ]; then
+          if [ -n "${DISTRIBUTION_ID}" ]; then
             echo "Creating CloudFront invalidation..."
             # For SSG, we invalidate common paths instead of /*
             aws cloudfront create-invalidation \
-              --distribution-id "${{ steps.config.outputs.distribution_id }}" \
+              --distribution-id "${DISTRIBUTION_ID}" \
               --paths "/" "/index.html" "/about/*" "/posts/*" "/sitemap*.xml" "/rss.xml"
             echo "✓ CloudFront cache invalidated"
           else
@@ -1122,13 +1166,16 @@ jobs:
           fi
 
       - name: Deployment Summary
+        env:
+          PUBLIC_BUCKET: ${{ steps.config.outputs.bucket }}
+          DISTRIBUTION_ID: ${{ steps.config.outputs.distribution_id }}
         run: |
           echo "========================================="
           echo "✓ Astro SSG PRODUCTION Deployment Complete"
           echo "========================================="
           echo ""
-          echo "Bucket: ${{ steps.config.outputs.bucket }}"
-          echo "Distribution: ${{ steps.config.outputs.distribution_id }}"
+          echo "Bucket: ${PUBLIC_BUCKET}"
+          echo "Distribution: ${DISTRIBUTION_ID}"
 
   # =======================================
   # Post-Deploy E2E Tests (DEV only)
@@ -1171,7 +1218,7 @@ jobs:
           node-version: '22'
 
       - name: Setup Bun + Install Dependencies (root)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: .
 
@@ -1237,8 +1284,10 @@ jobs:
       # creates /serverless-blog/dev/cdn/public-url unconditionally, so an empty
       # value means the post-deploy verification did not happen at all. (#480)
       - name: Verify BASE_URL was resolved
+        env:
+          BASE_URL: ${{ steps.config.outputs.base_url }}
         run: |
-          if [ -z "${{ steps.config.outputs.base_url }}" ]; then
+          if [ -z "${BASE_URL}" ]; then
             echo "❌ BASE_URL is empty - could not read /serverless-blog/dev/cdn/public-url"
             echo "   Post-deploy verification cannot run, so this deploy is unverified."
             exit 1

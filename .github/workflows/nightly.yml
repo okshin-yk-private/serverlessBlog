@@ -81,7 +81,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Terraform (cached)
-        uses: ./.github/actions/setup-terraform-cached
+        uses: $/.github/actions/setup-terraform-cached
         with:
           terraform-version: ${{ env.TERRAFORM_VERSION }}
 

@@ -356,7 +356,7 @@ describe('workflow permissions and wiring', () => {
         'deploy-infrastructure-prd',
       ]) {
         const job = deploy[name];
-        expect(job).toContain('uses: ./.github/actions/setup-terraform-cached');
+        expect(job).toContain('uses: $/.github/actions/setup-terraform-cached');
         expect(job).not.toContain('uses: hashicorp/setup-terraform@');
         expect(job).not.toContain('restore-keys');
       }

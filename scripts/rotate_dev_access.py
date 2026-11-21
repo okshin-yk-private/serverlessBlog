@@ -8,10 +8,10 @@ must be recovered by deploying the NEW SSM value, never restoring an exposed one
 import argparse
 import base64
 from contextlib import ExitStack
-import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import subprocess
 import sys
@@ -27,6 +27,7 @@ PROBE_PATHS = ("/", "/admin/", "/api/posts", "/images/__rotation_check__", "/_as
 E2E_PASSWORD = "module.auth.random_password.e2e_admin[0]"
 E2E_USER = "module.auth.aws_cognito_user.e2e_admin[0]"
 ORIGIN_KEY = "module.api.aws_api_gateway_api_key.cloudfront[0]"
+DEV_SESSION = "random_password.dev_access_session[0]"
 ORIGIN_BINDING = "module.api.aws_api_gateway_usage_plan_key.cloudfront[0]"
 
 
@@ -72,8 +73,12 @@ def authorization(username, password):
     return "Basic " + base64.b64encode(f"{username}:{password}".encode()).decode()
 
 
-def cookie(username, password):
-    return hashlib.sha256(f"dev-cookie:{username}:{password}".encode()).hexdigest()
+def session_cookie(set_cookie):
+    value = set_cookie.split(";", 1)[0].strip()
+    # Accept the current token and the legacy hex token on the first rollout.
+    if re.fullmatch(r"__Host-dev-access=(?:[A-Za-z0-9]{48}|[a-f0-9]{64})", value):
+        return value
+    return ""
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -116,11 +121,14 @@ def prepare(receipt):
     require(len(metadata) == 1 and metadata[0].get("Type") == "SecureString" and
             metadata[0].get("KeyId") and metadata[0].get("Tier") in ("Standard", "Advanced"),
             "Cannot safely preserve the existing SSM encryption key and tier")
-    require(probe(url + "/admin/", {"Authorization": authorization(username, password)})[0] == 200,
-            "Current SSM credentials do not authenticate; resolve drift before rotating")
+    status, issued_cookie = probe(url + "/admin/", {"Authorization": authorization(username, password)})
+    old_cookie = session_cookie(issued_cookie)
+    require(status == 200 and old_cookie, "Current SSM credentials did not issue a DEV session; resolve drift before rotating")
+    require(probe(url + "/admin/", {"Cookie": old_cookie})[0] == 200,
+            "Current DEV session does not authenticate; resolve drift before rotating")
     new_password = secrets.token_urlsafe(48)
     data = {"username": username, "old_password": password, "new_password": new_password,
-            "url": url, "distribution": parameter("/cdn/distribution-id")}
+            "url": url, "old_cookie": old_cookie, "distribution": parameter("/cdn/distribution-id")}
     # Create before the mutation so failure handling can still verify/recover.
     fd = os.open(receipt, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w") as stream:
@@ -139,7 +147,9 @@ def capture_plan(receipt, plan):
                 "Rotation plan must replace exactly the expected credential resources")
     require(changes.get(E2E_USER, {}).get("actions") == ["update"],
             "Rotation must update the existing E2E user, never replace the user/pool")
-    require(all("delete" not in change["actions"] or address in (E2E_PASSWORD, ORIGIN_KEY, ORIGIN_BINDING)
+    require(set(changes.get(DEV_SESSION, {}).get("actions", [])) in ({"create"}, {"create", "delete"}),
+            "Rotation plan must create or replace the DEV session token")
+    require(all("delete" not in change["actions"] or address in (E2E_PASSWORD, ORIGIN_KEY, ORIGIN_BINDING, DEV_SESSION)
                 for address, change in changes.items()), "Unexpected deletion in rotation plan")
     old_password = changes[E2E_PASSWORD]["before"]["result"]
     require(old_password and parameter("/e2e/admin-password") == old_password,
@@ -177,9 +187,8 @@ def verify(receipt):
     aws("cloudfront", "wait", "distribution-deployed", "--id", data["distribution"], timeout=600)
     verify_other_credentials(data)
     old_basic = {"Authorization": authorization(data["username"], data["old_password"])}
-    old_cookie = {"Cookie": "__Host-dev-access=" + cookie(data["username"], data["old_password"])}
+    old_cookie = {"Cookie": data["old_cookie"]}
     new_basic = {"Authorization": authorization(data["username"], data["new_password"])}
-    expected_cookie = "__Host-dev-access=" + cookie(data["username"], data["new_password"])
     # Edge propagation can lag publication. All negative and positive probes must
     # pass in the SAME attempt. 401 from an origin alone is not proof of the gate.
     for attempt in range(12):
@@ -187,9 +196,12 @@ def verify(receipt):
                        for path in PROBE_PATHS for headers in ({}, old_basic, old_cookie))
         home_status, _ = probe(data["url"] + "/", new_basic)
         admin_status, issued_cookie = probe(data["url"] + "/admin/", new_basic)
-        cookie_status, _ = probe(data["url"] + "/admin/", {"Cookie": expected_cookie})
+        new_cookie = session_cookie(issued_cookie)
+        cookie_status = 0
+        if new_cookie and len(new_cookie.removeprefix("__Host-dev-access=")) == 48 and new_cookie != data["old_cookie"]:
+            cookie_status, _ = probe(data["url"] + "/admin/", {"Cookie": new_cookie})
         api_status, _ = probe(data["url"] + "/api/posts", new_basic)
-        if rejected and home_status == admin_status == cookie_status == api_status == 200 and expected_cookie in [part.strip() for part in issued_cookie.split(";")]:
+        if rejected and home_status == admin_status == cookie_status == api_status == 200:
             print("DEV rotation verified: distribution Deployed; old Basic/cookie rejected; new Basic/cookie accepted")
             return
         if attempt < 11:

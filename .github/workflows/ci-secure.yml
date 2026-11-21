@@ -171,12 +171,12 @@ jobs:
       # No setup-node here: eslint/prettier run through `bun run`, which
       # doesn't need a separate Node.js install.
       - name: Setup Bun + Install Dependencies (root)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: .
 
       - name: Setup Bun + Install Dependencies (admin)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: frontend/admin
 
@@ -216,17 +216,17 @@ jobs:
       # No setup-node here: `bun run typecheck` shells out to `tsc`/`astro
       # check` via bun, which doesn't need a separate Node.js install.
       - name: Setup Bun + Install Dependencies (root)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: .
 
       - name: Setup Bun + Install Dependencies (admin)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: frontend/admin
 
       - name: Setup Bun + Install Dependencies (public-astro)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: frontend/public-astro
 
@@ -597,7 +597,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Terraform (cached)
-        uses: ./.github/actions/setup-terraform-cached
+        uses: $/.github/actions/setup-terraform-cached
         with:
           terraform-version: ${{ env.TERRAFORM_VERSION }}
 
@@ -632,7 +632,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Terraform (cached)
-        uses: ./.github/actions/setup-terraform-cached
+        uses: $/.github/actions/setup-terraform-cached
         with:
           terraform-version: ${{ env.TERRAFORM_VERSION }}
 
@@ -783,7 +783,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Terraform (cached)
-        uses: ./.github/actions/setup-terraform-cached
+        uses: $/.github/actions/setup-terraform-cached
         with:
           terraform-version: ${{ env.TERRAFORM_VERSION }}
 
@@ -841,7 +841,7 @@ jobs:
           path: go-functions/bin
 
       - name: Setup Terraform (cached)
-        uses: ./.github/actions/setup-terraform-cached
+        uses: $/.github/actions/setup-terraform-cached
         with:
           terraform-version: ${{ env.TERRAFORM_VERSION }}
           terraform-wrapper: 'false'
@@ -974,7 +974,7 @@ jobs:
           path: go-functions/bin
 
       - name: Setup Terraform (cached)
-        uses: ./.github/actions/setup-terraform-cached
+        uses: $/.github/actions/setup-terraform-cached
         with:
           terraform-version: ${{ env.TERRAFORM_VERSION }}
           terraform-wrapper: 'false'
@@ -1095,12 +1095,12 @@ jobs:
       # No setup-node here: this job only runs bun/vitest and a bash build
       # script, nothing calls `node -e` directly.
       - name: Setup Bun + Install Dependencies (public-astro)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: frontend/public-astro
 
       - name: Cache public image transformations (fixtures)
-        uses: ./.github/actions/cache-astro-images
+        uses: $/.github/actions/cache-astro-images
         with:
           scope: fixtures
 
@@ -1156,12 +1156,12 @@ jobs:
 
       # Build checks below use Bun directly; no separate Node installation needed.
       - name: Setup Bun + Install Dependencies (root)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: .
 
       - name: Setup Bun + Install Dependencies (admin)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: frontend/admin
 
@@ -1221,12 +1221,12 @@ jobs:
           node-version: '22'
 
       - name: Setup Bun + Install Dependencies (root)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: .
 
       - name: Setup Bun + Install Dependencies (public-astro)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: frontend/public-astro
 
@@ -1302,12 +1302,12 @@ jobs:
           node-version: '22'
 
       - name: Setup Bun + Install Dependencies (root)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: .
 
       - name: Setup Bun + Install Dependencies (admin)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: frontend/admin
 
@@ -1389,7 +1389,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Bun + Install Dependencies (scripts/deploy)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: scripts/deploy
 
@@ -1447,7 +1447,7 @@ jobs:
           node-version: '22'
 
       - name: Setup Bun + Install Dependencies (root)
-        uses: ./.github/actions/setup-bun-deps
+        uses: $/.github/actions/setup-bun-deps
         with:
           working-directory: .
 
@@ -1505,18 +1505,25 @@ jobs:
 
     steps:
       - name: Check job results
+        env:
+          HAS_TERRAFORM: ${{ needs.setup-labels.outputs.has-terraform }}
+          HAS_GO: ${{ needs.setup-labels.outputs.has-go }}
+          HAS_ASTRO: ${{ needs.setup-labels.outputs.has-astro }}
+          HAS_ADMIN: ${{ needs.setup-labels.outputs.has-admin }}
+          HAS_INFRASTRUCTURE: ${{ needs.setup-labels.outputs.has-infrastructure }}
+          HAS_DEPLOY_SCRIPTS: ${{ needs.setup-labels.outputs.has-deploy-scripts }}
         run: |
           echo "========================================="
           echo "CI Results Summary"
           echo "========================================="
           echo ""
           echo "Labels detected:"
-          echo "  terraform: ${{ needs.setup-labels.outputs.has-terraform }}"
-          echo "  go: ${{ needs.setup-labels.outputs.has-go }}"
-          echo "  Astro: ${{ needs.setup-labels.outputs.has-astro }}"
-          echo "  Admin: ${{ needs.setup-labels.outputs.has-admin }}"
-          echo "  infrastructure: ${{ needs.setup-labels.outputs.has-infrastructure }}"
-          echo "  deploy-scripts: ${{ needs.setup-labels.outputs.has-deploy-scripts }}"
+          echo "  terraform: ${HAS_TERRAFORM}"
+          echo "  go: ${HAS_GO}"
+          echo "  Astro: ${HAS_ASTRO}"
+          echo "  Admin: ${HAS_ADMIN}"
+          echo "  infrastructure: ${HAS_INFRASTRUCTURE}"
+          echo "  deploy-scripts: ${HAS_DEPLOY_SCRIPTS}"
           echo ""
           echo "--- Lint ---"
           echo "  ESLint & Prettier: ${{ needs.lint.result }}"

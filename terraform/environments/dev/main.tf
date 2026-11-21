@@ -14,6 +14,17 @@ locals {
   }
 }
 
+# Generate a distinct bearer token. A Basic credential change invalidates existing sessions.
+resource "random_password" "dev_access_session" {
+  count   = local.dev_basic_auth_enabled ? 1 : 0
+  length  = 48
+  special = false
+
+  keepers = {
+    basic_auth_revision = sha256(jsonencode([var.basic_auth_username, var.basic_auth_password]))
+  }
+}
+
 #------------------------------------------------------------------------------
 # Module 1: Database (DynamoDB)
 # Dependencies: None
@@ -202,10 +213,11 @@ module "cdn" {
   price_class                             = "PriceClass_100"
 
   # Basic Auth for dev environment protection (matches CDK configuration)
-  api_origin_key      = module.api.cloudfront_origin_key
-  enable_basic_auth   = local.dev_basic_auth_enabled
-  basic_auth_username = var.basic_auth_username
-  basic_auth_password = var.basic_auth_password
+  api_origin_key           = module.api.cloudfront_origin_key
+  enable_basic_auth        = local.dev_basic_auth_enabled
+  basic_auth_username      = var.basic_auth_username
+  basic_auth_password      = var.basic_auth_password
+  basic_auth_session_token = local.dev_basic_auth_enabled ? random_password.dev_access_session[0].result : ""
 
   # Custom domain configuration
   # Note: acm_certificate_arn should only be set after ACM validation is complete
