@@ -54,9 +54,7 @@ phases:
   install:
     runtime-versions:
       # Astro 6 以降は Node.js >= 22.12 が必須。
-      # 現行イメージ amazonlinux2-aarch64-standard:3.0 は 2024-11 に
-      # amazonlinux-aarch64-standard:3.0 へ改称された Amazon Linux 2023 イメージの
-      # 旧エイリアスで、nodejs 22 に対応済みのためイメージ変更は不要。
+      # amazonlinux-aarch64-standard:3.0 (Amazon Linux 2023) は nodejs 22 に対応済み。
       nodejs: 22
     commands:
       - echo "Installing Bun ${local.bun_version}..."
@@ -145,6 +143,11 @@ resource "aws_iam_role" "codebuild" {
           Service = "codebuild.amazonaws.com"
         }
         Action = "sts:AssumeRole"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
       }
     ]
   })
@@ -213,6 +216,7 @@ resource "aws_iam_role_policy" "codebuild_release_kvs" {
         Action = [
           "cloudfront-keyvaluestore:DescribeKeyValueStore",
           "cloudfront-keyvaluestore:GetKey",
+          "cloudfront-keyvaluestore:ListKeys",
           "cloudfront-keyvaluestore:UpdateKeys"
         ]
         Resource = var.release_kvs_arn
@@ -227,15 +231,16 @@ resource "aws_iam_role_policy" "codebuild_release_kvs" {
 
 # Requirement 8.5: Terraform shall define CodeBuild project for Astro build/deploy
 resource "aws_codebuild_project" "astro_build" {
-  name          = local.codebuild_project_name
-  description   = "Build Astro SSG site and deploy to S3 (${var.environment})"
-  service_role  = aws_iam_role.codebuild.arn
-  build_timeout = var.build_timeout
+  name                   = local.codebuild_project_name
+  description            = "Build Astro SSG site and deploy to S3 (${var.environment})"
+  service_role           = aws_iam_role.codebuild.arn
+  build_timeout          = var.build_timeout
+  concurrent_build_limit = 1
 
   # Use ARM64 for cost efficiency (same as Lambda functions)
   environment {
     compute_type                = var.compute_type
-    image                       = "aws/codebuild/amazonlinux2-aarch64-standard:3.0"
+    image                       = "aws/codebuild/amazonlinux-aarch64-standard:3.0"
     type                        = "ARM_CONTAINER"
     image_pull_credentials_type = "CODEBUILD"
 
@@ -304,7 +309,7 @@ resource "aws_codebuild_project" "astro_build" {
   # LOCAL_SOURCE_CACHE is only available when source type is not NO_SOURCE
   cache {
     type  = "LOCAL"
-    modes = var.github_repo != "" ? ["LOCAL_DOCKER_LAYER_CACHE", "LOCAL_SOURCE_CACHE", "LOCAL_CUSTOM_CACHE"] : ["LOCAL_DOCKER_LAYER_CACHE", "LOCAL_CUSTOM_CACHE"]
+    modes = var.github_repo != "" ? ["LOCAL_SOURCE_CACHE", "LOCAL_CUSTOM_CACHE"] : ["LOCAL_CUSTOM_CACHE"]
   }
 
   # CloudWatch logs configuration

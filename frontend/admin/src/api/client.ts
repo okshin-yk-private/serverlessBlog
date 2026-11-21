@@ -18,9 +18,32 @@ export const AUTH_SESSION_EXPIRED_EVENT = 'auth:session-expired';
  * - 401 受信時は Cognito セッションからトークンを再取得して1回だけリトライ
  * - 再取得できない場合はトークンを破棄し AUTH_SESSION_EXPIRED_EVENT を発火
  */
-export const apiClient = axios.create({ baseURL: API_URL });
+export const apiClient = axios.create({
+  baseURL: API_URL,
+  timeout: 30_000,
+});
+
+/**
+ * 認証セッション世代。ログアウトや再ログインのたびにインクリメントし、
+ * 旧セッションで発火した 401 リフレッシュ／リトライが新セッションへ干渉するのを防ぐ。
+ */
+let authSessionGeneration = 0;
+
+export const advanceAuthSessionGeneration = (): number => {
+  authSessionGeneration += 1;
+  inFlightRefresh = null;
+  return authSessionGeneration;
+};
+
+export const getAuthSessionGeneration = (): number => authSessionGeneration;
+
+interface RetriableConfig extends InternalAxiosRequestConfig {
+  _retriedAfterRefresh?: boolean;
+  _authGeneration?: number;
+}
 
 apiClient.interceptors.request.use((config) => {
+  (config as RetriableConfig)._authGeneration = authSessionGeneration;
   const token = getAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -31,23 +54,40 @@ apiClient.interceptors.request.use((config) => {
 /**
  * Cognito セッションから ID トークンを再取得する。
  * E2E (MSW) モードでは Amplify が構成されていないため常に null。
+ * 並列 401 受信時の競合（重複リフレッシュ・誤ログアウト）を防ぐため single-flight 化する。
  */
-const refreshAuthToken = async (): Promise<string | null> => {
+let inFlightRefresh: {
+  generation: number;
+  promise: Promise<string | null>;
+} | null = null;
+
+const refreshAuthToken = async (
+  expectedGeneration: number
+): Promise<string | null> => {
   if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
     return null;
   }
-  const session = await fetchAuthSession({ forceRefresh: true });
-  const idToken = session.tokens?.idToken?.toString();
-  if (!idToken) {
-    return null;
+  if (!inFlightRefresh || inFlightRefresh.generation !== expectedGeneration) {
+    const promise = (async () => {
+      const session = await fetchAuthSession({ forceRefresh: true });
+      if (authSessionGeneration !== expectedGeneration) {
+        return null;
+      }
+      const idToken = session.tokens?.idToken?.toString();
+      if (!idToken) {
+        return null;
+      }
+      saveAuthToken(idToken);
+      return idToken;
+    })().finally(() => {
+      if (inFlightRefresh?.generation === expectedGeneration) {
+        inFlightRefresh = null;
+      }
+    });
+    inFlightRefresh = { generation: expectedGeneration, promise };
   }
-  saveAuthToken(idToken);
-  return idToken;
+  return inFlightRefresh.promise;
 };
-
-interface RetriableConfig extends InternalAxiosRequestConfig {
-  _retriedAfterRefresh?: boolean;
-}
 
 apiClient.interceptors.response.use(
   (response) => response,
@@ -58,14 +98,24 @@ apiClient.interceptors.response.use(
       config &&
       !config._retriedAfterRefresh
     ) {
+      const requestGeneration = config._authGeneration ?? authSessionGeneration;
+      if (requestGeneration !== authSessionGeneration) {
+        return Promise.reject(error);
+      }
       config._retriedAfterRefresh = true;
       try {
-        const token = await refreshAuthToken();
+        const token = await refreshAuthToken(requestGeneration);
+        if (requestGeneration !== authSessionGeneration) {
+          return Promise.reject(error);
+        }
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
           return apiClient(config);
         }
       } catch {
+        if (requestGeneration !== authSessionGeneration) {
+          return Promise.reject(error);
+        }
         // リフレッシュ失敗はセッション失効として扱う
       }
       removeAuthToken();

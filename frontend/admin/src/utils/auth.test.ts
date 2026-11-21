@@ -9,6 +9,8 @@ import {
   decodeToken,
   migrateFromLocalStorage,
   cleanupLegacyAmplifyKeys,
+  saveRedirectPath,
+  consumeRedirectPath,
 } from './auth';
 
 describe('validateEmail', () => {
@@ -381,4 +383,31 @@ describe('JWT Base64URL と追加クレームの互換性', () => {
       expect(isTokenExpired(encodeJwt({ exp }))).toBe(true);
     }
   );
+});
+
+describe('consumeRedirectPath', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+  });
+
+  it('allows safe app-relative paths and clears storage after consuming', () => {
+    saveRedirectPath('/posts/new?tab=edit');
+    expect(consumeRedirectPath()).toBe('/posts/new?tab=edit');
+    expect(consumeRedirectPath()).toBeNull();
+  });
+
+  it.each([
+    'https://evil.example/phish',
+    '//evil.example/phish',
+    '/\\evil.example/phish',
+    'javascript:alert(1)',
+    '',
+  ])('rejects unsafe redirect path %j', (unsafe) => {
+    saveRedirectPath(unsafe);
+    expect(consumeRedirectPath()).toBeNull();
+  });
 });

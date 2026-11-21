@@ -56,9 +56,12 @@ jobs:
   verify-go-toolchain:
     name: Verify Go Toolchain Configuration
     runs-on: ubuntu-26.04
+    timeout-minutes: 5
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Verify version sources
         run: scripts/ci/verify-go-toolchain.sh
@@ -103,6 +106,7 @@ jobs:
       - name: Checkout code for component detection
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Detect frontend components
@@ -161,6 +165,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       # No setup-node here: eslint/prettier run through `bun run`, which
       # doesn't need a separate Node.js install.
@@ -204,6 +210,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       # No setup-node here: `bun run typecheck` shells out to `tsc`/`astro
       # check` via bun, which doesn't need a separate Node.js install.
@@ -254,6 +262,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -285,6 +295,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -375,6 +387,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -457,6 +471,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
@@ -491,6 +507,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Restore Lambda binaries from cache
         # Exact-match key only (no restore-keys): this restores develop's
@@ -575,6 +593,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Setup Terraform (cached)
         uses: ./.github/actions/setup-terraform-cached
@@ -608,6 +628,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Setup Terraform (cached)
         uses: ./.github/actions/setup-terraform-cached
@@ -643,6 +665,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Run Checkov Security Scan
         id: checkov
@@ -678,6 +702,16 @@ jobs:
           sarif_file: results.sarif
           category: checkov-terraform
 
+      - name: Run Trivy Terraform Misconfiguration Scan (blocking)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'config'
+          scan-ref: 'terraform'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+          version: 'v0.70.0'
+          trivyignores: 'terraform/.trivyignore'
+
   # =======================================
   # Job: Terraform Test - Determine Matrix Targets
   # `terraform test` only discovers *.tftest.hcl in the CURRENT module's
@@ -706,6 +740,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          persist-credentials: false
           # Full history is required so terraform-test-targets.sh can diff
           # against origin/<base branch> for the --changed filter.
           fetch-depth: 0
@@ -744,6 +779,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Setup Terraform (cached)
         uses: ./.github/actions/setup-terraform-cached
@@ -752,13 +789,15 @@ jobs:
 
       - name: Run Terraform Tests
         working-directory: ${{ matrix.dir }}
+        env:
+          TARGET_DIR: ${{ matrix.dir }}
         run: |
           echo "========================================="
-          echo "Terraform Module Tests: ${{ matrix.dir }}"
+          echo "Terraform Module Tests: ${TARGET_DIR}"
           echo "========================================="
           terraform init -backend=false
           terraform test
-          echo "✓ Module tests passed for ${{ matrix.dir }}"
+          echo "✓ Module tests passed for ${TARGET_DIR}"
 
   # =======================================
   # Job: Terraform Plan (DEV)
@@ -782,6 +821,7 @@ jobs:
     # cross-PR plans as false "cancelled" failures.
     if: |
       always() &&
+      (github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name == github.repository) &&
       needs.setup-labels.outputs.has-terraform == 'true' &&
       needs.terraform-validate-dev.result == 'success' &&
       needs.terraform-build-lambdas.result == 'success' &&
@@ -791,6 +831,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Download Lambda binaries
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -811,23 +853,22 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: GitHubActions-TerraformPlan-DEV
 
-      - name: Get Basic Auth Credentials from SSM
+      - name: Get DEV credentials from SSM (step-scoped)
         run: |
+          umask 077
+          SECRETS_FILE="${RUNNER_TEMP}/tf-plan-secrets.env"
+          : > "$SECRETS_FILE"
           USERNAME=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/username" --with-decryption --query "Parameter.Value" --output text)
           PASSWORD=$(aws ssm get-parameter --name "/serverless-blog/dev/basic-auth/password" --with-decryption --query "Parameter.Value" --output text)
+          CLOUDFLARE_TOKEN=$(aws ssm get-parameter --name "/serverless-blog/dev/cloudflare/apikey" --with-decryption --query "Parameter.Value" --output text)
           echo "::add-mask::$USERNAME"
           echo "::add-mask::$PASSWORD"
-          echo "TF_VAR_basic_auth_username=$USERNAME" >> $GITHUB_ENV
-          echo "TF_VAR_basic_auth_password=$PASSWORD" >> $GITHUB_ENV
-          echo "✓ Basic Auth credentials loaded from SSM"
-
-      - name: Get Cloudflare API Token from SSM
-        run: |
-          CLOUDFLARE_TOKEN=$(aws ssm get-parameter --name "/serverless-blog/dev/cloudflare/apikey" --with-decryption --query "Parameter.Value" --output text)
           echo "::add-mask::$CLOUDFLARE_TOKEN"
-          echo "TF_VAR_cloudflare_api_token=$CLOUDFLARE_TOKEN" >> $GITHUB_ENV
-          echo "TF_VAR_enable_custom_domain=true" >> $GITHUB_ENV
-          echo "✓ Cloudflare API token loaded from SSM"
+          printf 'export TF_VAR_basic_auth_username=%q\n' "$USERNAME" >> "$SECRETS_FILE"
+          printf 'export TF_VAR_basic_auth_password=%q\n' "$PASSWORD" >> "$SECRETS_FILE"
+          printf 'export TF_VAR_cloudflare_api_token=%q\n' "$CLOUDFLARE_TOKEN" >> "$SECRETS_FILE"
+          printf 'export TF_VAR_enable_custom_domain=true\n' >> "$SECRETS_FILE"
+          echo "✓ DEV credentials loaded from SSM into mode-0600 temp file"
 
       - name: Terraform Init
         working-directory: terraform/environments/dev
@@ -843,6 +884,9 @@ jobs:
           # state lock instead of failing immediately with "Error acquiring the state lock".
           # Saved plans and JSON contain sensitive values. Keep them runner-local;
           # publish only the allowlisted action counts, never plan values/addresses.
+          if [ -n "${RUNNER_TEMP:-}" ] && [ -f "${RUNNER_TEMP}/tf-plan-secrets.env" ]; then
+            . "${RUNNER_TEMP}/tf-plan-secrets.env"
+          fi
           exitcode=0
           terraform plan -out=tfplan.binary -lock-timeout=5m -detailed-exitcode -no-color > tfplan_output.txt 2>&1 || exitcode=$?
           if [ "$exitcode" != 0 ] && [ "$exitcode" != 2 ]; then
@@ -876,7 +920,7 @@ jobs:
             const summary = fs.readFileSync('terraform/environments/dev/tfplan-summary.md', 'utf8');
             const output = `## Terraform Plan (DEV)\n\n${summary}`;
 
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -886,7 +930,7 @@ jobs:
       - name: Remove raw plan files
         if: always()
         working-directory: terraform/environments/dev
-        run: rm -f tfplan.binary tfplan.json tfplan.txt tfplan_output.txt
+        run: rm -f tfplan.binary tfplan.json tfplan.txt tfplan_output.txt "${RUNNER_TEMP:-}/tf-plan-secrets.env"
 
   # =======================================
   # Job: Terraform Plan (PRD)
@@ -910,6 +954,7 @@ jobs:
     # cross-PR plans as false "cancelled" failures.
     if: |
       always() &&
+      (github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name == github.repository) &&
       needs.setup-labels.outputs.has-terraform == 'true' &&
       needs.terraform-validate-prd.result == 'success' &&
       needs.terraform-build-lambdas.result == 'success' &&
@@ -919,6 +964,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Download Lambda binaries
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -939,16 +986,19 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: GitHubActions-TerraformPlan-PRD
 
-      - name: Get PRD credentials from SSM
+      - name: Get PRD credentials from SSM (step-scoped)
         run: |
+          umask 077
+          SECRETS_FILE="${RUNNER_TEMP}/tf-plan-secrets.env"
+          : > "$SECRETS_FILE"
           ALARM_EMAIL=$(aws ssm get-parameter --name "/serverless-blog/prd/monitoring/alarm-email" --with-decryption --query "Parameter.Value" --output text)
-          echo "::add-mask::$ALARM_EMAIL"
-          echo "TF_VAR_alarm_email=$ALARM_EMAIL" >> $GITHUB_ENV
           CLOUDFLARE_TOKEN=$(aws ssm get-parameter --name "/serverless-blog/prd/cloudflare/apikey" --with-decryption --query "Parameter.Value" --output text)
+          echo "::add-mask::$ALARM_EMAIL"
           echo "::add-mask::$CLOUDFLARE_TOKEN"
-          echo "TF_VAR_cloudflare_api_token=$CLOUDFLARE_TOKEN" >> $GITHUB_ENV
-          echo "TF_VAR_enable_custom_domain=true" >> $GITHUB_ENV
-          echo "✓ PRD credentials loaded from SSM"
+          printf 'export TF_VAR_alarm_email=%q\n' "$ALARM_EMAIL" >> "$SECRETS_FILE"
+          printf 'export TF_VAR_cloudflare_api_token=%q\n' "$CLOUDFLARE_TOKEN" >> "$SECRETS_FILE"
+          printf 'export TF_VAR_enable_custom_domain=true\n' >> "$SECRETS_FILE"
+          echo "✓ PRD credentials loaded from SSM into mode-0600 temp file"
 
       - name: Terraform Init
         working-directory: terraform/environments/prd
@@ -964,6 +1014,9 @@ jobs:
           # state lock instead of failing immediately with "Error acquiring the state lock".
           # Saved plans and JSON contain sensitive values. Keep them runner-local;
           # publish only the allowlisted action counts, never plan values/addresses.
+          if [ -n "${RUNNER_TEMP:-}" ] && [ -f "${RUNNER_TEMP}/tf-plan-secrets.env" ]; then
+            . "${RUNNER_TEMP}/tf-plan-secrets.env"
+          fi
           exitcode=0
           terraform plan -out=tfplan.binary -lock-timeout=5m -detailed-exitcode -no-color > tfplan_output.txt 2>&1 || exitcode=$?
           if [ "$exitcode" != 0 ] && [ "$exitcode" != 2 ]; then
@@ -997,7 +1050,7 @@ jobs:
             const summary = fs.readFileSync('terraform/environments/prd/tfplan-summary.md', 'utf8');
             const output = `## Terraform Plan (PRD) - PRODUCTION\n\n${summary}`;
 
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -1007,7 +1060,7 @@ jobs:
       - name: Remove raw plan files
         if: always()
         working-directory: terraform/environments/prd
-        run: rm -f tfplan.binary tfplan.json tfplan.txt tfplan_output.txt
+        run: rm -f tfplan.binary tfplan.json tfplan.txt tfplan_output.txt "${RUNNER_TEMP:-}/tf-plan-secrets.env"
 
   # =======================================
   # CDK Infrastructure Jobs - REMOVED
@@ -1036,6 +1089,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       # No setup-node here: this job only runs bun/vitest and a bash build
       # script, nothing calls `node -e` directly.
@@ -1096,6 +1151,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       # Build checks below use Bun directly; no separate Node installation needed.
       - name: Setup Bun + Install Dependencies (root)
@@ -1155,6 +1212,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -1174,17 +1233,15 @@ jobs:
       - name: Get Playwright version
         id: playwright-version
         run: |
-          PLAYWRIGHT_VERSION=$(node -e "console.log(require('./package.json').devDependencies['@playwright/test'])")
-          echo "version=$PLAYWRIGHT_VERSION" >> $GITHUB_OUTPUT
+          PLAYWRIGHT_VERSION=$(bunx playwright --version | awk '{print $2}')
+          echo "version=$PLAYWRIGHT_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
 
       - name: Install Playwright browsers and dependencies
         if: steps.playwright-cache.outputs.cache-hit != 'true'
@@ -1236,6 +1293,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -1255,17 +1314,15 @@ jobs:
       - name: Get Playwright version
         id: playwright-version
         run: |
-          PLAYWRIGHT_VERSION=$(node -e "console.log(require('./package.json').devDependencies['@playwright/test'])")
-          echo "version=$PLAYWRIGHT_VERSION" >> $GITHUB_OUTPUT
+          PLAYWRIGHT_VERSION=$(bunx playwright --version | awk '{print $2}')
+          echo "version=$PLAYWRIGHT_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
 
       - name: Install Playwright browsers and dependencies
         if: steps.playwright-cache.outputs.cache-hit != 'true'
@@ -1328,6 +1385,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Setup Bun + Install Dependencies (scripts/deploy)
         uses: ./.github/actions/setup-bun-deps
@@ -1365,6 +1424,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Download Go coverage
         if: needs.go-tests.result == 'success'
@@ -1520,8 +1581,8 @@ jobs:
           check_required "Terraform Security Scan" "${{ needs.terraform-security-scan.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
           check_required "Terraform Test - Determine Targets" "${{ needs.terraform-test-matrix-prep.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' }}"
           check_required "Terraform Test" "${{ needs.terraform-test.result }}" "${{ needs.terraform-test-matrix-prep.outputs.has-targets == 'true' }}"
-          check_required "Terraform Plan (DEV)" "${{ needs.terraform-plan-dev.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && needs.setup-labels.outputs.base-ref == 'develop' }}"
-          check_required "Terraform Plan (PRD)" "${{ needs.terraform-plan-prd.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && needs.setup-labels.outputs.base-ref == 'main' }}"
+          check_required "Terraform Plan (DEV)" "${{ needs.terraform-plan-dev.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && needs.setup-labels.outputs.base-ref == 'develop' && (github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name == github.repository) }}"
+          check_required "Terraform Plan (PRD)" "${{ needs.terraform-plan-prd.result }}" "${{ needs.setup-labels.outputs.has-terraform == 'true' && needs.setup-labels.outputs.base-ref == 'main' && (github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name == github.repository) }}"
           check_required "Frontend Astro Tests" "${{ needs.frontend-astro-tests.result }}" "${{ needs.setup-labels.outputs.has-astro == 'true' }}"
           check_required "Frontend Admin Tests" "${{ needs.frontend-admin-tests.result }}" "${{ needs.setup-labels.outputs.has-admin == 'true' }}"
           check_required "E2E Public" "${{ needs.e2e-public-tests.result }}" "${{ needs.setup-labels.outputs.has-astro == 'true' }}"

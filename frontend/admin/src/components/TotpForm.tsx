@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import QRCode from 'qrcode';
 import type { TotpChallenge } from '../contexts/AuthContext';
 
 interface Props {
@@ -24,7 +23,10 @@ export function TotpForm({
     let active = true;
     setQr('');
     if (setupUri) {
-      QRCode.toDataURL(setupUri, { width: 240, margin: 4 })
+      import('qrcode')
+        .then(({ default: QRCode }) =>
+          QRCode.toDataURL(setupUri, { width: 240, margin: 4 })
+        )
         .then((url) => {
           if (active) setQr(url);
         })

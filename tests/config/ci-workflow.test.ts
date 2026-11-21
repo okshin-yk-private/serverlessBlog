@@ -118,6 +118,34 @@ describe('CI aggregate executes the workflow shell', () => {
   test('optional failures are never accepted', () => {
     expect(runGate({ 'needs.terraform-plan-prd.result': 'failure' })).toBe(1);
   });
+
+  test('fork Terraform PRs may skip plan while same-repo PRs and merge_group require it', () => {
+    const devPlanExpr =
+      "needs.setup-labels.outputs.has-terraform == 'true' && needs.setup-labels.outputs.base-ref == 'develop' && (github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name == github.repository)";
+    const prdPlanExpr =
+      "needs.setup-labels.outputs.has-terraform == 'true' && needs.setup-labels.outputs.base-ref == 'main' && (github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name == github.repository)";
+
+    expect(gate).toContain(devPlanExpr);
+    expect(gate).toContain(prdPlanExpr);
+    expect(
+      runGate({
+        'needs.terraform-plan-dev.result': 'skipped',
+        [devPlanExpr]: 'false',
+      })
+    ).toBe(0);
+    expect(
+      runGate({
+        'needs.terraform-plan-dev.result': 'skipped',
+        [devPlanExpr]: 'true',
+      })
+    ).toBe(1);
+    expect(
+      runGate({
+        'needs.terraform-plan-prd.result': 'skipped',
+        [prdPlanExpr]: 'true',
+      })
+    ).toBe(1);
+  });
 });
 
 describe('job gating no longer depends on PR labels', () => {

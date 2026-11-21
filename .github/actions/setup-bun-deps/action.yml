@@ -15,6 +15,7 @@ runs:
       with:
         bun-version: ${{ inputs.bun-version }}
     - name: Cache Bun dependencies
+      id: bun-cache
       # Lockfile is bun.lock (text format) — this repo has no bun.lockb anywhere.
       # The cache key is scoped by working-directory so the four bun projects
       # (root, frontend/admin, frontend/public-astro, scripts/deploy) can't
@@ -34,5 +35,5 @@ runs:
     - name: Install dependencies
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      # Native Bun updates include bun.lock. Never test an unrecorded resolution.
+      # Always run frozen install even on cache hit so package.json/bun.lock drift is caught.
       run: bun install --frozen-lockfile

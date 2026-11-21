@@ -191,6 +191,10 @@ func validateAndParseRequest(request events.APIGatewayProxyRequest) (postID stri
 		resp, _ := middleware.MessageResponse(400, "post ID is required")
 		return "", nil, "", &resp
 	}
+	if poststore.IsReservedID(postID) {
+		resp, _ := middleware.MessageResponse(404, "post not found")
+		return "", nil, "", &resp
+	}
 
 	// Validate request body is present
 	if request.Body == "" {
@@ -310,27 +314,30 @@ func shouldTriggerBuild(existingPost *domain.BlogPost, req *domain.UpdatePostReq
 // triggerSiteBuild triggers the Astro SSG build via CodeBuild
 // Requirement 10.1, 10.2, 10.10: Trigger CodeBuild, handle errors gracefully
 func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface, tableName string) sitebuild.Request {
+	buildCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+
 	// Get CodeBuild project name from environment, sanitized at the trust boundary
 	projectName := buildtrigger.SanitizeProjectName(os.Getenv("CODEBUILD_PROJECT_NAME"))
 	if projectName == "" {
 		middleware.LoggerFromContext(ctx).Warn("CODEBUILD_PROJECT_NAME not set or invalid, skipping build trigger")
-		return sitebuild.CurrentRequest(ctx, dynamoClient, tableName)
+		return sitebuild.CurrentRequest(buildCtx, dynamoClient, tableName)
 	}
 
 	// Get CodeBuild client
 	client, err := codebuildClientGetter()
 	if err != nil {
 		middleware.LoggerFromContext(ctx).Error("failed to get CodeBuild client", "error", err)
-		return sitebuild.CurrentRequest(ctx, dynamoClient, tableName)
+		return sitebuild.CurrentRequest(buildCtx, dynamoClient, tableName)
 	}
 
 	// Create and use build trigger
 	coordinator := sitebuild.NewCoordinator(dynamoClient, client, tableName, projectName)
-	request, err := coordinator.StartPending(ctx)
+	request, err := coordinator.StartPending(buildCtx)
 	if err != nil {
 		// Requirement 10.10: Handle CodeBuild API errors gracefully
 		middleware.LoggerFromContext(ctx).Error("failed to trigger site build", "error", err, "project", projectName)
-		state, stateErr := coordinator.GetState(ctx)
+		state, stateErr := coordinator.GetState(buildCtx)
 		if stateErr == nil {
 			return sitebuild.RequestForState(state, state.DesiredRevision)
 		}
@@ -478,6 +485,7 @@ func checkSlugExistsForOther(ctx context.Context, client DynamoDBClientInterface
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":slug": &types.AttributeValueMemberS{Value: slug},
 		},
+		ProjectionExpression: aws.String("id"),
 		// We need to inspect items to compare id; cap to a small page since slug
 		// is intended-unique (Limit:2 lets us detect a duplicate without paging).
 		Limit: aws.Int32(2),

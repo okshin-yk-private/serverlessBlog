@@ -125,6 +125,15 @@ export const consumeRedirectPath = (): string | null => {
   try {
     const path = sessionStorage.getItem(REDIRECT_PATH_KEY);
     sessionStorage.removeItem(REDIRECT_PATH_KEY);
+    // Reject protocol-relative, backslash-prefixed, or external URLs stored in sessionStorage.
+    if (
+      !path ||
+      !path.startsWith('/') ||
+      path.startsWith('//') ||
+      path.includes('\\')
+    ) {
+      return null;
+    }
     return path;
   } catch {
     return null;

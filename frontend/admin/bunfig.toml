@@ -1,0 +1,5 @@
+[install]
+# Supply-chain defense: require newly published npm packages to soak for 7 days
+# before resolution during installs. Emergency security patches can be listed
+# temporarily in minimumReleaseAgeExcludes with a review comment.
+minimumReleaseAge = 604800

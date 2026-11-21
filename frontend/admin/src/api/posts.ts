@@ -65,7 +65,10 @@ export const updatePost = async (
   id: string,
   data: UpdatePostRequest
 ): Promise<Post> => {
-  const response = await apiClient.put(`/admin/posts/${id}`, data);
+  const response = await apiClient.put(
+    `/admin/posts/${encodeURIComponent(id)}`,
+    data
+  );
   return response.data;
 };
 
@@ -73,7 +76,9 @@ export const updatePost = async (
  * 記事を取得
  */
 export const getPost = async (id: string): Promise<Post> => {
-  const response = await apiClient.get(`/admin/posts/${id}`);
+  const response = await apiClient.get(
+    `/admin/posts/${encodeURIComponent(id)}`
+  );
   return response.data;
 };
 
@@ -141,7 +146,7 @@ export const uploadImage = async (file: File): Promise<string> => {
   formData.append('file', file);
 
   try {
-    await axios.post(uploadUrl, formData);
+    await axios.post(uploadUrl, formData, { timeout: 60_000 });
   } catch (err) {
     if (
       axios.isAxiosError(err) &&
@@ -160,6 +165,7 @@ export interface GetPostsParams {
   publishStatus?: 'draft' | 'published';
   limit?: number;
   nextToken?: string;
+  includeCount?: boolean;
 }
 
 export interface GetPostsResponse {
@@ -185,6 +191,9 @@ export const getPosts = async (
   if (params?.nextToken) {
     queryParams.append('nextToken', params.nextToken);
   }
+  if (params?.includeCount === false) {
+    queryParams.append('includeCount', 'false');
+  }
 
   const response = await apiClient.get(
     `/admin/posts?${queryParams.toString()}`
@@ -201,7 +210,7 @@ export const getPosts = async (
  * 記事を削除
  */
 export const deletePost = async (id: string): Promise<void> => {
-  await apiClient.delete(`/admin/posts/${id}`);
+  await apiClient.delete(`/admin/posts/${encodeURIComponent(id)}`);
 };
 
 /**
@@ -241,7 +250,7 @@ export const fetchBuildStatus = async (
   targetRevision?: number
 ): Promise<BuildStatusResponse> => {
   const response = await apiClient.get<BuildStatusResponse>(
-    `/admin/posts/${postId}/build-status`,
+    `/admin/posts/${encodeURIComponent(postId)}/build-status`,
     { params: targetRevision ? { targetRevision } : undefined }
   );
   return response.data;

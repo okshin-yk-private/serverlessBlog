@@ -111,6 +111,9 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		slug = *req.Slug
 	} else {
 		slug = domain.GenerateSlug(req.Name)
+		if slug == "" {
+			return middleware.MessageResponse(400, "slug could not be generated from name; please specify a slug")
+		}
 	}
 
 	// Determine sortOrder

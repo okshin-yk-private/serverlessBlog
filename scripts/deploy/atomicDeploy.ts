@@ -1,4 +1,4 @@
-import { createRouteIndex } from './routeIndex';
+import { createRouteIndex, measureRouteIndexBuckets } from './routeIndex';
 /**
  * Atomic deployment for the public Astro site.
  *
@@ -16,6 +16,7 @@ import {
   CloudFrontKeyValueStoreClient,
   DescribeKeyValueStoreCommand,
   GetKeyCommand,
+  ListKeysCommand,
   UpdateKeysCommand,
 } from '@aws-sdk/client-cloudfront-keyvaluestore';
 import { SignatureV4a } from '@aws-sdk/signature-v4a';
@@ -219,7 +220,12 @@ export function getCacheControl(filename: string): string {
   ) {
     return 'public,max-age=0,must-revalidate';
   }
-  return 'public,max-age=31536000,immutable';
+  if (filename.startsWith('_astro/')) {
+    return 'public,max-age=31536000,immutable';
+  }
+  // Unhashed root static assets (/theme-*.js, logos, favicons, etc.) stay at
+  // fixed browser URLs across releases, so they must not be marked immutable.
+  return 'public,max-age=3600,must-revalidate';
 }
 
 export function getContentType(filename: string): string {
@@ -599,6 +605,101 @@ export async function promoteRelease(
   );
 }
 
+const ROUTE_KEY_PATTERN = /^routes:v1:([^:]+):\d+$/;
+const RETAINED_KVS_ROUTE_REVISIONS = 5;
+const MAX_KVS_UPDATE_BATCH = 50;
+
+/**
+ * Remove obsolete per-release `routes:v1:<revision>:*` KVS keys while keeping
+ * the active revision, explicit keepRevisions, and the newest retained
+ * rollback candidates so the 5 MiB CloudFront KVS quota is never exhausted.
+ */
+export async function pruneObsoleteRouteIndexKeys(
+  client: CommandClient,
+  keyValueStoreArn: string,
+  keepRevisions: string[],
+  retainCount = RETAINED_KVS_ROUTE_REVISIONS
+): Promise<number> {
+  const keysByRevision = new Map<string, string[]>();
+  let nextToken: string | undefined;
+  do {
+    const page = (await client.send(
+      new ListKeysCommand({
+        KvsARN: keyValueStoreArn,
+        NextToken: nextToken,
+      })
+    )) as { Items?: Array<{ Key?: string }>; NextToken?: string };
+    for (const item of page.Items ?? []) {
+      if (!item.Key) continue;
+      const match = item.Key.match(ROUTE_KEY_PATTERN);
+      if (!match) continue;
+      const rev = match[1];
+      const list = keysByRevision.get(rev) ?? [];
+      list.push(item.Key);
+      keysByRevision.set(rev, list);
+    }
+    nextToken = page.NextToken;
+  } while (nextToken);
+
+  const retained = new Set(keepRevisions.filter(Boolean));
+  const sortedRevisions = [...keysByRevision.keys()].sort((a, b) => {
+    const seqA = getRevisionSequence(a) ?? -1n;
+    const seqB = getRevisionSequence(b) ?? -1n;
+    if (seqA === seqB) return b.localeCompare(a);
+    return seqB > seqA ? 1 : -1;
+  });
+  for (const rev of sortedRevisions.slice(0, Math.max(0, retainCount))) {
+    retained.add(rev);
+  }
+
+  const keysToDelete: Array<{ rev: string; key: string }> = [];
+  for (const [rev, keys] of keysByRevision.entries()) {
+    if (!retained.has(rev)) {
+      for (const key of keys) {
+        keysToDelete.push({ rev, key });
+      }
+    }
+  }
+  if (keysToDelete.length === 0) return 0;
+
+  let deleted = 0;
+  for (let i = 0; i < keysToDelete.length; i += MAX_KVS_UPDATE_BATCH) {
+    const batch = keysToDelete.slice(i, i + MAX_KVS_UPDATE_BATCH);
+    for (let attempt = 1; attempt <= MAX_PROMOTION_ATTEMPTS; attempt++) {
+      // Capture ETag before reading activeRevision so any concurrent rollback
+      // or promotion after this point causes IfMatch to conflict and retry.
+      const description = (await client.send(
+        new DescribeKeyValueStoreCommand({ KvsARN: keyValueStoreArn })
+      )) as { ETag?: string };
+      if (!description?.ETag) return deleted;
+      const activeRevision = await getRevisionKey(client, keyValueStoreArn);
+      if (activeRevision) {
+        retained.add(activeRevision);
+      }
+      const safeBatch = batch.filter((entry) => !retained.has(entry.rev));
+      if (safeBatch.length === 0) {
+        break;
+      }
+      try {
+        await client.send(
+          new UpdateKeysCommand({
+            KvsARN: keyValueStoreArn,
+            IfMatch: description.ETag,
+            Deletes: safeBatch.map(({ key }) => ({ Key: key })),
+          })
+        );
+        deleted += safeBatch.length;
+        break;
+      } catch (error) {
+        if (!isKvsConflict(error) || attempt === MAX_PROMOTION_ATTEMPTS) {
+          throw error;
+        }
+      }
+    }
+  }
+  return deleted;
+}
+
 export async function atomicDeploy(
   config: AtomicDeployConfig
 ): Promise<AtomicDeployResult> {
@@ -641,11 +742,20 @@ export async function atomicDeploy(
 
     const files = await listFiles(config.distPath);
     const manifest = createManifest(revision, files);
-    // Validate the index before any release upload.
-    createRouteIndex(
+    // Validate the index before any release upload and report bucket saturation.
+    const routeIndex = createRouteIndex(
       revision,
       files.map((file) => file.relativePath)
     );
+    const routeStats = measureRouteIndexBuckets(routeIndex);
+    console.log(
+      `[atomicDeploy] KVS route index: maxBucket=${routeStats.maxBucket} (${routeStats.maxBytes}/${routeStats.limitBytes} bytes, ${routeStats.totalPaths} paths)`
+    );
+    if (routeStats.nearLimit) {
+      console.warn(
+        `[atomicDeploy] WARNING: KVS route index bucket ${routeStats.maxBucket} is at ${routeStats.maxBytes}/${routeStats.limitBytes} bytes (>= 80%). Plan migration to routes:v2 (issue #903).`
+      );
+    }
     console.log(
       `Uploading ${files.length} files to ${getVersionPrefix(revision)} (shared assets remain under _astro/)`
     );
@@ -696,6 +806,26 @@ export async function atomicDeploy(
         DeployErrorCode.KVS_PROMOTION_FAILED,
         `KVS promotion failed: ${error instanceof Error ? error.message : String(error)}`
       );
+    }
+
+    if (promotion.promoted && !dryRun) {
+      try {
+        const pruned = await pruneObsoleteRouteIndexKeys(
+          clients.kvs,
+          config.keyValueStoreArn,
+          [
+            revision,
+            ...(promotion.previousRevision ? [promotion.previousRevision] : []),
+          ]
+        );
+        if (pruned > 0) {
+          console.log(`Pruned ${pruned} obsolete KVS route index key(s)`);
+        }
+      } catch (pruneError) {
+        console.warn(
+          `[atomicDeploy] Best-effort KVS route index cleanup failed: ${pruneError instanceof Error ? pruneError.message : String(pruneError)}`
+        );
+      }
     }
 
     if (config.publicVerification && !dryRun) {

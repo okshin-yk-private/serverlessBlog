@@ -71,6 +71,8 @@ resource "aws_lambda_permission" "sitebuild_reconcile_eventbridge" {
   source_arn    = aws_cloudwatch_event_rule.codebuild_state_change[0].arn
 }
 
+data "aws_caller_identity" "sitebuild" {}
+
 resource "aws_iam_role" "sitebuild_reconcile_scheduler" {
   count = var.codebuild_project_arn != "" ? 1 : 0
   name  = "${var.codebuild_project_name}-scheduler"
@@ -80,6 +82,11 @@ resource "aws_iam_role" "sitebuild_reconcile_scheduler" {
       Effect    = "Allow"
       Action    = "sts:AssumeRole"
       Principal = { Service = "scheduler.amazonaws.com" }
+      Condition = {
+        StringEquals = {
+          "aws:SourceAccount" = data.aws_caller_identity.sitebuild.account_id
+        }
+      }
     }]
   })
   tags = local.common_tags

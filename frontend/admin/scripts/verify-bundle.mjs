@@ -39,6 +39,13 @@ if (!existsSync(assetsDir)) {
   fail(`Assets directory not found: ${assetsDir}`, 'Run the build first.');
 }
 
+if (existsSync(join(distDir, 'mockServiceWorker.js'))) {
+  fail(
+    `Development MSW service worker found in production output: ${join(distDir, 'mockServiceWorker.js')}`,
+    'mockServiceWorker.js must not be shipped to production S3.'
+  );
+}
+
 const jsFiles = readdirSync(assetsDir).filter((f) => f.endsWith('.js'));
 if (jsFiles.length === 0) {
   fail(`No JavaScript bundles found in ${assetsDir}`);

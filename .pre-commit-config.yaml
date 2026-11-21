@@ -60,7 +60,7 @@ repos:
         args:
           - --severity=HIGH,CRITICAL
           - --exit-code=1
-          - --ignorefile=.trivyignore
+          - --ignorefile=terraform/.trivyignore
           - terraform/
         files: ^terraform/
         # `trivy config` accepts a single target only, so scan terraform/ as a

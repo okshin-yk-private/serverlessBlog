@@ -24,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
+	"serverless-blog/go-functions/internal/auth"
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/middleware"
@@ -35,6 +36,9 @@ const (
 	MaxLimit     = 100
 	MinLimit     = 1
 
+	attrPublishStatus           = "publishStatus"
+	attrCategory                = "category"
+	attrCreatedAt               = "createdAt"
 	publishStatusAttributeValue = ":publishStatus"
 )
 
@@ -118,7 +122,7 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	limit := parseLimit(queryParams["limit"])
 
 	// Parse category filter
-	category := queryParams["category"]
+	category := queryParams[attrCategory]
 
 	// Parse search query, rejecting one that exceeds the maximum length
 	searchQuery, err := sanitizeSearchQuery(queryParams["q"])
@@ -126,30 +130,17 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		return middleware.MessageResponse(400, "search query is too long")
 	}
 
-	// Parse nextToken for pagination
-	exclusiveStartKey := parseNextToken(queryParams["nextToken"])
-
 	// Determined once and reused below: whether to include admin-only
 	// fields (publishStatus override, authorId, count).
-	authenticated := isAuthenticated(request)
+	userID := auth.UserID(request)
+	authenticated := userID != "" || isAuthenticated(request)
 
-	// Parse publishStatus (defaults to "published" for backward compatibility)
-	// Security: Unauthenticated users can ONLY access published posts
-	publishStatus := domain.PublishStatusPublished
-	if queryParams["publishStatus"] != "" {
-		// Only authenticated users can query non-published posts
-		if !authenticated {
-			// Security: Force published status for unauthenticated requests
-			// Ignore any publishStatus parameter from unauthenticated users
-			publishStatus = domain.PublishStatusPublished
-		} else {
-			var parseErr error
-			publishStatus, parseErr = parsePublishStatus(queryParams["publishStatus"])
-			if parseErr != nil {
-				return middleware.MessageResponse(400, "invalid publishStatus value")
-			}
-		}
+	publishStatus, draftAuthorFilter, err := resolvePublishStatusAndAuthorFilter(request, queryParams[attrPublishStatus], authenticated, userID)
+	if err != nil {
+		return middleware.MessageResponse(400, "invalid publishStatus value")
 	}
+
+	exclusiveStartKey := parseNextTokenForIndex(queryParams["nextToken"], category, publishStatus)
 
 	// Normalize the search query the same way matchesSearch/filterBySearch
 	// do: a whitespace-only "q" is treated as "no search" so it takes the
@@ -169,13 +160,13 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		// out of data, or hits the page-walk cap - see its doc comment and
 		// maxSearchPages for the exact contract.
 		var searchErr error
-		items, lastEvaluatedKey, searchErr = executeSearchQuery(ctx, dynamoClient, tableName, limit, category, publishStatus, searchLower, exclusiveStartKey, authenticated)
+		items, lastEvaluatedKey, searchErr = executeSearchQueryWithAuthor(ctx, dynamoClient, tableName, limit, category, publishStatus, searchLower, exclusiveStartKey, authenticated, draftAuthorFilter)
 		if searchErr != nil {
 			return middleware.ServerError(ctx, "failed to retrieve posts", searchErr)
 		}
 	} else {
 		// Build DynamoDB Query input
-		queryInput := buildQueryInput(tableName, limit, category, publishStatus, exclusiveStartKey)
+		queryInput := buildQueryInputWithProjection(tableName, limit, category, publishStatus, exclusiveStartKey, authenticated, draftAuthorFilter)
 
 		// Execute query
 		result, err := dynamoClient.Query(ctx, queryInput)
@@ -201,13 +192,16 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		NextToken: nextToken,
 	}
 
-	// For authenticated (admin) requests, execute count query and include count in response
+	// For authenticated (admin) requests, execute count query unless the caller
+	// explicitly opts out (includeCount=false, e.g. paginated post list views).
 	if authenticated {
-		count, err := executeCountQuery(ctx, dynamoClient, tableName, publishStatus)
-		if err != nil {
-			return middleware.ServerError(ctx, "failed to retrieve posts", err)
+		if queryParams["includeCount"] != "false" {
+			count, err := executeCountQueryWithAuthor(ctx, dynamoClient, tableName, publishStatus, draftAuthorFilter)
+			if err != nil {
+				return middleware.ServerError(ctx, "failed to retrieve posts", err)
+			}
+			response.Count = &count
 		}
-		response.Count = &count
 
 		// This endpoint is mounted both publicly and under /admin. An
 		// authenticated response can contain drafts, so it must not be
@@ -267,9 +261,14 @@ func parsePublishStatus(param string) (string, error) {
 	return "", ErrInvalidPublishStatus
 }
 
-// parseNextToken decodes the base64-encoded next token
+// maxNextTokenBytes accommodates any valid Base64-encoded DynamoDB key JSON
+// (including legacy long category values up to DynamoDB's 2048-byte key limit)
+// while bounding untrusted query input size.
+const maxNextTokenBytes = 4096
+
+// parseNextToken decodes the base64-encoded next token with a size bound.
 func parseNextToken(nextToken string) map[string]types.AttributeValue {
-	if nextToken == "" {
+	if nextToken == "" || len(nextToken) > maxNextTokenBytes {
 		return nil
 	}
 
@@ -280,7 +279,7 @@ func parseNextToken(nextToken string) map[string]types.AttributeValue {
 	}
 
 	// Parse JSON
-	var keyMap map[string]interface{}
+	var keyMap map[string]any
 	if err := json.Unmarshal(decoded, &keyMap); err != nil {
 		return nil // Invalid JSON, ignore
 	}
@@ -288,7 +287,7 @@ func parseNextToken(nextToken string) map[string]types.AttributeValue {
 	// Convert to DynamoDB AttributeValue
 	exclusiveStartKey := make(map[string]types.AttributeValue)
 	for k, v := range keyMap {
-		if strVal, ok := v.(string); ok {
+		if strVal, ok := v.(string); ok && strVal != "" {
 			exclusiveStartKey[k] = &types.AttributeValueMemberS{Value: strVal}
 		}
 	}
@@ -300,12 +299,93 @@ func parseNextToken(nextToken string) map[string]types.AttributeValue {
 	return exclusiveStartKey
 }
 
-// buildQueryInput builds the DynamoDB Query input based on parameters
+// resolvePublishStatusAndAuthorFilter resolves the effective publishStatus and
+// draft author ownership filter for a list request.
+func resolvePublishStatusAndAuthorFilter(
+	request events.APIGatewayProxyRequest,
+	rawPublishStatus string,
+	authenticated bool,
+	userID string,
+) (publishStatus, draftAuthorFilter string, err error) {
+	publishStatus = domain.PublishStatusPublished
+	if rawPublishStatus != "" && authenticated {
+		var parsed string
+		parsed, err = parsePublishStatus(rawPublishStatus)
+		if err != nil {
+			return "", "", err
+		}
+		publishStatus = parsed
+	}
+
+	// Security: Non-admin authenticated callers querying drafts may only list
+	// their own drafts (matches posts/get, posts/update, posts/delete ownership).
+	// Draft queries require a valid non-empty Cognito sub; fail closed otherwise.
+	if publishStatus == domain.PublishStatusDraft {
+		if userID == "" {
+			return domain.PublishStatusPublished, "", nil
+		}
+		if !auth.IsAdmin(request) {
+			return publishStatus, userID, nil
+		}
+	}
+
+	return publishStatus, "", nil
+}
+
+// parseNextTokenForIndex validates that a decoded nextToken strictly matches
+// the key schema and partition key of the queried index so arbitrary crafted
+// tokens cannot provoke DynamoDB ValidationException HTTP 500s.
+func parseNextTokenForIndex(nextToken, category, publishStatus string) map[string]types.AttributeValue {
+	key := parseNextToken(nextToken)
+	if key == nil {
+		return nil
+	}
+	pkName := attrPublishStatus
+	pkWant := publishStatus
+	if category != "" {
+		pkName = attrCategory
+		pkWant = category
+	}
+	if len(key) != 3 {
+		return nil
+	}
+	for _, required := range []string{"id", attrCreatedAt, pkName} {
+		if _, ok := key[required]; !ok {
+			return nil
+		}
+	}
+	if pkVal, ok := key[pkName].(*types.AttributeValueMemberS); !ok || pkVal.Value != pkWant {
+		return nil
+	}
+	return key
+}
+
+// buildQueryInput builds the DynamoDB Query input based on parameters.
 func buildQueryInput(tableName string, limit int32, category, publishStatus string, exclusiveStartKey map[string]types.AttributeValue) *dynamodb.QueryInput {
+	return buildQueryInputWithProjection(tableName, limit, category, publishStatus, exclusiveStartKey, true, "")
+}
+
+func buildQueryInputWithProjection(
+	tableName string,
+	limit int32,
+	category, publishStatus string,
+	exclusiveStartKey map[string]types.AttributeValue,
+	includeAuthorID bool,
+	authorFilter string,
+) *dynamodb.QueryInput {
+	projection := "id, #version, title, contentHtml, category, tags, publishStatus, createdAt, updatedAt, publishedAt, imageUrls, slug, excerpt, coverImageUrl"
+	if includeAuthorID {
+		projection += ", authorId"
+	}
+
 	queryInput := &dynamodb.QueryInput{
-		TableName:        aws.String(tableName),
-		Limit:            aws.Int32(limit),
-		ScanIndexForward: aws.Bool(false), // Descending order by createdAt
+		TableName:            aws.String(tableName),
+		Limit:                aws.Int32(limit),
+		ScanIndexForward:     aws.Bool(false), // Descending order by createdAt
+		ProjectionExpression: aws.String(projection),
+		ExpressionAttributeNames: map[string]string{
+			"#version": "version",
+		},
 	}
 
 	if category != "" {
@@ -324,6 +404,15 @@ func buildQueryInput(tableName string, limit int32, category, publishStatus stri
 		queryInput.ExpressionAttributeValues = map[string]types.AttributeValue{
 			publishStatusAttributeValue: &types.AttributeValueMemberS{Value: publishStatus},
 		}
+	}
+
+	if authorFilter != "" {
+		if queryInput.FilterExpression != nil {
+			queryInput.FilterExpression = aws.String(*queryInput.FilterExpression + " AND authorId = :authorId")
+		} else {
+			queryInput.FilterExpression = aws.String("authorId = :authorId")
+		}
+		queryInput.ExpressionAttributeValues[":authorId"] = &types.AttributeValueMemberS{Value: authorFilter}
 	}
 
 	if exclusiveStartKey != nil {
@@ -471,12 +560,43 @@ func executeSearchQuery(
 	exclusiveStartKey map[string]types.AttributeValue,
 	includeAuthorID bool,
 ) ([]ListPostsResponseItem, map[string]types.AttributeValue, error) {
+	return executeSearchQueryWithAuthor(ctx, client, tableName, limit, category, publishStatus, searchLower, exclusiveStartKey, includeAuthorID, "")
+}
+
+func rawItemMatchesSearch(rawItem map[string]types.AttributeValue, searchLower string) bool {
+	if titleAttr, ok := rawItem["title"].(*types.AttributeValueMemberS); ok {
+		if strings.Contains(strings.ToLower(titleAttr.Value), searchLower) {
+			return true
+		}
+	}
+	if tagsAttr, ok := rawItem["tags"].(*types.AttributeValueMemberL); ok {
+		for _, elem := range tagsAttr.Value {
+			if s, ok := elem.(*types.AttributeValueMemberS); ok {
+				if strings.Contains(strings.ToLower(s.Value), searchLower) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func executeSearchQueryWithAuthor(
+	ctx context.Context,
+	client DynamoDBClientInterface,
+	tableName string,
+	limit int32,
+	category, publishStatus, searchLower string,
+	exclusiveStartKey map[string]types.AttributeValue,
+	includeAuthorID bool,
+	authorFilter string,
+) ([]ListPostsResponseItem, map[string]types.AttributeValue, error) {
 	matched := make([]ListPostsResponseItem, 0, limit)
 	currentKey := exclusiveStartKey
 	var resumeKey map[string]types.AttributeValue
 
 	for page := 0; page < maxSearchPages; page++ {
-		queryInput := buildQueryInput(tableName, limit, category, publishStatus, currentKey)
+		queryInput := buildQueryInputWithProjection(tableName, limit, category, publishStatus, currentKey, includeAuthorID, authorFilter)
 
 		result, err := client.Query(ctx, queryInput)
 		if err != nil {
@@ -484,12 +604,12 @@ func executeSearchQuery(
 		}
 
 		for _, rawItem := range result.Items {
+			if !rawItemMatchesSearch(rawItem, searchLower) {
+				continue
+			}
 			converted := processResults([]map[string]types.AttributeValue{rawItem}, includeAuthorID)
 			if len(converted) == 0 {
 				continue // malformed item; processResults already skipped it
-			}
-			if !matchesSearch(converted[0], searchLower) {
-				continue
 			}
 
 			matched = append(matched, converted[0])
@@ -533,15 +653,15 @@ func exclusiveStartKeyFromItem(item map[string]types.AttributeValue, category st
 	if v, ok := item["id"]; ok {
 		key["id"] = v
 	}
-	if v, ok := item["createdAt"]; ok {
-		key["createdAt"] = v
+	if v, ok := item[attrCreatedAt]; ok {
+		key[attrCreatedAt] = v
 	}
 	if category != "" {
-		if v, ok := item["category"]; ok {
-			key["category"] = v
+		if v, ok := item[attrCategory]; ok {
+			key[attrCategory] = v
 		}
-	} else if v, ok := item["publishStatus"]; ok {
-		key["publishStatus"] = v
+	} else if v, ok := item[attrPublishStatus]; ok {
+		key[attrPublishStatus] = v
 	}
 
 	return key
@@ -579,19 +699,28 @@ func isAuthenticated(request events.APIGatewayProxyRequest) bool {
 // This is used to get the total count of articles for admin dashboard statistics
 // Uses pagination to ensure accurate count even when data exceeds 1MB per query.
 func executeCountQuery(ctx context.Context, client DynamoDBClientInterface, tableName, publishStatus string) (int64, error) {
+	return executeCountQueryWithAuthor(ctx, client, tableName, publishStatus, "")
+}
+
+func executeCountQueryWithAuthor(ctx context.Context, client DynamoDBClientInterface, tableName, publishStatus, authorFilter string) (int64, error) {
 	var totalCount int64
 	var lastEvaluatedKey map[string]types.AttributeValue
 
 	for {
+		exprValues := map[string]types.AttributeValue{
+			publishStatusAttributeValue: &types.AttributeValueMemberS{Value: publishStatus},
+		}
 		queryInput := &dynamodb.QueryInput{
-			TableName:              aws.String(tableName),
-			IndexName:              aws.String("PublishStatusIndex"),
-			KeyConditionExpression: aws.String("publishStatus = :publishStatus"),
-			ExpressionAttributeValues: map[string]types.AttributeValue{
-				publishStatusAttributeValue: &types.AttributeValueMemberS{Value: publishStatus},
-			},
-			Select:            types.SelectCount,
-			ExclusiveStartKey: lastEvaluatedKey,
+			TableName:                 aws.String(tableName),
+			IndexName:                 aws.String("PublishStatusIndex"),
+			KeyConditionExpression:    aws.String("publishStatus = :publishStatus"),
+			ExpressionAttributeValues: exprValues,
+			Select:                    types.SelectCount,
+			ExclusiveStartKey:         lastEvaluatedKey,
+		}
+		if authorFilter != "" {
+			queryInput.FilterExpression = aws.String("authorId = :authorId")
+			exprValues[":authorId"] = &types.AttributeValueMemberS{Value: authorFilter}
 		}
 
 		result, err := client.Query(ctx, queryInput)

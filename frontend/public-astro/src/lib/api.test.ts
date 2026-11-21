@@ -372,7 +372,16 @@ describe('API Module', () => {
     it('should URL-encode the slug', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({}),
+        json: async () => ({
+          id: 'encoded-id',
+          title: 'Encoded Slug Post',
+          contentHtml: '<p>Body</p>',
+          category: 'tech',
+          tags: [],
+          publishStatus: 'published',
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-01T00:00:00Z',
+        }),
       });
 
       await fetchPostBySlug('weird/slug');
@@ -381,6 +390,47 @@ describe('API Module', () => {
         'https://api.example.com/posts/by-slug/weird%2Fslug',
         expect.anything()
       );
+    });
+
+    it('should retry transient 503 responses and succeed', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          statusText: 'Service Unavailable',
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            id: 'recovered-id',
+            title: 'Recovered Post',
+            contentHtml: '<p>Body</p>',
+            category: 'tech',
+            tags: [],
+            publishStatus: 'published',
+            createdAt: '2024-01-01T00:00:00Z',
+            updatedAt: '2024-01-01T00:00:00Z',
+          }),
+        });
+
+      const post = await fetchPostBySlug('recovered');
+      expect(post.id).toBe('recovered-id');
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('should cap total attempts across mixed 503 and network errors at MAX_RETRIES', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          statusText: 'Service Unavailable',
+        })
+        .mockRejectedValue(new Error('ECONNRESET'));
+
+      await expect(fetchPostBySlug('flaky')).rejects.toThrow(
+        'Failed to fetch posts after 3 retries'
+      );
+      expect(mockFetch).toHaveBeenCalledTimes(3);
     });
 
     it('should throw on 404', async () => {

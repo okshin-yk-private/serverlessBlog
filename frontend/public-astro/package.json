@@ -45,15 +45,15 @@
     "puppeteer-core": "25.13.0"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.4",
+    "@tailwindcss/vite": "^4.3.5",
     "@types/bun": "^1.4.4",
     "@types/js-yaml": "^4.0.9",
     "@vitest/coverage-v8": "^4.1.12",
-    "chrome-launcher": "^1.2.2",
+    "chrome-launcher": "^1.2.3",
     "js-yaml": "^4.3.2",
     "jsdom": "^29.1.1",
     "lighthouse": "^13.6.0",
-    "tailwindcss": "^4.3.4",
+    "tailwindcss": "^4.3.5",
     "typescript": "^5.9.3",
     "vitest": "^4.1.12"
   }

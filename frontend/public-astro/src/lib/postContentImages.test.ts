@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { optimizePostContentImages } from './postContentImages';
+import {
+  clearRemoteImageSizeCacheForTests,
+  getCachedRemoteImageSize,
+  optimizePostContentImages,
+} from './postContentImages';
 
 const site = new URL('https://blog.example');
 const transformed = {
@@ -178,4 +182,45 @@ it('reports occurrence counts without source URLs and includes cached fallbacks'
     skipped: 1,
   });
   expect(JSON.stringify(report.mock.calls)).not.toContain('private.png');
+});
+
+describe('module-level remote image size cache', () => {
+  it('shares dimension probes across multiple page renders for the same image URL', async () => {
+    clearRemoteImageSizeCacheForTests();
+    const probe = vi.fn(async (url: string) => {
+      if (url.endsWith('/missing.png')) throw new Error('404');
+      return { width: 800, height: 400 };
+    });
+
+    const renderPage = (html: string) =>
+      optimizePostContentImages(html, site, true, async (source) => {
+        const dims = await getCachedRemoteImageSize(source, probe);
+        if (!dims) return undefined;
+        return {
+          src: '/_astro/shared.webp',
+          srcset: '/_astro/shared.webp 800w',
+          width: dims.width,
+          height: dims.height,
+        };
+      });
+
+    // Simulate slug page + ID page renders in the same static build.
+    const slugRender = await renderPage(
+      '<img src="/images/shared.png"><img src="/images/missing.png">'
+    );
+    const idRender = await renderPage(
+      '<img src="/images/shared.png"><img src="/images/missing.png">'
+    );
+
+    expect(slugRender).toBe(idRender);
+    expect(probe).toHaveBeenCalledTimes(2);
+    expect(probe).toHaveBeenNthCalledWith(
+      1,
+      'https://blog.example/images/shared.png'
+    );
+    expect(probe).toHaveBeenNthCalledWith(
+      2,
+      'https://blog.example/images/missing.png'
+    );
+  });
 });

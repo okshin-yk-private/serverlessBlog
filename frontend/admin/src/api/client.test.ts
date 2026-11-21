@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import * as authUtils from '../utils/auth';
-import { apiClient, AUTH_SESSION_EXPIRED_EVENT } from './client';
+import {
+  apiClient,
+  AUTH_SESSION_EXPIRED_EVENT,
+  advanceAuthSessionGeneration,
+} from './client';
 
 vi.mock('aws-amplify/auth', () => ({
   fetchAuthSession: vi.fn(),
@@ -172,5 +176,81 @@ describe('apiClient', () => {
 
     expect(mockedFetchAuthSession).not.toHaveBeenCalled();
     expect(sessionExpiredListener).not.toHaveBeenCalled();
+  });
+
+  it('リフレッシュ進行中にログアウト（世代進行）した場合、旧トークンを書き戻さずリトライもしない', async () => {
+    const adapter = createAdapter({ status: 401 }, { status: 200 });
+    apiClient.defaults.adapter = adapter;
+
+    let resolveSession!: (value: unknown) => void;
+    mockedFetchAuthSession.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSession = resolve;
+      }) as never
+    );
+
+    const requestPromise = apiClient.get('/admin/posts');
+    // リフレッシュ完了前にログアウトが発生
+    await Promise.resolve();
+    advanceAuthSessionGeneration();
+
+    resolveSession({
+      tokens: { idToken: { toString: () => 'stale-refreshed-token' } },
+    });
+
+    await expect(requestPromise).rejects.toMatchObject({
+      response: { status: 401 },
+    });
+    expect(mockedSaveAuthToken).not.toHaveBeenCalled();
+    expect(mockedRemoveAuthToken).not.toHaveBeenCalled();
+    expect(sessionExpiredListener).not.toHaveBeenCalled();
+    expect(adapter).toHaveBeenCalledTimes(1);
+  });
+
+  it('旧セッションのリクエストが再ログイン後に 401 を返しても新セッションへ干渉しない', async () => {
+    let rejectFirstRequest!: (error: unknown) => void;
+    let notifyAdapterStarted!: () => void;
+    const adapterStarted = new Promise<void>((resolve) => {
+      notifyAdapterStarted = resolve;
+    });
+    const adapter = vi.fn((config: InternalAxiosRequestConfig) => {
+      notifyAdapterStarted();
+      return new Promise((_, reject) => {
+        rejectFirstRequest = reject;
+        void config;
+      });
+    });
+    apiClient.defaults.adapter = adapter;
+
+    const requestPromise = apiClient.get('/admin/posts');
+    await adapterStarted;
+    const sentConfig = adapter.mock.calls[0][0];
+
+    // レスポンス返却前に別アカウントで再ログイン（世代進行）
+    advanceAuthSessionGeneration();
+
+    rejectFirstRequest(
+      new AxiosError(
+        'Request failed with status code 401',
+        AxiosError.ERR_BAD_REQUEST,
+        sentConfig,
+        undefined,
+        {
+          data: {},
+          status: 401,
+          statusText: '401',
+          headers: {},
+          config: sentConfig,
+        } as never
+      )
+    );
+
+    await expect(requestPromise).rejects.toMatchObject({
+      response: { status: 401 },
+    });
+    expect(mockedFetchAuthSession).not.toHaveBeenCalled();
+    expect(mockedRemoveAuthToken).not.toHaveBeenCalled();
+    expect(sessionExpiredListener).not.toHaveBeenCalled();
+    expect(adapter).toHaveBeenCalledTimes(1);
   });
 });

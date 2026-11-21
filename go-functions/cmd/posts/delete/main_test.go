@@ -1325,3 +1325,37 @@ func TestHandler_ImageCleanupWarningIsSingleJSONEvent(t *testing.T) {
 		t.Fatalf("escaped input must remain reversible: decoded=%q err=%v", decodedID, err)
 	}
 }
+
+func TestDeletePostImages_StripsCloudFrontImagesPrefixAndRejectsTraversal(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	var deletedKeys []string
+	s3ClientGetter = func() (S3ClientInterface, error) {
+		return &MockS3Client{
+			DeleteObjectsFunc: func(ctx context.Context, params *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error) {
+				for _, obj := range params.Delete.Objects {
+					deletedKeys = append(deletedKeys, *obj.Key)
+				}
+				return &s3.DeleteObjectsOutput{}, nil
+			},
+		}, nil
+	}
+
+	post := domain.BlogPost{
+		ID:       testPostID,
+		AuthorID: testUserID,
+		ImageURLs: []string{
+			"https://cdn.example.com/images/" + testUserID + "/photo.webp",
+			"https://cdn.example.com/images/" + testUserID + "/../other-user/secret.png",
+		},
+	}
+
+	if errResp := deletePostImages(context.Background(), post); errResp != nil {
+		t.Fatalf("unexpected error response: %+v", errResp)
+	}
+	wantKey := testUserID + "/photo.webp"
+	if len(deletedKeys) != 1 || deletedKeys[0] != wantKey {
+		t.Fatalf("deletedKeys = %v, want [%q]", deletedKeys, wantKey)
+	}
+}

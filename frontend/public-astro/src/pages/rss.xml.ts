@@ -13,7 +13,9 @@
 import rss from '@astrojs/rss';
 import type { APIContext } from 'astro';
 import { getCollection } from 'astro:content';
+import { publishedPosts } from '../lib/publicationCalendar';
 import { postsToRSSItems, escapeXml } from '../lib/rssUtils';
+import { SITE_NAME } from '../lib/site';
 
 /**
  * RSS フィード生成
@@ -23,28 +25,31 @@ import { postsToRSSItems, escapeXml } from '../lib/rssUtils';
 export async function GET(context: APIContext) {
   // サイトURLを取得（astro.config.mjsで設定）
   const siteUrl = context.site?.toString() ?? 'https://example.com';
-  const siteName = 'Serverless Blog';
+  const asOf = new Date().toISOString();
 
-  // 全公開記事を取得
-  const posts = (await getCollection('posts')).map((entry) => entry.data);
+  // 公開記事を重複排除・整形（未来日時記事は後続の postsToRSSItems で除外）
+  const posts = publishedPosts(
+    (await getCollection('posts')).map((entry) => entry.data),
+    asOf
+  );
 
-  // 記事をRSSアイテムに変換（最新20件）
-  const rssItems = postsToRSSItems(posts, siteUrl);
+  // 記事をRSSアイテムに変換（未来日時の予約記事を除外し最新20件）
+  const rssItems = postsToRSSItems(posts, siteUrl, asOf);
 
   // @astrojs/rss を使用してフィードを生成
   return rss({
     // フィードのタイトル
-    title: siteName,
+    title: SITE_NAME,
     // フィードの説明
-    description: `${siteName}の最新記事をお届けします`,
+    description: `${SITE_NAME}の最新記事をお届けします`,
     // サイトURL
     site: siteUrl,
     // 言語設定（日本語）
     customData: `<language>ja</language>`,
-    // RSSアイテム
+    // RSSアイテム（@astrojs/rss 側が title / description を XML エスケープする）
     items: rssItems.map((item) => ({
       title: item.title,
-      description: escapeXml(item.description),
+      description: item.description,
       pubDate: item.pubDate,
       link: item.link,
       // カテゴリがある場合は追加

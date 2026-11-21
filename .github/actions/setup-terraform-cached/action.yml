@@ -18,10 +18,10 @@ runs:
 
     - name: Create Terraform plugin cache dir
       shell: bash
-      run: mkdir -p ${{ github.workspace }}/.terraform.d/plugin-cache
+      run: mkdir -p "${GITHUB_WORKSPACE}/.terraform.d/plugin-cache"
 
     - name: Cache Terraform providers
-      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ github.workspace }}/.terraform.d/plugin-cache
         key: terraform-providers-${{ runner.os }}-${{ hashFiles('terraform/**/.terraform.lock.hcl') }}

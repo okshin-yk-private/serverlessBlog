@@ -85,6 +85,9 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	if postID == "" {
 		return middleware.MessageResponse(400, "post ID is required")
 	}
+	if poststore.IsReservedID(postID) {
+		return middleware.MessageResponse(404, "post not found")
+	}
 
 	// Check for TABLE_NAME
 	tableName := os.Getenv("TABLE_NAME")
@@ -207,22 +210,31 @@ func deletePostImages(ctx context.Context, post domain.BlogPost) *events.APIGate
 	for _, imageURL := range post.ImageURLs {
 		key := extractS3KeyFromURL(imageURL)
 		// Only delete keys that are under the user's prefix or post's prefix
-		// Expected formats: "{userId}/..." or "images/{postId}/..." or "{postId}/..."
+		// Expected formats: "{userId}/..." or "images/{userId}/..." or "images/{postId}/..." or "{postId}/..."
 		if !isValidS3KeyForDeletion(key, post.AuthorID, post.ID) {
 			continue // Skip keys that don't match expected patterns
 		}
+		// CloudFront serves the image bucket under /images/* and strips the leading
+		// "images/" prefix before forwarding to S3 (see get_upload_url and cdn/main.tf).
+		s3Key := strings.TrimPrefix(key, "images/")
 		objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
-			Key: &key,
+			Key: &s3Key,
 		})
 	}
 
-	// Only proceed with deletion if there are valid objects to delete
-	if len(objectsToDelete) > 0 {
+	// Only proceed with deletion if there are valid objects to delete.
+	// Chunk into batches of 1000 (AWS S3 DeleteObjects maximum per call).
+	const maxS3DeleteBatch = 1000
+	for start := 0; start < len(objectsToDelete); start += maxS3DeleteBatch {
+		end := start + maxS3DeleteBatch
+		if end > len(objectsToDelete) {
+			end = len(objectsToDelete)
+		}
 		s3DeleteInput := &s3.DeleteObjectsInput{
 			Bucket: &bucketName,
 			Delete: &s3types.Delete{
-				Objects: objectsToDelete,
-				Quiet:   boolPtr(true),
+				Objects: objectsToDelete[start:end],
+				Quiet:   aws.Bool(true),
 			},
 		}
 
@@ -244,6 +256,9 @@ func deletePostImages(ctx context.Context, post domain.BlogPost) *events.APIGate
 // triggerSiteBuild triggers the Astro SSG build via CodeBuild
 // Requirement 10.11: Trigger CodeBuild when a published post is deleted
 func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface, tableName string) {
+	buildCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+
 	projectName := buildtrigger.SanitizeProjectName(os.Getenv("CODEBUILD_PROJECT_NAME"))
 	if projectName == "" {
 		middleware.LoggerFromContext(ctx).Warn("CODEBUILD_PROJECT_NAME not set or invalid, skipping build trigger")
@@ -257,7 +272,7 @@ func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface,
 	}
 
 	coordinator := sitebuild.NewCoordinator(dynamoClient, client, tableName, projectName)
-	if _, err := coordinator.StartPending(ctx); err != nil {
+	if _, err := coordinator.StartPending(buildCtx); err != nil {
 		middleware.LoggerFromContext(ctx).Error("failed to trigger site build", "error", err, "project", projectName)
 		return
 	}
@@ -291,6 +306,9 @@ func boolPtr(b bool) *bool {
 //   - images/{postID}/... (post-owned prefix)
 //   - {postID}/... (post-owned prefix)
 func isValidS3KeyForDeletion(key, authorID, postID string) bool {
+	if strings.Contains(key, "..") || strings.Contains(key, "\\") || strings.ContainsAny(key, "\x00\r\n") {
+		return false
+	}
 	// Check if key starts with user's ID prefix
 	if strings.HasPrefix(key, authorID+"/") {
 		return true

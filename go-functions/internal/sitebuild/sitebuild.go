@@ -32,7 +32,7 @@ const (
 	// StatusIdle means no site-build request has been created yet.
 	StatusIdle = "idle"
 
-	defaultStartingTimeout = 5 * time.Minute
+	defaultStartingTimeout = 3 * time.Minute
 
 	attributeNameStatus    = "#status"
 	attributeStatusValue   = "status"
@@ -177,7 +177,7 @@ func (c *Coordinator) StartPending(ctx context.Context) (Request, error) {
 		token = state.StartToken
 		condition = "desiredRevision >= :revision AND attribute_not_exists(activeBuildId) AND #status = :starting AND activeRevision = :revision AND startToken = :token AND (attribute_not_exists(startedAt) OR startedAt < :staleBefore)"
 	}
-	acquired, err := c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+	_, err = c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                aws.String(c.tableName),
 		Key:                      map[string]dynamodbtypes.AttributeValue{"id": &dynamodbtypes.AttributeValueMemberS{Value: StateItemID}},
 		UpdateExpression:         aws.String("SET #status = :starting, activeRevision = :revision, startToken = :token, startedAt = :now REMOVE activeBuildId, lastError"),
@@ -190,7 +190,6 @@ func (c *Coordinator) StartPending(ctx context.Context) (Request, error) {
 			attributeValueNow:      &dynamodbtypes.AttributeValueMemberS{Value: now.Format(time.RFC3339Nano)},
 			":staleBefore":         &dynamodbtypes.AttributeValueMemberS{Value: staleBefore},
 		},
-		ReturnValues: dynamodbtypes.ReturnValueAllNew,
 	})
 	if err != nil {
 		var conditional *dynamodbtypes.ConditionalCheckFailedException
@@ -200,7 +199,6 @@ func (c *Coordinator) StartPending(ctx context.Context) (Request, error) {
 		}
 		return Request{}, err
 	}
-	_ = acquired
 
 	buildOut, err := c.codebuild.StartBuild(ctx, &codebuild.StartBuildInput{
 		ProjectName:      aws.String(c.projectName),
@@ -275,55 +273,66 @@ func (c *Coordinator) Reconcile(ctx context.Context) (State, error) {
 		return State{}, err
 	}
 	if state.ActiveBuildID == "" {
-		if state.DesiredRevision > state.DeployedRevision {
-			if _, startErr := c.StartPending(ctx); startErr != nil {
-				return State{}, startErr
-			}
-			return c.GetState(ctx)
-		}
-		return state, nil
+		return c.reconcileIdle(ctx, state)
 	}
 
 	out, err := c.codebuild.BatchGetBuilds(ctx, &codebuild.BatchGetBuildsInput{Ids: []string{state.ActiveBuildID}})
 	if err != nil {
 		return State{}, err
 	}
-	if len(out.Builds) == 0 {
+	if len(out.Builds) == 0 || out.Builds[0].BuildStatus == codebuildtypes.StatusTypeInProgress {
 		return state, nil
 	}
 	build := out.Builds[0]
-	if build.BuildStatus == codebuildtypes.StatusTypeInProgress {
-		return state, nil
-	}
 
 	now := c.now().UTC().Format(time.RFC3339Nano)
 	if build.BuildStatus == codebuildtypes.StatusTypeSucceeded {
-		_, err = c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
-			TableName:                aws.String(c.tableName),
-			Key:                      map[string]dynamodbtypes.AttributeValue{"id": &dynamodbtypes.AttributeValueMemberS{Value: StateItemID}},
-			UpdateExpression:         aws.String("SET deployedRevision = :revision, #status = :status, completedAt = :now, lastBuildId = :buildId, lastBuildRevision = :revision REMOVE activeBuildId, startToken, startedAt, lastError"),
-			ConditionExpression:      aws.String("activeBuildId = :buildId AND activeRevision = :revision"),
-			ExpressionAttributeNames: map[string]string{attributeNameStatus: attributeStatusValue},
-			ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
-				attributeValueRevision: &dynamodbtypes.AttributeValueMemberN{Value: strconv.FormatInt(state.ActiveRevision, 10)},
-				":status":              &dynamodbtypes.AttributeValueMemberS{Value: StatusSucceeded},
-				attributeValueNow:      &dynamodbtypes.AttributeValueMemberS{Value: now},
-				attributeValueBuildID:  &dynamodbtypes.AttributeValueMemberS{Value: state.ActiveBuildID},
-			},
-		})
-		if err != nil {
-			return State{}, err
-		}
-		// Re-read desiredRevision inside StartPending. A post mutation can race
-		// with the completion update after the initial state read; relying on
-		// the stale snapshot here could strand that mutation until the scheduler.
+		return c.completeSucceededBuild(ctx, state, now)
+	}
+	return c.completeFailedBuild(ctx, state, string(build.BuildStatus), now)
+}
+
+func (c *Coordinator) reconcileIdle(ctx context.Context, state State) (State, error) {
+	// Do not endlessly restart a revision that already failed; wait until a
+	// newer desiredRevision arrives (or an operator manually triggers a build).
+	alreadyFailedCurrentRevision := state.Status == StatusFailed && state.LastBuildRevision >= state.DesiredRevision
+	if state.DesiredRevision > state.DeployedRevision && !alreadyFailedCurrentRevision {
 		if _, startErr := c.StartPending(ctx); startErr != nil {
 			return State{}, startErr
 		}
 		return c.GetState(ctx)
 	}
+	return state, nil
+}
 
-	_, err = c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+func (c *Coordinator) completeSucceededBuild(ctx context.Context, state State, now string) (State, error) {
+	_, err := c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName:                aws.String(c.tableName),
+		Key:                      map[string]dynamodbtypes.AttributeValue{"id": &dynamodbtypes.AttributeValueMemberS{Value: StateItemID}},
+		UpdateExpression:         aws.String("SET deployedRevision = :revision, #status = :status, completedAt = :now, lastBuildId = :buildId, lastBuildRevision = :revision REMOVE activeBuildId, startToken, startedAt, lastError"),
+		ConditionExpression:      aws.String("activeBuildId = :buildId AND activeRevision = :revision"),
+		ExpressionAttributeNames: map[string]string{attributeNameStatus: attributeStatusValue},
+		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
+			attributeValueRevision: &dynamodbtypes.AttributeValueMemberN{Value: strconv.FormatInt(state.ActiveRevision, 10)},
+			":status":              &dynamodbtypes.AttributeValueMemberS{Value: StatusSucceeded},
+			attributeValueNow:      &dynamodbtypes.AttributeValueMemberS{Value: now},
+			attributeValueBuildID:  &dynamodbtypes.AttributeValueMemberS{Value: state.ActiveBuildID},
+		},
+	})
+	if err != nil {
+		return State{}, err
+	}
+	// Re-read desiredRevision inside StartPending. A post mutation can race
+	// with the completion update after the initial state read; relying on
+	// the stale snapshot here could strand that mutation until the scheduler.
+	if _, startErr := c.StartPending(ctx); startErr != nil {
+		return State{}, startErr
+	}
+	return c.GetState(ctx)
+}
+
+func (c *Coordinator) completeFailedBuild(ctx context.Context, state State, buildStatus, now string) (State, error) {
+	_, err := c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                aws.String(c.tableName),
 		Key:                      map[string]dynamodbtypes.AttributeValue{"id": &dynamodbtypes.AttributeValueMemberS{Value: StateItemID}},
 		UpdateExpression:         aws.String("SET #status = :failed, completedAt = :now, lastError = :error, lastBuildId = :buildId, lastBuildRevision = :revision REMOVE activeBuildId, startToken, startedAt"),
@@ -332,7 +341,7 @@ func (c *Coordinator) Reconcile(ctx context.Context) (State, error) {
 		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
 			":failed":              &dynamodbtypes.AttributeValueMemberS{Value: StatusFailed},
 			attributeValueNow:      &dynamodbtypes.AttributeValueMemberS{Value: now},
-			":error":               &dynamodbtypes.AttributeValueMemberS{Value: string(build.BuildStatus)},
+			":error":               &dynamodbtypes.AttributeValueMemberS{Value: buildStatus},
 			attributeValueBuildID:  &dynamodbtypes.AttributeValueMemberS{Value: state.ActiveBuildID},
 			attributeValueRevision: &dynamodbtypes.AttributeValueMemberN{Value: strconv.FormatInt(state.ActiveRevision, 10)},
 		},
