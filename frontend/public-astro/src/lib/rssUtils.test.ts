@@ -233,10 +233,22 @@ describe('rssUtils', () => {
           publishedAt: '2026-09-19T00:00:00.000Z',
         }),
         createMockPost({
+          id: 'fallback-created',
+          publishedAt: undefined,
+          createdAt: '2026-09-18T00:00:00.000Z',
+        }),
+        createMockPost({
           id: 'invalid-date',
           publishedAt: 'not-a-date',
         }),
       ];
+
+      // Direct call covers draft filtering and createdAt fallback with asOf.
+      expect(getLatestPostsForRSS(posts, asOf).map((p) => p.id)).toEqual([
+        'exact-boundary',
+        'past',
+        'fallback-created',
+      ]);
 
       // Mirror rss.xml.ts pipeline: publishedPosts() followed by postsToRSSItems(..., asOf)
       const items = postsToRSSItems(
@@ -248,6 +260,7 @@ describe('rssUtils', () => {
       expect(items.map((item) => item.link)).toEqual([
         'https://example.com/posts/exact-boundary/',
         'https://example.com/posts/past/',
+        'https://example.com/posts/fallback-created/',
       ]);
     });
   });

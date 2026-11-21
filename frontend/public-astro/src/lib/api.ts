@@ -96,13 +96,30 @@ async function fetchWithRetry<T>(
   }
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    let response: Response;
     try {
       const requestOptions: RequestInit = {
         ...baseOptions,
         signal: baseOptions.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       };
-      response = await fetch(url, requestOptions);
+      const response = await fetch(url, requestOptions);
+
+      if (!response.ok) {
+        if (
+          RETRYABLE_HTTP_STATUSES.has(response.status) &&
+          attempt < MAX_RETRIES - 1
+        ) {
+          const delay = BASE_RETRY_DELAY * Math.pow(2, attempt);
+          await sleep(delay);
+          continue;
+        }
+        // 非リトライ対象の HTTP エラー（またはリトライ上限到達）
+        throw new ApiError(
+          response.status,
+          `API request failed: ${response.status} ${response.statusText}`
+        );
+      }
+
+      return (await response.json()) as T;
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
@@ -112,34 +129,6 @@ async function fetchWithRetry<T>(
         await sleep(delay);
         continue;
       }
-      throw new Error(`Failed to fetch posts after ${MAX_RETRIES} retries`);
-    }
-
-    if (!response.ok) {
-      if (
-        RETRYABLE_HTTP_STATUSES.has(response.status) &&
-        attempt < MAX_RETRIES - 1
-      ) {
-        const delay = BASE_RETRY_DELAY * Math.pow(2, attempt);
-        await sleep(delay);
-        continue;
-      }
-      // 非リトライ対象の HTTP エラー（またはリトライ上限到達）
-      throw new ApiError(
-        response.status,
-        `API request failed: ${response.status} ${response.statusText}`
-      );
-    }
-
-    try {
-      return (await response.json()) as T;
-    } catch {
-      if (attempt < MAX_RETRIES - 1) {
-        const delay = BASE_RETRY_DELAY * Math.pow(2, attempt);
-        await sleep(delay);
-        continue;
-      }
-      throw new Error(`Failed to fetch posts after ${MAX_RETRIES} retries`);
     }
   }
 
