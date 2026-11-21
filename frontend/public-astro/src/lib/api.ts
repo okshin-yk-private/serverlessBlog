@@ -12,7 +12,7 @@
  * - 2.10: 1000件までの記事を処理
  */
 
-import { postListSchema, type Post } from './postSchema';
+import { postListSchema, postSchema, type Post } from './postSchema';
 export type { Post, PostListResponse } from './postSchema';
 
 /**
@@ -24,6 +24,16 @@ const MAX_RETRIES = 3;
  * 基本リトライ遅延 (ms)
  */
 const BASE_RETRY_DELAY = 100;
+
+/**
+ * 1リクエストあたりのタイムアウト (ms)
+ */
+const REQUEST_TIMEOUT_MS = 15_000;
+
+/**
+ * 一時的なゲートウェイ/スロットリング障害としてリトライ対象にする HTTP ステータス
+ */
+const RETRYABLE_HTTP_STATUSES = new Set([429, 502, 503, 504]);
 
 /**
  * API_URLを取得する
@@ -59,60 +69,70 @@ class ApiError extends Error {
 /**
  * リトライ付きfetch
  *
- * ネットワークエラーは指数バックオフでリトライ
- * HTTPエラー(4xx/5xx)はリトライせず即座にエラーを投げる
+ * ネットワークエラーおよび一時的な HTTP エラー (429/502/503/504) は
+ * 指数バックオフで最大 MAX_RETRIES 回まで試行し、その他の HTTP エラーは即座に投げる。
  */
 async function fetchWithRetry<T>(
   url: string,
-  options: RequestInit,
-  retryCount = 0
+  options: RequestInit
 ): Promise<T> {
-  try {
-    // Build-only credentials: never use PUBLIC_* variables or include them in URLs.
-    const username = process.env.BASIC_AUTH_USERNAME;
-    const password = process.env.BASIC_AUTH_PASSWORD;
-    if (username || password) {
-      if (!username || !password)
-        throw new ApiError(401, 'Incomplete build API credentials');
-      options = {
-        ...options,
-        redirect: 'error',
-        headers: {
-          ...options.headers,
-          Authorization:
-            'Basic ' +
-            Buffer.from(username + ':' + password).toString('base64'),
-        },
-      };
+  // Build-only credentials: never use PUBLIC_* variables or include them in URLs.
+  const username = process.env.BASIC_AUTH_USERNAME;
+  const password = process.env.BASIC_AUTH_PASSWORD;
+  let baseOptions = options;
+  if (username || password) {
+    if (!username || !password) {
+      throw new ApiError(401, 'Incomplete build API credentials');
     }
-    const response = await fetch(url, options);
-
-    if (!response.ok) {
-      // HTTPエラーはリトライしない
-      throw new ApiError(
-        response.status,
-        `API request failed: ${response.status} ${response.statusText}`
-      );
-    }
-
-    return (await response.json()) as T;
-  } catch (error) {
-    // ApiError はリトライしない（HTTP 4xx/5xx エラー）
-    if (error instanceof ApiError) {
-      throw error;
-    }
-
-    // ネットワークエラーなどはリトライする
-    if (retryCount < MAX_RETRIES - 1) {
-      // 指数バックオフ: 100ms, 200ms, 400ms...
-      const delay = BASE_RETRY_DELAY * Math.pow(2, retryCount);
-      await sleep(delay);
-      return fetchWithRetry<T>(url, options, retryCount + 1);
-    }
-
-    // 最大リトライ回数に達した場合
-    throw new Error(`Failed to fetch posts after ${MAX_RETRIES} retries`);
+    baseOptions = {
+      ...options,
+      redirect: 'error',
+      headers: {
+        ...options.headers,
+        Authorization:
+          'Basic ' + Buffer.from(username + ':' + password).toString('base64'),
+      },
+    };
   }
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const requestOptions: RequestInit = {
+        ...baseOptions,
+        signal: baseOptions.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      };
+      const response = await fetch(url, requestOptions);
+
+      if (!response.ok) {
+        if (
+          RETRYABLE_HTTP_STATUSES.has(response.status) &&
+          attempt < MAX_RETRIES - 1
+        ) {
+          const delay = BASE_RETRY_DELAY * Math.pow(2, attempt);
+          await sleep(delay);
+          continue;
+        }
+        // 非リトライ対象の HTTP エラー（またはリトライ上限到達）
+        throw new ApiError(
+          response.status,
+          `API request failed: ${response.status} ${response.statusText}`
+        );
+      }
+
+      return (await response.json()) as T;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      if (attempt < MAX_RETRIES - 1) {
+        const delay = BASE_RETRY_DELAY * Math.pow(2, attempt);
+        await sleep(delay);
+        continue;
+      }
+    }
+  }
+
+  throw new Error(`Failed to fetch posts after ${MAX_RETRIES} retries`);
 }
 
 /**
@@ -162,14 +182,16 @@ export async function fetchAllPosts(): Promise<Post[]> {
  */
 export async function fetchPost(id: string): Promise<Post> {
   const apiUrl = getApiUrl();
-  const url = `${apiUrl}/posts/${id}`;
+  const url = `${apiUrl}/posts/${encodeURIComponent(id)}`;
 
-  return fetchWithRetry<Post>(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
+  return postSchema.parse(
+    await fetchWithRetry<unknown>(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+  );
 }
 
 /**
@@ -181,10 +203,12 @@ export async function fetchPostBySlug(slug: string): Promise<Post> {
   const apiUrl = getApiUrl();
   const url = `${apiUrl}/posts/by-slug/${encodeURIComponent(slug)}`;
 
-  return fetchWithRetry<Post>(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
+  return postSchema.parse(
+    await fetchWithRetry<unknown>(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+  );
 }

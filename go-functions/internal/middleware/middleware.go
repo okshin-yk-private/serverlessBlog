@@ -35,15 +35,19 @@ func CORSHeaders() map[string]string {
 	if origin == "" {
 		origin = "*"
 	}
-	return map[string]string{
+	headers := map[string]string{
 		"Access-Control-Allow-Origin":  origin,
-		"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+		"Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
 		"Access-Control-Allow-Headers": "Content-Type, Authorization",
 		headerContentType:              headerJSONContentType,
 		headerContentTypeOptions:       headerNoSniff,
 		headerFrameOptions:             frameOptionsDeny,
 		headerCacheControl:             headerNoStore,
 	}
+	if origin != "*" {
+		headers["Vary"] = "Origin"
+	}
+	return headers
 }
 
 // PublicCacheHeaders returns the standard headers with a short shared-cache

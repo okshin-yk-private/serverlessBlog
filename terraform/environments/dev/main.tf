@@ -384,10 +384,13 @@ module "monitoring" {
   project_name          = var.project_name
   alarm_email           = var.alarm_email
   lambda_function_names = module.lambda.function_names
-  dynamodb_table_names  = [module.database.table_name]
-  api_gateway_name      = "${var.project_name}-api-${var.environment}"
-  api_gateway_stage     = var.environment
-  enable_alarms         = false # Alarms disabled for dev
+  dynamodb_table_names = [
+    module.database.table_name,
+    module.database.categories_table_name,
+  ]
+  api_gateway_name  = "${var.project_name}-api-${var.environment}"
+  api_gateway_stage = var.environment
+  enable_alarms     = false # Alarms disabled for dev
 
   tags = local.common_tags
 

@@ -4,6 +4,7 @@
 # Build settings
 GOOS := linux
 GOARCH := arm64
+GOARM64 := v8.2
 CGO_ENABLED := 0
 # Reproducible build flags: -buildvcs=false removes git info, -buildid= removes build ID
 BUILD_FLAGS := -trimpath -buildvcs=false
@@ -53,7 +54,7 @@ build:
 		name=$$(echo $$func | tr '/' '-'); \
 		echo "  Building $$name..."; \
 		mkdir -p $(BIN_DIR)/$$name; \
-		CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
+		CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) GOARM64=$(GOARM64) \
 			go build $(BUILD_FLAGS) -ldflags="$(LDFLAGS)" -tags="$(BUILD_TAGS)" \
 			-o $(BIN_DIR)/$$name/bootstrap ./$(CMD_DIR)/$$func || exit 1; \
 		touch -t $(FIXED_TIMESTAMP) $(BIN_DIR)/$$name/bootstrap; \
@@ -68,7 +69,7 @@ endif
 	@name=$$(echo $(FUNC) | tr '/' '-'); \
 	echo "Building $$name for $(GOOS)/$(GOARCH)..."; \
 	mkdir -p $(BIN_DIR)/$$name; \
-	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
+	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) GOARM64=$(GOARM64) \
 		go build $(BUILD_FLAGS) -ldflags="$(LDFLAGS)" -tags="$(BUILD_TAGS)" \
 		-o $(BIN_DIR)/$$name/bootstrap ./$(CMD_DIR)/$(FUNC); \
 	touch -t $(FIXED_TIMESTAMP) $(BIN_DIR)/$$name/bootstrap

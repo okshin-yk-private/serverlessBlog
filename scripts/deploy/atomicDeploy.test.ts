@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
   DescribeKeyValueStoreCommand,
   GetKeyCommand,
+  ListKeysCommand,
   UpdateKeysCommand,
 } from '@aws-sdk/client-cloudfront-keyvaluestore';
 import {
@@ -30,6 +31,7 @@ import {
   getVersionPrefix,
   isStaleRevision,
   promoteRelease,
+  pruneObsoleteRouteIndexKeys,
   validateDirectorySize,
   validateRevision,
 } from './atomicDeploy';
@@ -91,6 +93,110 @@ describe('file metadata', () => {
     expect(getCacheControl('_astro/app.hash.js')).toBe(
       'public,max-age=31536000,immutable'
     );
+    expect(getCacheControl('theme-init.js')).toBe(
+      'public,max-age=3600,must-revalidate'
+    );
+    expect(getCacheControl('logo-dark.png')).toBe(
+      'public,max-age=3600,must-revalidate'
+    );
+  });
+
+  test('prunes obsolete routes:v1 KVS keys while retaining active and recent revisions', async () => {
+    const deletedKeys: string[] = [];
+    const send = vi.fn(async (command: unknown) => {
+      if (command instanceof ListKeysCommand) {
+        return {
+          Items: [
+            { Key: 'activeRevision' },
+            { Key: 'highestPromotedRevision' },
+            { Key: 'routes:v1:r1-old:0' },
+            { Key: 'routes:v1:r1-old:1' },
+            { Key: 'routes:v1:r2-old:0' },
+            { Key: 'routes:v1:r3-keep:0' },
+            { Key: 'routes:v1:r4-keep:0' },
+            { Key: 'routes:v1:r5-active:0' },
+          ],
+        };
+      }
+      if (command instanceof DescribeKeyValueStoreCommand) {
+        return { ETag: 'etag-prune' };
+      }
+      if (command instanceof GetKeyCommand) {
+        return { Value: 'r5-active' };
+      }
+      if (command instanceof UpdateKeysCommand) {
+        for (const entry of command.input.Deletes ?? []) {
+          if (entry.Key) deletedKeys.push(entry.Key);
+        }
+        return { ETag: 'etag-after-prune' };
+      }
+      throw new Error('unexpected command');
+    });
+
+    const deleted = await pruneObsoleteRouteIndexKeys(
+      { send },
+      'arn:aws:cloudfront::123:key-value-store/test',
+      ['r5-active', 'r4-keep'],
+      3
+    );
+
+    expect(deleted).toBe(3);
+    expect(deletedKeys.sort()).toEqual([
+      'routes:v1:r1-old:0',
+      'routes:v1:r1-old:1',
+      'routes:v1:r2-old:0',
+    ]);
+  });
+
+  test('rechecks activeRevision and spares a revision restored by a concurrent rollback', async () => {
+    let activeRevision = 'r5-active';
+    let updateAttempt = 0;
+    const deletedKeys: string[] = [];
+    const send = vi.fn(async (command: unknown) => {
+      if (command instanceof ListKeysCommand) {
+        return {
+          Items: [
+            { Key: 'activeRevision' },
+            { Key: 'routes:v1:r1-old:0' },
+            { Key: 'routes:v1:r1-old:1' },
+            { Key: 'routes:v1:r2-old:0' },
+            { Key: 'routes:v1:r3-keep:0' },
+            { Key: 'routes:v1:r4-keep:0' },
+            { Key: 'routes:v1:r5-active:0' },
+          ],
+        };
+      }
+      if (command instanceof DescribeKeyValueStoreCommand) {
+        return { ETag: `etag-${updateAttempt + 1}` };
+      }
+      if (command instanceof GetKeyCommand) {
+        return { Value: activeRevision };
+      }
+      if (command instanceof UpdateKeysCommand) {
+        updateAttempt += 1;
+        if (updateAttempt === 1) {
+          // Simulate a concurrent rollback to r1-old invalidating our ETag.
+          activeRevision = 'r1-old';
+          throw namedError('ConflictException');
+        }
+        for (const entry of command.input.Deletes ?? []) {
+          if (entry.Key) deletedKeys.push(entry.Key);
+        }
+        return { ETag: 'etag-final' };
+      }
+      throw new Error('unexpected command');
+    });
+
+    const deleted = await pruneObsoleteRouteIndexKeys(
+      { send },
+      'arn:aws:cloudfront::123:key-value-store/test',
+      ['r5-active', 'r4-keep'],
+      3
+    );
+
+    expect(updateAttempt).toBe(2);
+    expect(deleted).toBe(1);
+    expect(deletedKeys).toEqual(['routes:v1:r2-old:0']);
   });
 
   test('returns MIME types with a safe fallback', () => {
@@ -300,6 +406,7 @@ describe('atomicDeploy', () => {
         return { ETag: 'etag-1' };
       }
       if (command instanceof UpdateKeysCommand) return { ETag: 'etag-2' };
+      if (command instanceof ListKeysCommand) return { Items: [] };
       throw new Error('unexpected KVS command');
     });
 
@@ -328,7 +435,11 @@ describe('atomicDeploy', () => {
         `releases/r21-abcdef0/${RELEASE_PLAN_PATH}`,
       ].sort()
     );
-    expect(commandNames.at(-1)).toBe('UpdateKeysCommand');
+    // Promotion writes activeRevision before best-effort KVS route pruning.
+    expect(commandNames.slice(-2)).toEqual([
+      'UpdateKeysCommand',
+      'ListKeysCommand',
+    ]);
     const updates = kvsSend.mock.calls
       .map(([command]) => command)
       .filter(

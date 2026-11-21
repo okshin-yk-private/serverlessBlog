@@ -155,8 +155,7 @@ resource "aws_iam_role_policy" "lambda_posts_write_s3_cascade" {
         Sid    = "S3DeleteCascade"
         Effect = "Allow"
         Action = [
-          "s3:DeleteObject",
-          "s3:DeleteObjects"
+          "s3:DeleteObject"
         ]
         Resource = "${var.bucket_arn}/*"
       }

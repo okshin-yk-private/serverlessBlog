@@ -112,52 +112,6 @@ resource "aws_cloudfront_cache_policy" "html_pages" {
   }
 }
 
-# Origin Request Policy for API Gateway
-resource "aws_cloudfront_origin_request_policy" "api" {
-  name    = "BlogApiOriginRequestPolicy-${var.environment}"
-  comment = "Origin request policy for API Gateway"
-
-  cookies_config {
-    cookie_behavior = "none"
-  }
-
-  headers_config {
-    header_behavior = "whitelist"
-    headers {
-      items = ["Accept", "Accept-Language", "Content-Type", "Origin", "Referer"]
-    }
-  }
-
-  query_strings_config {
-    query_string_behavior = "all"
-  }
-}
-
-# CloudFront Function for Basic Authentication (dev environment only)
-# Matches CDK's BasicAuthFunction-dev
-resource "aws_cloudfront_function" "basic_auth" {
-  count   = var.enable_basic_auth ? 1 : 0
-  name    = "BasicAuthFunction-${var.environment}"
-  runtime = "cloudfront-js-2.0"
-  comment = "Basic Authentication for ${var.environment} environment"
-  publish = true
-  code    = <<-EOF
-${local.viewer_guard}
-function handler(event) {
-  var request = event.request;
-  var denied = guardRequest(request);
-  if (denied) return denied;
-
-  // Authentication successful - forward request to origin
-  return request;
-}
-EOF
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
 # Basic and Cognito both use Authorization. A host-only HttpOnly session cookie
 # carries the environment gate when the admin SPA sends its Cognito Bearer token.
 resource "aws_cloudfront_function" "dev_session" {
@@ -174,7 +128,7 @@ function handler(event) {
     response.cookies = response.cookies || {};
     response.cookies['__Host-dev-access'] = {
       value: ${jsonencode(sha256("dev-cookie:${var.basic_auth_username}:${var.basic_auth_password}"))},
-      attributes: 'Path=/; Secure; HttpOnly; SameSite=Strict'
+      attributes: 'Path=/; Max-Age=28800; Secure; HttpOnly; SameSite=Strict'
     };
   }
   return response;
@@ -190,39 +144,6 @@ resource "aws_cloudfront_function" "public_response" {
 ${local.public_response}
 function handler(event) { return publicResponse(event); }
 EOF
-}
-
-# CloudFront Function for Public Site SPA routing (production - no auth)
-resource "aws_cloudfront_function" "public_spa" {
-  count   = var.enable_basic_auth ? 0 : 1
-  name    = "PublicSpaFunction-${var.environment}"
-  runtime = "cloudfront-js-2.0"
-  comment = "SPA routing for Public site (${var.environment})"
-  publish = true
-  code    = <<-EOF
-${local.viewer_guard}
-function handler(event) {
-  var request = event.request;
-  var denied = guardRequest(request);
-  if (denied) return denied;
-  var uri = request.uri;
-
-  // SPA routing: For paths without file extension, serve /index.html
-  if (uri === '/' || uri === '') {
-    request.uri = '/index.html';
-  } else if (!uri.includes('.')) {
-    // SPA route (e.g., /about, /posts/123) -> serve /index.html
-    request.uri = '/index.html';
-  }
-  // Paths with extensions (e.g., /assets/foo.js) pass through unchanged
-
-  return request;
-}
-EOF
-
-  lifecycle {
-    create_before_destroy = true
-  }
 }
 
 # CloudFront Function for Public Site - Combined Basic Auth + SPA routing
@@ -627,6 +548,12 @@ resource "aws_cloudfront_response_headers_policy" "security_headers" {
       value    = local.csp_report_only_public
       override = true
     }
+
+    items {
+      header   = "Permissions-Policy"
+      value    = "camera=(), microphone=(), geolocation=(), payment=()"
+      override = true
+    }
   }
 }
 
@@ -675,6 +602,12 @@ resource "aws_cloudfront_response_headers_policy" "admin_security_headers" {
       value    = local.csp_report_only_admin
       override = true
     }
+
+    items {
+      header   = "Permissions-Policy"
+      value    = "camera=(), microphone=(), geolocation=(), payment=()"
+      override = true
+    }
   }
 }
 
@@ -689,6 +622,7 @@ resource "aws_cloudfront_response_headers_policy" "admin_security_headers" {
 resource "aws_cloudfront_distribution" "main" {
   enabled             = true
   is_ipv6_enabled     = true
+  http_version        = "http2and3"
   comment             = "Unified CDN for blog (public site, admin dashboard, images)"
   default_root_object = "index.html"
   price_class         = var.price_class
@@ -865,7 +799,7 @@ resource "aws_cloudfront_distribution" "main" {
   viewer_certificate {
     acm_certificate_arn            = var.use_custom_domain ? var.acm_certificate_arn : null
     cloudfront_default_certificate = var.use_custom_domain ? false : true
-    minimum_protocol_version       = "TLSv1.2_2021"
+    minimum_protocol_version       = var.use_custom_domain ? "TLSv1.2_2025" : "TLSv1.2_2021"
     ssl_support_method             = var.use_custom_domain ? "sni-only" : null
   }
 

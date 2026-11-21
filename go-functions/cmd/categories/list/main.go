@@ -65,10 +65,14 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	var lastEvaluatedKey map[string]types.AttributeValue
 
 	for {
-		// Build DynamoDB Scan input to get all categories
+		// Build DynamoDB Scan input to get all categories (project only required fields)
 		scanInput := &dynamodb.ScanInput{
-			TableName:         aws.String(tableName),
-			ExclusiveStartKey: lastEvaluatedKey,
+			TableName:            aws.String(tableName),
+			ExclusiveStartKey:    lastEvaluatedKey,
+			ProjectionExpression: aws.String("id, #name, slug, sortOrder, itemType"),
+			ExpressionAttributeNames: map[string]string{
+				"#name": "name",
+			},
 			// The admin reads this list immediately after saving a category.
 			ConsistentRead: aws.Bool(true),
 		}

@@ -895,3 +895,167 @@ func TestHandler_NonAdminForbidden(t *testing.T) {
 		t.Errorf("StatusCode = %d, want 403", resp.StatusCode)
 	}
 }
+
+func TestHandler_NonExistentNormalIDReturns400(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	cat1 := createTestCategories()[0]
+	cat1AV, _ := attributevalue.MarshalMap(cat1)
+
+	mockClient := &MockDynamoDBClient{
+		BatchGetItemFunc: func(ctx context.Context, params *dynamodb.BatchGetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.BatchGetItemOutput, error) {
+			// Realistic DynamoDB response: only existing requested keys are returned, UnprocessedKeys is empty.
+			return &dynamodb.BatchGetItemOutput{
+				Responses: map[string][]map[string]types.AttributeValue{
+					testCategoriesTable: {cat1AV},
+				},
+			}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+
+	reqBody := `{"orders":[{"id":"cat-1","sortOrder":1},{"id":"cat-nonexistent","sortOrder":2}]}`
+	resp, err := Handler(context.Background(), createAuthenticatedRequest(reqBody))
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+	if resp.StatusCode != 400 {
+		t.Fatalf("StatusCode = %d, want 400 (body: %s)", resp.StatusCode, resp.Body)
+	}
+	var errResp domain.InvalidIDsErrorResponse
+	if err := json.Unmarshal([]byte(resp.Body), &errResp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if len(errResp.InvalidIDs) != 1 || errResp.InvalidIDs[0] != "cat-nonexistent" {
+		t.Errorf("InvalidIDs = %v, want [cat-nonexistent]", errResp.InvalidIDs)
+	}
+}
+
+func TestHandler_UnprocessedKeysRetrySucceeds(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	categories := createTestCategories()[:2]
+	cat1AV, _ := attributevalue.MarshalMap(categories[0])
+	cat2AV, _ := attributevalue.MarshalMap(categories[1])
+
+	attempts := 0
+	mockClient := &MockDynamoDBClient{
+		BatchGetItemFunc: func(ctx context.Context, params *dynamodb.BatchGetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.BatchGetItemOutput, error) {
+			attempts++
+			if attempts == 1 {
+				return &dynamodb.BatchGetItemOutput{
+					Responses: map[string][]map[string]types.AttributeValue{
+						testCategoriesTable: {cat1AV},
+					},
+					UnprocessedKeys: map[string]types.KeysAndAttributes{
+						testCategoriesTable: {
+							Keys: []map[string]types.AttributeValue{
+								{"id": &types.AttributeValueMemberS{Value: "cat-2"}},
+							},
+						},
+					},
+				}, nil
+			}
+			return &dynamodb.BatchGetItemOutput{
+				Responses: map[string][]map[string]types.AttributeValue{
+					testCategoriesTable: {cat2AV},
+				},
+			}, nil
+		},
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return &dynamodb.TransactWriteItemsOutput{}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+
+	reqBody := `{"orders":[{"id":"cat-1","sortOrder":2},{"id":"cat-2","sortOrder":1}]}`
+	resp, err := Handler(context.Background(), createAuthenticatedRequest(reqBody))
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("StatusCode = %d, want 200 (body: %s)", resp.StatusCode, resp.Body)
+	}
+	if attempts != 2 {
+		t.Errorf("BatchGetItem attempts = %d, want 2", attempts)
+	}
+}
+
+func TestHandler_UnprocessedKeysExhaustedReturns500(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	cat1 := createTestCategories()[0]
+	cat1AV, _ := attributevalue.MarshalMap(cat1)
+
+	attempts := 0
+	mockClient := &MockDynamoDBClient{
+		BatchGetItemFunc: func(ctx context.Context, params *dynamodb.BatchGetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.BatchGetItemOutput, error) {
+			attempts++
+			resp := &dynamodb.BatchGetItemOutput{
+				UnprocessedKeys: map[string]types.KeysAndAttributes{
+					testCategoriesTable: {
+						Keys: []map[string]types.AttributeValue{
+							{"id": &types.AttributeValueMemberS{Value: "cat-2"}},
+						},
+					},
+				},
+			}
+			if attempts == 1 {
+				resp.Responses = map[string][]map[string]types.AttributeValue{
+					testCategoriesTable: {cat1AV},
+				}
+			}
+			return resp, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+
+	reqBody := `{"orders":[{"id":"cat-1","sortOrder":1},{"id":"cat-2","sortOrder":2}]}`
+	resp, err := Handler(context.Background(), createAuthenticatedRequest(reqBody))
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+	if resp.StatusCode != 500 {
+		t.Fatalf("StatusCode = %d, want 500 (body: %s)", resp.StatusCode, resp.Body)
+	}
+	if attempts != 5 {
+		t.Errorf("BatchGetItem attempts = %d, want 5", attempts)
+	}
+}
+
+func TestHandler_ConcurrentDeleteReturns409(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	cat1 := createTestCategories()[0]
+	cat1AV, _ := attributevalue.MarshalMap(cat1)
+
+	mockClient := &MockDynamoDBClient{
+		BatchGetItemFunc: func(ctx context.Context, params *dynamodb.BatchGetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.BatchGetItemOutput, error) {
+			return &dynamodb.BatchGetItemOutput{
+				Responses: map[string][]map[string]types.AttributeValue{
+					testCategoriesTable: {cat1AV},
+				},
+			}, nil
+		},
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return nil, &types.TransactionCanceledException{
+				CancellationReasons: []types.CancellationReason{
+					{Code: aws.String("ConditionalCheckFailed")},
+				},
+			}
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+
+	resp, err := Handler(context.Background(), createAuthenticatedRequest(`{"orders":[{"id":"cat-1","sortOrder":1}]}`))
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+	if resp.StatusCode != 409 {
+		t.Fatalf("StatusCode = %d, want 409 (body: %s)", resp.StatusCode, resp.Body)
+	}
+}

@@ -395,3 +395,28 @@ func TestRequestForStateCoversIdleFailedAndStartingStates(t *testing.T) {
 		})
 	}
 }
+
+func TestReconcileDoesNotInfiniteRetryFailedRevision(t *testing.T) {
+	dynamo := &mockDynamoDB{
+		states: []State{{
+			ID:                StateItemID,
+			DesiredRevision:   4,
+			DeployedRevision:  3,
+			LastBuildRevision: 4,
+			Status:            StatusFailed,
+		}},
+	}
+	cb := &mockCodeBuild{}
+	c := NewCoordinator(dynamo, cb, "posts", "proj")
+
+	state, err := c.Reconcile(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if state.Status != StatusFailed {
+		t.Fatalf("Status = %q, want %q", state.Status, StatusFailed)
+	}
+	if len(cb.startInputs) != 0 {
+		t.Fatalf("expected failed revision not to be restarted, got %d StartBuild calls", len(cb.startInputs))
+	}
+}

@@ -121,12 +121,30 @@ export function buildPostUrl(postId: string, siteUrl: string): string {
 /**
  * 記事リストを最新20件に絞り、公開日順でソート
  *
+ * `asOf` が指定された場合は、公開ステータスが published かつ公開日時（未設定時は作成日時）が
+ * `asOf` 以下の記事のみを対象とし、未来日時の予約記事を除外する。
+ *
  * @param posts - 記事リスト
+ * @param asOf - 基準時刻 (ISO 8601)。省略時は日時フィルタを行わない
  * @returns 最新20件の記事（公開日降順）
  */
-export function getLatestPostsForRSS(posts: Post[]): Post[] {
+export function getLatestPostsForRSS(posts: Post[], asOf?: string): Post[] {
+  const cutoff = asOf !== undefined ? Date.parse(asOf) : undefined;
+  const eligible =
+    cutoff !== undefined
+      ? posts.filter((post) => {
+          if (post.publishStatus !== 'published') return false;
+          const timestamp = Date.parse(post.publishedAt ?? post.createdAt);
+          return (
+            Number.isFinite(cutoff) &&
+            Number.isFinite(timestamp) &&
+            timestamp <= cutoff
+          );
+        })
+      : posts;
+
   // 公開日または作成日でソート（降順）
-  const sorted = [...posts].sort((a, b) => {
+  const sorted = [...eligible].sort((a, b) => {
     const dateA = new Date(a.publishedAt ?? a.createdAt).getTime();
     const dateB = new Date(b.publishedAt ?? b.createdAt).getTime();
     return dateB - dateA;
@@ -141,10 +159,15 @@ export function getLatestPostsForRSS(posts: Post[]): Post[] {
  *
  * @param posts - 記事リスト
  * @param siteUrl - サイトURL
+ * @param asOf - 基準時刻 (ISO 8601)。指定時は未来記事を除外
  * @returns RSSアイテムリスト（最新20件）
  */
-export function postsToRSSItems(posts: Post[], siteUrl: string): RSSItem[] {
-  const latestPosts = getLatestPostsForRSS(posts);
+export function postsToRSSItems(
+  posts: Post[],
+  siteUrl: string,
+  asOf?: string
+): RSSItem[] {
+  const latestPosts = getLatestPostsForRSS(posts, asOf);
   return latestPosts.map((post) => postToRSSItem(post, siteUrl));
 }
 

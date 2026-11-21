@@ -18,7 +18,10 @@ export const AUTH_SESSION_EXPIRED_EVENT = 'auth:session-expired';
  * - 401 受信時は Cognito セッションからトークンを再取得して1回だけリトライ
  * - 再取得できない場合はトークンを破棄し AUTH_SESSION_EXPIRED_EVENT を発火
  */
-export const apiClient = axios.create({ baseURL: API_URL });
+export const apiClient = axios.create({
+  baseURL: API_URL,
+  timeout: 30_000,
+});
 
 apiClient.interceptors.request.use((config) => {
   const token = getAuthToken();
@@ -31,18 +34,28 @@ apiClient.interceptors.request.use((config) => {
 /**
  * Cognito セッションから ID トークンを再取得する。
  * E2E (MSW) モードでは Amplify が構成されていないため常に null。
+ * 並列 401 受信時の競合（重複リフレッシュ・誤ログアウト）を防ぐため single-flight 化する。
  */
+let inFlightRefresh: Promise<string | null> | null = null;
+
 const refreshAuthToken = async (): Promise<string | null> => {
   if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
     return null;
   }
-  const session = await fetchAuthSession({ forceRefresh: true });
-  const idToken = session.tokens?.idToken?.toString();
-  if (!idToken) {
-    return null;
+  if (!inFlightRefresh) {
+    inFlightRefresh = (async () => {
+      const session = await fetchAuthSession({ forceRefresh: true });
+      const idToken = session.tokens?.idToken?.toString();
+      if (!idToken) {
+        return null;
+      }
+      saveAuthToken(idToken);
+      return idToken;
+    })().finally(() => {
+      inFlightRefresh = null;
+    });
   }
-  saveAuthToken(idToken);
-  return idToken;
+  return inFlightRefresh;
 };
 
 interface RetriableConfig extends InternalAxiosRequestConfig {

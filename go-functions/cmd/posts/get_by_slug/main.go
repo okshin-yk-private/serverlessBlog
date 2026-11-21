@@ -75,6 +75,10 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":slug": &types.AttributeValueMemberS{Value: slug},
 		},
+		ProjectionExpression: aws.String("id, #version, title, contentHtml, category, tags, publishStatus, createdAt, updatedAt, publishedAt, imageUrls, slug, excerpt, coverImageUrl"),
+		ExpressionAttributeNames: map[string]string{
+			"#version": "version",
+		},
 		Limit: aws.Int32(1),
 	})
 	if err != nil {

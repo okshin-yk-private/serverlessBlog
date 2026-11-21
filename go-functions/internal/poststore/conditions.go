@@ -4,10 +4,23 @@ package poststore
 import (
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
+
+const (
+	siteBuildStateItemID  = "__SITE_BUILD_STATE__"
+	slugReservationPrefix = "SLUG#"
+)
+
+// IsReservedID reports whether id belongs to an internal DynamoDB sentinel row
+// (site-build coordinator state or slug uniqueness reservation) rather than a
+// user-managed post or category item.
+func IsReservedID(id string) bool {
+	return id == siteBuildStateItemID || strings.HasPrefix(id, slugReservationPrefix)
+}
 
 // VersionCondition supports existing items that predate version tracking.
 // attribute_exists(id) prevents a concurrent delete from being resurrected.

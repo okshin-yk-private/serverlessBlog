@@ -25,7 +25,9 @@ resource "aws_sns_topic" "alarms" {
   tags = local.common_tags
 }
 
-# SSL enforcement policy for SNS topic
+data "aws_caller_identity" "monitoring" {}
+
+# SSL enforcement policy for SNS topic (retaining explicit account + CloudWatch Allow)
 resource "aws_sns_topic_policy" "alarms_ssl" {
   count = var.enable_alarms ? 1 : 0
 
@@ -35,6 +37,34 @@ resource "aws_sns_topic_policy" "alarms_ssl" {
     Version = "2012-10-17"
     Id      = "SSLPolicy"
     Statement = [
+      {
+        Sid       = "AllowAccountOwner"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.monitoring.account_id}:root" }
+        Action = [
+          "SNS:GetTopicAttributes",
+          "SNS:SetTopicAttributes",
+          "SNS:AddPermission",
+          "SNS:RemovePermission",
+          "SNS:DeleteTopic",
+          "SNS:Subscribe",
+          "SNS:ListSubscriptionsByTopic",
+          "SNS:Publish"
+        ]
+        Resource = aws_sns_topic.alarms[0].arn
+      },
+      {
+        Sid       = "AllowCloudWatchAlarms"
+        Effect    = "Allow"
+        Principal = { Service = "cloudwatch.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alarms[0].arn
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.monitoring.account_id
+          }
+        }
+      },
       {
         Sid       = "AllowPublishThroughSSLOnly"
         Effect    = "Deny"

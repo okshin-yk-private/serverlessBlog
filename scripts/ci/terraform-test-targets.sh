@@ -85,6 +85,10 @@ while IFS= read -r tests_dir; do
 
   if [ "$has_nonempty" = true ]; then
     target_dir="${tests_dir%/tests}"
+    if ! printf '%s' "$target_dir" | grep -Eq '^[A-Za-z0-9/_.-]+$' || printf '%s' "$target_dir" | grep -Fq '..'; then
+      echo "✗ Refusing unsafe Terraform test target directory: $target_dir" >&2
+      exit 1
+    fi
     TARGETS="${TARGETS}${target_dir}"$'\n'
   fi
 done < <(cd "$REPO_ROOT" && find terraform -type d -name tests -not -path '*/.terraform/*' | sort)
@@ -102,21 +106,7 @@ print_targets() {
       echo "[]"
       return
     fi
-    local out="["
-    local first=true
-    while IFS= read -r t; do
-      [ -z "$t" ] && continue
-      if [ "$first" = true ]; then
-        first=false
-      else
-        out="${out},"
-      fi
-      out="${out}\"${t}\""
-    done <<EOF
-$list
-EOF
-    out="${out}]"
-    echo "$out"
+    printf '%s\n' "$list" | python3 -c 'import json, sys; print(json.dumps([line for line in sys.stdin.read().splitlines() if line], separators=(",", ":")))'
   else
     if [ -n "$list" ]; then
       printf '%s\n' "$list"

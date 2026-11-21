@@ -48,6 +48,9 @@ const (
 	PostContentMarkdownMaxLength = 100000
 	PostTagMaxLength             = 50
 	PostTagsMaxCount             = 20
+	PostSlugMaxLength            = 128
+	PostImageURLsMaxCount        = 50
+	ImageURLMaxLength            = 2048
 )
 
 // validateRuneLength returns an error if value exceeds maxRunes, counting
@@ -78,6 +81,9 @@ func validatePostTags(tags []string) error {
 // Callers should treat an empty string as "no cover image" and skip this
 // check rather than calling it, since empty is used to clear the field.
 func validateCoverImageURL(value string) error {
+	if utf8.RuneCountInString(value) > ImageURLMaxLength {
+		return fmt.Errorf("coverImageUrl must be %d characters or less", ImageURLMaxLength)
+	}
 	parsed, err := url.Parse(value)
 	if err != nil {
 		return errors.New("coverImageUrl must be a valid URL")
@@ -91,23 +97,73 @@ func validateCoverImageURL(value string) error {
 	return nil
 }
 
+// validateImageURLs bounds imageUrls length/count and rejects dangerous URL
+// schemes (e.g. javascript:, data:) while preserving relative S3 keys or
+// http/https image URLs used by existing clients.
+func validateImageURLs(urls []string) error {
+	if len(urls) > PostImageURLsMaxCount {
+		return fmt.Errorf("imageUrls must contain %d items or less", PostImageURLsMaxCount)
+	}
+	for _, raw := range urls {
+		if raw == "" {
+			return errors.New("imageUrls cannot contain empty values")
+		}
+		if utf8.RuneCountInString(raw) > ImageURLMaxLength {
+			return fmt.Errorf("imageUrl must be %d characters or less", ImageURLMaxLength)
+		}
+		if strings.HasPrefix(raw, "//") {
+			return errors.New("imageUrls cannot contain protocol-relative URLs")
+		}
+		parsed, err := url.Parse(raw)
+		if err != nil {
+			return errors.New("imageUrls must contain valid URLs or keys")
+		}
+		if parsed.Scheme != "" && parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return errors.New("imageUrls must use the http or https scheme")
+		}
+		if parsed.Scheme != "" && parsed.Host == "" {
+			return errors.New("imageUrls must contain valid URLs")
+		}
+	}
+	return nil
+}
+
+const (
+	extJPG  = ".jpg"
+	extJPEG = ".jpeg"
+	extPNG  = ".png"
+	extGIF  = ".gif"
+	extWEBP = ".webp"
+
+	imageJPEGContentType = "image/jpeg"
+	imagePNGContentType  = "image/png"
+	imageGIFContentType  = "image/gif"
+	imageWEBPContentType = "image/webp"
+)
+
 // Allowed file extensions for image upload
 var allowedExtensions = map[string]bool{
-	".jpg":  true,
-	".jpeg": true,
-	".png":  true,
-	".gif":  true,
-	".webp": true,
+	extJPG:  true,
+	extJPEG: true,
+	extPNG:  true,
+	extGIF:  true,
+	extWEBP: true,
 }
 
 // Allowed content types for image upload
-const imageJPEGContentType = "image/jpeg"
-
 var allowedContentTypes = map[string]bool{
 	imageJPEGContentType: true,
-	"image/png":          true,
-	"image/gif":          true,
-	"image/webp":         true,
+	imagePNGContentType:  true,
+	imageGIFContentType:  true,
+	imageWEBPContentType: true,
+}
+
+var allowedExtensionContentTypes = map[string]string{
+	extJPG:  imageJPEGContentType,
+	extJPEG: imageJPEGContentType,
+	extPNG:  imagePNGContentType,
+	extGIF:  imageGIFContentType,
+	extWEBP: imageWEBPContentType,
 }
 
 // japaneseTokenizer is a morphological analyzer for Japanese text.
@@ -251,6 +307,9 @@ func (r *CreatePostRequest) Validate() error {
 	if err := validateOptionalSlug(r.Slug); err != nil {
 		return err
 	}
+	if err := validateImageURLs(r.ImageURLs); err != nil {
+		return err
+	}
 	return validateOptionalCoverImageURL(r.CoverImageURL)
 }
 
@@ -295,6 +354,9 @@ func (r *UpdatePostRequest) Validate() error {
 	if err := validateOptionalSlug(r.Slug); err != nil {
 		return err
 	}
+	if err := validateImageURLs(r.ImageURLs); err != nil {
+		return err
+	}
 	return validateOptionalCoverImageURL(r.CoverImageURL)
 }
 
@@ -337,6 +399,9 @@ func validateOptionalSlug(slug *string) error {
 	}
 	if *slug == "" {
 		return errors.New("slug cannot be empty when provided")
+	}
+	if utf8.RuneCountInString(*slug) > PostSlugMaxLength {
+		return fmt.Errorf("slug must be %d characters or less", PostSlugMaxLength)
 	}
 	if !slugPattern.MatchString(*slug) {
 		return errors.New("slug must contain only lowercase alphanumeric characters and hyphens")
@@ -390,6 +455,11 @@ func (r *GetUploadURLRequest) Validate() error {
 	// Validate content type
 	if !isAllowedContentType(r.ContentType) {
 		return errors.New("contentType is not allowed")
+	}
+
+	// Ensure extension matches the declared MIME type
+	if expectedCT, ok := allowedExtensionContentTypes[ext]; ok && expectedCT != r.ContentType {
+		return errors.New("file extension does not match contentType")
 	}
 
 	return nil

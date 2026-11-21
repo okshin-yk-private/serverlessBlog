@@ -33,6 +33,7 @@ import (
 	"github.com/google/uuid"
 
 	"serverless-blog/go-functions/internal/domain"
+	"serverless-blog/go-functions/internal/poststore"
 	"serverless-blog/go-functions/internal/sitebuild"
 )
 
@@ -109,7 +110,7 @@ func (e *Exporter) Run(ctx context.Context) (*Manifest, error) {
 		return nil, err
 	}
 
-	posts, err := scanAll[domain.BlogPost](ctx, e.DynamoDB, e.Config.PostsTableName)
+	posts, err := scanPosts(ctx, e.DynamoDB, e.Config.PostsTableName)
 	if err != nil {
 		return nil, fmt.Errorf("scan posts: %w", err)
 	}
@@ -148,8 +149,8 @@ func (e *Exporter) writePosts(ctx context.Context, manifest *Manifest, posts []d
 	sort.Slice(posts, func(i, j int) bool { return posts[i].ID < posts[j].ID })
 	for i := range posts {
 		post := &posts[i]
-		// The site-build coordinator keeps its state row in the posts table.
-		if post.ID == sitebuild.StateItemID || post.ID == "" {
+		// Skip internal coordinator and slug-reservation rows stored in BlogPosts.
+		if post.ID == "" || post.ID == sitebuild.StateItemID || poststore.IsReservedID(post.ID) {
 			continue
 		}
 		body, err := RenderPost(post)
@@ -181,19 +182,26 @@ func (e *Exporter) writePosts(ctx context.Context, manifest *Manifest, posts []d
 }
 
 func (e *Exporter) writeCategories(ctx context.Context, manifest *Manifest, categories []domain.Category) error {
-	sort.Slice(categories, func(i, j int) bool {
-		if categories[i].SortOrder != categories[j].SortOrder {
-			return categories[i].SortOrder < categories[j].SortOrder
+	filtered := make([]domain.Category, 0, len(categories))
+	for _, cat := range categories {
+		if cat.ID == "" || poststore.IsReservedID(cat.ID) {
+			continue
 		}
-		return categories[i].ID < categories[j].ID
+		filtered = append(filtered, cat)
+	}
+	sort.Slice(filtered, func(i, j int) bool {
+		if filtered[i].SortOrder != filtered[j].SortOrder {
+			return filtered[i].SortOrder < filtered[j].SortOrder
+		}
+		return filtered[i].ID < filtered[j].ID
 	})
-	body, err := marshalJSON(categories)
+	body, err := marshalJSON(filtered)
 	if err != nil {
 		return fmt.Errorf("marshal categories: %w", err)
 	}
 	manifest.CategoriesKey = path.Join(manifest.Prefix, "categories.json")
 	manifest.CategoriesHash = sha256Hex(body)
-	manifest.CategoryCount = len(categories)
+	manifest.CategoryCount = len(filtered)
 	return e.put(ctx, manifest.CategoriesKey, "application/json", body)
 }
 
@@ -214,9 +222,25 @@ func (e *Exporter) put(ctx context.Context, key, contentType string, body []byte
 	return nil
 }
 
+func scanPosts(ctx context.Context, client dynamodb.ScanAPIClient, table string) ([]domain.BlogPost, error) {
+	// Omit contentHtml: it is derived from contentMarkdown and never exported.
+	input := &dynamodb.ScanInput{
+		TableName:            aws.String(table),
+		ProjectionExpression: aws.String("id, #version, title, contentMarkdown, category, tags, publishStatus, authorId, createdAt, updatedAt, publishedAt, imageUrls, slug, excerpt, coverImageUrl"),
+		ExpressionAttributeNames: map[string]string{
+			"#version": "version",
+		},
+	}
+	return scanWithInput[domain.BlogPost](ctx, client, input)
+}
+
 func scanAll[T any](ctx context.Context, client dynamodb.ScanAPIClient, table string) ([]T, error) {
+	return scanWithInput[T](ctx, client, &dynamodb.ScanInput{TableName: aws.String(table)})
+}
+
+func scanWithInput[T any](ctx context.Context, client dynamodb.ScanAPIClient, input *dynamodb.ScanInput) ([]T, error) {
 	var out []T
-	paginator := dynamodb.NewScanPaginator(client, &dynamodb.ScanInput{TableName: aws.String(table)})
+	paginator := dynamodb.NewScanPaginator(client, input)
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
@@ -280,12 +304,13 @@ func RenderPost(post *domain.BlogPost) ([]byte, error) {
 	}
 
 	var buf bytes.Buffer
+	var value bytes.Buffer
+	encoder := json.NewEncoder(&value)
+	// Keep <, > and & readable; they need no escaping in YAML.
+	encoder.SetEscapeHTML(false)
 	buf.WriteString("---\n")
 	for _, field := range fields {
-		var value bytes.Buffer
-		encoder := json.NewEncoder(&value)
-		// Keep <, > and & readable; they need no escaping in YAML.
-		encoder.SetEscapeHTML(false)
+		value.Reset()
 		if err := encoder.Encode(field.value); err != nil {
 			return nil, fmt.Errorf("encode %s: %w", field.name, err)
 		}

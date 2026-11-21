@@ -120,7 +120,7 @@ describe('deployed CloudFront environment access control', () => {
     expect(result.statusCode).toBe(200);
     expect(result.cookies['__Host-dev-access']).toEqual({
       value: token,
-      attributes: 'Path=/; Secure; HttpOnly; SameSite=Strict',
+      attributes: 'Path=/; Max-Age=28800; Secure; HttpOnly; SameSite=Strict',
     });
     expect(
       handler('dev_session')({

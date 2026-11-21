@@ -165,7 +165,7 @@ gitleaks detect --source . --config .gitleaks.toml \
 # Match the CI dependency/secret scope; keep findings visible:
 trivy fs --scanners vuln,secret --include-dev-deps --ignorefile .trivyignore .
 # IaC is a separate scope:
-trivy config --severity HIGH,CRITICAL --ignorefile .trivyignore terraform/
+trivy config --severity HIGH,CRITICAL --ignorefile terraform/.trivyignore terraform/
 ```
 
 For dependency changes run builds and relevant E2E in addition to `bun run verify`.

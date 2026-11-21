@@ -1169,7 +1169,7 @@ resource "aws_api_gateway_gateway_response" "default_4xx" {
   response_parameters = {
     "gatewayresponse.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origins[0]}'"
     "gatewayresponse.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-    "gatewayresponse.header.Access-Control-Allow-Methods" = "'GET,POST,PUT,DELETE,OPTIONS'"
+    "gatewayresponse.header.Access-Control-Allow-Methods" = "'GET,POST,PUT,PATCH,DELETE,OPTIONS'"
   }
 
   response_templates = {
@@ -1186,7 +1186,7 @@ resource "aws_api_gateway_gateway_response" "default_5xx" {
   response_parameters = {
     "gatewayresponse.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origins[0]}'"
     "gatewayresponse.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-    "gatewayresponse.header.Access-Control-Allow-Methods" = "'GET,POST,PUT,DELETE,OPTIONS'"
+    "gatewayresponse.header.Access-Control-Allow-Methods" = "'GET,POST,PUT,PATCH,DELETE,OPTIONS'"
   }
 
   response_templates = {
@@ -1224,6 +1224,7 @@ resource "aws_api_gateway_deployment" "main" {
   triggers = {
     redeployment = sha1(jsonencode([
       var.require_origin_key,
+      var.cors_allow_origins,
       # Resources
       aws_api_gateway_resource.admin.id,
       aws_api_gateway_resource.posts.id,
@@ -1248,41 +1249,61 @@ resource "aws_api_gateway_deployment" "main" {
       # Methods
       aws_api_gateway_method.admin_posts_post.id,
       aws_api_gateway_method.admin_posts_get.id,
+      aws_api_gateway_method.admin_posts_options.id,
       aws_api_gateway_method.admin_posts_id_get.id,
       aws_api_gateway_method.admin_posts_id_put.id,
       aws_api_gateway_method.admin_posts_id_delete.id,
+      aws_api_gateway_method.admin_posts_id_options.id,
       aws_api_gateway_method.admin_posts_id_build_status_get.id,
       aws_api_gateway_method.admin_posts_id_build_status_options.id,
       aws_api_gateway_method.admin_images_upload_url_post.id,
+      aws_api_gateway_method.admin_images_upload_url_options.id,
       aws_api_gateway_method.admin_images_key_delete.id,
+      aws_api_gateway_method.admin_images_key_options.id,
       aws_api_gateway_method.posts_get.id,
+      aws_api_gateway_method.posts_options.id,
       aws_api_gateway_method.posts_id_get.id,
+      aws_api_gateway_method.posts_id_options.id,
       aws_api_gateway_method.posts_by_slug_value_get.id,
       aws_api_gateway_method.posts_by_slug_value_options.id,
       aws_api_gateway_method.categories_get.id,
+      aws_api_gateway_method.categories_options.id,
       aws_api_gateway_method.admin_categories_post.id,
+      aws_api_gateway_method.admin_categories_options.id,
       aws_api_gateway_method.admin_categories_id_put.id,
       aws_api_gateway_method.admin_categories_id_delete.id,
+      aws_api_gateway_method.admin_categories_id_options.id,
       aws_api_gateway_method.admin_categories_sort_patch.id,
+      aws_api_gateway_method.admin_categories_sort_options.id,
       # Integrations
       aws_api_gateway_integration.admin_posts_post.id,
       aws_api_gateway_integration.admin_posts_get.id,
+      aws_api_gateway_integration.admin_posts_options.id,
       aws_api_gateway_integration.admin_posts_id_get.id,
       aws_api_gateway_integration.admin_posts_id_put.id,
       aws_api_gateway_integration.admin_posts_id_delete.id,
+      aws_api_gateway_integration.admin_posts_id_options.id,
       aws_api_gateway_integration.admin_posts_id_build_status_get.id,
       aws_api_gateway_integration.admin_posts_id_build_status_options.id,
       aws_api_gateway_integration.admin_images_upload_url_post.id,
+      aws_api_gateway_integration.admin_images_upload_url_options.id,
       aws_api_gateway_integration.admin_images_key_delete.id,
+      aws_api_gateway_integration.admin_images_key_options.id,
       aws_api_gateway_integration.posts_get.id,
+      aws_api_gateway_integration.posts_options.id,
       aws_api_gateway_integration.posts_id_get.id,
+      aws_api_gateway_integration.posts_id_options.id,
       aws_api_gateway_integration.posts_by_slug_value_get.id,
       aws_api_gateway_integration.posts_by_slug_value_options.id,
       aws_api_gateway_integration.categories_get.id,
+      aws_api_gateway_integration.categories_options.id,
       aws_api_gateway_integration.admin_categories_post.id,
+      aws_api_gateway_integration.admin_categories_options.id,
       aws_api_gateway_integration.admin_categories_id_put.id,
       aws_api_gateway_integration.admin_categories_id_delete.id,
+      aws_api_gateway_integration.admin_categories_id_options.id,
       aws_api_gateway_integration.admin_categories_sort_patch.id,
+      aws_api_gateway_integration.admin_categories_sort_options.id,
     ]))
   }
 
@@ -1293,22 +1314,32 @@ resource "aws_api_gateway_deployment" "main" {
   depends_on = [
     aws_api_gateway_integration.admin_posts_post,
     aws_api_gateway_integration.admin_posts_get,
+    aws_api_gateway_integration.admin_posts_options,
     aws_api_gateway_integration.admin_posts_id_get,
     aws_api_gateway_integration.admin_posts_id_put,
     aws_api_gateway_integration.admin_posts_id_delete,
+    aws_api_gateway_integration.admin_posts_id_options,
     aws_api_gateway_integration.admin_posts_id_build_status_get,
     aws_api_gateway_integration.admin_posts_id_build_status_options,
     aws_api_gateway_integration.admin_images_upload_url_post,
+    aws_api_gateway_integration.admin_images_upload_url_options,
     aws_api_gateway_integration.admin_images_key_delete,
+    aws_api_gateway_integration.admin_images_key_options,
     aws_api_gateway_integration.posts_get,
+    aws_api_gateway_integration.posts_options,
     aws_api_gateway_integration.posts_id_get,
+    aws_api_gateway_integration.posts_id_options,
     aws_api_gateway_integration.posts_by_slug_value_get,
     aws_api_gateway_integration.posts_by_slug_value_options,
     aws_api_gateway_integration.categories_get,
+    aws_api_gateway_integration.categories_options,
     aws_api_gateway_integration.admin_categories_post,
+    aws_api_gateway_integration.admin_categories_options,
     aws_api_gateway_integration.admin_categories_id_put,
     aws_api_gateway_integration.admin_categories_id_delete,
+    aws_api_gateway_integration.admin_categories_id_options,
     aws_api_gateway_integration.admin_categories_sort_patch,
+    aws_api_gateway_integration.admin_categories_sort_options,
   ]
 }
 
@@ -1453,6 +1484,8 @@ resource "aws_api_gateway_method_settings" "admin_write" {
 # ======================
 
 # IAM Role for API Gateway CloudWatch Logs
+# Note: Do not attach aws:SourceAccount here — API Gateway does not populate
+# aws:SourceAccount when assuming the account-level CloudWatch Logs push role.
 resource "aws_iam_role" "api_gateway_cloudwatch" {
   count = local.is_production ? 1 : 0
   name  = "${var.api_name}-api-gateway-cloudwatch-role"

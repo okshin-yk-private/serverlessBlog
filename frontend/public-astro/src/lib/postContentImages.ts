@@ -16,6 +16,36 @@ export interface ContentImageStats {
   skipped: number;
 }
 
+export interface RemoteImageDimensions {
+  width: number;
+  height: number;
+}
+
+const remoteImageSizeCache = new Map<
+  string,
+  Promise<RemoteImageDimensions | undefined>
+>();
+
+/**
+ * Memoize remote image dimension probes at module scope so static renders of
+ * slug/id routes during the same build share a single network probe per URL.
+ */
+export function getCachedRemoteImageSize(
+  source: string,
+  probe: (source: string) => Promise<RemoteImageDimensions>
+): Promise<RemoteImageDimensions | undefined> {
+  let pending = remoteImageSizeCache.get(source);
+  if (!pending) {
+    pending = probe(source).catch(() => undefined);
+    remoteImageSizeCache.set(source, pending);
+  }
+  return pending;
+}
+
+export function clearRemoteImageSizeCacheForTests(): void {
+  remoteImageSizeCache.clear();
+}
+
 type Element = DefaultTreeAdapterMap['element'];
 type Node = DefaultTreeAdapterMap['node'];
 

@@ -1,0 +1,11 @@
+# Advisory owner assignment for security-sensitive CI, scanner, and policy paths.
+/.github/ @okshn-yk
+/scripts/ci/ @okshn-yk
+/.gitleaks.toml @okshn-yk
+/.trivyignore @okshn-yk
+/terraform/.trivyignore @okshn-yk
+/terraform/.checkov.yaml @okshn-yk
+/bunfig.toml @okshn-yk
+/frontend/admin/bunfig.toml @okshn-yk
+/frontend/public-astro/bunfig.toml @okshn-yk
+/scripts/deploy/bunfig.toml @okshn-yk

@@ -26,6 +26,9 @@ func TestCORSHeaders_WithEnvVar(t *testing.T) {
 	if got := headers["Access-Control-Allow-Origin"]; got != "https://example.com" {
 		t.Errorf("Access-Control-Allow-Origin = %q, want %q", got, "https://example.com")
 	}
+	if got := headers["Vary"]; got != "Origin" {
+		t.Errorf("Vary = %q, want %q", got, "Origin")
+	}
 }
 
 func TestCORSHeaders_StaticHeaders(t *testing.T) {
@@ -33,7 +36,7 @@ func TestCORSHeaders_StaticHeaders(t *testing.T) {
 	headers := CORSHeaders()
 
 	expected := map[string]string{
-		"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+		"Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
 		"Access-Control-Allow-Headers": "Content-Type, Authorization",
 		"Content-Type":                 "application/json",
 		"X-Content-Type-Options":       "nosniff",

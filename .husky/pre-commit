@@ -19,7 +19,7 @@ fi
 
 # Step 1: Run lint-staged for quick formatting/linting (existing behavior)
 echo "=== Running lint-staged (format + lint) ==="
-npx lint-staged || exit 1
+bunx lint-staged || exit 1
 
 # Step 2: Run Terraform checks if terraform files changed
 if git diff --cached --name-only | grep -q '^terraform/'; then
@@ -89,7 +89,7 @@ fi
 echo ""
 echo "=== Running gitleaks (secret scan) ==="
 if [ "$PRE_COMMIT_STATUS" -eq 0 ]; then
-  if git diff --cached --name-only -z | xargs -0 $PRE_COMMIT run gitleaks --files; then
+  if git diff --cached --name-only --diff-filter=ACMR -z | xargs -0 $PRE_COMMIT run gitleaks --files; then
     echo "✓ gitleaks OK"
   else
     exit 1

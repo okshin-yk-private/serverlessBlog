@@ -24,8 +24,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
-  actions: read
 
 concurrency:
   group: security-scan-${{ github.ref }}
@@ -73,6 +71,9 @@ jobs:
     name: Gitleaks (secrets)
     needs: scan-targets
     runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      security-events: write
     strategy:
       fail-fast: false
       matrix:
@@ -80,18 +81,23 @@ jobs:
     timeout-minutes: 10
     env:
       GITLEAKS_VERSION: '8.24.3'
+      GITLEAKS_SHA256: '9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c'
     steps:
       - name: Checkout (full history)
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ matrix.target.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install gitleaks CLI
         run: |
           set -euo pipefail
-          curl -fsSL -o /tmp/gitleaks.tar.gz \
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+            --retry 4 --retry-delay 2 --retry-max-time 120 --connect-timeout 15 --max-time 60 \
+            -o /tmp/gitleaks.tar.gz \
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          printf '%s  %s\n' "${GITLEAKS_SHA256}" /tmp/gitleaks.tar.gz | sha256sum --check -
           tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
           sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
           gitleaks version
@@ -139,17 +145,22 @@ jobs:
     name: CodeQL (${{ matrix.language }})
     needs: scan-targets
     runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         target: ${{ fromJSON(needs.scan-targets.outputs.targets) }}
-        language: [go, javascript-typescript]
+        language: [go, javascript-typescript, python]
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ matrix.target.sha }}
+          persist-credentials: false
 
       - name: Setup Go
         if: matrix.language == 'go'
@@ -182,6 +193,9 @@ jobs:
     name: Trivy (filesystem)
     needs: scan-targets
     runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      security-events: write
     strategy:
       fail-fast: false
       matrix:
@@ -192,6 +206,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ matrix.target.sha }}
+          persist-credentials: false
 
       - name: Run Trivy filesystem scan
         id: trivy
@@ -239,6 +254,9 @@ jobs:
     name: zizmor (GitHub Actions)
     needs: scan-targets
     runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      security-events: write
     strategy:
       fail-fast: false
       matrix:
@@ -289,6 +307,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ matrix.target.sha }}
+          persist-credentials: false
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -302,8 +321,15 @@ jobs:
         with:
           go-version-file: go-functions/go.mod
           cache-dependency-path: go-functions/go.sum
-      - name: Install govulncheck
+      - name: Cache govulncheck binary
         if: ${{ !cancelled() }}
+        id: govulncheck-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/go/bin/govulncheck
+          key: govulncheck-${{ runner.os }}-${{ hashFiles('go-functions/go.mod') }}-v1.8.0
+      - name: Install govulncheck
+        if: ${{ !cancelled() && steps.govulncheck-cache.outputs.cache-hit != 'true' }}
         working-directory: go-functions
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
       - name: Audit Go call paths
