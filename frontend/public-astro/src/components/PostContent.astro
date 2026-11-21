@@ -1,6 +1,9 @@
 ---
 import { getImage, imageConfig, inferRemoteSize } from 'astro:assets';
-import { optimizePostContentImages } from '../lib/postContentImages';
+import {
+  getCachedRemoteImageSize,
+  optimizePostContentImages,
+} from '../lib/postContentImages';
 import { postImageWidths } from '../lib/postImage';
 
 interface Props {
@@ -13,10 +16,10 @@ const contentHtml = await optimizePostContentImages(
   Astro.site,
   hasHero,
   async (source, authoredWidth, authoredHeight) => {
-    let dimensions;
-    try {
-      dimensions = await inferRemoteSize(source, imageConfig);
-    } catch {
+    const dimensions = await getCachedRemoteImageSize(source, (url) =>
+      inferRemoteSize(url, imageConfig)
+    );
+    if (!dimensions) {
       console.warn(
         '[post-content-image] Could not read dimensions; keeping original image'
       );

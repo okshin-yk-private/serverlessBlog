@@ -126,7 +126,7 @@ export const updateCategory = async (
 ): Promise<Category> => {
   try {
     const response = await apiClient.put<Category>(
-      `/admin/categories/${id}`,
+      `/admin/categories/${encodeURIComponent(id)}`,
       data
     );
     return response.data;
@@ -159,7 +159,7 @@ export const updateCategorySortOrders = async (
  */
 export const deleteCategory = async (id: string): Promise<void> => {
   try {
-    await apiClient.delete(`/admin/categories/${id}`);
+    await apiClient.delete(`/admin/categories/${encodeURIComponent(id)}`);
   } catch (error) {
     handleError(error);
   }

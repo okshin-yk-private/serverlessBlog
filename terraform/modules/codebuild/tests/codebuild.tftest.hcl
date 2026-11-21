@@ -68,8 +68,8 @@ run "codebuild_nodejs_20_runtime" {
   }
 
   assert {
-    condition     = aws_codebuild_project.astro_build.environment[0].image == "aws/codebuild/amazonlinux2-aarch64-standard:3.0"
-    error_message = "CodeBuild must use Amazon Linux 2 ARM64 image with Node.js 20 support"
+    condition     = aws_codebuild_project.astro_build.environment[0].image == "aws/codebuild/amazonlinux-aarch64-standard:3.0"
+    error_message = "CodeBuild must use canonical AL2023 ARM64 image"
   }
 }
 
@@ -222,6 +222,20 @@ run "codebuild_iam_release_kvs_permissions" {
   assert {
     condition     = aws_iam_role_policy.codebuild_release_kvs.name == "release-kvs-policy"
     error_message = "CodeBuild must have the release KVS policy attached"
+  }
+
+  assert {
+    condition = jsondecode(aws_iam_role_policy.codebuild_release_kvs.policy).Statement[0] == {
+      Effect = "Allow"
+      Action = [
+        "cloudfront-keyvaluestore:DescribeKeyValueStore",
+        "cloudfront-keyvaluestore:GetKey",
+        "cloudfront-keyvaluestore:ListKeys",
+        "cloudfront-keyvaluestore:UpdateKeys"
+      ]
+      Resource = "arn:aws:cloudfront::123456789012:key-value-store/00000000-0000-0000-0000-000000000000"
+    }
+    error_message = "Release KVS policy must allow DescribeKeyValueStore, GetKey, ListKeys, and UpdateKeys on the target store only"
   }
 }
 

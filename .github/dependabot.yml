@@ -27,6 +27,8 @@ updates:
       day: "monday"
       time: "03:00"
       timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
@@ -52,6 +54,8 @@ updates:
       day: "monday"
       time: "05:00"
       timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
@@ -77,6 +81,8 @@ updates:
       day: "monday"
       time: "06:00"
       timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
@@ -102,6 +108,8 @@ updates:
       day: "monday"
       time: "04:00"
       timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
@@ -130,6 +138,8 @@ updates:
       day: "tuesday"
       time: "03:00"
       timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
@@ -173,6 +183,8 @@ updates:
       - "/terraform/environments/*"
       - "/terraform/modules/*"
     schedule: { interval: "weekly", day: "thursday", time: "03:00", timezone: "Asia/Tokyo" }
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     labels: ["dependencies", "terraform"]
     commit-message: { prefix: "chore(deps)", include: "scope" }
@@ -185,12 +197,16 @@ updates:
   # GitHub Actions (workflows + composite actions) — Saturday
   # ============================================================
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories:
+      - "/"
+      - "/.github/actions/*"
     schedule:
       interval: "weekly"
       day: "saturday"
       time: "03:00"
       timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
@@ -204,18 +220,3 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-
-  - package-ecosystem: "github-actions"
-    directory: "/.github/actions/setup-bun-deps"
-    schedule:
-      interval: "weekly"
-      day: "saturday"
-      time: "04:00"
-      timezone: "Asia/Tokyo"
-    open-pull-requests-limit: 3
-    labels:
-      - "dependencies"
-      - "workflow"
-    commit-message:
-      prefix: "chore(deps)"
-      include: "scope"

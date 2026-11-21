@@ -3050,3 +3050,104 @@ func TestProcessResults_OmitsAuthorIDWhenNotIncluded(t *testing.T) {
 		t.Errorf("expected authorId key to be omitted from JSON, got %+v", raw)
 	}
 }
+
+func TestHandler_CraftedNextTokenIgnoredInsteadOfDynamo500(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	crafted := base64.StdEncoding.EncodeToString([]byte(`{"foo":"bar"}`))
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			if params.ExclusiveStartKey != nil {
+				t.Errorf("expected crafted nextToken to be ignored, got ExclusiveStartKey=%v", params.ExclusiveStartKey)
+			}
+			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+
+	resp, err := Handler(context.Background(), events.APIGatewayProxyRequest{
+		QueryStringParameters: map[string]string{"nextToken": crafted},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Errorf("StatusCode = %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestHandler_NonAdminDraftQueryFiltersByAuthorID(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	var sawAuthorFilter bool
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			if params.FilterExpression != nil && strings.Contains(*params.FilterExpression, "authorId = :authorId") {
+				if v, ok := params.ExpressionAttributeValues[":authorId"].(*types.AttributeValueMemberS); ok && v.Value == "non-admin-user" {
+					sawAuthorFilter = true
+				}
+			}
+			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+
+	resp, err := Handler(context.Background(), events.APIGatewayProxyRequest{
+		QueryStringParameters: map[string]string{"publishStatus": "draft"},
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{
+				"claims": map[string]interface{}{"sub": "non-admin-user"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Errorf("StatusCode = %d, want 200", resp.StatusCode)
+	}
+	if !sawAuthorFilter {
+		t.Errorf("expected non-admin draft query to filter by authorId = :authorId")
+	}
+}
+
+func TestHandler_EmptyClaimsCannotListDrafts(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	queriedStatuses := []string{}
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			if v, ok := params.ExpressionAttributeValues[":publishStatus"].(*types.AttributeValueMemberS); ok {
+				queriedStatuses = append(queriedStatuses, v.Value)
+			}
+			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+
+	resp, err := Handler(context.Background(), events.APIGatewayProxyRequest{
+		QueryStringParameters: map[string]string{"publishStatus": "draft"},
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{
+				"claims": map[string]interface{}{},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("StatusCode = %d, want 200", resp.StatusCode)
+	}
+	if len(queriedStatuses) == 0 {
+		t.Fatal("expected DynamoDB Query to be called")
+	}
+	for i, status := range queriedStatuses {
+		if status != domain.PublishStatusPublished {
+			t.Errorf("query %d publishStatus = %q, want %q when sub claim is empty", i, status, domain.PublishStatusPublished)
+		}
+	}
+}

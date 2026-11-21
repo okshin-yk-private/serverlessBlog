@@ -379,20 +379,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       // E2Eテスト時はAmplifyを使用せず、ローカル状態のみクリア
       if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {
-        removeAuthToken();
-        setUser(null);
         return;
       }
 
       // Cognitoからサインアウト
       await signOut();
-
-      // ローカルの状態をクリア
-      removeAuthToken();
-      setUser(null);
     } catch (error) {
       console.error('ログアウトに失敗しました:', error);
       throw error;
+    } finally {
+      // ネットワークエラー等で signOut() が失敗してもローカル認証状態は確実に破棄する
+      removeAuthToken();
+      setUser(null);
     }
   };
 

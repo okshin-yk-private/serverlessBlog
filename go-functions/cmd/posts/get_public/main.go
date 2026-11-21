@@ -13,6 +13,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -20,6 +21,7 @@ import (
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/middleware"
+	"serverless-blog/go-functions/internal/poststore"
 )
 
 // DynamoDBClientInterface defines the interface for DynamoDB operations (for testing)
@@ -44,6 +46,9 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	if postID == "" {
 		return middleware.MessageResponse(400, "post ID is required")
 	}
+	if poststore.IsReservedID(postID) {
+		return middleware.MessageResponse(404, "post not found")
+	}
 
 	// Check for TABLE_NAME
 	tableName := os.Getenv("TABLE_NAME")
@@ -57,11 +62,15 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		return middleware.ServerError(ctx, "server error", err)
 	}
 
-	// Get the post from DynamoDB
+	// Get the post from DynamoDB (omit contentMarkdown and authorId)
 	getInput := &dynamodb.GetItemInput{
 		TableName: &tableName,
 		Key: map[string]types.AttributeValue{
 			"id": &types.AttributeValueMemberS{Value: postID},
+		},
+		ProjectionExpression: aws.String("id, #version, title, contentHtml, category, tags, publishStatus, createdAt, updatedAt, publishedAt, imageUrls, slug, excerpt, coverImageUrl"),
+		ExpressionAttributeNames: map[string]string{
+			"#version": "version",
 		},
 	}
 

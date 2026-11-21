@@ -1193,3 +1193,20 @@ func TestHandler_TableDriven_ValidationScenarios(t *testing.T) {
 		})
 	}
 }
+
+func TestHandler_RejectsReservedSentinelIDs(t *testing.T) {
+	for _, reservedID := range []string{"__SITE_BUILD_STATE__", "SLUG#hello-world"} {
+		t.Run(reservedID, func(t *testing.T) {
+			cleanup := setupTest(t)
+			defer cleanup()
+
+			resp, err := Handler(context.Background(), createAuthenticatedRequest(reservedID))
+			if err != nil {
+				t.Fatalf("Handler returned unexpected error: %v", err)
+			}
+			if resp.StatusCode != 404 {
+				t.Errorf("StatusCode = %d, want 404", resp.StatusCode)
+			}
+		})
+	}
+}

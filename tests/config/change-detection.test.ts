@@ -393,20 +393,51 @@ describe('workflow wiring', () => {
 describe('deploy summary accurately reports detection failures', () => {
   const deploy = readFileSync('.github/workflows/deploy.yml', 'utf8');
   const summary = deploy.split('  deploy-summary:')[1];
+  const envBlock = summary
+    .split('        env:\n')[1]
+    .split('        run: |\n')[0];
   const script = summary.split('        run: |\n')[1];
-  for (const result of ['failure', 'cancelled', 'skipped', 'success']) {
-    test(`detection ${result}`, () => {
-      const rendered = script.replace(
+  function runSummary(overrides: Record<string, string>) {
+    const env: Record<string, string> = {};
+    for (const line of envBlock.split('\n')) {
+      const match = line.match(/^\s+([A-Z0-9_]+):\s*(.+)$/);
+      if (!match) continue;
+      const [, key, raw] = match;
+      env[key] = raw.replace(
         /\$\{\{\s*(.*?)\s*\}\}/g,
         (_, expression: string) => {
-          if (expression === 'needs.detect-changes.result') return result;
+          if (expression in overrides) return overrides[expression];
           return expression.endsWith('.result') ? 'skipped' : 'fixture';
         }
       );
-      const execution = spawnSync('bash', ['-e', '-c', rendered], {
-        encoding: 'utf8',
-      });
+    }
+    return spawnSync('bash', ['-e', '-c', script], {
+      encoding: 'utf8',
+      env: { ...process.env, ...env },
+    });
+  }
+
+  for (const result of ['failure', 'cancelled', 'skipped', 'success']) {
+    test(`detection ${result}`, () => {
+      const execution = runSummary({ 'needs.detect-changes.result': result });
       expect(execution.status).toBe(result === 'success' ? 0 : 1);
     });
+  }
+
+  for (const job of [
+    'restore-lambda-binaries',
+    'build-frontend-admin',
+    'build-astro',
+    'deploy-infrastructure-prd',
+  ]) {
+    for (const badResult of ['failure', 'cancelled']) {
+      test(`${job} ${badResult} fails deploy-summary`, () => {
+        const execution = runSummary({
+          'needs.detect-changes.result': 'success',
+          [`needs.${job}.result`]: badResult,
+        });
+        expect(execution.status).toBe(1);
+      });
+    }
   }
 });

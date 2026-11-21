@@ -230,12 +230,15 @@ describe('workflow permissions and wiring', () => {
     for (const file of [
       '.github/workflows/ci-secure.yml',
       '.github/workflows/deploy.yml',
+      '.github/workflows/security-scan.yml',
+      '.github/workflows/nightly.yml',
     ]) {
       const workflow = read(file);
       const top = topLevelPermissions(workflow);
       expect(top).toContain('contents: read');
       expect(top).not.toContain('id-token');
       expect(top).not.toContain('pull-requests: write');
+      expect(top).not.toContain('security-events: write');
       for (const [name, job] of Object.entries(jobs(workflow))) {
         if (job.includes('aws-actions/configure-aws-credentials')) {
           expect(`${name}\n${job}`).toMatch(
@@ -246,6 +249,70 @@ describe('workflow permissions and wiring', () => {
     }
     const ci = jobs(read('.github/workflows/ci-secure.yml'));
     expect(ci['setup-labels']).toContain('pull-requests: write');
+  });
+
+  test('every workflow checkout sets persist-credentials: false', () => {
+    for (const file of [
+      '.github/workflows/ci-secure.yml',
+      '.github/workflows/deploy.yml',
+      '.github/workflows/security-scan.yml',
+      '.github/workflows/nightly.yml',
+      '.github/workflows/dependabot-auto-merge.yml',
+      '.github/workflows/dependency-update-security.yml',
+      '.github/workflows/weekly-production-release.yml',
+    ]) {
+      const workflow = read(file);
+      const checkouts = workflow.match(/uses: actions\/checkout@[^\n]+/g) ?? [];
+      expect(checkouts.length).toBeGreaterThan(0);
+      const persistedFalse =
+        workflow.match(/persist-credentials:\s*false/g) ?? [];
+      expect(persistedFalse.length).toBe(checkouts.length);
+    }
+  });
+
+  test('supply-chain cooldown is configured in Dependabot and all bunfig.toml files', () => {
+    const dependabot = Bun.YAML.parse(read('.github/dependabot.yml')) as {
+      updates: Array<{ cooldown?: { 'default-days'?: number } }>;
+    };
+    expect(dependabot.updates.length).toBeGreaterThan(0);
+    for (const update of dependabot.updates) {
+      expect(update.cooldown?.['default-days']).toBeGreaterThanOrEqual(7);
+    }
+    for (const bunfigPath of [
+      'bunfig.toml',
+      'frontend/admin/bunfig.toml',
+      'frontend/public-astro/bunfig.toml',
+      'scripts/deploy/bunfig.toml',
+    ]) {
+      expect(read(bunfigPath)).toMatch(/minimumReleaseAge\s*=\s*604800/);
+    }
+  });
+
+  test('deploy.yml fails closed on build failures and gates PRD smoke test on infra deploy', () => {
+    const deploy = jobs(read('.github/workflows/deploy.yml'));
+    expect(deploy['post-deploy-smoke-prd']).toContain(
+      'deploy-infrastructure-prd'
+    );
+    expect(deploy['deploy-summary']).toContain('restore-lambda-binaries');
+    expect(deploy['deploy-summary']).toContain('build-frontend-admin');
+    expect(deploy['deploy-summary']).toContain('build-astro');
+    expect(deploy['deploy-summary']).toContain(
+      'if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then'
+    );
+    // Admin S3 sync must not exclude mockServiceWorker.js so --delete cleans up
+    // any previously deployed worker once Vite removes it from admin-dist/.
+    expect(deploy['deploy-admin-dev']).not.toContain(
+      '--exclude "mockServiceWorker.js"'
+    );
+    expect(deploy['deploy-admin-prd']).not.toContain(
+      '--exclude "mockServiceWorker.js"'
+    );
+  });
+
+  test('setup-bun-deps always runs frozen install even on cache hit', () => {
+    const action = read('.github/actions/setup-bun-deps/action.yml');
+    expect(action).toContain('run: bun install --frozen-lockfile');
+    expect(action).not.toContain("cache-hit != 'true'");
   });
 
   test('zizmor gates high findings and uploads every finding', () => {

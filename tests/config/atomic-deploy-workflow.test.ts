@@ -151,15 +151,16 @@ describe('post-deploy-e2e-dev caches Playwright browsers', () => {
 
   test('resolves the Playwright version and caches ~/.cache/ms-playwright by it', () => {
     expect(job).toContain(
-      "PLAYWRIGHT_VERSION=$(node -e \"console.log(require('./package.json').devDependencies['@playwright/test'])\")"
+      "PLAYWRIGHT_VERSION=$(bunx playwright --version | awk '{print $2}')"
     );
     expect(job).toContain(
-      'uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0'
+      'uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0'
     );
     expect(job).toContain('path: ~/.cache/ms-playwright');
     expect(job).toContain(
       'key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}'
     );
+    expect(job).not.toContain('restore-keys:');
   });
 
   test('installs the full browser only on a cache miss, and only deps on a hit', () => {

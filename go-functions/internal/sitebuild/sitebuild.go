@@ -32,7 +32,7 @@ const (
 	// StatusIdle means no site-build request has been created yet.
 	StatusIdle = "idle"
 
-	defaultStartingTimeout = 5 * time.Minute
+	defaultStartingTimeout = 3 * time.Minute
 
 	attributeNameStatus    = "#status"
 	attributeStatusValue   = "status"
@@ -177,7 +177,7 @@ func (c *Coordinator) StartPending(ctx context.Context) (Request, error) {
 		token = state.StartToken
 		condition = "desiredRevision >= :revision AND attribute_not_exists(activeBuildId) AND #status = :starting AND activeRevision = :revision AND startToken = :token AND (attribute_not_exists(startedAt) OR startedAt < :staleBefore)"
 	}
-	acquired, err := c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+	_, err = c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                aws.String(c.tableName),
 		Key:                      map[string]dynamodbtypes.AttributeValue{"id": &dynamodbtypes.AttributeValueMemberS{Value: StateItemID}},
 		UpdateExpression:         aws.String("SET #status = :starting, activeRevision = :revision, startToken = :token, startedAt = :now REMOVE activeBuildId, lastError"),
@@ -190,7 +190,6 @@ func (c *Coordinator) StartPending(ctx context.Context) (Request, error) {
 			attributeValueNow:      &dynamodbtypes.AttributeValueMemberS{Value: now.Format(time.RFC3339Nano)},
 			":staleBefore":         &dynamodbtypes.AttributeValueMemberS{Value: staleBefore},
 		},
-		ReturnValues: dynamodbtypes.ReturnValueAllNew,
 	})
 	if err != nil {
 		var conditional *dynamodbtypes.ConditionalCheckFailedException
@@ -200,7 +199,6 @@ func (c *Coordinator) StartPending(ctx context.Context) (Request, error) {
 		}
 		return Request{}, err
 	}
-	_ = acquired
 
 	buildOut, err := c.codebuild.StartBuild(ctx, &codebuild.StartBuildInput{
 		ProjectName:      aws.String(c.projectName),
@@ -275,7 +273,10 @@ func (c *Coordinator) Reconcile(ctx context.Context) (State, error) {
 		return State{}, err
 	}
 	if state.ActiveBuildID == "" {
-		if state.DesiredRevision > state.DeployedRevision {
+		// Do not endlessly restart a revision that already failed; wait until a
+		// newer desiredRevision arrives (or an operator manually triggers a build).
+		alreadyFailedCurrentRevision := state.Status == StatusFailed && state.LastBuildRevision >= state.DesiredRevision
+		if state.DesiredRevision > state.DeployedRevision && !alreadyFailedCurrentRevision {
 			if _, startErr := c.StartPending(ctx); startErr != nil {
 				return State{}, startErr
 			}

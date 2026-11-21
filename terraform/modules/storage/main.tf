@@ -89,9 +89,20 @@ resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
     id     = "expire-access-logs"
     status = "Enabled"
 
+    filter {}
+
     expiration {
       days = 90
     }
+  }
+}
+
+resource "aws_s3_bucket_ownership_controls" "access_logs" {
+  count  = var.enable_access_logs ? 1 : 0
+  bucket = aws_s3_bucket.access_logs[0].id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
   }
 }
 
@@ -130,6 +141,31 @@ resource "aws_s3_bucket_policy" "access_logs" {
           Condition = {
             Bool = {
               "aws:SecureTransport" = "false"
+            }
+          }
+        },
+        {
+          Sid    = "S3ServerAccessLogsDelivery"
+          Effect = "Allow"
+          Principal = {
+            Service = "logging.s3.amazonaws.com"
+          }
+          Action = "s3:PutObject"
+          Resource = [
+            "${aws_s3_bucket.access_logs[0].arn}/image-bucket/*",
+            "${aws_s3_bucket.access_logs[0].arn}/public-site-bucket/*",
+            "${aws_s3_bucket.access_logs[0].arn}/admin-site-bucket/*"
+          ]
+          Condition = {
+            StringEquals = {
+              "aws:SourceAccount" = local.account_id
+            }
+            ArnLike = {
+              "aws:SourceArn" = [
+                aws_s3_bucket.images.arn,
+                aws_s3_bucket.public_site.arn,
+                aws_s3_bucket.admin_site.arn
+              ]
             }
           }
         }
@@ -256,6 +292,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "images" {
     id     = "transition-to-ia"
     status = "Enabled"
 
+    # S3 STANDARD_IA enforces a 128 KiB minimum billable object size.
+    filter {
+      object_size_greater_than = 131072
+    }
+
     transition {
       days          = 30
       storage_class = "STANDARD_IA"
@@ -266,9 +307,30 @@ resource "aws_s3_bucket_lifecycle_configuration" "images" {
     id     = "cleanup-old-versions"
     status = "Enabled"
 
+    filter {}
+
     noncurrent_version_expiration {
       noncurrent_days = 90
     }
+  }
+
+  rule {
+    id     = "cleanup-expired-delete-markers"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      expired_object_delete_marker = true
+    }
+  }
+}
+
+resource "aws_s3_bucket_ownership_controls" "images" {
+  bucket = aws_s3_bucket.images.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
   }
 }
 
@@ -411,6 +473,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "public_site" {
     id     = "cleanup-old-versions"
     status = "Enabled"
 
+    filter {}
+
     # Delete old versions after 7 days (allows rollback window)
     noncurrent_version_expiration {
       noncurrent_days = 7
@@ -421,6 +485,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "public_site" {
   # Age alone cannot identify inactive releases. Retain current objects until
   # an active-revision-aware garbage collector can safely remove old releases.
 
+}
+
+resource "aws_s3_bucket_ownership_controls" "public_site" {
+  bucket = aws_s3_bucket.public_site.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
 }
 
 # Configure access logging for public site bucket (when enabled)
@@ -557,9 +629,30 @@ resource "aws_s3_bucket_lifecycle_configuration" "admin_site" {
     id     = "cleanup-old-versions"
     status = "Enabled"
 
+    filter {}
+
     noncurrent_version_expiration {
       noncurrent_days = 7
     }
+  }
+
+  rule {
+    id     = "cleanup-expired-delete-markers"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      expired_object_delete_marker = true
+    }
+  }
+}
+
+resource "aws_s3_bucket_ownership_controls" "admin_site" {
+  bucket = aws_s3_bucket.admin_site.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
   }
 }
 

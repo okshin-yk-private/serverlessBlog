@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -25,6 +24,7 @@ import (
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/middleware"
+	"serverless-blog/go-functions/internal/poststore"
 )
 
 // DynamoDBClientInterface defines the interface for DynamoDB operations (for testing)
@@ -113,6 +113,9 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 	// Requirement 5.1: Delete the category and its SLUG_RESERVATION
 	if err := deleteCategory(ctx, dynamoClient, tableName, categoryID, existingCategory.Slug); err != nil {
+		if poststore.IsConflict(err) {
+			return middleware.MessageResponse(409, "category was modified concurrently")
+		}
 		return middleware.ServerError(ctx, "failed to delete category", err)
 	}
 
@@ -121,10 +124,10 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 }
 
 // getExistingCategory retrieves a category by ID
-// Returns nil if the ID is a SLUG_RESERVATION ID (starts with "SLUG#")
+// Returns nil if the ID is an internal reserved sentinel (e.g. SLUG# reservation)
 func getExistingCategory(ctx context.Context, client DynamoDBClientInterface, tableName, categoryID string) (*domain.Category, error) {
-	// Reject SLUG_RESERVATION IDs - treat as not found
-	if strings.HasPrefix(categoryID, "SLUG#") {
+	// Reject internal sentinel IDs - treat as not found
+	if poststore.IsReservedID(categoryID) {
 		return nil, nil
 	}
 
@@ -162,7 +165,8 @@ func isCategoryInUse(ctx context.Context, client DynamoDBClientInterface, tableN
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":slug": &types.AttributeValueMemberS{Value: slug},
 		},
-		Limit: aws.Int32(1), // We only need to know if at least one post exists
+		Select: types.SelectCount,
+		Limit:  aws.Int32(1), // We only need to know if at least one post exists
 	}
 
 	result, err := client.Query(ctx, queryInput)
@@ -186,6 +190,10 @@ func deleteCategory(ctx context.Context, client DynamoDBClientInterface, tableNa
 					Key: map[string]types.AttributeValue{
 						"id": &types.AttributeValueMemberS{Value: categoryID},
 					},
+					ConditionExpression: aws.String("attribute_exists(id) AND slug = :slug"),
+					ExpressionAttributeValues: map[string]types.AttributeValue{
+						":slug": &types.AttributeValueMemberS{Value: slug},
+					},
 				},
 			},
 			{
@@ -193,6 +201,10 @@ func deleteCategory(ctx context.Context, client DynamoDBClientInterface, tableNa
 					TableName: aws.String(tableName),
 					Key: map[string]types.AttributeValue{
 						"id": &types.AttributeValueMemberS{Value: slugReservationID},
+					},
+					ConditionExpression: aws.String("attribute_not_exists(id) OR categoryId = :categoryId"),
+					ExpressionAttributeValues: map[string]types.AttributeValue{
+						":categoryId": &types.AttributeValueMemberS{Value: categoryID},
 					},
 				},
 			},
@@ -203,16 +215,12 @@ func deleteCategory(ctx context.Context, client DynamoDBClientInterface, tableNa
 	return err
 }
 
-// noContentResponse creates a 204 No Content response with CORS headers
+// noContentResponse creates a 204 No Content response with standard CORS and security headers
 func noContentResponse() (events.APIGatewayProxyResponse, error) {
 	return events.APIGatewayProxyResponse{
 		StatusCode: 204,
-		Headers: map[string]string{
-			"Access-Control-Allow-Origin":  "*",
-			"Access-Control-Allow-Headers": "Content-Type,Authorization",
-			"Access-Control-Allow-Methods": "DELETE,OPTIONS",
-		},
-		Body: "",
+		Headers:    middleware.CORSHeaders(),
+		Body:       "",
 	}, nil
 }
 

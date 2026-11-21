@@ -212,23 +212,26 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 // triggerSiteBuild triggers the Astro SSG build via CodeBuild
 // Requirement 10.1: Trigger CodeBuild when post is published
 func triggerSiteBuild(ctx context.Context, dynamoClient DynamoDBClientInterface, tableName string) sitebuild.Request {
+	buildCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+
 	projectName := buildtrigger.SanitizeProjectName(os.Getenv("CODEBUILD_PROJECT_NAME"))
 	if projectName == "" {
 		middleware.LoggerFromContext(ctx).Warn("CODEBUILD_PROJECT_NAME not set or invalid, skipping build trigger")
-		return sitebuild.CurrentRequest(ctx, dynamoClient, tableName)
+		return sitebuild.CurrentRequest(buildCtx, dynamoClient, tableName)
 	}
 
 	client, err := codebuildClientGetter()
 	if err != nil {
 		middleware.LoggerFromContext(ctx).Error("failed to get CodeBuild client", "error", err)
-		return sitebuild.CurrentRequest(ctx, dynamoClient, tableName)
+		return sitebuild.CurrentRequest(buildCtx, dynamoClient, tableName)
 	}
 
 	coordinator := sitebuild.NewCoordinator(dynamoClient, client, tableName, projectName)
-	request, err := coordinator.StartPending(ctx)
+	request, err := coordinator.StartPending(buildCtx)
 	if err != nil {
 		middleware.LoggerFromContext(ctx).Error("failed to trigger site build", "error", err, "project", projectName)
-		state, stateErr := coordinator.GetState(ctx)
+		state, stateErr := coordinator.GetState(buildCtx)
 		if stateErr == nil {
 			return sitebuild.RequestForState(state, state.DesiredRevision)
 		}
@@ -249,7 +252,8 @@ func checkSlugExists(ctx context.Context, client DynamoDBClientInterface, tableN
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":slug": &types.AttributeValueMemberS{Value: slug},
 		},
-		Limit: aws.Int32(1),
+		Select: types.SelectCount,
+		Limit:  aws.Int32(1),
 	})
 	if err != nil {
 		return false, err

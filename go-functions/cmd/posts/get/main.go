@@ -22,6 +22,7 @@ import (
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/middleware"
+	"serverless-blog/go-functions/internal/poststore"
 )
 
 // DynamoDBClientInterface defines the interface for DynamoDB operations (for testing)
@@ -51,6 +52,9 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	postID := request.PathParameters["id"]
 	if postID == "" {
 		return middleware.MessageResponse(400, "post ID is required")
+	}
+	if poststore.IsReservedID(postID) {
+		return middleware.MessageResponse(404, "post not found")
 	}
 
 	// Check for TABLE_NAME
@@ -90,9 +94,9 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		return middleware.ServerError(ctx, "failed to parse post data", err)
 	}
 
-	// Security: Draft posts can only be accessed by their author
-	// Published posts can be accessed by any authenticated user
-	if post.PublishStatus == domain.PublishStatusDraft && post.AuthorID != userID {
+	// Security: Non-published posts (fail-closed) can only be accessed by their author.
+	// Published posts can be accessed by any authenticated user.
+	if post.PublishStatus != domain.PublishStatusPublished && post.AuthorID != userID {
 		return middleware.MessageResponse(403, "forbidden: you can only access your own draft posts")
 	}
 

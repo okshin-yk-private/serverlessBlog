@@ -28,6 +28,7 @@ import (
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/middleware"
+	"serverless-blog/go-functions/internal/poststore"
 )
 
 // DynamoDBClientInterface defines the interface for DynamoDB operations (for testing)
@@ -164,6 +165,10 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 // getExistingCategory retrieves a category by ID
 func getExistingCategory(ctx context.Context, client DynamoDBClientInterface, tableName, categoryID string) (*domain.Category, error) {
+	if poststore.IsReservedID(categoryID) {
+		return nil, nil
+	}
+
 	getInput := &dynamodb.GetItemInput{
 		TableName: aws.String(tableName),
 		Key: map[string]types.AttributeValue{
@@ -197,7 +202,8 @@ func checkSlugExistsForOther(ctx context.Context, client DynamoDBClientInterface
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":slug": &types.AttributeValueMemberS{Value: slug},
 		},
-		Limit: aws.Int32(1),
+		ProjectionExpression: aws.String("id"),
+		Limit:                aws.Int32(1),
 	}
 
 	result, err := client.Query(ctx, queryInput)
@@ -327,6 +333,9 @@ func updateCategoryWithPosts(ctx context.Context, client DynamoDBClientInterface
 
 		_, err = client.TransactWriteItems(ctx, transactInput)
 		if err != nil {
+			if poststore.IsConflict(err) {
+				return middleware.MessageResponse(409, "category with this slug already exists")
+			}
 			return middleware.ServerError(ctx, "failed to update category", err)
 		}
 

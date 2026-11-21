@@ -27,6 +27,10 @@ from pathlib import Path
 
 REVIEW_RE = re.compile(r"Review-by:\s*(\d{4}-\d{2}-\d{2})\b")
 TRIVY_ID_RE = re.compile(r"^(AVD-[A-Z]+-\d+)\s*$", re.IGNORECASE)
+ROOT_TRIVY_ID_RE = re.compile(
+    r"^((?:AVD-[A-Z]+-\d+)|(?:GHSA-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4})|(?:CVE-\d{4}-\d+))\s*$",
+    re.IGNORECASE,
+)
 CHECKOV_ITEM_RE = re.compile(r"^\s+-\s+(CKV2?_[A-Z0-9_]+)\s*$")
 INLINE_CHECKOV_RE = re.compile(r"#\s*checkov:skip=([A-Z0-9_]+)(?::(.*))?$")
 INLINE_TRIVY_RE = re.compile(r"#\s*trivy:ignore:([A-Za-z0-9-]+)(.*)$")
@@ -123,6 +127,11 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     report = Report()
+    root_trivy = (
+        check_register(args.root, ".trivyignore", ROOT_TRIVY_ID_RE, args.today, report)
+        if (args.root / ".trivyignore").exists()
+        else 0
+    )
     trivy = check_register(args.root, "terraform/.trivyignore", TRIVY_ID_RE, args.today, report)
     checkov = check_register(
         args.root, "terraform/.checkov.yaml", CHECKOV_ITEM_RE, args.today, report, start_marker="skip-check:"
@@ -132,7 +141,8 @@ def main(argv: list[str]) -> int:
     for line in report.errors + report.warnings:
         print(line)
     print(
-        f"Security exceptions: {trivy} in .trivyignore, {checkov} in .checkov.yaml, {inline} inline; "
+        f"Security exceptions: {root_trivy} in root .trivyignore, {trivy} in terraform/.trivyignore, "
+        f"{checkov} in .checkov.yaml, {inline} inline; "
         f"{len(report.errors)} error(s), {len(report.warnings)} overdue review(s)."
     )
     if report.errors:

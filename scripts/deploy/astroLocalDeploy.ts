@@ -11,7 +11,7 @@
  * - 9.11: Total build and deploy time shall not exceed 5 minutes
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import {
@@ -128,7 +128,7 @@ export interface BuildResult {
  */
 export function commandExists(command: string): boolean {
   try {
-    execSync(`which ${command}`, { stdio: 'ignore' });
+    execFileSync('which', [command], { stdio: 'ignore' });
     return true;
   } catch {
     return false;

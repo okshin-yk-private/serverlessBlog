@@ -27,6 +27,7 @@ import (
 	"serverless-blog/go-functions/internal/clients"
 	"serverless-blog/go-functions/internal/domain"
 	"serverless-blog/go-functions/internal/middleware"
+	"serverless-blog/go-functions/internal/poststore"
 )
 
 // DynamoDBClientInterface defines the interface for DynamoDB operations (for testing)
@@ -122,6 +123,9 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 	// Requirement 4B.5: Perform atomic bulk update using TransactWriteItems
 	if err := bulkUpdateCategories(ctx, dynamoClient, tableName, updatedCategories); err != nil {
+		if poststore.IsConflict(err) {
+			return middleware.MessageResponse(409, "category was modified or deleted concurrently")
+		}
 		return middleware.ServerError(ctx, "failed to update categories", err)
 	}
 
@@ -131,11 +135,14 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 // verifyCategories verifies all category IDs exist and returns existing categories and invalid IDs
 // Requirement 4B.3: Check all IDs before update
 func verifyCategories(ctx context.Context, client DynamoDBClientInterface, tableName string, orders []domain.SortOrderItem) ([]domain.Category, []string, error) {
-	// Build keys for BatchGetItem
+	// Build keys for BatchGetItem, rejecting internal sentinel IDs up front.
 	keys := make([]map[string]types.AttributeValue, 0, len(orders))
 	idSet := make(map[string]bool)
 
 	for _, order := range orders {
+		if poststore.IsReservedID(order.ID) {
+			continue
+		}
 		if !idSet[order.ID] {
 			keys = append(keys, map[string]types.AttributeValue{
 				"id": &types.AttributeValueMemberS{Value: order.ID},
@@ -144,32 +151,46 @@ func verifyCategories(ctx context.Context, client DynamoDBClientInterface, table
 		}
 	}
 
-	// Execute BatchGetItem
-	batchInput := &dynamodb.BatchGetItemInput{
-		RequestItems: map[string]types.KeysAndAttributes{
-			tableName: {
-				Keys: keys,
-			},
-		},
-	}
-
-	result, err := client.BatchGetItem(ctx, batchInput)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Parse existing categories
 	var existingCategories []domain.Category
 	foundIDs := make(map[string]bool)
 
-	if items, ok := result.Responses[tableName]; ok {
-		for _, item := range items {
-			var cat domain.Category
-			if err := attributevalue.UnmarshalMap(item, &cat); err != nil {
-				continue
+	if len(keys) > 0 {
+		pending := map[string]types.KeysAndAttributes{
+			tableName: {
+				Keys: keys,
+			},
+		}
+		const maxBatchRetries = 5
+		for attempt := 0; attempt < maxBatchRetries && len(pending) > 0; attempt++ {
+			result, err := client.BatchGetItem(ctx, &dynamodb.BatchGetItemInput{
+				RequestItems: pending,
+			})
+			if err != nil {
+				return nil, nil, err
 			}
-			existingCategories = append(existingCategories, cat)
-			foundIDs[cat.ID] = true
+
+			if items, ok := result.Responses[tableName]; ok {
+				for _, item := range items {
+					var cat domain.Category
+					if err := attributevalue.UnmarshalMap(item, &cat); err != nil {
+						continue
+					}
+					if poststore.IsReservedID(cat.ID) {
+						continue
+					}
+					existingCategories = append(existingCategories, cat)
+					foundIDs[cat.ID] = true
+				}
+			}
+
+			if reqItems, ok := result.UnprocessedKeys[tableName]; !ok || len(reqItems.Keys) == 0 {
+				pending = nil
+				break
+			}
+			pending = result.UnprocessedKeys
+		}
+		if reqItems, ok := pending[tableName]; ok && len(reqItems.Keys) > 0 {
+			return nil, nil, errors.New("dynamodb BatchGetItem returned unprocessed keys after retries")
 		}
 	}
 
@@ -196,7 +217,8 @@ func bulkUpdateCategories(ctx context.Context, client DynamoDBClientInterface, t
 				Key: map[string]types.AttributeValue{
 					"id": &types.AttributeValueMemberS{Value: cat.ID},
 				},
-				UpdateExpression: aws.String("SET sortOrder = :sortOrder, updatedAt = :updatedAt"),
+				ConditionExpression: aws.String("attribute_exists(id)"),
+				UpdateExpression:    aws.String("SET sortOrder = :sortOrder, updatedAt = :updatedAt"),
 				ExpressionAttributeValues: map[string]types.AttributeValue{
 					":sortOrder": &types.AttributeValueMemberN{Value: intToString(cat.SortOrder)},
 					":updatedAt": &types.AttributeValueMemberS{Value: cat.UpdatedAt},

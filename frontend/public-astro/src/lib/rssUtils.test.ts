@@ -12,6 +12,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { Post } from './api';
+import { publishedPosts } from './publicationCalendar';
 import {
   postToRSSItem,
   generateRSSDescription,
@@ -208,6 +209,46 @@ describe('rssUtils', () => {
     it('should handle empty post list', () => {
       const result = getLatestPostsForRSS([]);
       expect(result).toEqual([]);
+    });
+
+    it('should exclude future-dated posts while keeping posts at or before asOf', () => {
+      const asOf = '2026-09-20T03:00:00.000Z';
+      const posts = [
+        createMockPost({ id: 'past', publishedAt: '2026-09-20T02:59:59.999Z' }),
+        createMockPost({
+          id: 'exact-boundary',
+          publishedAt: '2026-09-20T03:00:00.000Z',
+        }),
+        createMockPost({
+          id: 'future-1ms',
+          publishedAt: '2026-09-20T03:00:00.001Z',
+        }),
+        createMockPost({
+          id: 'future-day',
+          publishedAt: '2026-09-21T00:00:00.000Z',
+        }),
+        createMockPost({
+          id: 'draft',
+          publishStatus: 'draft',
+          publishedAt: '2026-09-19T00:00:00.000Z',
+        }),
+        createMockPost({
+          id: 'invalid-date',
+          publishedAt: 'not-a-date',
+        }),
+      ];
+
+      // Mirror rss.xml.ts pipeline: publishedPosts() followed by postsToRSSItems(..., asOf)
+      const items = postsToRSSItems(
+        publishedPosts(posts, asOf),
+        'https://example.com',
+        asOf
+      );
+
+      expect(items.map((item) => item.link)).toEqual([
+        'https://example.com/posts/exact-boundary/',
+        'https://example.com/posts/past/',
+      ]);
     });
   });
 

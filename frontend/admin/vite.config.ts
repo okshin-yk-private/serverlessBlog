@@ -1,10 +1,26 @@
-import { defineConfig } from 'vite';
+import { rmSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/postcss';
 
+function excludeMswWorkerFromBuild(): Plugin {
+  let outDir = 'dist';
+  return {
+    name: 'exclude-msw-worker-from-build',
+    apply: 'build',
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir);
+    },
+    closeBundle() {
+      rmSync(join(outDir, 'mockServiceWorker.js'), { force: true });
+    },
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ command }) => ({
-  plugins: [react()],
+  plugins: [react(), excludeMswWorkerFromBuild()],
   // CloudFrontで /admin/ パスで配信するため、本番ビルド時のみ base を設定
   // 開発サーバー(dev)では / を使用（localhost:3001でアクセスするため）
   // Public Siteと同じ動作パターン

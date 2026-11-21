@@ -857,3 +857,109 @@ func TestHandler_NonAdminForbidden(t *testing.T) {
 		t.Errorf("StatusCode = %d, want 403", resp.StatusCode)
 	}
 }
+
+func TestNoContentResponse_IncludesSecurityAndAllowedOriginHeaders(t *testing.T) {
+	t.Setenv("ALLOWED_ORIGIN", "https://admin.example.com")
+	resp, err := noContentResponse()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.StatusCode != 204 {
+		t.Errorf("StatusCode = %d, want 204", resp.StatusCode)
+	}
+	if got := resp.Headers["Access-Control-Allow-Origin"]; got != "https://admin.example.com" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want https://admin.example.com", got)
+	}
+	if got := resp.Headers["X-Content-Type-Options"]; got != "nosniff" {
+		t.Errorf("X-Content-Type-Options = %q, want nosniff", got)
+	}
+	if got := resp.Headers["X-Frame-Options"]; got != "DENY" {
+		t.Errorf("X-Frame-Options = %q, want DENY", got)
+	}
+	if got := resp.Headers["Cache-Control"]; got != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store", got)
+	}
+}
+
+func TestHandler_DeleteChecksSlugAndReservationOwnershipConditions(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	existingCat := createExistingCategory()
+	existingAV, _ := attributevalue.MarshalMap(existingCat)
+
+	var captured *dynamodb.TransactWriteItemsInput
+	mockClient := &MockDynamoDBClient{
+		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			return &dynamodb.GetItemOutput{Item: existingAV}, nil
+		},
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			return &dynamodb.QueryOutput{Count: 0}, nil
+		},
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			captured = params
+			return &dynamodb.TransactWriteItemsOutput{}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+
+	resp, err := Handler(context.Background(), createAuthenticatedRequest(testCategoryID))
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+	if resp.StatusCode != 204 {
+		t.Fatalf("StatusCode = %d, want 204", resp.StatusCode)
+	}
+	if captured == nil || len(captured.TransactItems) != 2 {
+		t.Fatalf("expected 2 transaction items, got %v", captured)
+	}
+
+	catDelete := captured.TransactItems[0].Delete
+	if catDelete == nil || aws.ToString(catDelete.ConditionExpression) != "attribute_exists(id) AND slug = :slug" {
+		t.Errorf("category delete ConditionExpression = %q, want attribute_exists(id) AND slug = :slug", aws.ToString(catDelete.ConditionExpression))
+	}
+	if v, ok := catDelete.ExpressionAttributeValues[":slug"].(*types.AttributeValueMemberS); !ok || v.Value != existingCat.Slug {
+		t.Errorf("category delete :slug = %v, want %q", catDelete.ExpressionAttributeValues[":slug"], existingCat.Slug)
+	}
+
+	slugDelete := captured.TransactItems[1].Delete
+	if slugDelete == nil || aws.ToString(slugDelete.ConditionExpression) != "attribute_not_exists(id) OR categoryId = :categoryId" {
+		t.Errorf("slug delete ConditionExpression = %q, want attribute_not_exists(id) OR categoryId = :categoryId", aws.ToString(slugDelete.ConditionExpression))
+	}
+	if v, ok := slugDelete.ExpressionAttributeValues[":categoryId"].(*types.AttributeValueMemberS); !ok || v.Value != testCategoryID {
+		t.Errorf("slug delete :categoryId = %v, want %q", slugDelete.ExpressionAttributeValues[":categoryId"], testCategoryID)
+	}
+}
+
+func TestHandler_ConcurrentModificationReturns409(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	existingCat := createExistingCategory()
+	existingAV, _ := attributevalue.MarshalMap(existingCat)
+
+	mockClient := &MockDynamoDBClient{
+		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			return &dynamodb.GetItemOutput{Item: existingAV}, nil
+		},
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			return &dynamodb.QueryOutput{Count: 0}, nil
+		},
+		TransactWriteItemsFunc: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+			return nil, &types.TransactionCanceledException{
+				CancellationReasons: []types.CancellationReason{
+					{Code: aws.String("ConditionalCheckFailed")},
+				},
+			}
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+
+	resp, err := Handler(context.Background(), createAuthenticatedRequest(testCategoryID))
+	if err != nil {
+		t.Fatalf("Handler returned unexpected error: %v", err)
+	}
+	if resp.StatusCode != 409 {
+		t.Fatalf("StatusCode = %d, want 409 (body: %s)", resp.StatusCode, resp.Body)
+	}
+}

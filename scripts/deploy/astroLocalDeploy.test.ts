@@ -40,17 +40,22 @@ import {
 } from './astroLocalDeploy';
 
 // Mock factories are hoisted by Vitest 4, so their state must be hoisted too.
-const { mockExecSync, mockCloudFrontSend } = vi.hoisted(() => ({
-  mockExecSync: vi.fn(),
-  mockCloudFrontSend: vi.fn(),
-}));
+const { mockExecSync, mockExecFileSync, mockCloudFrontSend } = vi.hoisted(
+  () => ({
+    mockExecSync: vi.fn(),
+    mockExecFileSync: vi.fn(),
+    mockCloudFrontSend: vi.fn(),
+  })
+);
 vi.mock('node:child_process', () => ({
   execSync: mockExecSync,
+  execFileSync: mockExecFileSync,
   spawn: vi.fn(),
 }));
 
 // Create reference to the mock for easier use
 const mockedExecSync = mockExecSync as Mock;
+const mockedExecFileSync = mockExecFileSync as Mock;
 
 // Mock atomicDeploy
 vi.mock('./atomicDeploy', () => ({
@@ -109,15 +114,18 @@ describe('astroLocalDeploy', () => {
 
   describe('commandExists', () => {
     test('returns true for existing command', () => {
-      mockedExecSync.mockImplementation(() => Buffer.from(''));
+      mockedExecFileSync.mockImplementation(() => Buffer.from(''));
 
       const result = commandExists('ls');
 
       expect(result).toBe(true);
+      expect(mockedExecFileSync).toHaveBeenCalledWith('which', ['ls'], {
+        stdio: 'ignore',
+      });
     });
 
     test('returns false for non-existing command', () => {
-      mockedExecSync.mockImplementation(() => {
+      mockedExecFileSync.mockImplementation(() => {
         throw new Error('Command not found');
       });
 
