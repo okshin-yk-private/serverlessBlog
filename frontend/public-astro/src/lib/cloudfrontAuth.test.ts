@@ -14,7 +14,7 @@ const template = readFileSync(
   'utf8'
 );
 const basic = 'Basic ' + Buffer.from("reviewer:pass'word").toString('base64');
-const token = 'test-session-token';
+const token = 'a'.repeat(48);
 function handler(
   name: string,
   enabled = true,
@@ -43,14 +43,14 @@ function handler(
         'utf8'
       )
     );
-  // Terraform jsonencode/base64encode/sha256 produce these values; the actual JS
+  // Render the Terraform Basic header and independent token fixtures; the actual JS
   // handler body is executed, not a duplicated model of its authorization logic.
   code = code.replace(
     /authorization.value === .*\) \{/,
     'authorization.value === ' + JSON.stringify(basic) + ') {'
   );
-  code = code.replace(
-    /\$\{jsonencode\(sha256\("dev-cookie:.*?"\)\)\}/g,
+  code = code.replaceAll(
+    '${jsonencode(var.basic_auth_session_token)}',
     JSON.stringify(token)
   );
   code = code.replace("import cf from 'cloudfront';", '');

@@ -19,6 +19,7 @@ class RotationTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.receipt = Path(self.temp.name) / "receipt.json"
+        self.old_cookie = "__Host-dev-access=" + "a" * 64
         self.values = {"/basic-auth/username": "test-user", "/basic-auth/password": "old-test-value",
                        "/cdn/public-url": "https://dev.example.invalid", "/cdn/distribution-id": "TEST"}
 
@@ -35,7 +36,7 @@ class RotationTests(unittest.TestCase):
             return {"Version": 2}
         with patch.object(rotation, "parameter", side_effect=lambda key: self.values[key]), \
              patch.object(rotation, "aws", side_effect=aws), \
-             patch.object(rotation, "probe", side_effect=probe or (lambda *a: (200, ""))):
+             patch.object(rotation, "probe", side_effect=probe or (lambda *a: (200, self.old_cookie + "; Path=/; Secure"))):
             rotation.prepare(self.receipt)
 
     def test_prepare_preserves_username_and_writes_private_receipt(self):
@@ -43,6 +44,7 @@ class RotationTests(unittest.TestCase):
         data = json.loads(self.receipt.read_text())
         self.assertEqual(stat.S_IMODE(self.receipt.stat().st_mode), 0o600)
         self.assertEqual(data["old_password"], "old-test-value")
+        self.assertEqual(data["old_cookie"], self.old_cookie)
         self.assertNotEqual(data["new_password"], data["old_password"])
         self.assertGreaterEqual(len(data["new_password"]), 64)
         self.assertEqual(self.values["/basic-auth/password"], data["new_password"])
@@ -51,6 +53,12 @@ class RotationTests(unittest.TestCase):
     def test_drift_aborts_before_mutation_or_receipt(self):
         with self.assertRaises(rotation.RotationError):
             self.prepare(probe=lambda *a: (401, ""))
+        self.assertFalse(self.receipt.exists())
+        self.assertEqual(self.values["/basic-auth/password"], "old-test-value")
+
+    def test_prepare_refuses_to_rotate_without_capturing_previous_session(self):
+        with self.assertRaises(rotation.RotationError):
+            self.prepare(probe=lambda *args: (200, ""))
         self.assertFalse(self.receipt.exists())
         self.assertEqual(self.values["/basic-auth/password"], "old-test-value")
 
@@ -72,7 +80,7 @@ class RotationTests(unittest.TestCase):
         self.prepare()
         data = json.loads(self.receipt.read_text())
         current_auth = rotation.authorization(data["username"], data["new_password"])
-        current_cookie = "__Host-dev-access=" + rotation.cookie(data["username"], data["new_password"])
+        current_cookie = "__Host-dev-access=" + "b" * 48
         seen = []
         def probe(url, headers):
             seen.append((url, headers))
@@ -136,6 +144,7 @@ class RotationTests(unittest.TestCase):
 
     def plan(self):
         return {"resource_changes": [
+            {"address": rotation.DEV_SESSION, "change": {"actions": ["delete", "create"]}},
             {"address": rotation.E2E_PASSWORD, "change": {"actions": ["delete", "create"], "before": {"result": "old-e2e-value"}}},
             {"address": rotation.ORIGIN_KEY, "change": {"actions": ["delete", "create"], "before": {"id": "old-key-id"}}},
             {"address": rotation.ORIGIN_BINDING, "change": {"actions": ["delete", "create"]}},
