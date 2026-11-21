@@ -155,42 +155,10 @@ func verifyCategories(ctx context.Context, client DynamoDBClientInterface, table
 	foundIDs := make(map[string]bool)
 
 	if len(keys) > 0 {
-		pending := map[string]types.KeysAndAttributes{
-			tableName: {
-				Keys: keys,
-			},
-		}
-		const maxBatchRetries = 5
-		for attempt := 0; attempt < maxBatchRetries && len(pending) > 0; attempt++ {
-			result, err := client.BatchGetItem(ctx, &dynamodb.BatchGetItemInput{
-				RequestItems: pending,
-			})
-			if err != nil {
-				return nil, nil, err
-			}
-
-			if items, ok := result.Responses[tableName]; ok {
-				for _, item := range items {
-					var cat domain.Category
-					if err := attributevalue.UnmarshalMap(item, &cat); err != nil {
-						continue
-					}
-					if poststore.IsReservedID(cat.ID) {
-						continue
-					}
-					existingCategories = append(existingCategories, cat)
-					foundIDs[cat.ID] = true
-				}
-			}
-
-			if reqItems, ok := result.UnprocessedKeys[tableName]; !ok || len(reqItems.Keys) == 0 {
-				pending = nil
-				break
-			}
-			pending = result.UnprocessedKeys
-		}
-		if reqItems, ok := pending[tableName]; ok && len(reqItems.Keys) > 0 {
-			return nil, nil, errors.New("dynamodb BatchGetItem returned unprocessed keys after retries")
+		var err error
+		existingCategories, foundIDs, err = batchGetCategories(ctx, client, tableName, keys)
+		if err != nil {
+			return nil, nil, err
 		}
 	}
 
@@ -203,6 +171,50 @@ func verifyCategories(ctx context.Context, client DynamoDBClientInterface, table
 	}
 
 	return existingCategories, invalidIDs, nil
+}
+
+func batchGetCategories(
+	ctx context.Context,
+	client DynamoDBClientInterface,
+	tableName string,
+	keys []map[string]types.AttributeValue,
+) ([]domain.Category, map[string]bool, error) {
+	var existingCategories []domain.Category
+	foundIDs := make(map[string]bool)
+	pending := map[string]types.KeysAndAttributes{
+		tableName: {Keys: keys},
+	}
+
+	const maxBatchRetries = 5
+	for attempt := 0; attempt < maxBatchRetries && len(pending) > 0; attempt++ {
+		result, err := client.BatchGetItem(ctx, &dynamodb.BatchGetItemInput{
+			RequestItems: pending,
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, item := range result.Responses[tableName] {
+			var cat domain.Category
+			if err := attributevalue.UnmarshalMap(item, &cat); err != nil || poststore.IsReservedID(cat.ID) {
+				continue
+			}
+			existingCategories = append(existingCategories, cat)
+			foundIDs[cat.ID] = true
+		}
+
+		if reqItems, ok := result.UnprocessedKeys[tableName]; !ok || len(reqItems.Keys) == 0 {
+			pending = nil
+			break
+		}
+		pending = result.UnprocessedKeys
+	}
+
+	if reqItems, ok := pending[tableName]; ok && len(reqItems.Keys) > 0 {
+		return nil, nil, errors.New("dynamodb BatchGetItem returned unprocessed keys after retries")
+	}
+
+	return existingCategories, foundIDs, nil
 }
 
 // bulkUpdateCategories performs atomic bulk update using TransactWriteItems

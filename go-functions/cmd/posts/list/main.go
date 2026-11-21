@@ -36,6 +36,9 @@ const (
 	MaxLimit     = 100
 	MinLimit     = 1
 
+	attrPublishStatus           = "publishStatus"
+	attrCategory                = "category"
+	attrCreatedAt               = "createdAt"
 	publishStatusAttributeValue = ":publishStatus"
 )
 
@@ -119,7 +122,7 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	limit := parseLimit(queryParams["limit"])
 
 	// Parse category filter
-	category := queryParams["category"]
+	category := queryParams[attrCategory]
 
 	// Parse search query, rejecting one that exceeds the maximum length
 	searchQuery, err := sanitizeSearchQuery(queryParams["q"])
@@ -127,40 +130,14 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		return middleware.MessageResponse(400, "search query is too long")
 	}
 
-	// Parse nextToken for pagination
 	// Determined once and reused below: whether to include admin-only
 	// fields (publishStatus override, authorId, count).
 	userID := auth.UserID(request)
 	authenticated := userID != "" || isAuthenticated(request)
 
-	// Parse publishStatus (defaults to "published" for backward compatibility)
-	// Security: Unauthenticated users can ONLY access published posts
-	publishStatus := domain.PublishStatusPublished
-	if queryParams["publishStatus"] != "" {
-		// Only authenticated users can query non-published posts
-		if !authenticated {
-			// Security: Force published status for unauthenticated requests
-			// Ignore any publishStatus parameter from unauthenticated users
-			publishStatus = domain.PublishStatusPublished
-		} else {
-			var parseErr error
-			publishStatus, parseErr = parsePublishStatus(queryParams["publishStatus"])
-			if parseErr != nil {
-				return middleware.MessageResponse(400, "invalid publishStatus value")
-			}
-		}
-	}
-
-	// Security: Non-admin authenticated callers querying drafts may only list
-	// their own drafts (matches posts/get, posts/update, posts/delete ownership).
-	// Draft queries require a valid non-empty Cognito sub; fail closed otherwise.
-	draftAuthorFilter := ""
-	if publishStatus == domain.PublishStatusDraft {
-		if userID == "" {
-			publishStatus = domain.PublishStatusPublished
-		} else if !auth.IsAdmin(request) {
-			draftAuthorFilter = userID
-		}
+	publishStatus, draftAuthorFilter, err := resolvePublishStatusAndAuthorFilter(request, queryParams[attrPublishStatus], authenticated, userID)
+	if err != nil {
+		return middleware.MessageResponse(400, "invalid publishStatus value")
 	}
 
 	exclusiveStartKey := parseNextTokenForIndex(queryParams["nextToken"], category, publishStatus)
@@ -316,6 +293,39 @@ func parseNextToken(nextToken string) map[string]types.AttributeValue {
 	return exclusiveStartKey
 }
 
+// resolvePublishStatusAndAuthorFilter resolves the effective publishStatus and
+// draft author ownership filter for a list request.
+func resolvePublishStatusAndAuthorFilter(
+	request events.APIGatewayProxyRequest,
+	rawPublishStatus string,
+	authenticated bool,
+	userID string,
+) (publishStatus, draftAuthorFilter string, err error) {
+	publishStatus = domain.PublishStatusPublished
+	if rawPublishStatus != "" && authenticated {
+		var parsed string
+		parsed, err = parsePublishStatus(rawPublishStatus)
+		if err != nil {
+			return "", "", err
+		}
+		publishStatus = parsed
+	}
+
+	// Security: Non-admin authenticated callers querying drafts may only list
+	// their own drafts (matches posts/get, posts/update, posts/delete ownership).
+	// Draft queries require a valid non-empty Cognito sub; fail closed otherwise.
+	if publishStatus == domain.PublishStatusDraft {
+		if userID == "" {
+			return domain.PublishStatusPublished, "", nil
+		}
+		if !auth.IsAdmin(request) {
+			return publishStatus, userID, nil
+		}
+	}
+
+	return publishStatus, "", nil
+}
+
 // parseNextTokenForIndex validates that a decoded nextToken strictly matches
 // the key schema and partition key of the queried index so arbitrary crafted
 // tokens cannot provoke DynamoDB ValidationException HTTP 500s.
@@ -324,16 +334,16 @@ func parseNextTokenForIndex(nextToken, category, publishStatus string) map[strin
 	if key == nil {
 		return nil
 	}
-	pkName := "publishStatus"
+	pkName := attrPublishStatus
 	pkWant := publishStatus
 	if category != "" {
-		pkName = "category"
+		pkName = attrCategory
 		pkWant = category
 	}
 	if len(key) != 3 {
 		return nil
 	}
-	for _, required := range []string{"id", "createdAt", pkName} {
+	for _, required := range []string{"id", attrCreatedAt, pkName} {
 		if _, ok := key[required]; !ok {
 			return nil
 		}
@@ -637,15 +647,15 @@ func exclusiveStartKeyFromItem(item map[string]types.AttributeValue, category st
 	if v, ok := item["id"]; ok {
 		key["id"] = v
 	}
-	if v, ok := item["createdAt"]; ok {
-		key["createdAt"] = v
+	if v, ok := item[attrCreatedAt]; ok {
+		key[attrCreatedAt] = v
 	}
 	if category != "" {
-		if v, ok := item["category"]; ok {
-			key["category"] = v
+		if v, ok := item[attrCategory]; ok {
+			key[attrCategory] = v
 		}
-	} else if v, ok := item["publishStatus"]; ok {
-		key["publishStatus"] = v
+	} else if v, ok := item[attrPublishStatus]; ok {
+		key[attrPublishStatus] = v
 	}
 
 	return key

@@ -128,31 +128,42 @@ func validateImageURLs(urls []string) error {
 	return nil
 }
 
+const (
+	extJPG  = ".jpg"
+	extJPEG = ".jpeg"
+	extPNG  = ".png"
+	extGIF  = ".gif"
+	extWEBP = ".webp"
+
+	imageJPEGContentType = "image/jpeg"
+	imagePNGContentType  = "image/png"
+	imageGIFContentType  = "image/gif"
+	imageWEBPContentType = "image/webp"
+)
+
 // Allowed file extensions for image upload
 var allowedExtensions = map[string]bool{
-	".jpg":  true,
-	".jpeg": true,
-	".png":  true,
-	".gif":  true,
-	".webp": true,
+	extJPG:  true,
+	extJPEG: true,
+	extPNG:  true,
+	extGIF:  true,
+	extWEBP: true,
 }
 
 // Allowed content types for image upload
-const imageJPEGContentType = "image/jpeg"
-
 var allowedContentTypes = map[string]bool{
 	imageJPEGContentType: true,
-	"image/png":          true,
-	"image/gif":          true,
-	"image/webp":         true,
+	imagePNGContentType:  true,
+	imageGIFContentType:  true,
+	imageWEBPContentType: true,
 }
 
 var allowedExtensionContentTypes = map[string]string{
-	".jpg":  imageJPEGContentType,
-	".jpeg": imageJPEGContentType,
-	".png":  "image/png",
-	".gif":  "image/gif",
-	".webp": "image/webp",
+	extJPG:  imageJPEGContentType,
+	extJPEG: imageJPEGContentType,
+	extPNG:  imagePNGContentType,
+	extGIF:  imageGIFContentType,
+	extWEBP: imageWEBPContentType,
 }
 
 // japaneseTokenizer is a morphological analyzer for Japanese text.
