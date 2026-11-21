@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import axios from 'axios';
 import { server } from '../test/mocks/server';
 import { MAX_IMAGE_BYTES } from '../utils/imageValidation';
-import { getUploadUrl, uploadImage } from './posts';
+import { getPosts, getUploadUrl, uploadImage } from './posts';
 
 // getUploadUrl goes through apiClient (JSON body) so MSW can intercept it
 // directly. The S3 leg of uploadImage posts multipart/form-data containing a
@@ -147,5 +147,27 @@ describe('uploadImage', () => {
     vi.spyOn(axios, 'isAxiosError').mockReturnValue(true);
 
     await expect(uploadImage(makeFile(1024))).rejects.toBe(accessDeniedError);
+  });
+});
+
+describe('getPosts', () => {
+  it('forwards includeCount=false when explicitly disabled and omits it by default', async () => {
+    const requestedUrls: string[] = [];
+    server.use(
+      http.get('http://localhost:3000/admin/posts', ({ request }) => {
+        requestedUrls.push(request.url);
+        return HttpResponse.json({ items: [], count: 0 });
+      })
+    );
+
+    await getPosts({ publishStatus: 'published', includeCount: false });
+    await getPosts({ publishStatus: 'published' });
+
+    expect(new URL(requestedUrls[0]).searchParams.get('includeCount')).toBe(
+      'false'
+    );
+    expect(new URL(requestedUrls[1]).searchParams.has('includeCount')).toBe(
+      false
+    );
   });
 });

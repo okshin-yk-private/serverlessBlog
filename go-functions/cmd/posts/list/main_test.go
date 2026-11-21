@@ -3151,3 +3151,73 @@ func TestHandler_EmptyClaimsCannotListDrafts(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateAndParseNextTokenForIndex_LongCategoryRoundTrip(t *testing.T) {
+	longCategory := strings.Repeat("a", 800)
+	lastKey := map[string]types.AttributeValue{
+		"id":        &types.AttributeValueMemberS{Value: "123e4567-e89b-12d3-a456-426614174000"},
+		"createdAt": &types.AttributeValueMemberS{Value: "2026-11-21T00:00:00Z"},
+		"category":  &types.AttributeValueMemberS{Value: longCategory},
+	}
+
+	token := generateNextToken(lastKey)
+	if len(token) <= 1024 {
+		t.Fatalf("expected test token to exceed legacy 1024-byte cap, got %d bytes", len(token))
+	}
+
+	parsed := parseNextTokenForIndex(token, longCategory, domain.PublishStatusPublished)
+	if parsed == nil {
+		t.Fatalf("parseNextTokenForIndex rejected valid %d-byte token", len(token))
+	}
+	if catAttr, ok := parsed["category"].(*types.AttributeValueMemberS); !ok || catAttr.Value != longCategory {
+		t.Errorf("round-tripped category mismatch")
+	}
+}
+
+func TestHandler_AuthenticatedIncludeCountFalseSkipsCountQuery(t *testing.T) {
+	cleanup := setupTest(t)
+	defer cleanup()
+
+	queryCalls := 0
+	mockClient := &MockDynamoDBClient{
+		QueryFunc: func(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+			queryCalls++
+			if params.Select == types.SelectCount {
+				t.Error("expected SelectCount query to be skipped when includeCount=false")
+			}
+			return &dynamodb.QueryOutput{Items: []map[string]types.AttributeValue{}, Count: 0}, nil
+		},
+	}
+	dynamoClientGetter = func() (DynamoDBClientInterface, error) { return mockClient, nil }
+
+	resp, err := Handler(context.Background(), events.APIGatewayProxyRequest{
+		QueryStringParameters: map[string]string{
+			"publishStatus": "published",
+			"includeCount":  "false",
+		},
+		RequestContext: events.APIGatewayProxyRequestContext{
+			Authorizer: map[string]interface{}{
+				"claims": map[string]interface{}{"sub": "admin-user-123"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("StatusCode = %d, want 200", resp.StatusCode)
+	}
+	if queryCalls != 1 {
+		t.Errorf("queryCalls = %d, want 1", queryCalls)
+	}
+	if got := resp.Headers["Cache-Control"]; got != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store", got)
+	}
+	var body map[string]any
+	if err := json.Unmarshal([]byte(resp.Body), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if _, hasCount := body["count"]; hasCount {
+		t.Errorf("expected count to be omitted when includeCount=false, got %v", body["count"])
+	}
+}

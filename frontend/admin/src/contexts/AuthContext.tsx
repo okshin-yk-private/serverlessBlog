@@ -25,7 +25,10 @@ import {
   confirmMockSignIn,
   type MockSignInResponse,
 } from '../api/auth';
-import { AUTH_SESSION_EXPIRED_EVENT } from '../api/client';
+import {
+  AUTH_SESSION_EXPIRED_EVENT,
+  advanceAuthSessionGeneration,
+} from '../api/client';
 
 /**
  * ユーザー情報の型定義
@@ -221,6 +224,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Challenge responses (including setup secrets) never enter token storage.
       const { createMockJWT } =
         await import('../../../../tests/e2e/mocks/mockSession');
+      advanceAuthSessionGeneration();
       saveAuthToken(createMockJWT());
       setUser({ id: 'user-123', email });
       resetChallenge();
@@ -264,6 +268,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (signInPending.current) throw new Error('ログイン処理中です。');
     signInPending.current = true;
     try {
+      advanceAuthSessionGeneration();
       resetChallenge();
       removeAuthToken();
       setUser(null);
@@ -345,6 +350,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const cancelNewPassword = () => {
+    advanceAuthSessionGeneration();
     resetChallenge();
     removeAuthToken();
     setUser(null);
@@ -363,6 +369,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         '認証セッションを取得できませんでした。ログインからやり直してください。'
       );
     if (idToken) {
+      // 旧セッションのリフレッシュやリトライが新セッションへ干渉しないよう世代を進める
+      advanceAuthSessionGeneration();
       // トークンを保存
       saveAuthToken(idToken);
 
@@ -376,6 +384,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = async () => {
+    // 進行中の 401 リフレッシュ完了による旧トークン書き戻しを防ぐため即座に世代を進める
+    advanceAuthSessionGeneration();
     try {
       // E2Eテスト時はAmplifyを使用せず、ローカル状態のみクリア
       if (import.meta.env.VITE_ENABLE_MSW_MOCK === 'true') {

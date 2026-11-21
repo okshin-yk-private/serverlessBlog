@@ -297,7 +297,7 @@ describe('workflow permissions and wiring', () => {
     expect(deploy['deploy-summary']).toContain('build-frontend-admin');
     expect(deploy['deploy-summary']).toContain('build-astro');
     expect(deploy['deploy-summary']).toContain(
-      'if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then'
+      'if [ "$result" != "success" ] && { [ "$result" != "skipped" ] || [ "$required" = "true" ]; }; then'
     );
     // Admin S3 sync must not exclude mockServiceWorker.js so --delete cleans up
     // any previously deployed worker once Vite removes it from admin-dist/.

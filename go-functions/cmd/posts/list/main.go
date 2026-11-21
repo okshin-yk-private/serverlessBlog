@@ -192,13 +192,16 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		NextToken: nextToken,
 	}
 
-	// For authenticated (admin) requests, execute count query and include count in response
+	// For authenticated (admin) requests, execute count query unless the caller
+	// explicitly opts out (includeCount=false, e.g. paginated post list views).
 	if authenticated {
-		count, err := executeCountQueryWithAuthor(ctx, dynamoClient, tableName, publishStatus, draftAuthorFilter)
-		if err != nil {
-			return middleware.ServerError(ctx, "failed to retrieve posts", err)
+		if queryParams["includeCount"] != "false" {
+			count, err := executeCountQueryWithAuthor(ctx, dynamoClient, tableName, publishStatus, draftAuthorFilter)
+			if err != nil {
+				return middleware.ServerError(ctx, "failed to retrieve posts", err)
+			}
+			response.Count = &count
 		}
-		response.Count = &count
 
 		// This endpoint is mounted both publicly and under /admin. An
 		// authenticated response can contain drafts, so it must not be
@@ -258,7 +261,10 @@ func parsePublishStatus(param string) (string, error) {
 	return "", ErrInvalidPublishStatus
 }
 
-const maxNextTokenBytes = 1024
+// maxNextTokenBytes accommodates any valid Base64-encoded DynamoDB key JSON
+// (including legacy long category values up to DynamoDB's 2048-byte key limit)
+// while bounding untrusted query input size.
+const maxNextTokenBytes = 4096
 
 // parseNextToken decodes the base64-encoded next token with a size bound.
 func parseNextToken(nextToken string) map[string]types.AttributeValue {

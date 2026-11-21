@@ -1464,6 +1464,9 @@ jobs:
       - name: Summary
         env:
           TARGET_ENV: ${{ needs.detect-changes.outputs.target-env }}
+          DEPLOY_INFRA: ${{ needs.detect-changes.outputs.deploy-infrastructure }}
+          DEPLOY_FRONTEND: ${{ needs.detect-changes.outputs.deploy-frontend }}
+          DEPLOY_ASTRO: ${{ needs.detect-changes.outputs.deploy-astro }}
           DETECT_RESULT: ${{ needs.detect-changes.result }}
           LAMBDA_RESULT: ${{ needs.restore-lambda-binaries.result }}
           BUILD_ADMIN_RESULT: ${{ needs.build-frontend-admin.result }}
@@ -1511,22 +1514,50 @@ jobs:
             exit 1
           fi
 
-          for result in \
-            "${LAMBDA_RESULT}" \
-            "${BUILD_ADMIN_RESULT}" \
-            "${BUILD_ASTRO_RESULT}" \
-            "${INFRA_DEV_RESULT}" \
-            "${INFRA_PRD_RESULT}" \
-            "${ADMIN_DEV_RESULT}" \
-            "${ADMIN_PRD_RESULT}" \
-            "${ASTRO_DEV_RESULT}" \
-            "${ASTRO_PRD_RESULT}" \
-            "${E2E_DEV_RESULT}" \
-            "${SMOKE_PRD_RESULT}"; do
-            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
-              echo "❌ One or more build, deploy, or verification steps failed or were cancelled (${result})"
-              exit 1
+          FAILED=false
+          check_job() {
+            local name="$1"
+            local result="$2"
+            local required="$3"
+            if [ "$result" != "success" ] && { [ "$result" != "skipped" ] || [ "$required" = "true" ]; }; then
+              echo "❌ ${name}: ${result} (required=${required})"
+              FAILED=true
             fi
-          done
+          }
+
+          IS_DEV=false
+          IS_PRD=false
+          [ "${TARGET_ENV}" = "dev" ] && IS_DEV=true
+          [ "${TARGET_ENV}" = "prd" ] && IS_PRD=true
+
+          REQ_INFRA_DEV=false
+          REQ_INFRA_PRD=false
+          REQ_ADMIN_DEV=false
+          REQ_ADMIN_PRD=false
+          REQ_ASTRO_DEV=false
+          REQ_ASTRO_PRD=false
+          [ "$IS_DEV" = "true" ] && [ "${DEPLOY_INFRA}" = "true" ] && REQ_INFRA_DEV=true
+          [ "$IS_PRD" = "true" ] && [ "${DEPLOY_INFRA}" = "true" ] && REQ_INFRA_PRD=true
+          [ "$IS_DEV" = "true" ] && [ "${DEPLOY_FRONTEND}" = "true" ] && REQ_ADMIN_DEV=true
+          [ "$IS_PRD" = "true" ] && [ "${DEPLOY_FRONTEND}" = "true" ] && REQ_ADMIN_PRD=true
+          [ "$IS_DEV" = "true" ] && [ "${DEPLOY_ASTRO}" = "true" ] && REQ_ASTRO_DEV=true
+          [ "$IS_PRD" = "true" ] && [ "${DEPLOY_ASTRO}" = "true" ] && REQ_ASTRO_PRD=true
+
+          check_job "Restore Lambda Binaries" "${LAMBDA_RESULT}" "${DEPLOY_INFRA}"
+          check_job "Build Frontend (Admin)" "${BUILD_ADMIN_RESULT}" "${DEPLOY_FRONTEND}"
+          check_job "Build Astro SSG" "${BUILD_ASTRO_RESULT}" "${DEPLOY_ASTRO}"
+          check_job "Deploy Infrastructure (DEV)" "${INFRA_DEV_RESULT}" "${REQ_INFRA_DEV}"
+          check_job "Deploy Infrastructure (PRD)" "${INFRA_PRD_RESULT}" "${REQ_INFRA_PRD}"
+          check_job "Deploy Admin (DEV)" "${ADMIN_DEV_RESULT}" "${REQ_ADMIN_DEV}"
+          check_job "Deploy Admin (PRD)" "${ADMIN_PRD_RESULT}" "${REQ_ADMIN_PRD}"
+          check_job "Deploy Astro (DEV)" "${ASTRO_DEV_RESULT}" "${REQ_ASTRO_DEV}"
+          check_job "Deploy Astro (PRD)" "${ASTRO_PRD_RESULT}" "${REQ_ASTRO_PRD}"
+          check_job "Post-Deploy E2E (DEV)" "${E2E_DEV_RESULT}" "${IS_DEV}"
+          check_job "Post-Deploy Smoke (PRD)" "${SMOKE_PRD_RESULT}" "${IS_PRD}"
+
+          if [ "$FAILED" = "true" ]; then
+            echo "❌ One or more required build, deploy, or verification steps did not succeed"
+            exit 1
+          fi
 
           echo "✓ All deployments and post-deploy checks completed successfully!"
