@@ -6,8 +6,8 @@
 #     authorship to the site Organization.
 #   - Issue #680: the public and admin surfaces both carry a strict CSP
 #     (script-src with no unsafe-inline, object-src/frame-ancestors/base-uri
-#     locked down, and a tightly scoped connect-src) in at least one of the
-#     enforced or Report-Only headers.
+#     and form-action locked down, and a tightly scoped connect-src) in the
+#     enforced header.
 #
 # Read-only: only GET requests are made. Never prints BASIC_AUTH.
 #

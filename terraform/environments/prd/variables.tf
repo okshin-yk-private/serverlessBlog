@@ -68,11 +68,11 @@ variable "backup_freshness_alarm_actions_enabled" {
 
 variable "enforce_strict_csp_public" {
   type        = bool
-  default     = false
-  description = "Explicit promotion of public CSP after DEV acceptance; default remains Report-Only"
+  default     = true
+  description = "Enforce the validated strict public CSP in PRD"
 }
 variable "enforce_strict_csp_admin" {
   type        = bool
-  default     = false
-  description = "Explicit promotion of admin CSP after DEV Cognito/upload acceptance; default remains Report-Only"
+  default     = true
+  description = "Enforce the validated strict admin CSP in PRD"
 }
