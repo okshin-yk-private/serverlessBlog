@@ -124,7 +124,23 @@ Every exception needs a `justification:` comment. Prefer rule-specific path **AN
 exact-value-shape conditions over directory-wide exclusions. `.gitleaks.toml`
 only adds exceptions for 21 historical CDK archive hashes and five literally
 truncated Rust JWT fixtures. A different value, key, or path is not exempt.
-The historical Basic authentication alert **#424 remains detectable**.
+Gitleaks still detects the historical DEV Basic authentication credential
+under [#598](https://github.com/okshin-yk-private/serverlessBlog/security/code-scanning/598).
+GitHub marks [#424](https://github.com/okshin-yk-private/serverlessBlog/security/code-scanning/424)
+as fixed. The two alerts identify the same historical commit, file, and line.
+
+The [2026-11-21 AWS verification](DEV_BASIC_AUTH.md#historical-credential-verification)
+confirmed that the historical password differs from DEV SSM password version 4
+and that both associated CloudFront LIVE functions use the current credentials.
+The historical credential remains in Git history. The owner directed that triage proceed on the basis that the
+credential was used only for DEV. This resolves the outstanding reuse question
+for #598. The AWS verification covered the two DEV behaviors. On 2026-11-22
+the alert was dismissed as `won't fix` because only the historical match remains.
+
+Two CodeQL alerts were dismissed as false positives on the same date:
+
+- [#886](https://github.com/okshin-yk-private/serverlessBlog/security/code-scanning/886) reports the MFA readiness summary. Its fields are booleans and an optional integer count of checked administrators.
+- [#600](https://github.com/okshin-yk-private/serverlessBlog/security/code-scanning/600) reports the structured Go log sink. The JSON handler encodes control characters in request and trace ID values under fixed attribute names.
 
 Terraform scanner exceptions (`terraform/.trivyignore`, the `skip-check` list in
 `terraform/.checkov.yaml`) also need a `Review-by: YYYY-MM-DD` line in the comment
@@ -173,17 +189,8 @@ Use the mock API build script for Astro and MSW for local admin E2E. Add fronten
 go, deploy-scripts, or workflow labels as appropriate; labels can select CI suites.
 DEV and PRD deployment still require explicit authorization for the target.
 
-## Remaining issues as of 2026-09-12
+## Dependency advisory follow-up
 
-- **Historical credential #424:** on 2026-09-12, a read-only in-memory comparison
-  confirmed that the current DEV SSM password differs from the historical value.
-  Both associated LIVE verifiers (PublicCombinedFunction-dev and
-  AdminCombinedFunction-dev) match SSM and reject a different credential via their
-  authentication guard. The distribution is Deployed. The historical value was
-  not sent to the public endpoint. Reuse outside this DEV environment is still
-  awaiting owner confirmation; do not classify the original leak as a false positive.
-  PR #227's two exposed values were redacted. Git history remains. See
-  `DEV_BASIC_AUTH.md` for any further rotation steps.
 - **extract-zip High advisories:** the unpatched package has been removed from the
   dependency tree by replacing LHCI with Lighthouse 13.4.1. This addresses
   [GHSA-jmr9-qjv8-65gv](https://github.com/advisories/GHSA-jmr9-qjv8-65gv) and
