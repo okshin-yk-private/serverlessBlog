@@ -7,7 +7,8 @@ disable-model-invocation: true
 
 # PRレビューコメント対応ワークフロー
 
-指定されたPRに付いたレビューコメントを精査し、修正が必要なものは修正を行い、全コメントに返信する。
+リポジトリルートの `docs/ai-shared-rules.md` と `docs/ai-verification.md` に従う。
+指定されたPRに付いたレビューコメントを精査し、承認された依頼範囲で修正・検証・コミット・プッシュ・返信を行う。
 
 ## 前提
 
@@ -17,7 +18,7 @@ disable-model-invocation: true
 
 ## 手順
 
-### 1. PR情報の取得
+### 1. PR情報の取得と作業場所の準備
 
 ```bash
 gh pr view <PR番号> --json title,body,headRefName,baseRefName,author
@@ -25,29 +26,35 @@ gh pr view <PR番号> --json title,body,headRefName,baseRefName,author
 
 PRのブランチ名とPR作者のユーザー名（`author.login`）を記録する。
 
-ローカルでそのブランチにチェックアウトする:
+メインのチェックアウトは他のセッションと共有されている場合があるため、メインのチェックアウトでブランチを切り替えない（`docs/ai-shared-rules.md`）。
+
+- 既に独立した worktree で `<headRefName>` にいる場合: `git fetch origin <headRefName>` のうえ `git pull --ff-only origin <headRefName>` で最新化する。
+- それ以外の場合: worktree を作成してその中で作業する。
 
 ```bash
-git checkout <headRefName>
-git pull origin <headRefName>
+git fetch origin <headRefName>
+git worktree add .claude/worktrees/pr-<PR番号> -b <headRefName> origin/<headRefName>
+# 同名ローカルブランチが既存なら: git worktree add .claude/worktrees/pr-<PR番号> <headRefName>
 ```
+
+新しい worktree には依存も husky のフック（`.husky/_`）も無いため、初回コミット前にルートで `bun install --frozen-lockfile` を実行する（未実行だとコミット時チェックが警告なしでスキップされる）。
 
 ### 2. レビューコメントの全件取得
 
-GitHub APIで **2種類のコメント** を取得する。レビューボット（Greptile等）はPRレビューコメントではなくIssueコメントとして投稿する場合があるため、両方を確認する必要がある。
+GitHub APIで **2種類のコメント** を取得する。レビューボット（Greptile等）はPRレビューコメントではなくIssueコメントとして投稿する場合があるため、両方を確認する必要がある。ページネーション漏れを防ぐため `--paginate` を付ける。
 
 owner/repoは `gh repo view --json nameWithOwner` で取得する。
 
 #### 2a. PRレビューコメント（コード行に紐づくコメント）
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/{PR番号}/comments
+gh api --paginate repos/{owner}/{repo}/pulls/{PR番号}/comments
 ```
 
 #### 2b. Issueコメント（PR全体に対するコメント）
 
 ```bash
-gh api repos/{owner}/{repo}/issues/{PR番号}/comments
+gh api --paginate repos/{owner}/{repo}/issues/{PR番号}/comments
 ```
 
 **重要:** GitHubではPRはIssueの一種であるため、PRに対するIssueコメントは `issues/{番号}/comments` エンドポイントで取得できる。Greptile等のレビューボットはこちらに投稿することが多い。
@@ -96,35 +103,34 @@ gh api repos/{owner}/{repo}/issues/{PR番号}/comments
 2. **修正不要** - 指摘は理解できるが、現在の実装が正しい理由がある
 3. **既に対応済み** - 別のコミットで既に修正されている
 
-### 5. 修正の実施
+### 5. 修正の実施と検証
 
 「修正する」と判断したコメントについて:
 
 - Edit ツールで対象ファイルを修正する
 - 同じ問題が複数箇所にある場合は全て修正する
 - 修正は最小限にとどめ、指摘された問題のみを解決する
+- `docs/ai-verification.md` に従い、変更範囲に対応するテスト・lint・format チェックを実行して成功を確認する
 
 ### 6. コミットとプッシュ
 
-修正がある場合:
+修正があり、コミット・プッシュが依頼範囲に含まれる場合:
 
-- 修正ファイルを個別に `git add` する（`git add .` は使わない）
-- コミットメッセージは以下の形式:
+- 修正ファイルを個別に `git add <paths>` で追加する（`git add .` / `git add -A` は使わない）
+- ステージ済み差分に秘密情報や無関係な変更がないか確認し、Conventional Commits 形式でコミットする:
 
 ```
 fix: レビュー指摘対応の簡潔な説明
 
 具体的な修正内容の説明。
-
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 ```
 
 - `git push origin <ブランチ名>` でプッシュする
-- プッシュが rejected された場合は `git pull --rebase` してから再プッシュする
+- リモート変更と競合して rejected された場合は、状態を再取得して変更を保全できる方法を選ぶ（force-push はしない）
 
 ### 7. コメントへの返信
 
-全ての未返信コメントに対して、GitHub APIで返信する。コメントのソースに応じて異なるAPIを使用する:
+返信が依頼範囲に含まれる場合、全ての未返信コメントに対してGitHub APIで返信する。コメントのソースに応じて異なるAPIを使用する:
 
 **PRレビューコメントへの返信:**
 ```bash

@@ -37,9 +37,10 @@ Issueの **本文（body）とコメント（comments）の両方** から以下
 ```bash
 git fetch origin
 git worktree add .claude/worktrees/issue-<N> -b fix/issue-<N> origin/develop
+# 機能追加の場合は feat/issue-<N>（Issueの種別・ラベルに合わせる）
 ```
 
-- 同じ Issue の作業ブランチが既にあれば、それを使う worktree を作る（`git worktree add .claude/worktrees/issue-<N> fix/issue-<N>`）
+- 同じ Issue の作業ブランチが既にあれば、それを使う worktree を作る（`git worktree add .claude/worktrees/issue-<N> <branch>`）
 - worktree には依存も husky のフック（`.husky/_`）も無い。作成直後にルートで `bun install --frozen-lockfile` を実行する（実行しないとコミット時のチェックが警告なしで一切実行されない）。検証の前に、対象パッケージでも同様に実行する
 
 ### 2. 対象コードの確認
@@ -64,7 +65,7 @@ Issueの修正方針・テスト観点に基づいてテストを作成する。
 
 - 既存のテストファイルがあればそれに追加する
 - 新規作成の場合は、既存テストの命名規則・構造に倣う
-- CLAUDE.md にテスト作成の規約やパターンが記載されていれば必ず従う
+- `docs/ai-shared-rules.md` と `docs/ai-verification.md` のテスト規約・コマンドに従う
 
 #### 3b. RED確認
 
@@ -92,7 +93,7 @@ Issueの修正方針に従い、対象ファイルを Edit ツールで修正す
 
 ### 6. フォーマッター実行
 
-CLAUDE.md にフォーマッター/リンターの実行コマンドが記載されていれば、修正したファイルに対して実行する。
+`docs/ai-shared-rules.md` と `docs/ai-verification.md` に記載された変更範囲に対応するフォーマッター/リンターを、修正したファイルに対して実行する。
 
 ### 7. 最終確認
 
@@ -111,7 +112,7 @@ CLAUDE.md にフォーマッター/リンターの実行コマンドが記載さ
 - `ファイルパス`: 変更内容の説明
 
 ### テスト結果
-- テストクラス: XxxTest
+- 実行コマンド・対象テスト: <コマンド / テストファイル>
 - テスト数: N件
 - 結果: 全件GREEN
 

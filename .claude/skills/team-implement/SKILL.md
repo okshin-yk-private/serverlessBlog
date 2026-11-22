@@ -46,7 +46,7 @@ bash scripts/analyze-issue-conflicts.sh <Issue番号1> <Issue番号2> ...
 
 **Layer 2 - AI分析:**
 各Issueの本文・修正方針を読み、「対象ファイル」に明記されていないが影響を受ける可能性のあるファイルを推測する:
-- 共有ユーティリティ（`go-functions/internal/util/` 等）
+- 共有パッケージ（`go-functions/internal/domain/`, `go-functions/internal/poststore/`, `go-functions/internal/middleware/` 等）
 - テストヘルパー
 - 設定ファイル（`terraform/modules/*/variables.tf` 等）
 - インポート元のパッケージ
@@ -95,17 +95,17 @@ Issue番号にサフィックスを付与して強制指定可能。手動指定
 
 ### 並列グループ 1（同時実行）
 - #42: <タイトル> → fix/issue-42 [Sonnet]
-  対象: go-functions/internal/handler/posts.go
+  対象: go-functions/cmd/posts/create/main.go
   複雑度スコア: 2
 - #57: <タイトル> → feat/issue-57 [Opus]
-  対象: go-functions/internal/handler/auth.go, terraform/modules/auth/main.tf
+  対象: go-functions/internal/auth/authorizer.go, terraform/modules/auth/main.tf
   複雑度スコア: 5 (クロスドメイン+アーキテクチャキーワード)
 
 ### 逐次グループ（#42完了後）
 - #63: <タイトル> → fix/issue-63 [Sonnet]
-  対象: go-functions/internal/handler/posts.go, terraform/modules/api/main.tf
+  対象: go-functions/cmd/posts/create/main.go, terraform/modules/api/main.tf
   複雑度スコア: 3
-  ⚠️ #42とposts.goが競合 → #42完了後に実行
+  ⚠️ #42とposts/create/main.goが競合 → #42完了後に実行
 
 最大同時実行: 3 Executors
 ```
@@ -217,17 +217,18 @@ Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #63 ..
   ## 実装ルール
   1. ブランチ名: <fix/issue-N or feat/issue-N>
   2. ベースブランチ: origin/develop
-  3. 動作変更はTDD: RED → GREEN → REFACTOR。静的変更は共有検証ルールに従う。
-  4. commitが依頼範囲に含まれる場合だけConventional Commitsでコミット
-  5. 検証は docs/ai-verification.md の変更範囲別コマンドを使う。
+  3. worktree の初回コミット前にルートで `bun install --frozen-lockfile` を実行し、husky フック（`.husky/_`）を有効化する。
+  4. 動作変更はTDD: RED → GREEN → REFACTOR。静的変更は共有検証ルールに従う。
+  5. commitが依頼範囲に含まれる場合だけConventional Commitsでコミット
+  6. 検証は docs/ai-verification.md の変更範囲別コマンドを使う。
      動作変更には回帰テスト、静的変更には適切な構文・参照検証を行う。
-  6. 修正したファイルのフォーマットを確認する。
-  7. **pushが承認されている場合は事前にCodexレビューを試行**:
+  7. 修正したファイルのフォーマットを確認する。
+  8. **pushが承認されている場合は事前にCodexレビューを試行**:
      - 変更ファイル取得: `git diff --name-only origin/develop...HEAD`
      - レビュー実行: `Skill("codex:review", "<files> --focus all")`
      - HIGH/MEDIUM指摘 → 根拠を確認し、範囲内の修正・該当検証・再レビューを行う。未解決なら報告し、レビュー済みとしてpushしない。
      - MCP利用不可ならReview: SKIPPEDと報告する。必須チェックが通り、pushが承認済みなら続行可能。
-  8. pushが依頼範囲に含まれる場合だけ、完了後に対象ブランチをpushする。
+  9. pushが依頼範囲に含まれる場合だけ、完了後に対象ブランチをpushする。
 
   ## 完了報告形式
   以下の形式で報告:
@@ -313,18 +314,22 @@ Worktree分離モード（`isolation: "worktree"`）のExecutorは、`.claude/se
 
 **ビルド・テスト（プロジェクト依存）:**
 - `Bash(go test:*)` - Goテスト
+- `Bash(make:*)` - Go lint / test (`make -C go-functions lint` / `make test`)
 - `Bash(gofmt:*)` - Goフォーマット
 - `Bash(go mod:*)` - Goモジュール管理
 - `Bash(go install:*)` - Goツールインストール
 - `Bash(terraform fmt:*)` - Terraformフォーマット
 - `Bash(terraform init:*)` - Terraform初期化
 - `Bash(terraform validate:*)` - Terraform検証
-- `Bash(bun run test:*)` - フロントエンドテスト
+- `Bash(bun run test:*)` - ユニット・設定テスト
+- `Bash(bun run lint:*)` - リント
+- `Bash(bun run typecheck:*)` - 型チェック
 - `Bash(bun install:*)` - 依存関係インストール
 - `Bash(bun run format:check:*)` - フォーマットチェック
 
-**PR作成:**
+**PR作成・マージ予約:**
 - `Bash(gh pr:*)` - GitHub PR操作
+- `Bash(python3 scripts/ci/enqueue_pr.py:*)` - `develop` 向けPRのauto-merge予約・merge queue投入
 
 **Commander用（Post-Spawnリカバリ）:**
 - `Bash(sleep:*)` - Executor生成間隔の待機・リカバリ待機
@@ -341,29 +346,22 @@ Worktree分離モード（`isolation: "worktree"`）のExecutorは、`.claude/se
 
 ## Phase 6: PR作成
 
-PR作成が依頼範囲に含まれる場合、各完了Issueに対して `gh pr create` を実行:
+PR作成が依頼範囲に含まれる場合、`docs/ai-shared-rules.md` および `.claude/skills/create-pr/SKILL.md` に従って各完了IssueのPRを作成する（本文は一時ファイルに書き `--body-file` で渡す）:
 
 ```bash
 gh pr create \
   --base develop \
   --head <branch-name> \
   --title "<type>(<scope>): <summary>" \
-  --body "$(cat <<'EOF'
-## Related Issue
-Closes #<Issue番号>
-
-## Summary
-<変更内容の要約>
-
-## Test plan
-<テストの実行方法>
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code) Agent Teams
-EOF
-)"
+  --body-file <body-file>
 ```
 
-CI確認まで依頼されていれば、現在のhead SHAの必要jobが終了するまで追跡する。
+PR作成依頼が「PRだけ」「マージしない」「draft」でない場合、`develop` 向けPRの作成直後に次でauto-mergeを予約する（リポジトリのauto-mergeが無効な場合のフォールバックを含め、手順は `.claude/skills/create-pr/SKILL.md` に従う）:
+
+```bash
+python3 scripts/ci/enqueue_pr.py <PR番号> --auto
+```
+
 実行中・未実施・ブロックされた検証は成功として報告しない。
 
 ## Phase 7: サマリーレポート

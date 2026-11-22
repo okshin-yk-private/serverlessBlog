@@ -15,13 +15,13 @@ AWS CDK、コンストラクトライブラリ、IaCパターンの専門家。
 - コンストラクト構成の推奨
 
 ## 使用ツール
-- awslabs.cdk-mcp-server: CDKドキュメント、コンストラクト、パターン検索
+- awslabs_aws-iac-mcp-server: CDKドキュメント、コンストラクト、IaCパターン検索
 
 ## 実行アプローチ
 
 調査依頼を受けたら:
 1. CDKに関する調査課題やアーキテクチャ決定を特定
-2. cdk-mcp-serverを使用してCDKコンストラクトとパターンを検索
+2. awslabs_aws-iac-mcp-server を使用してCDKコンストラクトとパターンを検索
 3. リファレンス実装のためのAWS Solutions Constructsを調査
 4. CDKベストプラクティスと構成パターンを分析
 5. コンストラクト選択と実装ガイダンスとして結果をまとめる

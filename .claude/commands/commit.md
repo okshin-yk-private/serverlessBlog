@@ -9,7 +9,7 @@ argument-hint: [message]
 <instructions>
 
 ## Purpose
-変更のステージング、コミットメッセージ生成、プッシュを一括実行する。
+リポジトリルートの `docs/ai-shared-rules.md` に従い、承認された変更のステージング、コミットメッセージ生成、プッシュを実行する。
 
 ## Quick Reference
 
@@ -27,10 +27,10 @@ argument-hint: [message]
 - `git log --oneline -5` - 最近のコミットスタイル確認
 
 ### Step 2: ステージング
-変更があれば `git add .` でステージング。
-ただし、以下のファイルは除外：
+対象ファイルだけを個別に `git add <paths>` でステージングする（`git add .` / `git add -A` は使わない）。
+以下のファイルは含めない：
 - `.env` や認証情報を含むファイル
-- 一時ファイル
+- 一時ファイル・今回の依頼と無関係な変更
 
 ### Step 3: コミットメッセージ作成
 
@@ -44,8 +44,6 @@ argument-hint: [message]
 <type>: <端的なタイトル（50文字以内）>
 
 <変更内容の説明（必要に応じて）>
-
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ```
 
 **Type一覧:**
@@ -64,8 +62,6 @@ git commit -m "$(cat <<'EOF'
 <title>
 
 <body>
-
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -78,6 +74,6 @@ git push -u origin $(git branch --show-current)
 ## Safety Rules
 - `.env` や認証情報は絶対にコミットしない
 - `--force` は使用しない
-- main/master への直接プッシュは警告を出す
+- `develop` / `main` への直接プッシュは行わず、作業ブランチへプッシュする（両ブランチはデプロイトリガーかつ `develop` は merge queue 運用）
 
 </instructions>

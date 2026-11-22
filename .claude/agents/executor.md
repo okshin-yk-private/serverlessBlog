@@ -17,6 +17,7 @@ Commanderから割り当てられた単一のGitHub Issueに対し、TDD（テ�
   - ブランチ名（`fix/issue-<N>` or `feat/issue-<N>`）
   - ベースブランチ: `origin/develop`
 - worktree内で作業する（`--worktree`フラグで自動セットアップ済み）
+- 新しい worktree には依存も husky のフック（`.husky/_`）も無いため、初回コミット前にルートで `bun install --frozen-lockfile` を実行する（未実行だとコミット時チェックが警告なしでスキップされる）
 
 ## 検証方針
 
@@ -119,8 +120,6 @@ Conventional Commits形式:
 <body>
 
 Closes #<Issue番号>
-
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 ```
 
 - type: `fix`, `feat`, `refactor`, `test`, `chore` 等
