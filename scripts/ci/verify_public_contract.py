@@ -36,11 +36,7 @@ JSONLD_SCRIPT_RE = re.compile(
 
 ARTICLE_TYPES = {"BlogPosting", "Article"}
 
-# Admin's Report-Only CSP allows same-origin, Cognito, and the presigned S3
-# upload target for images (terraform/modules/cdn/main.tf,
-# csp_report_only_admin). The regexes deliberately have no '*' in their
-# character classes, so a wildcard host (e.g. https://*.amazonaws.com, from
-# the still-enforced legacy CSP) can never match and is rejected as intended.
+# Expected regional endpoint shapes for Cognito and the image upload bucket.
 COGNITO_SRC_RE = re.compile(r"^https://cognito-idp\.[a-z0-9-]+\.amazonaws\.com$")
 S3_REGIONAL_SRC_RE = re.compile(
     r"^https://[a-z0-9.-]+\.s3\.[a-z0-9-]+\.amazonaws\.com$"
@@ -220,82 +216,30 @@ def _parse_csp(value: str) -> dict[str, set[str]]:
     return directives
 
 
-def _is_allowed_admin_connect_source(token: str) -> bool:
-    return (
-        token == "'self'"
-        or bool(COGNITO_SRC_RE.match(token))
-        or bool(S3_REGIONAL_SRC_RE.match(token))
-    )
-
-
 def cmd_csp(args: argparse.Namespace) -> int:
-    raw_headers = sys.stdin.read()
-    headers = _parse_headers(raw_headers)
-    csp_values = [
-        headers[name]
-        for name in ("content-security-policy", "content-security-policy-report-only")
-        if headers.get(name)
-    ]
+    policy = _parse_csp(_parse_headers(sys.stdin.read()).get("content-security-policy", ""))
+    expected = {
+        "script-src": {"'self'"},
+        "object-src": {"'none'"},
+        "frame-ancestors": {"'none'"},
+        "base-uri": {"'self'"},
+        "form-action": {"'self'"},
+    }
+    if args.page == "public":
+        expected["connect-src"] = {"'self'"}
 
-    if not csp_values:
-        fail(f"{args.page}: neither CSP nor CSP-Report-Only header is present")
-        return 1
-
-    directive_sets = [_parse_csp(value) for value in csp_values]
-
-    failed = False
-
-    def any_header(predicate) -> bool:
-        return any(predicate(d) for d in directive_sets)
-
-    if not any_header(
-        lambda d: "'self'" in d.get("script-src", set())
-        and "'unsafe-inline'" not in d.get("script-src", set())
-    ):
-        fail(f"{args.page}: no header has script-src 'self' without 'unsafe-inline'")
-        failed = True
-    else:
-        ok(f"{args.page}: script-src 'self' with no 'unsafe-inline'")
-
-    if not any_header(lambda d: "'none'" in d.get("object-src", set())):
-        fail(f"{args.page}: no header has object-src 'none'")
-        failed = True
-    else:
-        ok(f"{args.page}: object-src 'none'")
-
-    if not any_header(lambda d: "'none'" in d.get("frame-ancestors", set())):
-        fail(f"{args.page}: no header has frame-ancestors 'none'")
-        failed = True
-    else:
-        ok(f"{args.page}: frame-ancestors 'none'")
-
-    if not any_header(lambda d: "'self'" in d.get("base-uri", set())):
-        fail(f"{args.page}: no header has base-uri 'self'")
-        failed = True
-    else:
-        ok(f"{args.page}: base-uri 'self'")
-
+    errors = [name for name, sources in expected.items() if policy.get(name) != sources]
     if args.page == "admin":
-        if not any_header(
-            lambda d: "connect-src" in d
-            and len(d["connect-src"]) > 0
-            and all(_is_allowed_admin_connect_source(t) for t in d["connect-src"])
-        ):
-            fail(
-                f"{args.page}: no header has a connect-src limited to "
-                "'self' / Cognito / the S3 image bucket (no wildcard hosts)"
-            )
-            failed = True
-        else:
-            ok(f"{args.page}: connect-src is limited to self/Cognito/S3")
-    else:
-        if not any_header(lambda d: d.get("connect-src") == {"'self'"}):
-            fail(f"{args.page}: no header has connect-src exactly 'self'")
-            failed = True
-        else:
-            ok(f"{args.page}: connect-src is exactly 'self'")
-
-    return 1 if failed else 0
+        sources = policy.get("connect-src", set())
+        if not (len(sources) == 3 and "'self'" in sources
+                and any(COGNITO_SRC_RE.fullmatch(s) for s in sources)
+                and any(S3_REGIONAL_SRC_RE.fullmatch(s) for s in sources)):
+            errors.append("connect-src")
+    if errors:
+        fail(f"{args.page}: enforced CSP mismatch in {', '.join(errors)}")
+        return 1
+    ok(f"{args.page}: enforced CSP restricts scripts, connections, framing and form actions")
+    return 0
 
 
 def cmd_site_name(_args: argparse.Namespace) -> int:
@@ -324,7 +268,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("jsonld-author", help="check article JSON-LD author")
     p.set_defaults(func=cmd_jsonld_author)
 
-    p = sub.add_parser("csp", help="check CSP / CSP-Report-Only headers")
+    p = sub.add_parser("csp", help="check the enforced CSP header")
     p.add_argument("--page", choices=["public", "admin"], required=True)
     p.set_defaults(func=cmd_csp)
 
