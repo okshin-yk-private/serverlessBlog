@@ -3,7 +3,7 @@ name: create-pr
 description: 承認された変更をコミット・pushし、develop向けのPRを作成する依頼に使う。
 argument-hint: [branch-name]
 disable-model-invocation: true
-allowed-tools: Bash(git *), Bash(gh *)
+allowed-tools: Bash(git *), Bash(gh *), Bash(python3 scripts/ci/enqueue_pr.py *)
 ---
 
 # PR作成
@@ -46,7 +46,7 @@ DEVデプロイ）の承認も含む。`main` 向けはマージしない（PRD�
 ## CI監視とマージ（`develop` 向け）
 
 ユーザーが「PRだけ」「マージしない」「draft」と指定した場合、および `main` 向けは
-マージしない（`main` 向けはマージしない）。それ以外は次を続ける。
+マージしない。それ以外は次を続ける。
 
 1. PRの作成・更新直後、CIの完了を待たずに次でauto-mergeを予約する。スクリプトが
    base＝`develop`・fork/closed/draft・Dependabot作成者を確認し、満たさなければ

@@ -7,6 +7,7 @@ disable-model-invocation: true
 
 # 要望調査 & Issue作成ワークフロー
 
+リポジトリルートの `docs/ai-shared-rules.md` に従う。
 要望・バグ報告を受け取り、コードベースを調査して、修正方針を含む構造化されたIssueを作成する。
 
 ## 前提
@@ -38,8 +39,8 @@ git rev-list --left-right --count HEAD...origin/develop   # 「ahead behind」
 
 #### 2a. 関連ファイルの特定
 - Grep / Glob ツールで関連するキーワード・ファイルを検索する
-- CLAUDE.md にアーキテクチャやディレクトリ構成の記載があれば参照し、調査の起点にする
-- ルーティング定義から該当エンドポイントを辿り、コントローラー → サービス → モデルのデータフローを追跡する
+- `docs/ai-shared-rules.md` と必要に応じた `.kiro/steering/structure.md` を参照し、調査の起点にする
+- エントリーポイント（Go Lambda ハンドラ、フロントエンドのページ/コンポーネント、Terraform モジュール、CI/スクリプト等）からデータフローと依存関係を追跡する
 
 #### 2b. 現状のコードの理解
 - 該当機能のデータフローを追跡する

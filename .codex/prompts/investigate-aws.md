@@ -9,7 +9,7 @@ argument-hint: <research-topic>
 <instructions>
 
 ## Purpose
-Execute AWS research in a separate context using aws-mcp and aws-knowledge-mcp-server tools.
+Execute AWS research in a separate context using aws-mcp tools.
 This reduces context accumulation in the main conversation.
 
 ## Execution
@@ -26,7 +26,7 @@ Task tool parameters:
 **Prompt to send to Task tool:**
 
 ```
-You are an AWS research specialist. Research the following topic using aws-mcp and aws-knowledge-mcp-server tools.
+You are an AWS research specialist. Research the following topic using aws-mcp tools.
 
 ## Research Topic
 $ARGUMENTS

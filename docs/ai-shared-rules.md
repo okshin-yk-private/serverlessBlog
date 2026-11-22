@@ -130,13 +130,16 @@ the language configured in that spec's `spec.json.language`.
 - An implementation request ends after the requested change and checks. A request to
   commit/push/create a PR includes those actions. If CI confirmation was requested,
   follow the required jobs on the current head SHA to completion, repairing in-scope failures.
-- A request to create a PR against `develop` also authorizes merging it: follow every
-  workflow run on the head SHA to completion (a cancelled duplicate is not a result), and
-  once `All CI Checks Passed`, `Security Scan Summary` and `Dependency Update Security Gate`
-  succeed on an unchanged head, enqueue it (`enqueuePullRequest` with `expectedHeadOid`).
-  Follow the queue to the merge and report the resulting DEV Deploy. Do not merge when the
-  user asks for a PR only, no merge, or a draft; when a required check fails (fix in-scope
-  causes, push and repeat; report external ones); or when the head changed.
+- A request to create a PR against `develop` also authorizes merging it: reserve native
+  auto-merge right after creating/updating the PR via `python3 scripts/ci/enqueue_pr.py <N> --auto`
+  so GitHub queues the PR once required checks pass. If repository auto-merge is disabled,
+  fall back to waiting for every workflow run on the head SHA to finish (a cancelled
+  duplicate is not a result) and, once `All CI Checks Passed`, `Security Scan Summary` and
+  `Dependency Update Security Gate` succeed on an unchanged head, enqueuing via
+  `python3 scripts/ci/enqueue_pr.py <N>`. Report the actual observed state (auto-merge
+  reserved vs. merged and DEV Deploy result). Do not merge when the user asks for a PR
+  only, no merge, or a draft; when a required check fails (fix in-scope causes, push and
+  repeat; report external ones); or when the head changed.
 - Report changes, checks and outcomes, remaining limitations, and the actual PR/CI state.
   Pending, skipped, blocked, or unrun checks are not success. State external blockers precisely.
 - Kiro phase approval remains intentional. Do not start kiro for an ordinary edit unless
