@@ -1,33 +1,26 @@
 ---
 name: terraform-to-drawio
-description: TerraformまたはOpenTofuのAWS定義からdraw.io構成図を作成・更新する依頼に使う。
+description: >-
+  Terraform または OpenTofu の AWS 定義（HCL・modules・environments）を読み取り、編集可能な draw.io（.drawio / diagrams.net）形式の AWS アーキテクチャ構成図を新規作成・最新化・再生成するときに使う。特定モジュールの図解、VPC や Subnet 配置の反映、既存 .drawio 図の最新化、英語の "Generate/draw an AWS architecture diagram from Terraform" など、IaC コードから構成図ファイルを作る依頼全般が対象。対象外: terraform validate/fmt/plan の実行・解析、HCL 自体の変更、Mermaid/ASCII などチャット内だけの図解、既存 .drawio の構文チェックのみ。
 ---
 
-# Terraformからdraw.io構成図を作成
+# Terraform から draw.io 構成図を作成
 
-対象のHCL、既存図、出力先を依頼から特定する。CDK入力なら、合成済みTerraform
-など対応する入力があるか確認し、HCL解析で対応できると推定しない。
-図の作成依頼だけでAWSへのアクセスやTerraform applyを実行しない。
+対象の HCL・既存図・出力先を依頼から特定する（本リポジトリに既存の構成図やアイコン定義 `docs/architecture/`・`aws-icon-manifest.json` がある場合は整合を確認する）。
+CDK 入力の場合は、合成済み Terraform など対応可能な入力があるか確認し、HCL 解析で扱えると推測しない。図の作成依頼だけで AWS へのアクセスや `terraform apply` を実行しない。
 
 ## 構成の読み取り
 
-- 関連するresource・data・moduleと参照関係を調べ、未展開モジュールや
-  不明な属性は明示する。推定接続を実測・コード由来の関係と混同しない。
-- 配置判断には [placement-rules.md](references/placement-rules.md) の
-  該当サービスの節を参照する。保存資料と実コードが矛盾する場合は公式資料で
-  確認する。AWS調査の委譲は共有ルールに従う。
-- SubnetはVPC内、VPCはRegion内に配置する。LambdaのVPC接続は
-  `vpc_config` を確認し、S3やDynamoDBをVPC内のリソースとして描かない。
-- 主経路と補助サービスを区別する。複雑な図の配置調整時だけ
-  [layout.md](references/layout.md) を読む。配置寸法はローカルの目安であり、
-  AWS公式仕様の保証ではない。
+- 関連する `resource`・`data`・`module` と参照関係を調べ、未展開モジュールや不明な属性は明示する。推測による接続をコード由来の実関係と混同しない。
+- 配置判断は [placement-rules.md](references/placement-rules.md) の該当サービスの節を参照する。保存資料と実コードが矛盾する場合は公式資料で確認する（AWS 調査の委譲は共有ルールに従う）。
+- Subnet は VPC 内、VPC は Region 内に配置する。Lambda の VPC 接続は `vpc_config` の有無を確認し、S3 や DynamoDB を VPC 内リソースとして描かない。
+- 主経路と補助サービスを区別する。複雑な図の配置調整時だけ [layout.md](references/layout.md) を読む。配置寸法はローカルの目安であり、AWS 公式仕様の保証ではない。
 
-IAMポリシー、個別のSGルール、タグ、backend設定などは主経路を説明するために
-必要な場合だけ描く。ユーザーが指定した要素は含め、省略範囲を報告する。
+IAM ポリシー・個別 SG ルール・タグ・backend 設定などは主経路の説明に必要な場合だけ描く。ユーザーが指定した要素は必ず含め、省略した範囲を報告する。
 
-## XMLの生成
+## XML の生成
 
-以下の最小構造に、親group・resource・edgeを追加する。
+次の最小構造に、親 group・resource・edge を追加する。
 
 ```xml
 <mxfile host="app.diagrams.net" type="device">
@@ -48,18 +41,14 @@ IAMポリシー、個別のSGルール、タグ、backend設定などは主経�
 </mxfile>
 ```
 
-- 一意なcell IDを使い、子の座標は親groupからの相対座標にする。
-- 確認済みのdraw.io AWSライブラリのshapeを使用する。shape名をサービス名から
-  推測しない。対応が不明なら名前付きの汎用図形を使い、その旨を報告する。
-- groupは `container=1`、矢印は `edge="1"` と有効な `source` / `target` を
-  指定し、`mxGeometry relative="1" as="geometry"` を持たせる。
-  `edgeStyle=orthogonalEdgeStyle` を基本とする。
-- ラベル中のXML特殊文字をエスケープする。既存図のstyleは可能な限り保持する。
+- 一意な cell ID を使い、子の座標は親 group からの相対座標にする。
+- 確認済みの draw.io AWS ライブラリの shape を使用し、サービス名から shape 名を推測しない。対応が不明な場合は名前付きの汎用図形を使い、その旨を報告する。
+- group は `container=1`、矢印は `edge="1"` と有効な `source` / `target` を指定し、`mxGeometry relative="1" as="geometry"` を持たせる。`edgeStyle=orthogonalEdgeStyle` を基本とする。
+- ラベル中の XML 特殊文字をエスケープする。既存図を更新する場合は既存の style を可能な限り保持する。
 
 ## 検証と完了
 
-XMLパーサーで構文、一意ID、parent・source・targetの参照を検証する。
-親groupの循環、子のはみ出し、ラベル切れ、線と無関係なアイコンの重なりも確認する。
-利用可能なdraw.io表示手段で描画を確認し、表示未確認なら明示する。
-ユーザー指定先に編集可能な `.drawio` を保存し、ファイルリンク、対象範囲、
-省略したリソース、推定箇所、実施済みの検証を報告する。
+XML パーサーで構文、一意 ID、`parent`・`source`・`target` の参照を検証する。
+親 group の循環、子要素のはみ出し、ラベル切れ、線と無関係なアイコンの重なりも確認する。
+利用可能な draw.io 表示手段で描画を確認し、表示未確認ならその旨を明示する。
+指定先に編集可能な `.drawio` を保存し、ファイルリンク・対象範囲・省略したリソース・推測箇所・実施済みの検証を報告する。

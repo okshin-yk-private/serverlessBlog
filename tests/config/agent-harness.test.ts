@@ -275,7 +275,8 @@ describe('harness wiring', () => {
     expect(reviewComments).not.toContain('git checkout <headRefName>');
     expect(reviewComments).toContain('bun install --frozen-lockfile');
     expect(reviewComments).toContain('docs/ai-verification.md');
-    expect(reviewComments).toContain('gh api --paginate');
+    expect(reviewComments).toContain('gh api --paginate --slurp');
+    expect(reviewComments).toContain('isResolved');
     expect(read('.claude/skills/team-implement/SKILL.md')).toContain(
       'bun install --frozen-lockfile'
     );

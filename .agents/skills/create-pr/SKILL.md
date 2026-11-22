@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: 承認された変更をcommit・pushし、develop向けPRを作成する。
+description: 承認された変更をコミット・pushし、develop 向けの PR を作成して auto-merge 予約まで行う。
 ---
 
 # create-pr
