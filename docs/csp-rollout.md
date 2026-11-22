@@ -1,6 +1,10 @@
 # CSP段階導入（Issue #680）
 
-公開/管理画面は別のCloudFrontレスポンスヘッダーポリシーを持つ。既存Report-Onlyポリシーを昇格するコードを用意したが、DEV/PRDとも `enforce_strict_csp_public=false`、`enforce_strict_csp_admin=false` が既定。今回のコードだけでは強制化しない。
+公開/管理画面は別の CloudFront レスポンスヘッダーポリシーを持つ。DEV・PRD とも公開サイトと管理画面に厳格 CSP を強制する設定。各環境の Terraform 変数で画面ごとに切り戻せる。
+
+2026-11-22、DEV 公開サイトの Report-Only 期間中に Chromium 159.0.8154.6 で記事の先読み・画面遷移・検索・テーマ切り替えと再読込後の保持を確認した。これらの操作で CSP 違反イベント・コンソール違反は 0 件だった。
+
+DEV 管理画面では同日、同じ Chromium で実 Cognito の TOTP と仮想認証器によるパスキー登録・再ログイン、既存セッションの再読み込み、ログアウトを検証した。専用テスト記事で選択・貼り付け・ドラッグによる画像アップロード（いずれも DEV バケットの regional endpoint で POST 成功）、下書き保存・編集・公開、テーマ変更を実行した。確認した操作中の違反は 0 件。検証後に対象記事・テスト画像・一時 Cognito ユーザーを削除した。
 
 ## AWSを使わないブラウザ検証
 
@@ -19,7 +23,7 @@ bunx playwright test --config=playwright.csp-local.config.ts
 ## 昇格の受入条件（DEV操作は別承認）
 
 1. Report-OnlyのままDEVで、新規/既存セッションのログイン、ログアウト、MFA/passkey、記事編集・保存・公開、画像選択/貼付け/ドラッグアップロード、検索、テーマ変更と再読込みを確認する。CSP DOMイベント/コンソールとネットワークを記録し、違反ゼロと機能成功を両方要求する。
-2. Cognitoは対象リージョンのIdP、画像送信は対象バケットのregional endpointのみ許可されていることを確認する。別ホストへ署名されるなら許可先と生成元を調査し、ワイルドカードを戻して隠さない。Tiptapの動的スタイルに必要なstyle-srcのunsafe-inlineは今回残す。
+2. Cognitoは対象リージョンのIdP、画像送信は対象バケットのregional endpointのみ許可されていることを確認する。別ホストへ署名されるなら許可先と生成元を調査し、ワイルドカードを戻して隠さない。Tiptapの動的スタイルに必要なstyle-srcのunsafe-inlineは残す。
 3. 公開側から `enforce_strict_csp_public=true` を承認して適用する。管理側はfalseのまま。ブラウザ検証とヘッダーを再確認する。
 4. 管理側のDEV証拠が揃ってから `enforce_strict_csp_admin=true` を別途承認して適用・再検証する。Report-Onlyヘッダーは同じ厳格値で残るため、ヘッダー名だけで強制化を判断せずContent-Security-Policyの値を見る。
 5. PRDへの昇格はDEV結果、適用差分、復旧担当を添えて別承認する。問題が起きた場合、対象フラグだけfalseへ戻すコード変更・適用を承認し、配信ヘッダーと機能復旧を確認する。

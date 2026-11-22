@@ -85,11 +85,11 @@ variable "enable_passkeys" {
 
 variable "enforce_strict_csp_public" {
   type        = bool
-  default     = false
-  description = "Explicit promotion of public CSP after DEV acceptance; default remains Report-Only"
+  default     = true
+  description = "Enforce the validated strict public CSP in DEV"
 }
 variable "enforce_strict_csp_admin" {
   type        = bool
-  default     = false
-  description = "Explicit promotion of admin CSP after DEV Cognito/upload acceptance; default remains Report-Only"
+  default     = true
+  description = "Enforce the validated strict admin CSP in DEV"
 }

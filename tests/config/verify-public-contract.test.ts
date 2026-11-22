@@ -17,12 +17,12 @@ const SCRIPT = resolve(
 
 const ORG_AUTHOR = { '@type': 'Organization', name: 'bone of my fallacy' };
 
-const STRICT_PUBLIC_CSP_RO =
+const STRICT_PUBLIC_CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
   "img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; " +
   "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
 
-const STRICT_ADMIN_CSP_RO =
+const STRICT_ADMIN_CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
   "img-src 'self' data: https: blob:; font-src 'self' data:; " +
   "connect-src 'self' https://cognito-idp.ap-northeast-1.amazonaws.com " +
@@ -74,10 +74,10 @@ function passingFixture(overrides: Partial<Fixture> = {}): Required<Fixture> {
     apiBySlug: { id: '1', slug: 'hello-world', title: 'Hello' },
     articleAuthor: ORG_AUTHOR,
     rssIncludesAuthor: false,
-    publicCsp: LEGACY_ENFORCED_CSP,
-    publicCspReportOnly: STRICT_PUBLIC_CSP_RO,
-    adminCsp: LEGACY_ENFORCED_CSP,
-    adminCspReportOnly: STRICT_ADMIN_CSP_RO,
+    publicCsp: STRICT_PUBLIC_CSP,
+    publicCspReportOnly: STRICT_PUBLIC_CSP,
+    adminCsp: STRICT_ADMIN_CSP,
+    adminCspReportOnly: STRICT_ADMIN_CSP,
     requireBasicAuth: false,
     rssStatus: 200,
     ...overrides,
@@ -277,7 +277,7 @@ describe('scripts/ci/verify-public-contract.sh', () => {
   test('fails when the only strict script-src still allows unsafe-inline', async () => {
     const stub = startStub(
       passingFixture({
-        publicCspReportOnly: STRICT_PUBLIC_CSP_RO.replace(
+        publicCsp: STRICT_PUBLIC_CSP.replace(
           "script-src 'self';",
           "script-src 'self' 'unsafe-inline';"
         ),
@@ -286,7 +286,7 @@ describe('scripts/ci/verify-public-contract.sh', () => {
     try {
       const result = await runScript(stub.url);
       expect(result.stdout).toContain(
-        "❌ public: no header has script-src 'self'"
+        '❌ public: enforced CSP mismatch in script-src'
       );
       expect(result.status).toBe(1);
     } finally {
@@ -297,7 +297,7 @@ describe('scripts/ci/verify-public-contract.sh', () => {
   test('fails when the admin connect-src has a wildcard amazonaws.com host', async () => {
     const stub = startStub(
       passingFixture({
-        adminCspReportOnly: STRICT_ADMIN_CSP_RO.replace(
+        adminCsp: STRICT_ADMIN_CSP.replace(
           /connect-src[^;]*/,
           "connect-src 'self' https://*.amazonaws.com"
         ),
@@ -306,7 +306,7 @@ describe('scripts/ci/verify-public-contract.sh', () => {
     try {
       const result = await runScript(stub.url);
       expect(result.stdout).toContain(
-        '❌ admin: no header has a connect-src limited to'
+        '❌ admin: enforced CSP mismatch in connect-src'
       );
       expect(result.status).toBe(1);
     } finally {
@@ -314,10 +314,8 @@ describe('scripts/ci/verify-public-contract.sh', () => {
     }
   });
 
-  test('fails when a page has no strict CSP at all', async () => {
-    const stub = startStub(
-      passingFixture({ publicCsp: '', publicCspReportOnly: '' })
-    );
+  test('fails when the strict policy is only report-only', async () => {
+    const stub = startStub(passingFixture({ publicCsp: LEGACY_ENFORCED_CSP }));
     try {
       const result = await runScript(stub.url);
       expect(result.stdout).toContain('❌ public:');
