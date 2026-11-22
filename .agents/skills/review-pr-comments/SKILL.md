@@ -1,6 +1,6 @@
 ---
 name: review-pr-comments
-description: 指定PRのレビュー指摘を精査し、依頼範囲で修正・返信する。
+description: 指定 PR のレビュー指摘を精査し、承認された依頼範囲で修正・検証・push・返信を行う。
 ---
 
 # review-pr-comments

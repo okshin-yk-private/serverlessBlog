@@ -1,6 +1,7 @@
 ---
 name: implement-issue
-description: 指定されたGitHub Issueに基づいて修正と検証を行う。
+description: >-
+  Issue 番号（#N）や GitHub Issue の URL が示され、単一 Issue に基づくコード修正・機能実装を求められたときに使う。Issue 本文とコメントを読み取り、専用 worktree で TDD と検証まで一貫して進める。対象外: Issue の起票・一覧・要約のみ、PR 作成、PR レビュー対応、複数 Issue の並列実装。
 ---
 
 # implement-issue

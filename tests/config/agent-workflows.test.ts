@@ -149,7 +149,8 @@ describe('agent workflow integration', () => {
       join(skillRoot, name, 'SKILL.md')
     );
     const diagrams = join(repo, '.claude/skills/terraform-to-drawio/SKILL.md');
-    const pending = [...entrypoints, diagrams];
+    const teamImpl = join(repo, '.claude/skills/team-implement/SKILL.md');
+    const pending = [...entrypoints, diagrams, teamImpl];
     const visited = new Set<string>();
     while (pending.length) {
       const file = pending.pop()!;
@@ -197,6 +198,18 @@ describe('agent workflow integration', () => {
     );
     expect(commitCmd).not.toContain('Co-Authored-By: Claude Opus');
     expect(commitCmd).not.toContain('変更があれば `git add .` でステージング');
+    for (const root of [skillRoot, join(repo, '.claude/skills')]) {
+      for (const name of readdirSync(root)) {
+        const skillFile = join(root, name, 'SKILL.md');
+        const body = readFileSync(skillFile, 'utf8');
+        const match = body.match(/^---\n([\s\S]*?)\n---/);
+        expect(match).not.toBeNull();
+        const parsed = Bun.YAML.parse(match![1]) as Record<string, unknown>;
+        expect(typeof parsed.name).toBe('string');
+        expect(typeof parsed.description).toBe('string');
+        expect((parsed.description as string).length).toBeLessThanOrEqual(1024);
+      }
+    }
     expect(existsSync(join(skillRoot, 'team-implement'))).toBe(false);
   });
 
