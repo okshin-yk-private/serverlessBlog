@@ -39,16 +39,15 @@ const server = createServer((req, res) => {
     const pathname = decodeURIComponent(
       new URL(req.url, 'http://localhost').pathname
     );
-    const admin =
-      pathname.startsWith('/admin/') || pathname === '/mockServiceWorker.js';
+    const mockWorker = pathname === '/mockServiceWorker.js';
+    const admin = pathname.startsWith('/admin/') || mockWorker;
     const surface = admin ? 'admin' : 'public';
-    const root = roots[surface];
+    // The deployable bundle excludes MSW. Serve only its exact fixture path here.
+    const root = mockWorker ? resolve('frontend/admin/public') : roots[surface];
     const relative =
-      pathname === '/mockServiceWorker.js'
-        ? 'mockServiceWorker.js'
-        : admin
-          ? pathname.slice('/admin/'.length)
-          : pathname.slice(1);
+      admin && !mockWorker
+        ? pathname.slice('/admin/'.length)
+        : pathname.slice(1);
     let path = resolve(root, relative);
     if (path !== root && !path.startsWith(root + sep)) {
       res.writeHead(403).end();
