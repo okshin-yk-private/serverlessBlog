@@ -1,6 +1,8 @@
 # CSP段階導入（Issue #680）
 
-公開/管理画面は別のCloudFrontレスポンスヘッダーポリシーを持つ。既存Report-Onlyポリシーを昇格するコードを用意したが、DEV/PRDとも `enforce_strict_csp_public=false`、`enforce_strict_csp_admin=false` が既定。今回のコードだけでは強制化しない。
+公開/管理画面は別の CloudFront レスポンスヘッダーポリシーを持つ。DEV 公開サイトは厳格 CSP を強制する設定。DEV 管理画面と PRD の昇格は個別に行う。
+
+2026-11-22、DEV 公開サイトの Report-Only 期間中に Chromium 159.0.8154.6 で記事の先読み・画面遷移・検索・テーマ切り替えと再読込後の保持を確認した。これらの操作で CSP 違反イベント・コンソール違反は 0 件だった。
 
 ## AWSを使わないブラウザ検証
 
