@@ -298,16 +298,36 @@ update credentials already embedded in the CloudFront Functions.
    outcome without including credentials. Modification timestamps alone do not
    prove the password value changed. Confirm any reuse separately.
 
-The historical credential finding #424 remains unresolved until this evidence is
-available. Redaction from documentation or PR #227 does not revoke it. CloudTrail
-records management operations, not every Basic authentication request; S3 origin
-access logs do not cover all requests served or rejected at the edge.
-
 #### 3. (Optional) Update GitHub Secrets
 
 If using GitHub Secrets for E2E tests:
 - Update `DEV_BASIC_AUTH_USERNAME`
 - Update `DEV_BASIC_AUTH_PASSWORD`
+
+### Historical credential verification
+
+On 2026-11-21 at 18:01 JST, a read-only check using the AWS DEV SSO profile
+confirmed that the historical password in GitHub Code Scanning alert #598
+differs from the DEV SSM password (version 4). The distribution was
+`Deployed`. Its default and `/admin/*` behaviors used the expected
+viewer-request CloudFront Functions:
+
+| Behavior | LIVE function | ETag |
+| --- | --- | --- |
+| Default | `PublicCombinedFunction-dev` | `E3JWKAKR8XB7XF` |
+| `/admin/*` | `AdminCombinedFunction-dev` | `E2EUQ1WTGCTBG2` |
+
+Both functions had Basic authorization and session-cookie checks matching the
+current SSM credentials. Neither check matched the historical credential pair
+or the current username combined with the historical password. The comparison
+ran in memory and did not send historical credentials to the distribution.
+This establishes that the historical credential was invalid for those two DEV
+behaviors at the time of verification. The owner directed that the credential be treated
+as used only for DEV. See the [Code Scanning triage record](SECURITY_SCANNING.md#triage-and-exceptions).
+
+CloudTrail records management operations. S3 origin access logs cover requests
+that reach S3. Neither provides a complete history of Basic authentication
+requests handled at the edge.
 
 ### Audit and Compliance
 
