@@ -504,6 +504,16 @@ func (c *Coordinator) matchHistoryPage(ctx context.Context, ids []string, revisi
 	return nil, nil
 }
 
+// disableSDKRetries sends StartBuild exactly once. If the SDK retried
+// internally, a first request accepted by CodeBuild whose response was lost
+// could be followed by a retry that is definitively rejected, and only that
+// rejection would reach the coordinator, which would then clear the token.
+// Retries are owned by the StatusStarting lock and the reconciler instead.
+// Read-only calls (ListBuildsForProject, BatchGetBuilds) keep SDK retries.
+func disableSDKRetries(o *codebuild.Options) {
+	o.RetryMaxAttempts = 1
+}
+
 // startAttempt distinguishes the first StartBuild with a token from a replay
 // of a token that may already have started a build.
 type startAttempt bool
@@ -521,7 +531,7 @@ func (c *Coordinator) startBuild(ctx context.Context, state State, revision, tar
 		EnvironmentVariablesOverride: []codebuildtypes.EnvironmentVariable{{
 			Name: aws.String(contentRevisionVariable), Value: aws.String(strconv.FormatInt(revision, 10)), Type: codebuildtypes.EnvironmentVariableTypePlaintext,
 		}},
-	})
+	}, disableSDKRetries)
 	if err != nil {
 		if attempt == startAttemptReplay {
 			// An earlier attempt with this token may have started a build, so

@@ -75,9 +75,11 @@ type mockCodeBuild struct {
 	startInputs []*codebuild.StartBuildInput
 	startOutput *codebuild.StartBuildOutput
 	startErr    error
-	batchOutput *codebuild.BatchGetBuildsOutput
-	batchErr    error
-	batchInputs []*codebuild.BatchGetBuildsInput
+	// startRetryMaxAttempts records RetryMaxAttempts per StartBuild call.
+	startRetryMaxAttempts []int
+	batchOutput           *codebuild.BatchGetBuildsOutput
+	batchErr              error
+	batchInputs           []*codebuild.BatchGetBuildsInput
 	// builds, when set, answers BatchGetBuilds by ID (history lookups).
 	builds     map[string]codebuildtypes.Build
 	listPages  []*codebuild.ListBuildsForProjectOutput
@@ -85,8 +87,13 @@ type mockCodeBuild struct {
 	listInputs []*codebuild.ListBuildsForProjectInput
 }
 
-func (m *mockCodeBuild) StartBuild(_ context.Context, input *codebuild.StartBuildInput, _ ...func(*codebuild.Options)) (*codebuild.StartBuildOutput, error) {
+func (m *mockCodeBuild) StartBuild(_ context.Context, input *codebuild.StartBuildInput, optFns ...func(*codebuild.Options)) (*codebuild.StartBuildOutput, error) {
 	m.startInputs = append(m.startInputs, input)
+	options := codebuild.Options{}
+	for _, fn := range optFns {
+		fn(&options)
+	}
+	m.startRetryMaxAttempts = append(m.startRetryMaxAttempts, options.RetryMaxAttempts)
 	if m.startErr != nil {
 		return nil, m.startErr
 	}
