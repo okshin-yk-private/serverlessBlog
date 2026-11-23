@@ -57,6 +57,12 @@ type mockCodeBuild struct {
 	startErr    error
 	batchOutput *codebuild.BatchGetBuildsOutput
 	batchErr    error
+	batchInputs []*codebuild.BatchGetBuildsInput
+	// builds, when set, answers BatchGetBuilds by ID (history lookups).
+	builds     map[string]codebuildtypes.Build
+	listPages  []*codebuild.ListBuildsForProjectOutput
+	listErr    error
+	listInputs []*codebuild.ListBuildsForProjectInput
 }
 
 func (m *mockCodeBuild) StartBuild(_ context.Context, input *codebuild.StartBuildInput, _ ...func(*codebuild.Options)) (*codebuild.StartBuildOutput, error) {
@@ -67,11 +73,35 @@ func (m *mockCodeBuild) StartBuild(_ context.Context, input *codebuild.StartBuil
 	return m.startOutput, nil
 }
 
-func (m *mockCodeBuild) BatchGetBuilds(_ context.Context, _ *codebuild.BatchGetBuildsInput, _ ...func(*codebuild.Options)) (*codebuild.BatchGetBuildsOutput, error) {
+func (m *mockCodeBuild) BatchGetBuilds(_ context.Context, input *codebuild.BatchGetBuildsInput, _ ...func(*codebuild.Options)) (*codebuild.BatchGetBuildsOutput, error) {
+	m.batchInputs = append(m.batchInputs, input)
 	if m.batchErr != nil {
 		return nil, m.batchErr
 	}
+	if m.builds != nil {
+		out := &codebuild.BatchGetBuildsOutput{}
+		for _, id := range input.Ids {
+			if build, ok := m.builds[id]; ok {
+				out.Builds = append(out.Builds, build)
+			} else {
+				out.BuildsNotFound = append(out.BuildsNotFound, id)
+			}
+		}
+		return out, nil
+	}
 	return m.batchOutput, nil
+}
+
+func (m *mockCodeBuild) ListBuildsForProject(_ context.Context, input *codebuild.ListBuildsForProjectInput, _ ...func(*codebuild.Options)) (*codebuild.ListBuildsForProjectOutput, error) {
+	call := len(m.listInputs)
+	m.listInputs = append(m.listInputs, input)
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
+	if call >= len(m.listPages) {
+		return nil, errors.New("unexpected ListBuildsForProject call")
+	}
+	return m.listPages[call], nil
 }
 
 func TestRequestUpdateAtomicallyIncrementsDesiredRevision(t *testing.T) {
@@ -166,38 +196,6 @@ func TestStartPendingQueuesNewestRevisionWhileBuildIsActive(t *testing.T) {
 	}
 	if len(codebuildClient.startInputs) != 0 {
 		t.Fatal("must not start a concurrent site build")
-	}
-}
-
-func TestStartPendingRecoversStaleStartBeforeNewerDesiredRevision(t *testing.T) {
-	now := time.Date(2026, 8, 2, 3, 0, 0, 0, time.UTC)
-	dynamoClient := &mockDynamoDB{states: []State{{
-		ID: StateItemID, DesiredRevision: 3, DeployedRevision: 1,
-		ActiveRevision: 2, StartToken: "site-revision-2", Status: StatusStarting,
-		StartedAt: now.Add(-10 * time.Minute).Format(time.RFC3339Nano),
-	}}}
-	codebuildClient := &mockCodeBuild{startOutput: &codebuild.StartBuildOutput{
-		Build: &codebuildtypes.Build{Id: aws.String("project:build-2")},
-	}}
-	coordinator := NewCoordinator(dynamoClient, codebuildClient, "posts", "site-project")
-	coordinator.now = func() time.Time { return now }
-
-	request, err := coordinator.StartPending(context.Background())
-	if err != nil {
-		t.Fatalf("StartPending returned error: %v", err)
-	}
-	if request.TargetRevision != 3 || request.Status != StatusQueued || request.BuildID != "" {
-		t.Fatalf("newer revision must remain queued during stale-start recovery: %+v", request)
-	}
-	if len(codebuildClient.startInputs) != 1 {
-		t.Fatalf("expected one recovery StartBuild call, got %d", len(codebuildClient.startInputs))
-	}
-	input := codebuildClient.startInputs[0]
-	if aws.ToString(input.IdempotencyToken) != "site-revision-2" || aws.ToString(input.EnvironmentVariablesOverride[0].Value) != "2" {
-		t.Fatalf("must recover the exact active revision: %+v", input)
-	}
-	if condition := aws.ToString(dynamoClient.updates[0].ConditionExpression); !strings.Contains(condition, "startToken = :token") {
-		t.Fatalf("recovery lock must retain the original token: %s", condition)
 	}
 }
 

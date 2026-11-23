@@ -299,6 +299,17 @@ resource "aws_iam_role_policy" "lambda_posts_build_reconciler_codebuild" {
         Effect   = "Allow"
         Action   = ["codebuild:BatchGetBuilds"]
         Resource = var.codebuild_project_arn
+      },
+      {
+        # Issue #902: once a lost Build ID outlives the 5-minute StartBuild
+        # IdempotencyToken, the reconciler searches this project's recent
+        # build history for the CONTENT_REVISION instead of starting a
+        # duplicate build. Only the reconciler performs this lookup; the
+        # posts write role deliberately keeps StartBuild alone.
+        Sid      = "CodeBuildListProjectBuilds"
+        Effect   = "Allow"
+        Action   = ["codebuild:ListBuildsForProject"]
+        Resource = var.codebuild_project_arn
       }
     ]
   })
