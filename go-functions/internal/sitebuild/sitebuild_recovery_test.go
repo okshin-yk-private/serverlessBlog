@@ -557,8 +557,8 @@ func TestStartPendingLegacyStartingItemWithoutAttemptTime(t *testing.T) {
 		if condition := aws.ToString(refresh.ConditionExpression); !strings.Contains(condition, "attribute_not_exists(startAttemptedAt)") {
 			t.Fatalf("legacy lock refresh must require the legacy shape: %s", condition)
 		}
-		if got, want := stringAttr(t, refresh, ":legacyAttempt"), recoveryTime(time.Hour+3*time.Minute+30*time.Second); got != want {
-			t.Fatalf("legacy history bound must be persisted as startedAt-1h: got %s want %s", got, want)
+		if expression := aws.ToString(refresh.UpdateExpression); strings.Contains(expression, "startAttemptedAt") {
+			t.Fatalf("a legacy item must keep startAttemptedAt absent (no pseudo bound): %s", expression)
 		}
 	})
 

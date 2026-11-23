@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -60,7 +61,7 @@ func TestStartBuildDefinitiveRejectionRecordsFailure(t *testing.T) {
 		&codebuildtypes.InvalidInputException{Message: aws.String("invalid")},
 		&codebuildtypes.ResourceNotFoundException{Message: aws.String("no project")},
 		&codebuildtypes.AccountLimitExceededException{Message: aws.String("limit")},
-		&smithy.GenericAPIError{Code: "AccessDeniedException", Message: "denied"},
+		&smithy.GenericAPIError{Code: errorCodeAccessDenied, Message: "denied"},
 	} {
 		t.Run(fmt.Sprintf("%T", rejection), func(t *testing.T) {
 			dynamoClient := &mockDynamoDB{states: []State{queuedRevision2()}}
@@ -196,27 +197,104 @@ func TestStartPendingPrefersNewestBuildOfSameRevision(t *testing.T) {
 	}
 }
 
-func TestStartPendingLegacyBoundSurvivesLongOutage(t *testing.T) {
-	// A legacy item first seen at T0 (startedAt T0) got startAttemptedAt =
-	// T0-1h persisted. History reads then failed for over an hour while the
-	// lock kept being refreshed. The bound must not slide with startedAt.
-	t0Ago := 75 * time.Minute
-	state := staleStart(t0Ago+time.Hour, 3*time.Minute)
-	dynamoClient := &mockDynamoDB{states: []State{state}}
-	codebuildClient := &mockCodeBuild{
-		listPages: []*codebuild.ListBuildsForProjectOutput{historyPage("", "project:build-2")},
-		// Started 5 minutes before T0: older than startedAt-1h would allow.
-		builds: buildsByID(historyBuild("project:build-2", "2", t0Ago+5*time.Minute, codebuildtypes.StatusTypeSucceeded)),
+func TestStartPendingLegacyItemSearchesWholeHistory(t *testing.T) {
+	// Older code moved startedAt on every retry. A build accepted at T0 can
+	// therefore be far older than startedAt; a legacy item (no
+	// startAttemptedAt) must not apply any start-time lower bound.
+	legacy := func() State {
+		state := staleStart(0, 3*time.Minute)
+		state.StartAttemptedAt = ""
+		return state
 	}
-	afterCompletion := State{ID: StateItemID, DesiredRevision: 2, DeployedRevision: 2, Status: StatusSucceeded}
-	dynamoClient.states = append(dynamoClient.states, afterCompletion, afterCompletion)
+	originalBuild := historyBuild("project:build-2", "2", 75*time.Minute, codebuildtypes.StatusTypeInProgress)
 
-	request, err := reconcilerAt(dynamoClient, codebuildClient, recoveryNow).StartPending(context.Background())
-	if err != nil {
-		t.Fatalf("StartPending returned error: %v", err)
+	t.Run("build 70+ minutes older than startedAt is recovered", func(t *testing.T) {
+		dynamoClient := &mockDynamoDB{states: []State{legacy()}}
+		codebuildClient := &mockCodeBuild{
+			listPages: []*codebuild.ListBuildsForProjectOutput{historyPage("", "project:build-2")},
+			builds:    buildsByID(originalBuild),
+		}
+		request, err := reconcilerAt(dynamoClient, codebuildClient, recoveryNow).StartPending(context.Background())
+		if err != nil || request.BuildID != "project:build-2" || len(codebuildClient.startInputs) != 0 {
+			t.Fatalf("the original build must be recovered: request=%+v err=%v", request, err)
+		}
+	})
+
+	t.Run("still recovered after a long history outage", func(t *testing.T) {
+		// First reconcile: history unavailable. The refresh must not persist
+		// any bound that a later run would apply.
+		dynamoClient := &mockDynamoDB{states: []State{legacy()}}
+		failing := &mockCodeBuild{listErr: errors.New("throttled")}
+		if _, err := reconcilerAt(dynamoClient, failing, recoveryNow).StartPending(context.Background()); err == nil {
+			t.Fatal("history outage must fail closed")
+		}
+		if expression := aws.ToString(dynamoClient.updates[0].UpdateExpression); expression != "SET startedAt = :now REMOVE lastError" {
+			t.Fatalf("legacy refresh must only move the lock: %s", expression)
+		}
+		// Two hours later the item is still legacy-shaped with a refreshed lock.
+		later := recoveryNow.Add(2 * time.Hour)
+		state := legacy()
+		state.StartedAt = formatLockTime(later.Add(-3 * time.Minute))
+		dynamoClient = &mockDynamoDB{states: []State{state}}
+		codebuildClient := &mockCodeBuild{
+			listPages: []*codebuild.ListBuildsForProjectOutput{historyPage("", "project:build-2")},
+			builds:    buildsByID(originalBuild),
+		}
+		request, err := reconcilerAt(dynamoClient, codebuildClient, later).StartPending(context.Background())
+		if err != nil || request.BuildID != "project:build-2" || len(codebuildClient.startInputs) != 0 {
+			t.Fatalf("the original build must be recovered after the outage: request=%+v err=%v", request, err)
+		}
+	})
+}
+
+func TestStartBuildReplayRejectionKeepsToken(t *testing.T) {
+	for _, rejection := range []error{
+		&smithy.GenericAPIError{Code: errorCodeAccessDenied, Message: "denied"},
+		&codebuildtypes.InvalidInputException{Message: aws.String("invalid")},
+		&codebuildtypes.AccountLimitExceededException{Message: aws.String("limit")},
+	} {
+		t.Run(fmt.Sprintf("%T", rejection), func(t *testing.T) {
+			state := staleStart(4*time.Minute, 4*time.Minute)
+			dynamoClient := &mockDynamoDB{states: []State{state}}
+			codebuildClient := &mockCodeBuild{startErr: rejection}
+
+			request, err := postsCoordinatorAt(dynamoClient, codebuildClient, recoveryNow).StartPending(context.Background())
+			if err == nil || !errors.Is(err, rejection) {
+				t.Fatalf("replay rejection must be reported: %v", err)
+			}
+			if len(codebuildClient.startInputs) != 1 || aws.ToString(codebuildClient.startInputs[0].IdempotencyToken) != "site-revision-2" {
+				t.Fatalf("expected one same-token replay: %+v", codebuildClient.startInputs)
+			}
+			if len(dynamoClient.updates) != 1 {
+				t.Fatalf("a rejected replay must not record a failure that clears the token, got %d updates", len(dynamoClient.updates))
+			}
+			if expression := aws.ToString(dynamoClient.updates[0].UpdateExpression); strings.Contains(expression, "REMOVE activeBuildId") || strings.Contains(expression, "startToken") {
+				t.Fatalf("only the lock may move: %s", expression)
+			}
+			if request.Status != StatusQueued {
+				t.Fatalf("revision must stay starting/queued: %+v", request)
+			}
+		})
 	}
-	if len(codebuildClient.startInputs) != 0 || request.Status != StatusSucceeded {
-		t.Fatalf("the original build must be recovered after the outage: request=%+v starts=%d", request, len(codebuildClient.startInputs))
+}
+
+func TestStartBuildNewTokenRejectionRecordsFailure(t *testing.T) {
+	// After history proved no build exists, a rejection of the new token's
+	// first StartBuild is definitive and is recorded.
+	dynamoClient := &mockDynamoDB{states: []State{staleStart(10*time.Minute, 10*time.Minute)}}
+	codebuildClient := &mockCodeBuild{
+		listPages: []*codebuild.ListBuildsForProjectOutput{historyPage("")},
+		startErr:  &codebuildtypes.InvalidInputException{Message: aws.String("invalid")},
+	}
+	request, err := reconcilerAt(dynamoClient, codebuildClient, recoveryNow).StartPending(context.Background())
+	if err == nil || request.Status != StatusFailed {
+		t.Fatalf("new-token rejection must be a failure: request=%+v err=%v", request, err)
+	}
+	if len(dynamoClient.updates) != 3 {
+		t.Fatalf("expected refresh, rotation and failure updates, got %d", len(dynamoClient.updates))
+	}
+	if got, want := stringAttr(t, dynamoClient.updates[2], ":token"), stringAttr(t, dynamoClient.updates[1], ":newToken"); got != want {
+		t.Fatalf("failure must be conditioned on the new token: %s vs %s", got, want)
 	}
 }
 
@@ -300,37 +378,66 @@ func TestReconcileKeepsActiveBuildOnUnknownStatus(t *testing.T) {
 	}
 }
 
-func TestStaleBoundaryMatchesConditionExpression(t *testing.T) {
+func TestStaleBoundaryUsesParsedTimeAndRawValueCondition(t *testing.T) {
 	timeout := 3 * time.Minute
-	for _, offset := range []time.Duration{-time.Nanosecond, 0, time.Nanosecond} {
-		startedAt := recoveryNow.Add(-timeout + offset)
-		state := State{StartedAt: formatLockTime(startedAt)}
-		staleBefore := formatLockTime(recoveryNow.Add(-timeout))
-		if got, want := isStartingStale(state, recoveryNow, timeout), state.StartedAt <= staleBefore; got != want {
-			t.Fatalf("offset %v: isStartingStale=%v but startedAt <= :staleBefore is %v", offset, got, want)
-		}
+	base := time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name      string
+		startedAt string
+		lockTime  time.Time
+	}{
+		{name: "second precision", startedAt: "2026-11-23T12:00:00Z", lockTime: base},
+		{name: "short fraction", startedAt: "2026-11-23T12:00:00.1Z", lockTime: base.Add(100 * time.Millisecond)},
+		{name: "fixed width", startedAt: formatLockTime(base), lockTime: base},
 	}
-
-	t.Run("exactly three minutes is stale in both", func(t *testing.T) {
-		dynamoClient := &mockDynamoDB{states: []State{staleStart(3*time.Minute, 3*time.Minute)}}
-		codebuildClient := &mockCodeBuild{startOutput: newBuildOutput("project:build-2")}
-		request, err := postsCoordinatorAt(dynamoClient, codebuildClient, recoveryNow).StartPending(context.Background())
-		if err != nil || request.BuildID != "project:build-2" {
-			t.Fatalf("lock at the boundary must be re-acquirable: request=%+v err=%v", request, err)
+	for _, tt := range tests {
+		lockedState := func() State {
+			return State{
+				ID: StateItemID, DesiredRevision: 2, DeployedRevision: 1, ActiveRevision: 2,
+				StartToken: "site-revision-2", Status: StatusStarting,
+				StartedAt: tt.startedAt, StartAttemptedAt: formatLockTime(tt.lockTime),
+			}
 		}
-		if got := stringAttr(t, dynamoClient.updates[0], ":staleBefore"); got != dynamoClient.states[0].StartedAt {
-			t.Fatalf("boundary values differ: %s vs %s", got, dynamoClient.states[0].StartedAt)
-		}
-	})
-
-	t.Run("one nanosecond short is fresh in both", func(t *testing.T) {
-		dynamoClient := &mockDynamoDB{states: []State{staleStart(3*time.Minute, 3*time.Minute-time.Nanosecond)}}
-		codebuildClient := &mockCodeBuild{}
-		if _, err := postsCoordinatorAt(dynamoClient, codebuildClient, recoveryNow).StartPending(context.Background()); err != nil {
-			t.Fatalf("StartPending returned error: %v", err)
-		}
-		if len(dynamoClient.updates) != 0 || len(codebuildClient.startInputs) != 0 {
-			t.Fatal("a lock just short of the timeout must be left alone")
-		}
-	})
+		t.Run(tt.name+"/exactly three minutes", func(t *testing.T) {
+			now := tt.lockTime.Add(timeout)
+			dynamoClient := &mockDynamoDB{states: []State{lockedState()}}
+			codebuildClient := &mockCodeBuild{startOutput: newBuildOutput("project:build-2")}
+			request, err := postsCoordinatorAt(dynamoClient, codebuildClient, now).StartPending(context.Background())
+			if err != nil || request.BuildID != "project:build-2" {
+				t.Fatalf("lock at the boundary must be re-acquired: request=%+v err=%v", request, err)
+			}
+			refresh := dynamoClient.updates[0]
+			if condition := aws.ToString(refresh.ConditionExpression); !strings.Contains(condition, "startedAt = :expectedStartedAt") || strings.Contains(condition, "<") {
+				t.Fatalf("condition must test the raw value, never order timestamps: %s", condition)
+			}
+			if got := stringAttr(t, refresh, ":expectedStartedAt"); got != tt.startedAt {
+				t.Fatalf("condition must use the raw startedAt read: %s", got)
+			}
+		})
+		t.Run(tt.name+"/one nanosecond short", func(t *testing.T) {
+			now := tt.lockTime.Add(timeout - time.Nanosecond)
+			dynamoClient := &mockDynamoDB{states: []State{lockedState()}}
+			codebuildClient := &mockCodeBuild{}
+			if _, err := postsCoordinatorAt(dynamoClient, codebuildClient, now).StartPending(context.Background()); err != nil {
+				t.Fatalf("StartPending returned error: %v", err)
+			}
+			if len(dynamoClient.updates) != 0 || len(codebuildClient.startInputs) != 0 {
+				t.Fatal("a lock just short of the timeout must be left alone")
+			}
+		})
+		t.Run(tt.name+"/concurrent refresh detected", func(t *testing.T) {
+			now := tt.lockTime.Add(timeout)
+			winner := lockedState()
+			winner.StartedAt = formatLockTime(now)
+			dynamoClient := &mockDynamoDB{states: []State{lockedState(), winner}, liveStartedAt: &winner.StartedAt}
+			codebuildClient := &mockCodeBuild{}
+			request, err := postsCoordinatorAt(dynamoClient, codebuildClient, now).StartPending(context.Background())
+			if err != nil {
+				t.Fatalf("losing the lock is not an error: %v", err)
+			}
+			if len(codebuildClient.startInputs) != 0 || request.Status != StatusQueued {
+				t.Fatalf("the caller that lost the lock must not start a build: request=%+v", request)
+			}
+		})
+	}
 }

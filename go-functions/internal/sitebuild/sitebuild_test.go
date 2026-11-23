@@ -22,6 +22,8 @@ type mockDynamoDB struct {
 	emptyGet     bool
 	updates      []*dynamodb.UpdateItemInput
 	updateErrors []error
+	// liveStartedAt, when set, is the startedAt stored at write time.
+	liveStartedAt *string
 }
 
 func (m *mockDynamoDB) GetItem(_ context.Context, _ *dynamodb.GetItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
@@ -48,22 +50,25 @@ func (m *mockDynamoDB) UpdateItem(_ context.Context, input *dynamodb.UpdateItemI
 	if call < len(m.updateErrors) && m.updateErrors[call] != nil {
 		return nil, m.updateErrors[call]
 	}
-	if m.violatesStaleCondition(input) {
-		return nil, &dynamodbtypes.ConditionalCheckFailedException{Message: aws.String("start lock is not stale")}
+	if m.violatesStartedAtCondition(input) {
+		return nil, &dynamodbtypes.ConditionalCheckFailedException{Message: aws.String("start lock changed")}
 	}
 	return &dynamodb.UpdateItemOutput{}, nil
 }
 
-// violatesStaleCondition evaluates "startedAt <= :staleBefore" against the
-// last state read, with DynamoDB's string comparison, so tests share the
-// production boundary instead of assuming it.
-func (m *mockDynamoDB) violatesStaleCondition(input *dynamodb.UpdateItemInput) bool {
-	if m.getCall == 0 || !strings.Contains(aws.ToString(input.ConditionExpression), "startedAt <= :staleBefore") {
+// violatesStartedAtCondition evaluates "startedAt = :expectedStartedAt"
+// against the item as it exists at write time: liveStartedAt when a test
+// simulates a concurrent lock refresh, otherwise the last state read.
+func (m *mockDynamoDB) violatesStartedAtCondition(input *dynamodb.UpdateItemInput) bool {
+	if m.getCall == 0 || !strings.Contains(aws.ToString(input.ConditionExpression), "startedAt = :expectedStartedAt") {
 		return false
 	}
-	current := m.states[m.getCall-1]
-	staleBefore, ok := input.ExpressionAttributeValues[":staleBefore"].(*dynamodbtypes.AttributeValueMemberS)
-	return ok && current.Status == StatusStarting && current.StartedAt != "" && current.StartedAt > staleBefore.Value
+	live := m.states[m.getCall-1].StartedAt
+	if m.liveStartedAt != nil {
+		live = *m.liveStartedAt
+	}
+	expected, ok := input.ExpressionAttributeValues[":expectedStartedAt"].(*dynamodbtypes.AttributeValueMemberS)
+	return !ok || live != expected.Value
 }
 
 type mockCodeBuild struct {
