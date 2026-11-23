@@ -14,6 +14,7 @@ import (
 	codebuildtypes "github.com/aws/aws-sdk-go-v2/service/codebuild/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/aws/smithy-go"
 
 	"serverless-blog/go-functions/internal/middleware"
 )
@@ -40,15 +41,24 @@ const (
 	idempotencyTokenTTL = 5 * time.Minute
 	// idempotencyTokenReuseWindow stops same-token retries before the TTL so a
 	// retry that reaches CodeBuild slightly later is not a new request.
+	// Between this window and the TTL the token may or may not still be
+	// honored: an existing build is recovered from history, but no new token
+	// is issued until the TTL has certainly passed.
 	idempotencyTokenReuseWindow = idempotencyTokenTTL - 30*time.Second
 	// historyClockSkew widens the history window for clock differences
 	// between Lambda and CodeBuild.
 	historyClockSkew = time.Minute
 	// legacyHistoryLookback bounds the history window for items written
-	// before startAttemptedAt existed.
+	// before startAttemptedAt existed. The bound is persisted on first sight
+	// so later lock refreshes cannot slide it forward.
 	legacyHistoryLookback = time.Hour
 	// maxHistoryPages caps ListBuildsForProject pages (up to 100 IDs each).
+	// History is read to its end; reaching the cap with pages left is an
+	// uncertain result and fails closed.
 	maxHistoryPages = 10
+	// lockTimeFormat is a fixed-width RFC 3339 layout, so DynamoDB's string
+	// comparison of lock timestamps orders them exactly like time.Time.
+	lockTimeFormat = "2006-01-02T15:04:05.000000000Z07:00"
 
 	contentRevisionVariable = "CONTENT_REVISION"
 
@@ -59,10 +69,12 @@ const (
 	attributeValueBuildID  = ":buildId"
 	attributeValueStarting = ":starting"
 	attributeValueToken    = ":token"
+
+	attributeValueStaleBefore = ":staleBefore"
 )
 
 // errHistoryLimit means the build history window could not be fully inspected.
-var errHistoryLimit = errors.New("CodeBuild build history page limit reached before the start window was covered")
+var errHistoryLimit = errors.New("CodeBuild build history page limit reached with unread pages")
 
 // State is persisted in the BlogPosts table. It intentionally omits all GSI
 // keys, so it never appears in article queries.
@@ -228,19 +240,19 @@ func (c *Coordinator) StartPending(ctx context.Context) (Request, error) {
 func (c *Coordinator) startFresh(ctx context.Context, state State, now time.Time) (Request, error) {
 	targetRevision := state.DesiredRevision
 	token := fmt.Sprintf("site-revision-%d", targetRevision)
-	nowValue := now.Format(time.RFC3339Nano)
+	nowValue := formatLockTime(now)
 	_, err := c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                aws.String(c.tableName),
 		Key:                      stateKey(),
 		UpdateExpression:         aws.String("SET #status = :starting, activeRevision = :revision, startToken = :token, startedAt = :now, startAttemptedAt = :now REMOVE activeBuildId, lastError"),
-		ConditionExpression:      aws.String("desiredRevision = :revision AND attribute_not_exists(activeBuildId) AND (#status <> :starting OR ((attribute_not_exists(startToken) OR attribute_not_exists(activeRevision)) AND (attribute_not_exists(startedAt) OR startedAt < :staleBefore)))"),
+		ConditionExpression:      aws.String("desiredRevision = :revision AND attribute_not_exists(activeBuildId) AND (#status <> :starting OR ((attribute_not_exists(startToken) OR attribute_not_exists(activeRevision)) AND (attribute_not_exists(startedAt) OR startedAt <= :staleBefore)))"),
 		ExpressionAttributeNames: map[string]string{attributeNameStatus: attributeStatusValue},
 		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
-			attributeValueStarting: stringValue(StatusStarting),
-			attributeValueRevision: numberValue(targetRevision),
-			attributeValueToken:    stringValue(token),
-			attributeValueNow:      stringValue(nowValue),
-			":staleBefore":         stringValue(now.Add(-c.startingTimeout).Format(time.RFC3339Nano)),
+			attributeValueStarting:    stringValue(StatusStarting),
+			attributeValueRevision:    numberValue(targetRevision),
+			attributeValueToken:       stringValue(token),
+			attributeValueNow:         stringValue(nowValue),
+			attributeValueStaleBefore: stringValue(formatLockTime(now.Add(-c.startingTimeout))),
 		},
 	})
 	if err != nil {
@@ -253,11 +265,20 @@ func (c *Coordinator) startFresh(ctx context.Context, state State, now time.Time
 // startAttemptedAt (the first StartBuild attempt with startToken) bounds the
 // token's validity and is never moved by a lock refresh; startedAt is only the
 // lock time used for the stale check.
+//
+//   - elapsed < 4m30s: replay the same token (no history read).
+//   - 4m30s <= elapsed < 5m: reconciler recovers a build found in history but
+//     otherwise waits; the token may still be honored, so no new token yet.
+//   - elapsed >= 5m (or unknown): reconciler recovers a build found in
+//     history, or starts with a new token once the full history proves none.
+//
+// Non-reconciler callers never read history and wait past the first window.
 func (c *Coordinator) recoverStaleStart(ctx context.Context, state State, now time.Time) (Request, error) {
 	targetRevision := state.DesiredRevision
 	revision := state.ActiveRevision
 	attemptedAt, attemptKnown := firstStartAttempt(state)
-	if attemptKnown && now.Sub(attemptedAt) < idempotencyTokenReuseWindow {
+	elapsed := now.Sub(attemptedAt)
+	if attemptKnown && elapsed < idempotencyTokenReuseWindow {
 		// CodeBuild still honors the token: replaying it returns the build
 		// that may already exist instead of starting another one.
 		if _, err := c.refreshStartLock(ctx, state, now); err != nil {
@@ -278,39 +299,53 @@ func (c *Coordinator) recoverStaleStart(ctx context.Context, state State, now ti
 	if err != nil {
 		return c.lockLost(ctx, targetRevision, err)
 	}
-	build, err := c.findBuildForRevision(ctx, revision, historyNotBefore(state, attemptedAt, attemptKnown))
+	build, err := c.findBuildForRevision(ctx, revision, historyNotBefore(state))
 	if err != nil {
 		// Fail closed: without proof that no build exists, never start one.
 		return RequestForState(state, targetRevision), fmt.Errorf("site build history check for revision %d: %w", revision, err)
 	}
 	if build != nil {
-		return c.adoptBuild(ctx, state, *build, lockedAt)
+		return c.adoptBuild(ctx, state, build, lockedAt)
+	}
+	if attemptKnown && elapsed < idempotencyTokenTTL {
+		// Safety margin before the TTL: CodeBuild may still honor the old
+		// token, so a new one could start a second build. Wait for the next
+		// reconcile, by which time the TTL has certainly passed.
+		middleware.LoggerFromContext(ctx).Info("site build start waits for IdempotencyToken expiry",
+			"activeRevision", revision, "startAttemptedAt", state.StartAttemptedAt)
+		return RequestForState(state, targetRevision), nil
 	}
 	return c.restartWithNewToken(ctx, state, lockedAt)
 }
 
 // refreshStartLock re-acquires a stale start lock without changing the token or
-// its first attempt time, and returns the new lock time.
+// its first attempt time, and returns the new lock time. A legacy item without
+// startAttemptedAt gets a persisted lower bound (startedAt minus the legacy
+// lookback) so later refreshes cannot slide its history window forward.
 func (c *Coordinator) refreshStartLock(ctx context.Context, state State, now time.Time) (string, error) {
-	lockedAt := now.Format(time.RFC3339Nano)
+	lockedAt := formatLockTime(now)
 	values := map[string]dynamodbtypes.AttributeValue{
-		attributeValueStarting: stringValue(StatusStarting),
-		attributeValueRevision: numberValue(state.ActiveRevision),
-		attributeValueToken:    stringValue(state.StartToken),
-		attributeValueNow:      stringValue(lockedAt),
-		":staleBefore":         stringValue(now.Add(-c.startingTimeout).Format(time.RFC3339Nano)),
+		attributeValueStarting:    stringValue(StatusStarting),
+		attributeValueRevision:    numberValue(state.ActiveRevision),
+		attributeValueToken:       stringValue(state.StartToken),
+		attributeValueNow:         stringValue(lockedAt),
+		attributeValueStaleBefore: stringValue(formatLockTime(now.Add(-c.startingTimeout))),
 	}
-	attemptCondition := "attribute_not_exists(startAttemptedAt)"
+	update := "SET startedAt = :now REMOVE lastError"
+	attemptCondition := "startAttemptedAt = :attemptedAt"
 	if state.StartAttemptedAt != "" {
-		attemptCondition = "startAttemptedAt = :attemptedAt"
 		values[":attemptedAt"] = stringValue(state.StartAttemptedAt)
+	} else {
+		attemptCondition = "attribute_not_exists(startAttemptedAt)"
+		update = "SET startedAt = :now, startAttemptedAt = :legacyAttempt REMOVE lastError"
+		values[":legacyAttempt"] = stringValue(formatLockTime(legacyAttemptBound(state)))
 	}
 	_, err := c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:        aws.String(c.tableName),
 		Key:              stateKey(),
-		UpdateExpression: aws.String("SET startedAt = :now REMOVE lastError"),
+		UpdateExpression: aws.String(update),
 		ConditionExpression: aws.String("desiredRevision >= :revision AND attribute_not_exists(activeBuildId) AND #status = :starting AND activeRevision = :revision AND startToken = :token AND " +
-			attemptCondition + " AND (attribute_not_exists(startedAt) OR startedAt < :staleBefore)"),
+			attemptCondition + " AND (attribute_not_exists(startedAt) OR startedAt <= :staleBefore)"),
 		ExpressionAttributeNames:  map[string]string{attributeNameStatus: attributeStatusValue},
 		ExpressionAttributeValues: values,
 	})
@@ -320,9 +355,15 @@ func (c *Coordinator) refreshStartLock(ctx context.Context, state State, now tim
 // adoptBuild persists a build found in CodeBuild history as the active build
 // and, when it already finished, applies the same completion transition as
 // Reconcile so a newer desired revision can start.
-func (c *Coordinator) adoptBuild(ctx context.Context, state State, build codebuildtypes.Build, lockedAt string) (Request, error) {
+func (c *Coordinator) adoptBuild(ctx context.Context, state State, build *codebuildtypes.Build, lockedAt string) (Request, error) {
 	targetRevision := state.DesiredRevision
 	buildID := aws.ToString(build.Id)
+	finished, known := classifyBuildStatus(build.BuildStatus)
+	if !known {
+		// Keep the lock: an unknown state must not release the slot or start
+		// a trailing build.
+		return RequestForState(state, targetRevision), fmt.Errorf("CodeBuild build %s for revision %d has unknown status %q", buildID, state.ActiveRevision, build.BuildStatus)
+	}
 	_, err := c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                aws.String(c.tableName),
 		Key:                      stateKey(),
@@ -347,7 +388,7 @@ func (c *Coordinator) adoptBuild(ctx context.Context, state State, build codebui
 	adopted := state
 	adopted.ActiveBuildID = buildID
 	adopted.Status = StatusInProgress
-	if build.BuildStatus == codebuildtypes.StatusTypeInProgress {
+	if !finished {
 		if state.ActiveRevision < targetRevision {
 			return Request{TargetRevision: targetRevision, Status: StatusQueued}, nil
 		}
@@ -368,7 +409,7 @@ func (c *Coordinator) restartWithNewToken(ctx context.Context, state State, lock
 	revision := state.ActiveRevision
 	now := c.now().UTC()
 	token := fmt.Sprintf("site-revision-%d-%d", revision, now.UnixMilli())
-	nowValue := now.Format(time.RFC3339Nano)
+	nowValue := formatLockTime(now)
 	_, err := c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                aws.String(c.tableName),
 		Key:                      stateKey(),
@@ -390,27 +431,29 @@ func (c *Coordinator) restartWithNewToken(ctx context.Context, state State, lock
 	return c.startBuild(ctx, state, revision, targetRevision, token)
 }
 
-// findBuildForRevision walks the project's build history newest first and
-// returns the newest build started at or after notBefore whose
-// CONTENT_REVISION equals revision. It returns (nil, nil) only when the whole
-// window was inspected; any API error, unreadable build, or reaching the page
-// limit before the window is covered is an error.
+// findBuildForRevision reads the project's build history in the API's
+// default order (newest build number first; SortOrder is deliberately not
+// sent because CodeBuild rejects an explicit sort order once a project has
+// more than 100 builds) and returns the newest build started at or after
+// notBefore whose CONTENT_REVISION equals revision. Build start times are
+// not guaranteed to follow build numbers, so history is never cut short by
+// start time: (nil, nil) means every page was read. Any API error,
+// uninspectable build, or reaching the page cap with pages left is an error.
 func (c *Coordinator) findBuildForRevision(ctx context.Context, revision int64, notBefore time.Time) (*codebuildtypes.Build, error) {
 	var nextToken *string
 	for page := 0; page < maxHistoryPages; page++ {
 		out, err := c.history.ListBuildsForProject(ctx, &codebuild.ListBuildsForProjectInput{
 			ProjectName: aws.String(c.projectName),
-			SortOrder:   codebuildtypes.SortOrderTypeDescending,
 			NextToken:   nextToken,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("list CodeBuild builds: %w", err)
 		}
-		build, covered, err := c.matchHistoryPage(ctx, out.Ids, revision, notBefore)
+		build, err := c.matchHistoryPage(ctx, out.Ids, revision, notBefore)
 		if err != nil || build != nil {
 			return build, err
 		}
-		if covered || aws.ToString(out.NextToken) == "" {
+		if aws.ToString(out.NextToken) == "" {
 			return nil, nil
 		}
 		nextToken = out.NextToken
@@ -418,36 +461,40 @@ func (c *Coordinator) findBuildForRevision(ctx context.Context, revision int64, 
 	return nil, errHistoryLimit
 }
 
-// matchHistoryPage inspects one page of build IDs in list order. covered is
-// true once a build older than notBefore was seen: newer pages hold only
-// newer build numbers, so the window ends inside this page.
-func (c *Coordinator) matchHistoryPage(ctx context.Context, ids []string, revision int64, notBefore time.Time) (*codebuildtypes.Build, bool, error) {
+// matchHistoryPage inspects one page of build IDs in list order and returns
+// the first (newest) build of revision that started at or after notBefore.
+// Builds older than notBefore cannot come from the current token and are
+// skipped; builds without a CONTENT_REVISION variable (e.g. manual runs) are
+// unrelated. A build whose revision cannot be determined is an error.
+func (c *Coordinator) matchHistoryPage(ctx context.Context, ids []string, revision int64, notBefore time.Time) (*codebuildtypes.Build, error) {
 	if len(ids) == 0 {
-		return nil, false, nil
+		return nil, nil
 	}
 	out, err := c.history.BatchGetBuilds(ctx, &codebuild.BatchGetBuildsInput{Ids: ids})
 	if err != nil {
-		return nil, false, fmt.Errorf("read CodeBuild builds: %w", err)
+		return nil, fmt.Errorf("read CodeBuild builds: %w", err)
 	}
 	byID := make(map[string]*codebuildtypes.Build, len(out.Builds))
 	for i := range out.Builds {
 		byID[aws.ToString(out.Builds[i].Id)] = &out.Builds[i]
 	}
-	covered := false
 	for _, id := range ids {
 		build, ok := byID[id]
 		if !ok || build.StartTime == nil {
-			return nil, false, fmt.Errorf("CodeBuild build %s could not be inspected", id)
+			return nil, fmt.Errorf("CodeBuild build %s could not be inspected", id)
 		}
 		if build.StartTime.Before(notBefore) {
-			covered = true
 			continue
 		}
-		if contentRevision(build) == revision {
-			return build, covered, nil
+		buildRevision, present, err := contentRevision(build)
+		if err != nil {
+			return nil, fmt.Errorf("CodeBuild build %s: %w", id, err)
+		}
+		if present && buildRevision == revision {
+			return build, nil
 		}
 	}
-	return nil, covered, nil
+	return nil, nil
 }
 
 // startBuild calls StartBuild for a locked revision and persists its Build ID.
@@ -460,7 +507,14 @@ func (c *Coordinator) startBuild(ctx context.Context, state State, revision, tar
 		}},
 	})
 	if err != nil {
-		if markErr := c.markStartFailed(ctx, revision, err); markErr != nil {
+		if !isDefinitiveStartRejection(err) {
+			// CodeBuild may have accepted the build and only the response was
+			// lost. Keep StatusStarting with its token and first attempt time
+			// so a later caller replays the token or recovers the build from
+			// history instead of starting a duplicate.
+			return RequestForState(state, targetRevision), fmt.Errorf("CodeBuild StartBuild outcome unknown for revision %d: %w", revision, err)
+		}
+		if markErr := c.markStartFailed(ctx, revision, token, err); markErr != nil {
 			return Request{TargetRevision: revision, Status: StatusFailed}, errors.Join(err, markErr)
 		}
 		return Request{TargetRevision: revision, Status: StatusFailed}, err
@@ -470,11 +524,9 @@ func (c *Coordinator) startBuild(ctx context.Context, state State, revision, tar
 		buildID = aws.ToString(buildOut.Build.Id)
 	}
 	if buildID == "" {
-		err = errors.New("CodeBuild StartBuild returned no build ID")
-		if markErr := c.markStartFailed(ctx, revision, err); markErr != nil {
-			return Request{TargetRevision: revision, Status: StatusFailed}, errors.Join(err, markErr)
-		}
-		return Request{TargetRevision: revision, Status: StatusFailed}, err
+		// The request was accepted, so a build may exist; treat it like a
+		// lost response rather than a failure.
+		return RequestForState(state, targetRevision), fmt.Errorf("CodeBuild StartBuild returned no build ID for revision %d", revision)
 	}
 
 	logBuildAccepted(ctx, state, revision, buildID, c.now())
@@ -511,20 +563,40 @@ func (c *Coordinator) lockLost(ctx context.Context, targetRevision int64, err er
 	return Request{}, err
 }
 
-func (c *Coordinator) markStartFailed(ctx context.Context, revision int64, startErr error) error {
+// markStartFailed records a StartBuild that CodeBuild definitively rejected.
+// It only applies while this caller still owns the exact start lock.
+func (c *Coordinator) markStartFailed(ctx context.Context, revision int64, token string, startErr error) error {
 	_, err := c.dynamo.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                aws.String(c.tableName),
-		Key:                      map[string]dynamodbtypes.AttributeValue{"id": &dynamodbtypes.AttributeValueMemberS{Value: StateItemID}},
+		Key:                      stateKey(),
 		UpdateExpression:         aws.String("SET #status = :failed, lastError = :error REMOVE activeBuildId, startToken, startedAt, startAttemptedAt"),
-		ConditionExpression:      aws.String("activeRevision = :revision"),
+		ConditionExpression:      aws.String("#status = :starting AND activeRevision = :revision AND startToken = :token AND attribute_not_exists(activeBuildId)"),
 		ExpressionAttributeNames: map[string]string{attributeNameStatus: attributeStatusValue},
 		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
-			":failed":              &dynamodbtypes.AttributeValueMemberS{Value: StatusFailed},
-			":error":               &dynamodbtypes.AttributeValueMemberS{Value: startErr.Error()},
-			attributeValueRevision: &dynamodbtypes.AttributeValueMemberN{Value: strconv.FormatInt(revision, 10)},
+			":failed":              stringValue(StatusFailed),
+			":error":               stringValue(startErr.Error()),
+			attributeValueStarting: stringValue(StatusStarting),
+			attributeValueRevision: numberValue(revision),
+			attributeValueToken:    stringValue(token),
 		},
 	})
 	return err
+}
+
+// isDefinitiveStartRejection reports StartBuild errors for which CodeBuild
+// certainly created no build. Everything else (network errors, timeouts,
+// throttling, 5xx, unknown errors) leaves the outcome unknown.
+func isDefinitiveStartRejection(err error) bool {
+	var apiErr smithy.APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	switch apiErr.ErrorCode() {
+	case "InvalidInputException", "ResourceNotFoundException", "AccessDeniedException", "AccountLimitExceededException":
+		return true
+	default:
+		return false
+	}
 }
 
 // Reconcile updates durable state from the active CodeBuild and starts a
@@ -542,10 +614,32 @@ func (c *Coordinator) Reconcile(ctx context.Context) (State, error) {
 	if err != nil {
 		return State{}, err
 	}
-	if len(out.Builds) == 0 || out.Builds[0].BuildStatus == codebuildtypes.StatusTypeInProgress {
+	if len(out.Builds) == 0 {
+		return state, nil
+	}
+	finished, known := classifyBuildStatus(out.Builds[0].BuildStatus)
+	if !known {
+		return State{}, fmt.Errorf("CodeBuild build %s has unknown status %q", state.ActiveBuildID, out.Builds[0].BuildStatus)
+	}
+	if !finished {
 		return state, nil
 	}
 	return c.completeBuild(ctx, state, out.Builds[0].BuildStatus)
+}
+
+// classifyBuildStatus maps a CodeBuild status to (finished, known). Only the
+// documented states are known; an empty or new status must not be treated as
+// a failure that releases the build slot.
+func classifyBuildStatus(status codebuildtypes.StatusType) (finished, known bool) {
+	switch status {
+	case codebuildtypes.StatusTypeInProgress:
+		return false, true
+	case codebuildtypes.StatusTypeSucceeded, codebuildtypes.StatusTypeFailed, codebuildtypes.StatusTypeFault,
+		codebuildtypes.StatusTypeStopped, codebuildtypes.StatusTypeTimedOut:
+		return true, true
+	default:
+		return false, false
+	}
 }
 
 // completeBuild records a finished active build and starts a trailing revision.
@@ -651,9 +745,16 @@ func RequestForState(state State, targetRevision int64) Request {
 	return Request{TargetRevision: targetRevision, BuildID: buildID, Status: status}
 }
 
+// isStartingStale reports whether the start lock may be re-acquired. It is
+// true exactly when startedAt <= now-timeout, matching the
+// "startedAt <= :staleBefore" condition used in DynamoDB.
 func isStartingStale(state State, now time.Time, timeout time.Duration) bool {
 	started, err := time.Parse(time.RFC3339Nano, state.StartedAt)
-	return err != nil || now.Sub(started) >= timeout
+	return err != nil || !started.After(now.Add(-timeout))
+}
+
+func formatLockTime(t time.Time) string {
+	return t.UTC().Format(lockTimeFormat)
 }
 
 // firstStartAttempt returns when startToken was first sent to StartBuild.
@@ -669,37 +770,52 @@ func firstStartAttempt(state State) (time.Time, bool) {
 }
 
 // historyNotBefore is the oldest build start time the history check must
-// cover. Any StartBuild with the current token happened after its first
-// attempt; clock skew between Lambda and CodeBuild is allowed for. Legacy
-// items only know the latest lock time, so they look further back.
-func historyNotBefore(state State, attemptedAt time.Time, attemptKnown bool) time.Time {
-	if attemptKnown {
-		return attemptedAt.Add(-historyClockSkew)
+// consider. Any StartBuild with the current token happened after its first
+// attempt; clock skew between Lambda and CodeBuild is allowed for. A legacy
+// item (no startAttemptedAt yet) uses the same bound refreshStartLock
+// persists for it.
+func historyNotBefore(state State) time.Time {
+	attemptedAt, ok := firstStartAttempt(state)
+	if !ok {
+		attemptedAt = legacyAttemptBound(state)
 	}
+	return attemptedAt.Add(-historyClockSkew)
+}
+
+// legacyAttemptBound is the assumed earliest StartBuild for an item written
+// before startAttemptedAt existed: its startedAt may have been moved by lock
+// refreshes, so look further back. An unreadable startedAt yields the Unix
+// epoch, so the whole history is considered.
+func legacyAttemptBound(state State) time.Time {
 	startedAt, err := time.Parse(time.RFC3339Nano, state.StartedAt)
 	if err != nil {
-		// Unknown lower bound: require the complete history (or fail closed
-		// when the page limit is reached first).
-		return time.Time{}
+		return time.Unix(0, 0).UTC()
 	}
 	return startedAt.Add(-legacyHistoryLookback)
 }
 
-func contentRevision(build *codebuildtypes.Build) int64 {
+// contentRevision reads CONTENT_REVISION from a build. present is false when
+// the build has an environment without that variable (a build not started by
+// the coordinator). A missing environment or an unreadable value cannot be
+// classified and is an error.
+func contentRevision(build *codebuildtypes.Build) (revision int64, present bool, err error) {
 	if build.Environment == nil {
-		return 0
+		return 0, false, errors.New("build environment is missing")
 	}
 	for _, variable := range build.Environment.EnvironmentVariables {
 		if aws.ToString(variable.Name) != contentRevisionVariable {
 			continue
 		}
-		revision, err := strconv.ParseInt(aws.ToString(variable.Value), 10, 64)
-		if err != nil {
-			return 0
+		if variable.Value == nil || *variable.Value == "" {
+			return 0, true, errors.New(contentRevisionVariable + " has no value")
 		}
-		return revision
+		revision, err = strconv.ParseInt(*variable.Value, 10, 64)
+		if err != nil {
+			return 0, true, fmt.Errorf("%s is not an integer: %w", contentRevisionVariable, err)
+		}
+		return revision, true, nil
 	}
-	return 0
+	return 0, false, nil
 }
 
 func stateKey() map[string]dynamodbtypes.AttributeValue {

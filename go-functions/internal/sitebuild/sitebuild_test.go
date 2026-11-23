@@ -48,7 +48,22 @@ func (m *mockDynamoDB) UpdateItem(_ context.Context, input *dynamodb.UpdateItemI
 	if call < len(m.updateErrors) && m.updateErrors[call] != nil {
 		return nil, m.updateErrors[call]
 	}
+	if m.violatesStaleCondition(input) {
+		return nil, &dynamodbtypes.ConditionalCheckFailedException{Message: aws.String("start lock is not stale")}
+	}
 	return &dynamodb.UpdateItemOutput{}, nil
+}
+
+// violatesStaleCondition evaluates "startedAt <= :staleBefore" against the
+// last state read, with DynamoDB's string comparison, so tests share the
+// production boundary instead of assuming it.
+func (m *mockDynamoDB) violatesStaleCondition(input *dynamodb.UpdateItemInput) bool {
+	if m.getCall == 0 || !strings.Contains(aws.ToString(input.ConditionExpression), "startedAt <= :staleBefore") {
+		return false
+	}
+	current := m.states[m.getCall-1]
+	staleBefore, ok := input.ExpressionAttributeValues[":staleBefore"].(*dynamodbtypes.AttributeValueMemberS)
+	return ok && current.Status == StatusStarting && current.StartedAt != "" && current.StartedAt > staleBefore.Value
 }
 
 type mockCodeBuild struct {
@@ -222,7 +237,8 @@ func TestStartPendingMarksCodeBuildStartFailure(t *testing.T) {
 	dynamoClient := &mockDynamoDB{states: []State{{
 		ID: StateItemID, DesiredRevision: 2, DeployedRevision: 1, Status: StatusQueued,
 	}}}
-	codebuildClient := &mockCodeBuild{startErr: errors.New("CodeBuild unavailable")}
+	rejection := &codebuildtypes.InvalidInputException{Message: aws.String("bad input")}
+	codebuildClient := &mockCodeBuild{startErr: rejection}
 
 	request, err := NewCoordinator(dynamoClient, codebuildClient, "posts", "site-project").StartPending(context.Background())
 	if err == nil || request.Status != StatusFailed || request.TargetRevision != 2 {
@@ -232,8 +248,17 @@ func TestStartPendingMarksCodeBuildStartFailure(t *testing.T) {
 		t.Fatalf("expected lock and failure updates, got %d", len(dynamoClient.updates))
 	}
 	failureUpdate := dynamoClient.updates[1]
-	if got := failureUpdate.ExpressionAttributeValues[":error"].(*dynamodbtypes.AttributeValueMemberS).Value; got != "CodeBuild unavailable" {
+	if got := failureUpdate.ExpressionAttributeValues[":error"].(*dynamodbtypes.AttributeValueMemberS).Value; got != rejection.Error() {
 		t.Fatalf("unexpected persisted failure: %q", got)
+	}
+	condition := aws.ToString(failureUpdate.ConditionExpression)
+	for _, part := range []string{"#status = :starting", "activeRevision = :revision", "startToken = :token", "attribute_not_exists(activeBuildId)"} {
+		if !strings.Contains(condition, part) {
+			t.Fatalf("failure record must only apply to the caller's own lock (%s): %s", part, condition)
+		}
+	}
+	if got := failureUpdate.ExpressionAttributeValues[":token"].(*dynamodbtypes.AttributeValueMemberS).Value; got != "site-revision-2" {
+		t.Fatalf("failure record must be conditioned on the StartBuild token: %q", got)
 	}
 }
 

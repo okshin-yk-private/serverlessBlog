@@ -21,7 +21,7 @@ import (
 var recoveryNow = time.Date(2026, 8, 2, 3, 0, 0, 0, time.UTC)
 
 func recoveryTime(ago time.Duration) string {
-	return recoveryNow.Add(-ago).Format(time.RFC3339Nano)
+	return formatLockTime(recoveryNow.Add(-ago))
 }
 
 // staleStart is revision 2 locked with its original token; attemptAgo is the
@@ -169,7 +169,7 @@ func TestStartPendingUsesFirstAttemptNotLockRefreshForTokenExpiry(t *testing.T) 
 }
 
 func TestStartPendingTokenExpiryBoundaryRequiresHistoryCheck(t *testing.T) {
-	for _, elapsed := range []time.Duration{4*time.Minute + 30*time.Second, 5 * time.Minute, 5*time.Minute + time.Second} {
+	for _, elapsed := range []time.Duration{5 * time.Minute, 5*time.Minute + time.Second} {
 		t.Run(elapsed.String(), func(t *testing.T) {
 			dynamoClient := &mockDynamoDB{states: []State{staleStart(elapsed, elapsed)}}
 			codebuildClient := &mockCodeBuild{
@@ -186,8 +186,8 @@ func TestStartPendingTokenExpiryBoundaryRequiresHistoryCheck(t *testing.T) {
 				t.Fatalf("an expired token must be checked against build history, got %d list calls", len(codebuildClient.listInputs))
 			}
 			list := codebuildClient.listInputs[0]
-			if aws.ToString(list.ProjectName) != "site-project" || list.SortOrder != codebuildtypes.SortOrderTypeDescending {
-				t.Fatalf("history must be read newest first for this project: %+v", list)
+			if aws.ToString(list.ProjectName) != "site-project" || list.SortOrder != "" {
+				t.Fatalf("history must use the API's default order (an explicit SortOrder fails past 100 builds): %+v", list)
 			}
 			assertRestartedWithNewToken(t, dynamoClient, codebuildClient)
 			if request.Status != StatusInProgress || request.BuildID != "project:build-2b" {
@@ -380,15 +380,15 @@ func TestStartPendingSearchesHistoryAcrossPages(t *testing.T) {
 		}
 	})
 
-	t.Run("window covered without match", func(t *testing.T) {
+	t.Run("older build of the same revision is not adopted", func(t *testing.T) {
 		dynamoClient := &mockDynamoDB{states: []State{staleStart(10*time.Minute, 10*time.Minute)}}
 		codebuildClient := &mockCodeBuild{
 			listPages: []*codebuild.ListBuildsForProjectOutput{
 				historyPage("page-2", "project:build-5"),
 				// build-1 is older than the first attempt (minus skew) and
 				// carries the same revision from an earlier failed run: it
-				// must not be adopted, and it proves the window is covered.
-				historyPage("page-3", "project:build-4", "project:build-1"),
+				// cannot come from the current token and must not be adopted.
+				historyPage("", "project:build-4", "project:build-1"),
 			},
 			builds: buildsByID(
 				historyBuild("project:build-5", "1", 2*time.Minute, codebuildtypes.StatusTypeFailed),
@@ -402,7 +402,7 @@ func TestStartPendingSearchesHistoryAcrossPages(t *testing.T) {
 			t.Fatalf("StartPending returned error: %v", err)
 		}
 		if len(codebuildClient.listInputs) != 2 {
-			t.Fatalf("history beyond the covered window must not be read: %d pages", len(codebuildClient.listInputs))
+			t.Fatalf("every page must be read: %d pages", len(codebuildClient.listInputs))
 		}
 		assertRestartedWithNewToken(t, dynamoClient, codebuildClient)
 	})
@@ -553,8 +553,12 @@ func TestStartPendingLegacyStartingItemWithoutAttemptTime(t *testing.T) {
 		if len(codebuildClient.startInputs) != 0 || request.BuildID != "project:build-2" {
 			t.Fatalf("legacy item must recover the existing build: request=%+v starts=%d", request, len(codebuildClient.startInputs))
 		}
-		if condition := aws.ToString(dynamoClient.updates[0].ConditionExpression); !strings.Contains(condition, "attribute_not_exists(startAttemptedAt)") {
+		refresh := dynamoClient.updates[0]
+		if condition := aws.ToString(refresh.ConditionExpression); !strings.Contains(condition, "attribute_not_exists(startAttemptedAt)") {
 			t.Fatalf("legacy lock refresh must require the legacy shape: %s", condition)
+		}
+		if got, want := stringAttr(t, refresh, ":legacyAttempt"), recoveryTime(time.Hour+3*time.Minute+30*time.Second); got != want {
+			t.Fatalf("legacy history bound must be persisted as startedAt-1h: got %s want %s", got, want)
 		}
 	})
 
