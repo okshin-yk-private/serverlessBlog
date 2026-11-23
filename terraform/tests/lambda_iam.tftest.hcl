@@ -267,6 +267,21 @@ run "verify_build_reconciler_permissions" {
     condition     = jsondecode(aws_iam_role_policy.lambda_posts_build_reconciler_codebuild[0].policy).Statement[1].Resource == "arn:aws:codebuild:ap-northeast-1:123456789012:project/test-codebuild-project"
     error_message = "BatchGetBuilds must be scoped to the configured project ARN (IAM authorizes this action on the project, not on build ARNs)"
   }
+
+  # Issue #902: build-history lookup recovers a lost Build ID after the
+  # StartBuild IdempotencyToken expired. Only the reconciler may do this.
+  assert {
+    condition = contains(
+      jsondecode(aws_iam_role_policy.lambda_posts_build_reconciler_codebuild[0].policy).Statement[2].Action,
+      "codebuild:ListBuildsForProject"
+    )
+    error_message = "lambda_posts_build_reconciler must be able to list the project's builds"
+  }
+
+  assert {
+    condition     = jsondecode(aws_iam_role_policy.lambda_posts_build_reconciler_codebuild[0].policy).Statement[2].Resource == "arn:aws:codebuild:ap-northeast-1:123456789012:project/test-codebuild-project"
+    error_message = "ListBuildsForProject must be scoped to the configured project ARN"
+  }
 }
 
 # Test 13: Completion events have retry/DLQ and scheduled compensation
@@ -317,5 +332,13 @@ run "verify_write_role_has_start_build" {
       "codebuild:StartBuild"
     )
     error_message = "lambda_posts_write must be granted codebuild:StartBuild to trigger site rebuilds"
+  }
+
+  assert {
+    condition = alltrue([
+      for statement in jsondecode(aws_iam_role_policy.lambda_posts_write_codebuild[0].policy).Statement :
+      !contains(flatten([statement.Action]), "codebuild:ListBuildsForProject") && !contains(flatten([statement.Action]), "codebuild:BatchGetBuilds")
+    ])
+    error_message = "lambda_posts_write must not read CodeBuild history; Build ID recovery belongs to the reconciler"
   }
 }

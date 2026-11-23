@@ -7,9 +7,13 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-lambda-go/lambdacontext"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/codebuild"
+	codebuildtypes "github.com/aws/aws-sdk-go-v2/service/codebuild/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 
 	"serverless-blog/go-functions/internal/sitebuild"
@@ -33,6 +37,10 @@ func (idleCodeBuild) StartBuild(_ context.Context, _ *codebuild.StartBuildInput,
 
 func (idleCodeBuild) BatchGetBuilds(_ context.Context, _ *codebuild.BatchGetBuildsInput, _ ...func(*codebuild.Options)) (*codebuild.BatchGetBuildsOutput, error) {
 	return &codebuild.BatchGetBuildsOutput{}, nil
+}
+
+func (idleCodeBuild) ListBuildsForProject(_ context.Context, _ *codebuild.ListBuildsForProjectInput, _ ...func(*codebuild.Options)) (*codebuild.ListBuildsForProjectOutput, error) {
+	return &codebuild.ListBuildsForProjectOutput{}, nil
 }
 
 func preserveClientGetters(t *testing.T) {
@@ -76,9 +84,66 @@ func TestHandlerSucceedsWhenNoBuildIsPending(t *testing.T) {
 	t.Setenv("TABLE_NAME", "posts")
 	t.Setenv("CODEBUILD_PROJECT_NAME", "site-project")
 	dynamoClientGetter = func() (sitebuild.DynamoDBClient, error) { return idleDynamoDB{}, nil }
-	codebuildClientGetter = func() (sitebuild.CodeBuildClient, error) { return idleCodeBuild{}, nil }
+	codebuildClientGetter = func() (sitebuild.BuildHistoryClient, error) { return idleCodeBuild{}, nil }
 	if err := Handler(context.Background()); err != nil {
 		t.Fatalf("Handler returned error: %v", err)
+	}
+}
+
+type staleStartDynamoDB struct {
+	idleDynamoDB
+	state sitebuild.State
+}
+
+func (db staleStartDynamoDB) GetItem(context.Context, *dynamodb.GetItemInput, ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+	item, err := attributevalue.MarshalMap(db.state)
+	return &dynamodb.GetItemOutput{Item: item}, err
+}
+
+type historyCodeBuild struct {
+	listCalls  int
+	startCalls int
+}
+
+func (c *historyCodeBuild) StartBuild(context.Context, *codebuild.StartBuildInput, ...func(*codebuild.Options)) (*codebuild.StartBuildOutput, error) {
+	c.startCalls++
+	return &codebuild.StartBuildOutput{}, nil
+}
+
+func (c *historyCodeBuild) ListBuildsForProject(context.Context, *codebuild.ListBuildsForProjectInput, ...func(*codebuild.Options)) (*codebuild.ListBuildsForProjectOutput, error) {
+	c.listCalls++
+	return &codebuild.ListBuildsForProjectOutput{Ids: []string{"site-project:build-2"}}, nil
+}
+
+func (c *historyCodeBuild) BatchGetBuilds(context.Context, *codebuild.BatchGetBuildsInput, ...func(*codebuild.Options)) (*codebuild.BatchGetBuildsOutput, error) {
+	return &codebuild.BatchGetBuildsOutput{Builds: []codebuildtypes.Build{{
+		Id: aws.String("site-project:build-2"), BuildStatus: codebuildtypes.StatusTypeInProgress, StartTime: aws.Time(time.Now().Add(-10 * time.Minute)),
+		Environment: &codebuildtypes.ProjectEnvironment{EnvironmentVariables: []codebuildtypes.EnvironmentVariable{
+			{Name: aws.String("CONTENT_REVISION"), Value: aws.String("2")},
+		}},
+	}}}, nil
+}
+
+// The reconciler is the only caller allowed to read build history, so a lost
+// Build ID past the IdempotencyToken lifetime is recovered here (#902).
+func TestHandlerRecoversExpiredStartFromBuildHistory(t *testing.T) {
+	preserveClientGetters(t)
+	t.Setenv("TABLE_NAME", "posts")
+	t.Setenv("CODEBUILD_PROJECT_NAME", "site-project")
+	attemptedAt := time.Now().Add(-10 * time.Minute).UTC().Format(time.RFC3339Nano)
+	dynamoClientGetter = func() (sitebuild.DynamoDBClient, error) {
+		return staleStartDynamoDB{state: sitebuild.State{
+			ID: sitebuild.StateItemID, DesiredRevision: 2, DeployedRevision: 1, ActiveRevision: 2,
+			StartToken: "site-revision-2", Status: sitebuild.StatusStarting, StartedAt: attemptedAt, StartAttemptedAt: attemptedAt,
+		}}, nil
+	}
+	codebuildClient := &historyCodeBuild{}
+	codebuildClientGetter = func() (sitebuild.BuildHistoryClient, error) { return codebuildClient, nil }
+	if err := Handler(context.Background()); err != nil {
+		t.Fatalf("Handler returned error: %v", err)
+	}
+	if codebuildClient.listCalls != 1 || codebuildClient.startCalls != 0 {
+		t.Fatalf("expected history recovery without StartBuild, list=%d start=%d", codebuildClient.listCalls, codebuildClient.startCalls)
 	}
 }
 
@@ -100,9 +165,9 @@ func TestHandlerLogsReconciliationFailuresAndKeepsRetryError(t *testing.T) {
 			readLogs := captureLogs(t)
 			cause := errors.New("dependency unavailable")
 			dynamoClientGetter = func() (sitebuild.DynamoDBClient, error) { return idleDynamoDB{}, nil }
-			codebuildClientGetter = func() (sitebuild.CodeBuildClient, error) { return idleCodeBuild{}, nil }
+			codebuildClientGetter = func() (sitebuild.BuildHistoryClient, error) { return idleCodeBuild{}, nil }
 			if failure == "CodeBuild client" {
-				codebuildClientGetter = func() (sitebuild.CodeBuildClient, error) { return nil, cause }
+				codebuildClientGetter = func() (sitebuild.BuildHistoryClient, error) { return nil, cause }
 			} else {
 				dynamoClientGetter = func() (sitebuild.DynamoDBClient, error) { return unavailableDynamoDB{err: cause}, nil }
 			}

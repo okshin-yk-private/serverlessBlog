@@ -516,6 +516,49 @@ run "build_status_codebuild_read_is_project_scoped" {
   }
 }
 
+run "build_reconciler_history_lookup_is_project_scoped" {
+  command = plan
+  variables {
+    codebuild_project_arn  = "arn:aws:codebuild:ap-northeast-1:123456789012:project/site-build"
+    codebuild_project_name = "site-build"
+  }
+  assert {
+    condition = length([
+      for statement in jsondecode(aws_iam_role_policy.lambda_posts_build_reconciler_codebuild[0].policy).Statement : statement
+      if contains(flatten([statement.Action]), "codebuild:ListBuildsForProject") && statement.Resource == var.codebuild_project_arn && statement.Effect == "Allow"
+    ]) == 1
+    error_message = "The reconciler must be allowed ListBuildsForProject on this project ARN only"
+  }
+  assert {
+    condition = alltrue([
+      for statement in jsondecode(aws_iam_role_policy.lambda_posts_build_reconciler_codebuild[0].policy).Statement :
+      statement.Resource == var.codebuild_project_arn
+    ])
+    error_message = "Every reconciler CodeBuild statement (StartBuild, BatchGetBuilds, ListBuildsForProject) must be scoped to this project ARN"
+  }
+  assert {
+    condition = length([
+      for statement in jsondecode(aws_iam_role_policy.lambda_posts_build_reconciler_codebuild[0].policy).Statement : statement
+      if contains(flatten([statement.Action]), "codebuild:BatchGetBuilds") && statement.Resource == var.codebuild_project_arn
+    ]) == 1
+    error_message = "The reconciler must read build details on this project ARN only"
+  }
+}
+
+run "posts_write_codebuild_is_start_only" {
+  command = plan
+  variables {
+    codebuild_project_arn  = "arn:aws:codebuild:ap-northeast-1:123456789012:project/site-build"
+    codebuild_project_name = "site-build"
+  }
+  assert {
+    condition = jsonencode(sort(distinct(flatten([
+      for statement in jsondecode(aws_iam_role_policy.lambda_posts_write_codebuild[0].policy).Statement : flatten([statement.Action])
+    ])))) == jsonencode(["codebuild:StartBuild"])
+    error_message = "Posts create/update/delete must not receive ListBuildsForProject or BatchGetBuilds; history recovery belongs to the reconciler"
+  }
+}
+
 run "build_status_function_uses_build_status_role" {
   command = apply
 

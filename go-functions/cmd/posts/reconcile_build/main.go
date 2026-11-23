@@ -16,7 +16,7 @@ import (
 )
 
 var dynamoClientGetter = func() (sitebuild.DynamoDBClient, error) { return clients.GetDynamoDB() }
-var codebuildClientGetter = func() (sitebuild.CodeBuildClient, error) { return clients.GetCodeBuild() }
+var codebuildClientGetter = func() (sitebuild.BuildHistoryClient, error) { return clients.GetCodeBuild() }
 
 // Handler accepts both CodeBuild State Change events and scheduled events.
 // The event payload is intentionally not trusted for state transitions; the
@@ -42,7 +42,7 @@ func Handler(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("get CodeBuild client: %w", err)
 	}
-	state, err := sitebuild.NewCoordinator(dynamoClient, codebuildClient, tableName, projectName).Reconcile(ctx)
+	state, err := sitebuild.NewReconcilerCoordinator(dynamoClient, codebuildClient, tableName, projectName).Reconcile(ctx)
 	if err != nil {
 		return err
 	}

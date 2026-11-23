@@ -11,6 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/codebuild v1.79.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.74.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.10
+	github.com/aws/smithy-go v1.28.9
 	github.com/gojp/kana v0.1.0
 	github.com/google/uuid v1.6.0
 	github.com/ikawaha/kagome-dict/ipa v1.2.6
@@ -37,7 +38,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.39.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.52.0 // indirect
-	github.com/aws/smithy-go v1.28.9 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/ikawaha/kagome-dict v1.1.7 // indirect

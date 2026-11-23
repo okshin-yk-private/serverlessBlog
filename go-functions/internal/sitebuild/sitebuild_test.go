@@ -22,6 +22,8 @@ type mockDynamoDB struct {
 	emptyGet     bool
 	updates      []*dynamodb.UpdateItemInput
 	updateErrors []error
+	// liveStartedAt, when set, is the startedAt stored at write time.
+	liveStartedAt *string
 }
 
 func (m *mockDynamoDB) GetItem(_ context.Context, _ *dynamodb.GetItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
@@ -48,30 +50,85 @@ func (m *mockDynamoDB) UpdateItem(_ context.Context, input *dynamodb.UpdateItemI
 	if call < len(m.updateErrors) && m.updateErrors[call] != nil {
 		return nil, m.updateErrors[call]
 	}
+	if m.violatesStartedAtCondition(input) {
+		return nil, &dynamodbtypes.ConditionalCheckFailedException{Message: aws.String("start lock changed")}
+	}
 	return &dynamodb.UpdateItemOutput{}, nil
+}
+
+// violatesStartedAtCondition evaluates "startedAt = :expectedStartedAt"
+// against the item as it exists at write time: liveStartedAt when a test
+// simulates a concurrent lock refresh, otherwise the last state read.
+func (m *mockDynamoDB) violatesStartedAtCondition(input *dynamodb.UpdateItemInput) bool {
+	if m.getCall == 0 || !strings.Contains(aws.ToString(input.ConditionExpression), "startedAt = :expectedStartedAt") {
+		return false
+	}
+	live := m.states[m.getCall-1].StartedAt
+	if m.liveStartedAt != nil {
+		live = *m.liveStartedAt
+	}
+	expected, ok := input.ExpressionAttributeValues[":expectedStartedAt"].(*dynamodbtypes.AttributeValueMemberS)
+	return !ok || live != expected.Value
 }
 
 type mockCodeBuild struct {
 	startInputs []*codebuild.StartBuildInput
 	startOutput *codebuild.StartBuildOutput
 	startErr    error
-	batchOutput *codebuild.BatchGetBuildsOutput
-	batchErr    error
+	// startRetryMaxAttempts records RetryMaxAttempts per StartBuild call.
+	startRetryMaxAttempts []int
+	batchOutput           *codebuild.BatchGetBuildsOutput
+	batchErr              error
+	batchInputs           []*codebuild.BatchGetBuildsInput
+	// builds, when set, answers BatchGetBuilds by ID (history lookups).
+	builds     map[string]codebuildtypes.Build
+	listPages  []*codebuild.ListBuildsForProjectOutput
+	listErr    error
+	listInputs []*codebuild.ListBuildsForProjectInput
 }
 
-func (m *mockCodeBuild) StartBuild(_ context.Context, input *codebuild.StartBuildInput, _ ...func(*codebuild.Options)) (*codebuild.StartBuildOutput, error) {
+func (m *mockCodeBuild) StartBuild(_ context.Context, input *codebuild.StartBuildInput, optFns ...func(*codebuild.Options)) (*codebuild.StartBuildOutput, error) {
 	m.startInputs = append(m.startInputs, input)
+	options := codebuild.Options{}
+	for _, fn := range optFns {
+		fn(&options)
+	}
+	m.startRetryMaxAttempts = append(m.startRetryMaxAttempts, options.RetryMaxAttempts)
 	if m.startErr != nil {
 		return nil, m.startErr
 	}
 	return m.startOutput, nil
 }
 
-func (m *mockCodeBuild) BatchGetBuilds(_ context.Context, _ *codebuild.BatchGetBuildsInput, _ ...func(*codebuild.Options)) (*codebuild.BatchGetBuildsOutput, error) {
+func (m *mockCodeBuild) BatchGetBuilds(_ context.Context, input *codebuild.BatchGetBuildsInput, _ ...func(*codebuild.Options)) (*codebuild.BatchGetBuildsOutput, error) {
+	m.batchInputs = append(m.batchInputs, input)
 	if m.batchErr != nil {
 		return nil, m.batchErr
 	}
+	if m.builds != nil {
+		out := &codebuild.BatchGetBuildsOutput{}
+		for _, id := range input.Ids {
+			if build, ok := m.builds[id]; ok {
+				out.Builds = append(out.Builds, build)
+			} else {
+				out.BuildsNotFound = append(out.BuildsNotFound, id)
+			}
+		}
+		return out, nil
+	}
 	return m.batchOutput, nil
+}
+
+func (m *mockCodeBuild) ListBuildsForProject(_ context.Context, input *codebuild.ListBuildsForProjectInput, _ ...func(*codebuild.Options)) (*codebuild.ListBuildsForProjectOutput, error) {
+	call := len(m.listInputs)
+	m.listInputs = append(m.listInputs, input)
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
+	if call >= len(m.listPages) {
+		return nil, errors.New("unexpected ListBuildsForProject call")
+	}
+	return m.listPages[call], nil
 }
 
 func TestRequestUpdateAtomicallyIncrementsDesiredRevision(t *testing.T) {
@@ -169,38 +226,6 @@ func TestStartPendingQueuesNewestRevisionWhileBuildIsActive(t *testing.T) {
 	}
 }
 
-func TestStartPendingRecoversStaleStartBeforeNewerDesiredRevision(t *testing.T) {
-	now := time.Date(2026, 8, 2, 3, 0, 0, 0, time.UTC)
-	dynamoClient := &mockDynamoDB{states: []State{{
-		ID: StateItemID, DesiredRevision: 3, DeployedRevision: 1,
-		ActiveRevision: 2, StartToken: "site-revision-2", Status: StatusStarting,
-		StartedAt: now.Add(-10 * time.Minute).Format(time.RFC3339Nano),
-	}}}
-	codebuildClient := &mockCodeBuild{startOutput: &codebuild.StartBuildOutput{
-		Build: &codebuildtypes.Build{Id: aws.String("project:build-2")},
-	}}
-	coordinator := NewCoordinator(dynamoClient, codebuildClient, "posts", "site-project")
-	coordinator.now = func() time.Time { return now }
-
-	request, err := coordinator.StartPending(context.Background())
-	if err != nil {
-		t.Fatalf("StartPending returned error: %v", err)
-	}
-	if request.TargetRevision != 3 || request.Status != StatusQueued || request.BuildID != "" {
-		t.Fatalf("newer revision must remain queued during stale-start recovery: %+v", request)
-	}
-	if len(codebuildClient.startInputs) != 1 {
-		t.Fatalf("expected one recovery StartBuild call, got %d", len(codebuildClient.startInputs))
-	}
-	input := codebuildClient.startInputs[0]
-	if aws.ToString(input.IdempotencyToken) != "site-revision-2" || aws.ToString(input.EnvironmentVariablesOverride[0].Value) != "2" {
-		t.Fatalf("must recover the exact active revision: %+v", input)
-	}
-	if condition := aws.ToString(dynamoClient.updates[0].ConditionExpression); !strings.Contains(condition, "startToken = :token") {
-		t.Fatalf("recovery lock must retain the original token: %s", condition)
-	}
-}
-
 func TestStartPendingReturnsConditionalLockWinner(t *testing.T) {
 	conditional := &dynamodbtypes.ConditionalCheckFailedException{Message: aws.String("lost lock")}
 	dynamoClient := &mockDynamoDB{
@@ -224,7 +249,8 @@ func TestStartPendingMarksCodeBuildStartFailure(t *testing.T) {
 	dynamoClient := &mockDynamoDB{states: []State{{
 		ID: StateItemID, DesiredRevision: 2, DeployedRevision: 1, Status: StatusQueued,
 	}}}
-	codebuildClient := &mockCodeBuild{startErr: errors.New("CodeBuild unavailable")}
+	rejection := &codebuildtypes.InvalidInputException{Message: aws.String("bad input")}
+	codebuildClient := &mockCodeBuild{startErr: rejection}
 
 	request, err := NewCoordinator(dynamoClient, codebuildClient, "posts", "site-project").StartPending(context.Background())
 	if err == nil || request.Status != StatusFailed || request.TargetRevision != 2 {
@@ -234,8 +260,17 @@ func TestStartPendingMarksCodeBuildStartFailure(t *testing.T) {
 		t.Fatalf("expected lock and failure updates, got %d", len(dynamoClient.updates))
 	}
 	failureUpdate := dynamoClient.updates[1]
-	if got := failureUpdate.ExpressionAttributeValues[":error"].(*dynamodbtypes.AttributeValueMemberS).Value; got != "CodeBuild unavailable" {
+	if got := failureUpdate.ExpressionAttributeValues[":error"].(*dynamodbtypes.AttributeValueMemberS).Value; got != rejection.Error() {
 		t.Fatalf("unexpected persisted failure: %q", got)
+	}
+	condition := aws.ToString(failureUpdate.ConditionExpression)
+	for _, part := range []string{"#status = :starting", "activeRevision = :revision", "startToken = :token", "attribute_not_exists(activeBuildId)"} {
+		if !strings.Contains(condition, part) {
+			t.Fatalf("failure record must only apply to the caller's own lock (%s): %s", part, condition)
+		}
+	}
+	if got := failureUpdate.ExpressionAttributeValues[":token"].(*dynamodbtypes.AttributeValueMemberS).Value; got != "site-revision-2" {
+		t.Fatalf("failure record must be conditioned on the StartBuild token: %q", got)
 	}
 }
 
