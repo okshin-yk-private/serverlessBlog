@@ -1,6 +1,6 @@
 ---
 name: kiro-workflow
-description: 明示されたkiro仕様作成・設計・タスク実装・検証の依頼を対応手順へ振り分ける。
+description: kiro の仕様駆動開発（spec-init / spec-requirements / spec-design / spec-tasks / spec-impl / spec-status / validate-gap / validate-design / validate-impl / steering / steering-custom）や `.kiro/specs/`・`.kiro/steering/` の更新を明示的に依頼されたときに、該当フェーズの手順へ振り分ける。
 ---
 
 # Kiro workflow

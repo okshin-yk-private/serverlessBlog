@@ -1,10 +1,9 @@
-
 # Terraform Investigation Command
 
 <instructions>
 
 ## Purpose
-Execute Terraform research in a separate context using awslabs.terraform-mcp-server tools.
+Execute Terraform research in a separate context using terraform-mcp-server tools.
 This reduces context accumulation in the main conversation.
 
 ## Execution
@@ -21,17 +20,16 @@ Task tool parameters:
 **Prompt to send to Task tool:**
 
 ```
-You are a Terraform and IaC specialist. Research the following topic using awslabs.terraform-mcp-server tools.
+You are a Terraform and IaC specialist. Research the following topic using terraform-mcp-server tools.
 
 ## Research Topic
 $ARGUMENTS
 
 ## Instructions
-1. Use mcp__awslabs_terraform-mcp-server__SearchAwsProviderDocs for AWS provider resources
-2. Use mcp__awslabs_terraform-mcp-server__SearchAwsccProviderDocs for AWSCC provider resources
-3. Use mcp__awslabs_terraform-mcp-server__SearchUserProvidedModule for registry modules
-4. Use mcp__awslabs_terraform-mcp-server__SearchSpecificAwsIaModules for AWS-IA modules
-5. Synthesize findings into actionable recommendations
+1. Use terraform-mcp-server provider documentation tools to research AWS / AWSCC provider resources and data sources
+2. Use terraform-mcp-server registry module tools to inspect official and community Terraform Registry modules
+3. Cross-check version constraints, deprecations, and existing repository patterns under terraform/
+4. Synthesize findings into actionable recommendations
 
 ## For Error Troubleshooting
 If the topic is an error message:

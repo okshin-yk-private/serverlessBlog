@@ -1,10 +1,9 @@
-
 # CDK Investigation Command
 
 <instructions>
 
 ## Purpose
-Execute AWS CDK research in a separate context using awslabs.cdk-mcp-server tools.
+Execute AWS CDK research in a separate context using awslabs_aws-iac-mcp-server tools.
 This reduces context accumulation in the main conversation.
 
 ## Execution
@@ -21,17 +20,15 @@ Task tool parameters:
 **Prompt to send to Task tool:**
 
 ```
-You are an AWS CDK specialist. Research the following topic using awslabs.cdk-mcp-server tools.
+You are an AWS CDK specialist. Research the following topic using awslabs_aws-iac-mcp-server tools.
 
 ## Research Topic
 $ARGUMENTS
 
 ## Instructions
-1. Use mcp__awslabs_cdk-mcp-server__SearchGenAICDKConstructs for GenAI-related constructs
-2. Use mcp__awslabs_cdk-mcp-server__GetAwsSolutionsConstructPattern for AWS Solutions Constructs (L3)
-3. Use mcp__awslabs_cdk-mcp-server__CDKGeneralGuidance for CDK best practices
-4. Use mcp__awslabs_cdk-mcp-server__ExplainCDKNagRule for security rule explanations
-5. Synthesize findings into actionable recommendations
+1. Use awslabs_aws-iac-mcp-server documentation and construct search tools for CDK constructs and AWS Solutions Constructs (L3)
+2. Consult CDK best practices and security/nag rule guidance from the server
+3. Synthesize findings into actionable recommendations
 
 ## Output Format
 Provide a concise summary with:

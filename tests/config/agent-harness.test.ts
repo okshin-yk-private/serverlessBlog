@@ -270,6 +270,19 @@ describe('harness wiring', () => {
     expect(read('.claude/skills/create-pr/SKILL.md')).toContain(
       'git worktree add .claude/worktrees/<name>'
     );
+    const reviewComments = read('.claude/skills/review-pr-comments/SKILL.md');
+    expect(reviewComments).toContain('git worktree add .claude/worktrees/pr-');
+    expect(reviewComments).not.toContain('git checkout <headRefName>');
+    expect(reviewComments).toContain('bun install --frozen-lockfile');
+    expect(reviewComments).toContain('docs/ai-verification.md');
+    expect(reviewComments).toContain('gh api --paginate --slurp');
+    expect(reviewComments).toContain('isResolved');
+    expect(read('.claude/skills/team-implement/SKILL.md')).toContain(
+      'bun install --frozen-lockfile'
+    );
+    expect(read('.claude/agents/executor.md')).toContain(
+      'bun install --frozen-lockfile'
+    );
   });
 
   test('a develop PR request includes CI follow-through and a merge-queue merge (#745)', () => {
@@ -289,7 +302,11 @@ describe('harness wiring', () => {
     // --auto reserves native auto-merge as the default path; plain mode is the fallback.
     expect(rules).toContain('scripts/ci/enqueue_pr.py <N> --auto');
     expect(skill).toContain('scripts/ci/enqueue_pr.py <PR番号> --auto');
+    expect(skill).toContain('Bash(python3 scripts/ci/enqueue_pr.py *)');
     expect(skill).not.toContain('gh api graphql');
     expect(skill).toContain('`main` 向けはマージしない');
+    expect(rules).not.toContain(
+      'enqueue it (`enqueuePullRequest` with `expectedHeadOid`)'
+    );
   });
 });

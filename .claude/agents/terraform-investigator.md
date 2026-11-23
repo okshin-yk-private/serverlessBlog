@@ -15,7 +15,7 @@ Terraform、IaCパターン、モジュール設計の専門家。
 - 設定パターンの推奨
 
 ## 使用ツール
-- awslabs.terraform-mcp-server: Terraformドキュメント、AWS/AWSCCプロバイダー検索
+- terraform-mcp-server (hashicorp/terraform-mcp-server): Terraformドキュメント、プロバイダー・Registryモジュール検索
 
 ## 実行アプローチ
 

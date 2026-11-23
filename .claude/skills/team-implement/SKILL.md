@@ -1,122 +1,81 @@
 ---
 name: team-implement
-description: 複数のGitHub Issueを並列TDD実装する（Commander + Executor Agent Teams）
+description: 複数の GitHub Issue を Agent Teams（Commander + Executor）で独立 worktree に分けて並列 TDD 実装する。
 argument-hint: <Issue番号1> <Issue番号2> ... [-y]
 disable-model-invocation: true
 ---
 
-# Team Implement: 並列Issue実装ワークフロー
+# Team Implement: 並列 Issue 実装ワークフロー
 
-複数のGitHub Issueを **Agent Teams** で並列にTDD実装するCommanderワークフロー。
-各IssueはExecutor teammateが独立したGit worktreeで実装し、Commanderが全体を統括する。
+複数の GitHub Issue を **Agent Teams** で並列に TDD 実装する Commander ワークフロー。
+各 Issue は Executor teammate が独立した Git worktree で実装し、Commander が依存制御・進捗監視・PR 作成を統括する。
 
 ## 前提
 
-- 引数 `$ARGUMENTS` に1つ以上のIssue番号がスペース区切りで渡される
-- `-y` フラグが付いている場合、実行計画の確認をスキップする
-- 環境変数 `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` が設定済みであること（`.claude/settings.json`）
-- ベースブランチ: `origin/develop`
-- Worktree の作成先: `.claude/worktrees/`（`.gitignore` 済み）
-- Teammate モード: auto（tmux 検出時は split-pane、それ以外は in-process）
+- 引数 `$ARGUMENTS` に 1 つ以上の Issue 番号がスペース区切りで渡される（`-y` があれば実行計画の確認を省略）
+- `.claude/settings.json` で `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` が有効であること
+- ベースブランチ: `origin/develop` / Worktree 作成先: `.claude/worktrees/`（`.gitignore` 済み）
+- 権限エラーや初回セットアップ時は [references/permissions.md](references/permissions.md) を参照する
 
-## Phase 1: Issue情報取得 & コンフリクト分析
+## Phase 1: Issue 情報取得 & コンフリクト分析
 
-### 1a. 全Issueの情報を並列取得
-
-各Issueに対して並列で実行:
+### 1a. 全 Issue の情報を並列取得
 
 ```bash
 gh issue view <Issue番号> --json title,body,number,labels,comments
 ```
 
-各Issueから以下を抽出:
-- タイトル
-- 修正方針
-- 対象ファイル（「対象ファイル」セクションのバッククォート囲みパス）
-- ラベル（`bug` の有無でブランチ名を決定）
+各 Issue からタイトル・修正方針・「対象ファイル」セクションのパス・ラベル（`bug` の有無で `fix/issue-<N>` / `feat/issue-<N>` を決定）を抽出する。
 
-### 1b. コンフリクト検出（Two-Layer）
+### 1b. コンフリクト検出（2 層）
 
-**Layer 1 - 構造化抽出:**
-`scripts/analyze-issue-conflicts.sh` を実行し、Issue本文の「対象ファイル」セクションからファイルパスを抽出する。
+1. **Layer 1（構造化抽出）**:
+   ```bash
+   bash scripts/analyze-issue-conflicts.sh <Issue番号1> <Issue番号2> ...
+   ```
+2. **Layer 2（影響推測）**: Issue 本文・修正方針から、共有パッケージ（`go-functions/internal/domain/`, `poststore/`, `middleware/` 等）、テストヘルパー、設定ファイル（`terraform/modules/*/variables.tf` 等）への波及を推測する。
 
-```bash
-bash scripts/analyze-issue-conflicts.sh <Issue番号1> <Issue番号2> ...
-```
+同一ファイルを複数 Issue が編集する場合は `blockedBy` で逐次実行とし、別ファイルなら並列実行する。
 
-**Layer 2 - AI分析:**
-各Issueの本文・修正方針を読み、「対象ファイル」に明記されていないが影響を受ける可能性のあるファイルを推測する:
-- 共有ユーティリティ（`go-functions/internal/util/` 等）
-- テストヘルパー
-- 設定ファイル（`terraform/modules/*/variables.tf` 等）
-- インポート元のパッケージ
+### 1c. 複雑度評価 & モデル選択
 
-### 1c. コンフリクトマトリクス構築
+手動指定（例: `/team-implement 127:opus 129 130:sonnet`）があれば優先する。未指定なら次の合計スコアで決定する（5 点以上 → `opus`、5 点未満 → `sonnet`）。
 
-全Issueのファイルリスト（Layer 1 + Layer 2）を突き合わせ、コンフリクトマトリクスを作成:
-
-| | Issue A files | Issue B files | Issue C files |
-|---|---|---|---|
-| Conflict? | - | A∩B = {} | A∩C = {posts.go} |
-
-**コンフリクト解決ルール:**
-1. **同一ファイルを複数Issueが編集** → 逐次実行（`blockedBy` 依存）
-2. **同一ディレクトリ、別ファイル** → 並列実行
-3. **完全独立** → 完全並列
-
-### 1d. 複雑度評価 & モデル選択
-
-各Issueの複雑度を評価し、Executor に使用するモデル（Opus / Sonnet）を決定する。
-
-**手動オーバーライド:**
-Issue番号にサフィックスを付与して強制指定可能。手動指定がある場合、スコアリングをスキップする。
-```
-/team-implement 127:opus 129 130:sonnet
-```
-
-**スコアリングルール（手動指定がない場合）:**
-
-| シグナル | ポイント | 判定方法 |
-|---------|---------|---------|
-| ラベル `complexity:high` | +5 (自動Opus) | Issue labels に含まれるか |
-| クロスドメイン変更 | +3 | 対象ファイルが `go-functions/`, `frontend/`, `terraform/`, `.github/` のうち2つ以上にまたがる |
-| 対象ファイル数 >= 6 | +2 | 「対象ファイル」セクションのファイル数 |
-| アーキテクチャキーワード | +2 | Issue本文に refactor, migration, redesign, architecture, breaking change を含む |
-| 複数テストスコープ | +1 | Go + Frontend 等、2つ以上のテストスコープに該当 |
-
-**閾値:** スコア >= 5 → Opus / スコア < 5 → Sonnet（デフォルト）
+| シグナル | 点数 | 判定基準 |
+|---------|------|----------|
+| ラベル `complexity:high` | +5 | Issue labels に含まれる |
+| クロスドメイン変更 | +3 | `go-functions/`, `frontend/`, `terraform/`, `.github/` の 2 領域以上にまたがる |
+| 対象ファイル数 >= 6 | +2 | 「対象ファイル」セクションの件数 |
+| アーキテクチャキーワード | +2 | 本文に `refactor`, `migration`, `redesign`, `architecture`, `breaking change` を含む |
+| 複数テストスコープ | +1 | Go + Frontend 等、2 つ以上のテストスコープに該当 |
 
 ## Phase 2: 実行計画の提示
-
-以下の形式でユーザーに実行計画を提示する:
 
 ```
 ## 実行計画
 
 ### 並列グループ 1（同時実行）
 - #42: <タイトル> → fix/issue-42 [Sonnet]
-  対象: go-functions/internal/handler/posts.go
+  対象: go-functions/cmd/posts/create/main.go
   複雑度スコア: 2
 - #57: <タイトル> → feat/issue-57 [Opus]
-  対象: go-functions/internal/handler/auth.go, terraform/modules/auth/main.tf
-  複雑度スコア: 5 (クロスドメイン+アーキテクチャキーワード)
+  対象: go-functions/internal/auth/authorizer.go, terraform/modules/auth/main.tf
+  複雑度スコア: 5 (クロスドメイン + アーキテクチャキーワード)
 
-### 逐次グループ（#42完了後）
+### 逐次グループ（#42 完了後）
 - #63: <タイトル> → fix/issue-63 [Sonnet]
-  対象: go-functions/internal/handler/posts.go, terraform/modules/api/main.tf
+  対象: go-functions/cmd/posts/create/main.go, terraform/modules/api/main.tf
   複雑度スコア: 3
-  ⚠️ #42とposts.goが競合 → #42完了後に実行
+  ⚠️ #42 と posts/create/main.go が競合 → #42 完了後に実行
 
 最大同時実行: 3 Executors
 ```
 
-`-y` または同じ対象・範囲の実行計画への明示承認があれば継続する。未承認の計画だけ確認する。
+`-y` 指定または同一対象・範囲の事前承認があればそのまま進む。未承認の計画だけユーザーに確認する。
 
-## Phase 3: チーム作成 & TaskList作成
+## Phase 3: チームと TaskList の作成
 
-**重要: Issue数に関係なく（1つでも複数でも）、必ず `TeamCreate` でチームを作成すること。**
-これにより tmux 環境で Executor が別ペインで起動されることが保証される。
-`TeamCreate` を省略すると、Executor が in-process サブエージェントとして実行され、tmux ペインが開かない。
+Issue が 1 件だけでも `TeamCreate` でチームを作成する（チームが無いと in-process 実行になり、tmux の別ペインが開かないため）。
 
 ```
 TeamCreate(
@@ -125,88 +84,28 @@ TeamCreate(
 )
 ```
 
-続けて TaskCreate で各Issueのタスクエントリを作成する。コンフリクトがある場合は `blockedBy` で依存関係を設定する。
+続けて `TaskCreate` で各 Issue のタスクを登録し、競合する Issue には `blockedBy` を設定する。
 
-## Phase 4: Executor Teammateの生成
+## Phase 4: Executor Teammate の逐次起動
 
-**ブロックされていないタスクから順に**、Executor teammateを **1つずつ逐次生成** する。
+ブロックされていないタスクから最大 3 体まで Executor を起動する。
+Claude Code の tmux ペイン作成は並列呼び出しだとプロンプト送信が欠落する競合を起こすため、**1 ターンにつき 1 回の `Task()`** として必ず `team_name` と `isolation="worktree"` を指定し、前の Executor の idle 通知または初回応答を受け取ってから次を起動する。
 
-> **CRITICAL: 複数のTask()を同一メッセージで呼び出してはならない（並列Tool Call禁止）。**
-> Claude CodeのtmuxペインはTask()ごとに逐次作成される必要があり、並列呼び出しはペインが開いても
-> プロンプトが自動送信されないレースコンディションを引き起こす。
-
-**重要: 必ず `team_name` パラメータを指定すること。** `team_name` がないと通常のサブエージェントとして実行され、tmux ペインが開かない。
-
-各Executorの生成時に渡す情報。Phase 1dで決定したモデルに応じてTask()の引数を変える:
+- **起動手順**: Executor 1 起動 → idle 待機 → `sleep 3` → Executor 2 起動 → idle 待機 → `sleep 5` → Executor 3 起動 → 最大 90 秒 idle 待機
+- **3 体目が 90 秒タイムアウトした場合**: [references/recovery.md](references/recovery.md) の段階的リカバリ手順に従う
+- **モデル指定**: Opus 選択時のみ `model="opus"` を渡す（省略時は `executor.md` の `sonnet` が使われる）
 
 ```
-# Opus選択時 (スコア >= 5 または手動 :opus 指定)
 Task(
   subagent_type="executor",
   team_name="team-implement-<Issue番号をハイフン区切り>",
   isolation="worktree",
-  model="opus",
+  # Opus 選択時のみ: model="opus",
   prompt="""
-  あなたはExecutor Agentです。以下のGitHub Issueを TDD で実装してください。
-  ... (下記共通プロンプト参照)
-  """
-)
+  あなたは Executor Agent です。以下の GitHub Issue を TDD で実装してください。
 
-# Sonnet選択時 (スコア < 5, デフォルト)
-Task(
-  subagent_type="executor",
-  team_name="team-implement-<Issue番号をハイフン区切り>",
-  isolation="worktree",
-  prompt="""
-  あなたはExecutor Agentです。以下のGitHub Issueを TDD で実装してください。
-  ... (下記共通プロンプト参照)
-  """
-)
-# model省略 → executor.md の model: sonnet が適用される
-```
-
-**逐次生成プロトコル（必須）:**
-
-1. Executor 1 のTask()を呼び出す（**単独のメッセージで**）
-2. Executor 1 からのidle通知または最初のメッセージを受信するまで待機する
-3. `sleep 3`（tmuxペイン安定化待ち）
-4. Executor 2 のTask()を呼び出す（**新しい単独メッセージで**）
-5. Executor 2 からのidle通知または最初のメッセージを受信するまで待機する
-6. `sleep 5`（tmuxペイン安定化待ち — 3つ目はレースコンディションが発生しやすいため長めに待機）
-7. Executor 3 のTask()を呼び出す（**新しい単独メッセージで**）
-8. Executor 3 からのidle通知を**最大90秒**待機する
-9. 90秒以内にidle通知を受信 → 正常（Phase 5へ進む）
-10. 90秒タイムアウト → **Phase 4a 自動リカバリ** を実行
-
-```
-# ❌ DO NOT: 同一ターンで複数のTask()を呼び出す
-Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #42 ...")
-Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #57 ...")
-# → tmuxレースコンディション: 2つ目のペインが開くがプロンプトが送信されない
-
-# ✅ DO: ターンを分離して1つずつ呼び出し、段階的にsleepを挟む
-# --- ターン1 ---
-Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #42 ...")
-# → Executor 1 からの idle通知を待つ
-# --- sleep 3 ---
-Bash(command="sleep 3")
-# --- ターン2 ---
-Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #57 ...")
-# → Executor 2 からの idle通知を待つ
-# --- sleep 5 ---
-Bash(command="sleep 5")
-# --- ターン3 ---
-Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #63 ...")
-# → Executor 3 からの idle通知を最大90秒待機 → タイムアウト時はPhase 4aへ
-```
-
-**共通プロンプト:**
-
-```
-  あなたはExecutor Agentです。以下のGitHub Issueを TDD で実装してください。
-
-  ## Issue情報
-  Issue番号: #<N>
+  ## Issue 情報
+  Issue 番号: #<N>
   タイトル: <title>
   本文:
   <body>
@@ -215,160 +114,53 @@ Task(subagent_type="executor", team_name="team-impl-42-57", prompt="Issue #63 ..
   <comments>
 
   ## 実装ルール
-  1. ブランチ名: <fix/issue-N or feat/issue-N>
-  2. ベースブランチ: origin/develop
-  3. 動作変更はTDD: RED → GREEN → REFACTOR。静的変更は共有検証ルールに従う。
-  4. commitが依頼範囲に含まれる場合だけConventional Commitsでコミット
-  5. 検証は docs/ai-verification.md の変更範囲別コマンドを使う。
-     動作変更には回帰テスト、静的変更には適切な構文・参照検証を行う。
-  6. 修正したファイルのフォーマットを確認する。
-  7. **pushが承認されている場合は事前にCodexレビューを試行**:
+  1. ブランチ名: <fix/issue-N or feat/issue-N>（ベース: origin/develop）
+  2. worktree の初回コミット前にルートで `bun install --frozen-lockfile` を実行し、husky フック（`.husky/_`）を有効化する。
+  3. 動作変更は TDD（RED → GREEN → REFACTOR）、静的変更は `docs/ai-verification.md` の構文・参照検証に従う。
+  4. commit が依頼範囲に含まれる場合だけ Conventional Commits でコミットする。
+  5. 変更範囲に対応する検証コマンドとフォーマット確認を完了させる。
+  6. push が承認されている場合は事前に Codex レビューを試行する:
      - 変更ファイル取得: `git diff --name-only origin/develop...HEAD`
      - レビュー実行: `Skill("codex:review", "<files> --focus all")`
-     - HIGH/MEDIUM指摘 → 根拠を確認し、範囲内の修正・該当検証・再レビューを行う。未解決なら報告し、レビュー済みとしてpushしない。
-     - MCP利用不可ならReview: SKIPPEDと報告する。必須チェックが通り、pushが承認済みなら続行可能。
-  8. pushが依頼範囲に含まれる場合だけ、完了後に対象ブランチをpushする。
+     - HIGH / MEDIUM 指摘は根拠を確認し、範囲内の修正・再検証・再レビューを行う。未解決なら報告し、レビュー済みとして push しない。
+     - MCP 利用不可なら `Review: SKIPPED` と報告する。必須チェックが通り push が承認済みなら続行可能。
+  7. push が依頼範囲に含まれる場合だけ対象ブランチを push する。
 
   ## 完了報告形式
-  以下の形式で報告:
-  - Issue番号とタイトル
-  - ブランチ名
-  - 変更ファイル一覧
-  - テスト結果（件数、成否）
-  - レビュー結果（APPROVED / FIXED / SKIPPED）
-  - コミット一覧
-```
-
-**Phase 4a: Post-Spawn自動リカバリ（3つ目のExecutorがタイムアウトした場合）**
-
-Phase 4のステップ10でタイムアウトが発生した場合、以下の段階的なリカバリを実行する。
-
-**Layer 2: SendMessageによる起動確認**
-```
-# Step 1: Executor 3 に作業指示を再送
-SendMessage(
-  type="message",
-  recipient="executor-3",
-  content="作業を開始してください。タスクリストを確認し、自分に割り当てられたタスクを実装してください。",
-  summary="Executor 3 に起動リマインドを送信"
-)
-# Step 2: 60秒待機
-Bash(command="sleep 60")
-# Step 3: TaskListでExecutor 3のタスク状態を確認
-TaskList()
-# → タスクが in_progress になっていれば成功 → Phase 5へ進む
-# → まだ pending のままならLayer 3へ
-```
-
-**Layer 3: 対象を確認できない場合は手動復旧**
-
-Agent Teamsのメッセージ送信とタスク状態の再確認で復旧しなければ、
-対象Executor名と状態を報告する。最大pane indexから対象を推測しない。
-このワークフローではtmuxへのキー送信を自動実行しない。
-Enterは入力途中のコマンド実行や確認画面の承認になる可能性がある。
-
-将来自動復旧を実装する場合は、起動時に保存したpane IDとExecutorのプロセスの
-対応、現在の入力状態を検証する必要がある。対応が不明なら自動操作を止める。
-他のExecutorの進行は妨げない。
-
-**最終フォールバック:**
-メッセージによる復旧に失敗した場合、対象ペインをユーザーが確認してから手動介入する:
-```
-AskUserQuestion(
-  questions=[{
-    question="Executor 3 が起動していません。対象ペインと入力内容を確認して手動で再開してください。",
-    header="手動介入",
-    options=[
-      {label: "実行済み", description: "Ctrl+J Enter を手動で実行した"},
-      {label: "キャンセル", description: "Executor 3 の起動を諦める"}
-    ],
-    multiSelect: false
-  }]
+  - Issue 番号とタイトル / ブランチ名 / 変更ファイル一覧 / テスト結果（件数・成否） / レビュー結果（APPROVED / FIXED / SKIPPED） / コミット一覧
+  """
 )
 ```
 
-**制約:**
-- 最大同時Executor数: **3**（API rate limit考慮）
-- 各Executorは `isolation: "worktree"` で独立したworktreeで動作
-- **Executor生成は必ず逐次実行**: 同一ターンでの複数Task()呼び出し禁止
-- **生成間隔**: 前のExecutorからidle通知を受信し、`sleep` で安定化待ちをしてから次を生成（tmuxレースコンディション回避）
-- **Post-spawn verification**: 3つ目のExecutorは90秒のidle通知待機後、Phase 4aの自動リカバリを実行
-- 自動復旧のためにtmux操作権限を追加しない。権限不足は許可済みの手段で対応する。
+## Phase 5: 進捗監視 & 後続タスクの起動
 
-### Worktree Executor権限要件
+- `TaskList` を確認し、前提タスクが完了した `blockedBy` タスクがあれば、Phase 4 と同じく 1 体ずつ逐次起動する
+- 全タスクが終了するまで監視を続ける
 
-Worktree分離モード（`isolation: "worktree"`）のExecutorは、`.claude/settings.local.json` の `permissions.allow` ホワイトリストを継承する。以下のBashコマンドパターンが `permissions.allow` に登録されている必要がある:
+## Phase 6: PR 作成と auto-merge 予約
 
-**Git操作（必須）:**
-- `Bash(git fetch:*)` - リモートブランチ取得
-- `Bash(git checkout:*)` - ブランチ作成・切り替え
-- `Bash(git push:*)` - リモートへのプッシュ
-- `Bash(git stash:*)` - 変更の一時退避
-- `Bash(git status:*)` - 状態確認
-- `Bash(git diff:*)` - 差分確認
-- `Bash(git log:*)` - ログ確認
-- `Bash(git branch:*)` - ブランチ管理
-- `Bash(git commit:*)` - コミット
-- `Bash(git add:*)` - ステージング
-
-**ビルド・テスト（プロジェクト依存）:**
-- `Bash(go test:*)` - Goテスト
-- `Bash(gofmt:*)` - Goフォーマット
-- `Bash(go mod:*)` - Goモジュール管理
-- `Bash(go install:*)` - Goツールインストール
-- `Bash(terraform fmt:*)` - Terraformフォーマット
-- `Bash(terraform init:*)` - Terraform初期化
-- `Bash(terraform validate:*)` - Terraform検証
-- `Bash(bun run test:*)` - フロントエンドテスト
-- `Bash(bun install:*)` - 依存関係インストール
-- `Bash(bun run format:check:*)` - フォーマットチェック
-
-**PR作成:**
-- `Bash(gh pr:*)` - GitHub PR操作
-
-**Commander用（Post-Spawnリカバリ）:**
-- `Bash(sleep:*)` - Executor生成間隔の待機・リカバリ待機
-
-**フォールバック戦略:**
-権限不足によりExecutorが失敗した場合、Commanderが逐次実装にフォールバックする。エラーログに「Bashツールが拒否」等のメッセージが含まれる場合は、`settings.local.json` のパーミッション設定を確認すること。
-
-## Phase 5: 進捗監視 & 逐次タスクのアンブロック
-
-- TaskListを定期的に確認し、完了したタスクを検出
-- ブロックされていたタスク（`blockedBy`）の前提が完了したら、新しいExecutorを生成
-  - 新しいExecutorを生成する際も **Phase 4の逐次生成プロトコルを遵守** すること（並列Task()禁止）
-- 全タスクが完了するまで監視を継続
-
-## Phase 6: PR作成
-
-PR作成が依頼範囲に含まれる場合、各完了Issueに対して `gh pr create` を実行:
+PR 作成が依頼範囲に含まれる場合、`docs/ai-shared-rules.md` および `.claude/skills/create-pr/SKILL.md` に従って各完了 Issue の PR を作成する（本文は一時ファイルに書き `--body-file` で渡す）。
 
 ```bash
 gh pr create \
   --base develop \
   --head <branch-name> \
   --title "<type>(<scope>): <summary>" \
-  --body "$(cat <<'EOF'
-## Related Issue
-Closes #<Issue番号>
-
-## Summary
-<変更内容の要約>
-
-## Test plan
-<テストの実行方法>
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code) Agent Teams
-EOF
-)"
+  --body-file <body-file>
 ```
 
-CI確認まで依頼されていれば、現在のhead SHAの必要jobが終了するまで追跡する。
+依頼が「PR だけ」「マージしない」「draft」でなく `develop` 向けであれば、PR 作成直後に auto-merge を予約する（無効時のフォールバックは `.claude/skills/create-pr/SKILL.md` に従う）。
+
+```bash
+python3 scripts/ci/enqueue_pr.py <PR番号> --auto
+```
+
 実行中・未実施・ブロックされた検証は成功として報告しない。
 
-## Phase 7: サマリーレポート
+## Phase 7: サマリーレポートとエラーハンドリング
 
-全Issueの実装結果を以下の形式で報告:
+- Executor が失敗した Issue は `FAILURE`、push 時競合は `CONFLICT` として記録し、他 Issue の進行は止めない。全件失敗時はエラー詳細をまとめてユーザーに報告する。
+- 完了時は次の形式で報告する:
 
 ```
 ## Team Implement 完了レポート
@@ -376,23 +168,10 @@ CI確認まで依頼されていれば、現在のhead SHAの必要jobが終了�
 | Issue | タイトル | モデル | ステータス | ブランチ | PR |
 |-------|---------|--------|-----------|---------|-----|
 | #42 | Fix posts handler | Sonnet | ✅ SUCCESS | fix/issue-42 | #XXX |
-| #57 | Add auth feature | Opus | ✅ SUCCESS | feat/issue-57 | #YYY |
-| #63 | Fix posts & API | Sonnet | ✅ SUCCESS | fix/issue-63 | #ZZZ |
 
 ### コンフリクト解決
-- #63は#42完了後に逐次実行（posts.go競合）
+- #63 は #42 完了後に逐次実行（posts/create/main.go 競合）
 
 ### 統計
-- 総Issue数: 3
-- 成功: 3 / 失敗: 0
-- 並列実行: 2グループ
-- 総PR数: 3
-- モデル別: Opus 1件 / Sonnet 2件
+- 総 Issue 数: N / 成功: X / 失敗: Y / 総 PR 数: Z
 ```
-
-## エラーハンドリング
-
-- **Executor失敗時**: 失敗したIssueのステータスを `FAILURE` としてレポートに記載。他のIssueの実装は継続する
-- **コンフリクト検出漏れ**: Executorがpush時にコンフリクトが発生した場合、そのIssueを `CONFLICT` としてレポートに記載
-- **Executor生成順序**: Phase 4の逐次生成プロトコルを参照（tmuxレースコンディション対策）
-- **全Executor失敗**: エラー詳細をまとめてユーザーに報告し、手動対応を促す

@@ -149,7 +149,8 @@ describe('agent workflow integration', () => {
       join(skillRoot, name, 'SKILL.md')
     );
     const diagrams = join(repo, '.claude/skills/terraform-to-drawio/SKILL.md');
-    const pending = [...entrypoints, diagrams];
+    const teamImpl = join(repo, '.claude/skills/team-implement/SKILL.md');
+    const pending = [...entrypoints, diagrams, teamImpl];
     const visited = new Set<string>();
     while (pending.length) {
       const file = pending.pop()!;
@@ -174,6 +175,67 @@ describe('agent workflow integration', () => {
         readFileSync(join(repo, '.claude/skills', name, 'SKILL.md'), 'utf8')
       ).toContain('disable-model-invocation: true');
     }
+    for (const name of [
+      'create-issue',
+      'create-pr',
+      'implement-issue',
+      'review-pr-comments',
+      'terraform-to-drawio',
+    ]) {
+      const sharedSkill = readFileSync(
+        join(repo, '.claude/skills', name, 'SKILL.md'),
+        'utf8'
+      );
+      expect(sharedSkill).not.toContain('CLAUDE.md');
+      expect(sharedSkill).not.toContain('Co-Authored-By: Claude Opus');
+    }
+    expect(
+      readFileSync(join(repo, '.claude/agents/executor.md'), 'utf8')
+    ).not.toContain('Co-Authored-By: Claude Opus');
+    const commitCmd = readFileSync(
+      join(repo, '.claude/commands/commit.md'),
+      'utf8'
+    );
+    expect(commitCmd).not.toContain('Co-Authored-By: Claude Opus');
+    expect(commitCmd).not.toContain('変更があれば `git add .` でステージング');
+    for (const root of [skillRoot, join(repo, '.claude/skills')]) {
+      for (const name of readdirSync(root)) {
+        const skillFile = join(root, name, 'SKILL.md');
+        const body = readFileSync(skillFile, 'utf8');
+        const match = body.match(/^---\n([\s\S]*?)\n---/);
+        expect(match).not.toBeNull();
+        const parsed = Bun.YAML.parse(match![1]) as Record<string, unknown>;
+        expect(typeof parsed.name).toBe('string');
+        expect(typeof parsed.description).toBe('string');
+        expect((parsed.description as string).length).toBeLessThanOrEqual(1024);
+      }
+    }
     expect(existsSync(join(skillRoot, 'team-implement'))).toBe(false);
+  });
+
+  test('repository MCP config and non-kiro commands stay in sync with .ai/ sources', () => {
+    const result = sync(repo, ['--check']);
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+    for (const file of [
+      '.ai/mcp.json',
+      '.mcp.json',
+      '.codex/config.toml',
+      '.claude/commands/investigate-aws.md',
+      '.claude/commands/investigate-terraform.md',
+      '.claude/commands/investigate-cdk.md',
+      '.codex/prompts/investigate-aws.md',
+      '.codex/prompts/investigate-terraform.md',
+      '.codex/prompts/investigate-cdk.md',
+      '.claude/agents/terraform-investigator.md',
+      '.claude/agents/cdk-investigator.md',
+    ]) {
+      const content = readFileSync(join(repo, file), 'utf8');
+      expect(content).not.toContain('awslabs.cdk-mcp-server');
+      expect(content).not.toContain('awslabs_cdk-mcp-server');
+      expect(content).not.toContain('awslabs.terraform-mcp-server');
+      expect(content).not.toContain('awslabs_terraform-mcp-server');
+      expect(content).not.toContain('aws-knowledge-mcp-server');
+    }
   });
 });
