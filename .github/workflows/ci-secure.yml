@@ -670,7 +670,7 @@ jobs:
 
       - name: Run Checkov Security Scan
         id: checkov
-        uses: bridgecrewio/checkov-action@3f0caf0c3aa9f56ade6b49f6e60b63aaeafb75a3 # v12.3141.0
+        uses: bridgecrewio/checkov-action@b17b606d6ec72bb8ba5721ad5b7e340b80a9fc39 # v12.3142.0
         with:
           directory: terraform
           config_file: terraform/.checkov.yaml
@@ -697,7 +697,7 @@ jobs:
         # Code Scanning API rate limit can fail this step when many Dependabot PRs
         # run concurrently. SARIF visibility is best-effort, so don't fail the job.
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
         with:
           sarif_file: results.sarif
           category: checkov-terraform
